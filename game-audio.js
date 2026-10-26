@@ -126,6 +126,8 @@
         case 'hit': burst(500, 1, .4, .002, .15, 'lowpass');break;
         case 'cheer': for (let i = 0; i < 6; i++) tone(rand(300, 700), rand(400, 900), .04, .05, .4, 'sawtooth', t + i * .05);break;
         case 'starter': tone(220, 320, .08, .02, .5, 'square');break;
+        case 'sniff': burst(3200, .8, .35, .18, .35);burst(5200, 1, .18, .1, .25, 'bandpass', t + .05);break;
+        case 'needle': burst(4000, 6, .1, .001, .03);for (let i = 0; i < 4; i++) {tone(62, 48, .55, .01, .16, 'sine', t + .35 + i * .55);tone(58, 44, .35, .01, .14, 'sine', t + .55 + i * .55);}break;
         case 'crash': burst(220, .7, 1, .003, 1.4, 'lowpass');burst(1600, .6, .5, .002, .7);tone(70, 30, .6, .003, .9);for (let i = 0; i < 6; i++) burst(rand(2500, 6000), 3, .15, .001, .08, 'bandpass', t + .1 + i * rand(.05, .14));break;
         case 'arm': tone(880, 880, .05, .005, .07, 'square');tone(1320, 1320, .05, .005, .1, 'square', t + .12);break;
       }
@@ -194,7 +196,13 @@
         stop() {const tt = now();g.gain.setTargetAtTime(0, tt, .1);wG.gain.setTargetAtTime(0, tt, .1);setTimeout(() => {motors.forEach(m => {try {m.o.stop();} catch {}});try {wash.stop();} catch {}}, 800);}
       };
     }
-    return {resume, ambience, footstep, sfx, engine, fire, get context() {return ctx;}};
+    // Bullet time: the world sounds muffled and low (a low-pass on everything except the music).
+    let muffleF = null;
+    function muffle(on) {
+      if (!init()) return;if (!muffleF) {muffleF = ctx.createBiquadFilter();muffleF.type = 'lowpass';muffleF.frequency.value = 20000;master.disconnect();master.connect(muffleF).connect(ctx.destination);}
+      muffleF.frequency.setTargetAtTime(on ? 700 : 20000, now(), .25);
+    }
+    return {resume, ambience, footstep, sfx, engine, fire, muffle, get context() {return ctx;}};
   }
   return {create};
 });

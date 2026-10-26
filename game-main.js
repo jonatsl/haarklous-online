@@ -56,7 +56,14 @@
   const towerObstacles = t => t.stair.obstacles().map(o => ({points: o.points.map(p => xf(t.matrix, p.x, p.z)), minY: o.minY + t.matrix.elements[13], maxY: o.maxY + t.matrix.elements[13], kind: 'tower'}));
   // Firepit with five benches in the park in front of the building (the fire level is shared in multiplayer).
   const FIRE_POS = {x: -2.7, z: 34.7}, fire = window.GameFire.create({T, lib, heightAt: world.heightWorld, x: FIRE_POS.x, z: FIRE_POS.z});scene.add(fire.group);
-  const staticObstacles = [...apt.obstacles, ...towers.flatMap(towerObstacles), ...world.obstacles(), ...fire.obstacles];
+  // Three hidden stashes (issue #2): the top landing of a neighbour's stairwell, the courtyard behind the building and the
+  // bushes in the park north of the block. Each crate has lines to snort and a syringe: a random 30-second boost.
+  const stash = (() => {
+    const t = towers.filter(x => !x.own)[4], top = new T.Vector3(.1, 0, 5.38).applyMatrix4(t.matrix), e = t.matrix.elements;
+    const at = (name, x, z, yaw) => ({name, x, z, y: world.heightWorld(x, z), yaw});
+    return window.GameStash.create({T, lib, places: [{name: 'stairwell', x: top.x, y: top.y, z: top.z, yaw: Math.atan2(e[8], e[0])}, at('courtyard', -2.8, -41.7, .4), at('park', 104.5, 162.2, 1.2)]});
+  })();scene.add(stash.group);
+  const staticObstacles = [...apt.obstacles, ...towers.flatMap(towerObstacles), ...world.obstacles(), ...fire.obstacles, ...stash.obstacles];
   const walkFloors = [...apt.floors, ...towers.flatMap(towerFloors), world.terrainFloor()];
   const walkWorld = collision.createWorld({floors: walkFloors, obstacles: staticObstacles, radius: .18, clearance: .08});
   const vehicleWorlds = new Map();
@@ -69,6 +76,7 @@
   const shootTargets = [];[apt.group, ownStair.group].forEach(g => g.traverse(o => {if (o.isMesh && !(o.material.transparent) && o.visible) shootTargets.push(o);}));
   const interactables = [];[apt.group, ...towers.map(t => t.stair.group)].forEach(g => g.traverse(o => {if (o.isMesh && (o.userData.doorId || o.userData.lockedDoor)) interactables.push(o);}));
   apt.drinks.forEach(d => d.object.traverse(o => {if (o.isMesh) {o.userData.drink = d;interactables.push(o);}}));
+  interactables.push(...stash.hitboxes);
 
   // ---------- Vehicles ----------
   const toWorld = world.toWorld, heightAt = world.heightWorld;
@@ -203,6 +211,7 @@
       sensitivity: {min: .25, max: 3, get: () => ({...sensitivity}), set: setSens, step: (k, d) => setSens(k, sensitivity[k] + d * .1)},
       spawnAreas: () => apt.spawnAreas, stairSpawns, missionStart,
       entrance: () => {const d = apt.doors.find(d => d.name === 'Entrance door');return d ? d.leaf.getWorldPosition(new T.Vector3()) : {x: 1.66, z: 5.83};},
+      timeScale: () => worldScale(),
       setPose: (x, z, yaw, tilt, y) => place(x, z, yaw, y), enterWalk: () => {}, enterImmersive: () => {},
       leave: () => {const yaw = player.yaw;place(player.x, player.z, yaw, player.feet);updateDynamic();notice(inApartment() ? 'Mission over – you are home. Make yourself comfortable.' : 'Mission over.', 4);}});
   }
@@ -259,6 +268,7 @@
     {const o = lookTarget();if (o?.userData.doorId) {const d = doors.find(d => d.id === o.userData.doorId);if (d) return {text: `□ ${d.open ? 'Close' : 'Open'} ${d.name.toLowerCase()}`, act: () => toggleDoor(d)};}}
     if (Math.hypot(player.x - MISSION_MARK.x, player.z - MISSION_MARK.z) < 1.6 && Math.abs(player.feet - world.heightWorld(MISSION_MARK.x, MISSION_MARK.z)) < 2) return {text: '□ Start mission: rescue the hostage (4th floor)', act: () => startMission()};
     const fp = firePrompt();if (fp) return fp;
+    const sp = stashPrompt();if (sp) return sp;
     const v = nearestVehicle();
     if (v) {
       const i = vehicles.indexOf(v), drv = mp.occupant(i, 'd'), pas = mp.occupant(i, 'p'), canRide = !!v.hipAnchor('p');
@@ -303,6 +313,22 @@
   }
   // Firepit: throw logs, take a beer, sit on the benches.
   let beerT = 0;
+  // ---------- Stash boosts (30 s, random): 3× running speed, 3× jump height or bullet time ----------
+  const BOOSTS = {speed: '⚡ 3× running speed', jump: '🦘 3× jump height', slowmo: '⏳ Bullet time – the world slows down'};
+  let boost = null;
+  const boostIs = k => !!boost && boost.kind === k;
+  const worldScale = () => boostIs('slowmo') ? .35 : 1;
+  function stashPrompt() {
+    if (player.mode !== 'foot') return null;
+    const o = lookTarget(), it = o?.userData.stashItem || stash.nearest(player, player.feet);if (!it) return null;
+    if (!it.ready) return {text: 'Nothing left here – come back later', act: () => {}};
+    return {text: it.kind === 'line' ? '□ Snort a line' : '□ Use the needle', act: () => takeBoost(it)};
+  }
+  function takeBoost(it) {
+    stash.use(it);const kinds = Object.keys(BOOSTS), kind = kinds[Math.floor(Math.random() * kinds.length)];
+    boost = {kind, t: 30};audio.sfx(it.kind === 'line' ? 'sniff' : 'needle');audio.muffle(kind === 'slowmo');
+    notice(`${BOOSTS[kind]} for 30 seconds!`, 4);
+  }
   function firePrompt() {
     const near = (p, r) => Math.hypot(player.x - p.x, player.z - p.z) < r && Math.abs(player.feet - fire.center.y) < 1.5;
     if (near(fire.woodpile, 1.9)) return {text: `□ Throw a log on the fire (fire ${Math.round(mp.fireLevel() / fire.MAX * 100)} %)`, act: () => addLog()};
@@ -444,6 +470,8 @@
     }
     // Drunk effect: decays in real time.
     drunk = Math.max(0, drunk - dt);const dl = drunkLevel();
+    if (boost && (boost.t -= dt) <= 0) {boost = null;audio.muffle(false);notice('The boost wears off.', 2);}
+    const wdt = dt * worldScale();stash.update(dt);
     if (player.mode === 'vehicle') updateVehicle(dt, input, dl);
     else if (player.mode === 'passenger') updatePassenger(dt, input, dl);
     else if (player.mode === 'sit') updateSit(dt, input, dl);
@@ -452,9 +480,9 @@
     else updateFoot(dt, input, dl);
     // Other vehicles: parked ones idle (far ones are hidden and skipped), ones driven by other players are posed by the lobby.
     cullT -= dt;if (cullT <= 0) {cullT = .4;for (const v of vehicles) {const near = Math.hypot(v.x - camera.position.x, v.z - camera.position.z) < 170;v.group.visible = near || v === player.vehicle;}if (vehicles.some((v, i) => mp.remoteDriven(i))) updateDynamic();}
-    vehicles.forEach((v, i) => {if (v === player.vehicle && player.mode === 'vehicle') return;if (mp.remoteDriven(i)) return;if (!v.group.visible && Math.abs(v.speed || 0) < .01 && !v.aircraft) return;v.update(dt, {});});
+    vehicles.forEach((v, i) => {if (v === player.vehicle && player.mode === 'vehicle') return;if (mp.remoteDriven(i)) return;if (!v.group.visible && Math.abs(v.speed || 0) < .01 && !v.aircraft) return;v.update(wdt, {});});
     beerT = Math.max(0, beerT - dt);mp.update(dt);
-    {const fl = mp.fireLevel();fire.update(dt, fl, camera);fireSoundT -= dt;if (fireSoundT <= 0) {fireSoundT = .25;const d = Math.hypot(player.x - FIRE_POS.x, player.z - FIRE_POS.z);audio.fire(fl, Math.max(0, 1 - d / 28));}}
+    {const fl = mp.fireLevel();fire.update(wdt, fl, camera);fireSoundT -= dt;if (fireSoundT <= 0) {fireSoundT = .25;const d = Math.hypot(player.x - FIRE_POS.x, player.z - FIRE_POS.z);audio.fire(fl, Math.max(0, 1 - d / 28));}}
     // Door animations.
     let doorsChanged = false;
     for (const d of doors) if (d.anim) {d.anim.t = Math.min(1, d.anim.t + dt * 2.2);const e = d.anim.t < .5 ? 2 * d.anim.t * d.anim.t : 1 - Math.pow(-2 * d.anim.t + 2, 2) / 2;setDoor(d, d.anim.from + (d.anim.to - d.anim.from) * e);if (d.anim.t >= 1) {d.open = d.anim.to === 1;d.anim = null;doorsChanged = true;}}
@@ -474,7 +502,7 @@
     player.pitch = Math.max(-1.5, Math.min(1.5, player.pitch - input.mouse.dy * mouseScale - curve(input.look.y) * 1.9 * padScale * dt));
     // Buttons: ✕ jump, ○ tap crouch / hold prone, □ interact, L3 run toggle.
     if (!caseGame?.active || caseGame.state === 'play') {
-      if (input.pressed.has('cross')) {if (player.stance !== 'stand') setStance('stand');else if (!player.jumpY && !player.jumpV) {player.jumpV = 3.1;audio.footstep('grass', false, .4);}}
+      if (input.pressed.has('cross')) {if (player.stance !== 'stand') setStance('stand');else if (!player.jumpY && !player.jumpV) {player.jumpV = 3.1 * (boostIs('jump') ? Math.sqrt(3) : 1);audio.footstep('grass', false, .4);}}
       if (input.pressed.has('circle')) {player.circleAt = performance.now();player.circleHeld = false;}
       if (player.circleAt) {if (!input.held.circle) {if (!player.circleHeld) setStance(player.stance === 'crouch' ? 'stand' : 'crouch');player.circleAt = null;} else if (!player.circleHeld && performance.now() - player.circleAt > 320) {player.circleHeld = true;setStance(player.stance === 'prone' ? 'stand' : 'prone');}}
       if (input.pressed.has('prone')) setStance(player.stance === 'prone' ? 'stand' : 'prone');
@@ -488,7 +516,7 @@
     const mag = Math.min(1, Math.hypot(mx, my));
     if (canMove && mag > .05) {
       const running = player.stance === 'stand' && (player.run || (!caseGame?.active && !photo.active && input.r2 > .3) || input.held.l3);
-      const speed = (running ? 3.6 : 1.45) * stanceSpeed() * (caseGame?.active ? caseGame.moveScale() : 1) * (1 - dl * .25), fwd = -my, right = mx;
+      const speed = (running ? 3.6 : 1.45) * stanceSpeed() * (caseGame?.active ? caseGame.moveScale() : 1) * (1 - dl * .25) * (boostIs('speed') ? 3 : 1), fwd = -my, right = mx;
       const dx = (-Math.sin(player.yaw) * fwd + Math.cos(player.yaw) * right) * speed * dt, dz = (-Math.cos(player.yaw) * fwd - Math.sin(player.yaw) * right) * speed * dt;
       const bx = player.x, bz = player.z;move(dx, dz);
       player.stride += Math.hypot(player.x - bx, player.z - bz);
@@ -501,7 +529,7 @@
     const sway = dl ? {r: Math.sin(performance.now() / 1300) * .09 * dl, y: Math.sin(performance.now() / 1700) * .05 * dl, p: Math.sin(performance.now() / 900) * .03 * dl} : {r: 0, y: 0, p: 0};
     camera.position.set(player.x, player.feet + player.eyeNow + player.jumpY, player.z);
     camera.rotation.set(0, 0, 0, 'YXZ');camera.rotation.order = 'YXZ';camera.rotation.y = player.yaw + sway.y;camera.rotation.x = player.pitch + sway.p;camera.rotation.z = sway.r;
-    const fov = photo.active && photo.raised > .5 ? 70 / photo.zoom : caseGame?.active ? camera.fov : 70;if (Math.abs(camera.fov - fov) > .01 && !caseGame?.active) {camera.fov = fov;camera.updateProjectionMatrix();}
+    const fov = photo.active && photo.raised > .5 ? 70 / photo.zoom : caseGame?.active ? camera.fov : boostIs('speed') ? 82 : 70;if (Math.abs(camera.fov - fov) > .01 && !caseGame?.active) {camera.fov = fov;camera.updateProjectionMatrix();}
   }
   function footstep(soft = 1) {
     let surface = 'grass', stair = false;
@@ -686,7 +714,7 @@
     player.yaw -= input.mouse.dx * mouseScale + curve(input.look.x) * 2 * sensitivity.pad * dt;player.pitch = Math.max(-1.2, Math.min(1.2, player.pitch - input.mouse.dy * mouseScale - curve(input.look.y) * 1.4 * sensitivity.pad * dt));
     const holding = input.r2 > .5;if (holding) g.charge = Math.min(1, (g.charge || 0) + dt / 1.2);
     const release = !holding && (g.charge || 0) > 0, power = g.charge || 0;if (release) g.charge = 0;
-    const r = g.update(dt, {aimYaw: player.yaw + (dl ? Math.sin(performance.now() / 600) * .05 * dl : 0), aimPitch: player.pitch, charge: g.charge || 0, power, release, alt: input.l2 > .5, hyzer: input.move.x, cancel: input.pressed.has('circle'), drunk: dl}, camera) || {};
+    const r = g.update(dt * worldScale(), {aimYaw: player.yaw + (dl ? Math.sin(performance.now() / 600) * .05 * dl : 0), aimPitch: player.pitch, charge: g.charge || 0, power, release, alt: input.l2 > .5, hyzer: input.move.x, cancel: input.pressed.has('circle'), drunk: dl}, camera) || {};
     if (r.teleport) place(r.teleport.x, r.teleport.z, r.teleport.yaw);
     if (r.stand) {player.x = r.stand.x;player.z = r.stand.z;player.feet = r.stand.y ?? heightAt(player.x, player.z);}
     if (r.face !== undefined) {player.yaw = r.face;player.pitch = -.12;}
@@ -720,13 +748,16 @@
     renderer.autoClear = true;
     // Drunk: blur and a drifting double image.
     const dl = drunkLevel();
-    canvas.style.filter = dl ? `blur(${(dl * 2.2).toFixed(2)}px) saturate(${1 + dl * .3})` : '';
+    const boostFilter = !boost ? '' : boost.kind === 'speed' ? ' saturate(1.35) contrast(1.06)' : boost.kind === 'jump' ? ' hue-rotate(-14deg) saturate(1.25)' : ' saturate(.35) contrast(1.15) brightness(.96)';
+    canvas.style.filter = ((dl ? `blur(${(dl * 2.2).toFixed(2)}px) saturate(${1 + dl * .3})` : '') + boostFilter).trim();
+    const fx = $('boostFx');fx.hidden = !boost;if (boost) fx.className = boost.kind;
+    const bh = $('boost');bh.hidden = !boost;if (boost) bh.textContent = `${BOOSTS[boost.kind]} · ${Math.ceil(boost.t)} s`;
     ghost.hidden = !dl;
     if (dl) {ghost.width = canvas.width / 2;ghost.height = canvas.height / 2;gctx.globalAlpha = .35 * dl;const off = Math.sin(performance.now() / 650) * 12 * dl;gctx.drawImage(canvas, off, Math.cos(performance.now() / 900) * 4 * dl, ghost.width, ghost.height);}
   }
 
   // ---------- Test / inspection handle ----------
-  window.haarklousGame = {player, vehicles, heli, plane, drone, watch, fire, get mp() {return mp;}, sitDown, standUp, tryDrive, tryRide, openChat, startDrone, stopDrone, floorBelow, doors, mini, music, photo, map, world, apt, towers, walkWorld, get caseGame() {return caseGame;}, place, toggleDoor, enterVehicle, exitVehicle, startMinigame, startMission, drink, interact, findPrompt, renderFrame, begin, get fps() {return fpsAvg;}, kick: () => requestAnimationFrame(frame), get drunk() {return drunk;}, set drunk(v) {drunk = v;}, setStance, camera, scene};
+  window.haarklousGame = {player, vehicles, heli, plane, drone, watch, fire, stash, takeBoost, get boost() {return boost;}, set boost(b) {boost = b;}, get mp() {return mp;}, sitDown, standUp, tryDrive, tryRide, openChat, startDrone, stopDrone, floorBelow, doors, mini, music, photo, map, world, apt, towers, walkWorld, get caseGame() {return caseGame;}, place, toggleDoor, enterVehicle, exitVehicle, startMinigame, startMission, drink, interact, findPrompt, renderFrame, begin, get fps() {return fpsAvg;}, kick: () => requestAnimationFrame(frame), get drunk() {return drunk;}, set drunk(v) {drunk = v;}, setStance, camera, scene};
   loading.remove();$('start').hidden = false;
   requestAnimationFrame(frame);
 })();

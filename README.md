@@ -40,6 +40,8 @@ A first-person open-world game set around Haarklous plass 17A, Torshov, Oslo: yo
 
 **Home:** the street door of 17A is an ordinary door – go in, up the stairs to the 4th floor and through your front door, no mission needed. **Hostage rescue:** stand in the red ring with the sign beside the entrance and press □. After a mission (finished or not), choosing *Leave* keeps you where you are – if you are in the apartment, you simply stay at home. A hostage is in the 4th-floor apartment; 3–5 armed hostiles are in the apartment and in the stairwell. The pistol, health bar and hostile/hostage counter exist only during the mission. L2 aims, R2 fires, □ opens the door in front or reloads, Options pauses.
 
+**Stashes:** three hidden crates – on the top landing of a neighbouring stairwell, in the courtyard behind the building, and by the bushes in the park north of the block. Each has lines to snort and a syringe: □ gives a random 30-second boost – 3× running speed, 3× jump height or bullet time (the world, including the mission's hostiles, slows to about a third while you keep full speed). A used item is back after 90 seconds.
+
 **Drinks:** six beers on the kitchen worktop and a bottle of aquavit on the TV bench. Each beer or sip adds 30 s of drunkenness: blurred, doubled, swaying vision and drifting walking/steering.
 
 **Soundtrack** (generated live, no sound files, loops seamlessly; volume in the pause menu):
