@@ -140,3 +140,11 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
 #codePad .slots{display:flex;gap:10px;justify-content:center;margin:8px 0}
 #codePad .slots span{width:40px;height:48px;display:flex;align-items:center;justify-content:center;border-radius:8px;border:2px solid #ffffff33;font:800 28px ui-monospace,Consolas,monospace}
 #codePad .slots span.sel{border-color:#ffd166;color:#ffd166}
+
+/* Stash boosts */
+#boost{position:absolute;left:22px;top:52px;padding:5px 12px;border-radius:14px;background:#0d3b4fcc;font-weight:700;pointer-events:none}
+#boostFx{position:absolute;inset:0;pointer-events:none;animation:boostPulse 1.6s ease-in-out infinite}
+#boostFx.speed{background:radial-gradient(ellipse at center,transparent 55%,#00d0ff30 100%)}
+#boostFx.jump{background:radial-gradient(ellipse at center,transparent 55%,#7dff6a2e 100%)}
+#boostFx.slowmo{background:radial-gradient(ellipse at center,transparent 45%,#1a2a5a66 100%);animation-duration:3.2s}
+@keyframes boostPulse{0%,100%{opacity:.75}50%{opacity:1}}
