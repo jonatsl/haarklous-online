@@ -130,6 +130,12 @@
         case 'needle': burst(4000, 6, .1, .001, .03);for (let i = 0; i < 4; i++) {tone(62, 48, .55, .01, .16, 'sine', t + .35 + i * .55);tone(58, 44, .35, .01, .14, 'sine', t + .55 + i * .55);}break;
         case 'crash': burst(220, .7, 1, .003, 1.4, 'lowpass');burst(1600, .6, .5, .002, .7);tone(70, 30, .6, .003, .9);for (let i = 0; i < 6; i++) burst(rand(2500, 6000), 3, .15, .001, .08, 'bandpass', t + .1 + i * rand(.05, .14));break;
         case 'arm': tone(880, 880, .05, .005, .07, 'square');tone(1320, 1320, .05, .005, .1, 'square', t + .12);break;
+        // Paintball (ported from the Unreal version): the marker's shot, a ball breaking, a bounce, the referee's whistle, an empty hopper.
+        case 'pbShot': burst(1400, .9, .35, .001, .05);burst(180, 1, .3, .002, .07, 'lowpass');burst(5000, 2, .06, .01, .09);break;
+        case 'pbSplat': burst(700, .8, .3, .001, .08);burst(2200, 1.5, .1, .004, .05);break;
+        case 'pbBounce': burst(1800, 3, .15, .001, .03);break;
+        case 'whistle': tone(2900, 3000, .12, .02, .5, 'sine');tone(3150, 3100, .06, .02, .5, 'sine');break;
+        case 'pistolClick': burst(3000, 5, .15, .001, .02);break;
       }
     }
 
@@ -138,7 +144,7 @@
       if (!init()) return {set() {}, stop() {}};
       if (kind === 'heli') return heliEngine();
       if (kind === 'drone') return droneMotors();
-      const spec = {bike: {cyl: 4, idle: 1300, max: 11500, tone: 1, gain: .22}, car: {cyl: 4, idle: 800, max: 6200, tone: .6, gain: .16}, excavator: {cyl: 4, idle: 900, max: 2100, tone: .45, gain: .2}, plane: {cyl: 4, idle: 700, max: 2750, tone: .85, gain: .22}}[kind];
+      const spec = {bike: {cyl: 4, idle: 1300, max: 11500, tone: 1, gain: .22}, car: {cyl: 4, idle: 800, max: 6200, tone: .6, gain: .16}, excavator: {cyl: 4, idle: 900, max: 2100, tone: .45, gain: .2}, plane: {cyl: 4, idle: 700, max: 2750, tone: .85, gain: .22}, diesel: {cyl: 6, idle: 650, max: 2200, tone: .4, gain: .22}}[kind] || {cyl: 4, idle: 800, max: 6200, tone: .6, gain: .16};
       const t = now(), saw = ctx.createOscillator(), sq = ctx.createOscillator(), sub = ctx.createOscillator();saw.type = 'sawtooth';sq.type = 'square';sub.type = 'sine';
       const shaper = ctx.createWaveShaper(), curve = new Float32Array(1024);for (let i = 0; i < 1024; i++) {const x = i / 512 - 1;curve[i] = Math.tanh(x * 3);}shaper.curve = curve;
       const lp = ctx.createBiquadFilter();lp.type = 'lowpass';const g = ctx.createGain();g.gain.value = 0;

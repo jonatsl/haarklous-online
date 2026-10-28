@@ -406,7 +406,7 @@
       netApply(a) {[this.swing, this.boom, this.stickA, this.bucketA, this.load, this.vl, this.vr] = a;this.pose();this.dirt.visible = this.load > .15;this.dirt.scale.set(1.1 * this.load, .55 * this.load, .9 * this.load);}
       netAnimate(dt) {this.trackPhase += dt;this.tracks[0].position.z = ((this.vl * this.trackPhase) % .156);this.tracks[1].position.z = ((this.vr * this.trackPhase) % .156);}
     }
-    return {Motorcycle, Car, Excavator};
+    return {Motorcycle, Car, Excavator, Vehicle};
   }
   return {create};
 });
