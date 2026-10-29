@@ -424,7 +424,7 @@
         this.wheels = ['rwheels[0]', 'rwheels[1]', 'fwheels[0]', 'fwheels[1]'].map(n => this.N(n));
         this.art = new Articulation(1.6, 1.6);this.art.init(this.x, this.z, this.yaw, 0);
         this.rams = [this.ram(this.front, V3(-.62, .75, -1.9), this.arm, V3(-.62, -.95, -1.0), 0), this.ram(this.front, V3(.62, .75, -1.9), this.arm, V3(.62, -.95, -1.0), 1), this.ram(this.front, V3(0, 2.05, -.95), this.bucket, V3(0, .75, .3), 2)];
-        this.seatNode = this.root;this.seatOffset = V3(0, 2.65, .75);this.camPitch = -.14;this.rightStickTool = true;
+        this.seatNode = this.root;this.seatOffset = V3(0, 3.15, .3);this.camPitch = -.36;this.rightStickTool = true;// high, at the front glass, looking down: the bucket's edge and corners show
         this.help = 'Wheel loader · R2 throttle, L2 brake / reverse, left stick steer · right stick back / forward: lift / lower, ← roll back, → dump · R3 / V view · □ get out';
         this.pose();this.place();
       }

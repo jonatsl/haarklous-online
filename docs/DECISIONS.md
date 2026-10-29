@@ -29,6 +29,15 @@ Live site: still runs the older branch `feat/ue5-features` (no jumps, no shops y
 
 ## Log
 
+### 2026-10-29 · Clearer cab views in the wheel loader and the tipper (from the Unreal version)
+- **What:**
+  - **Wheel loader:** the cab is higher (1.75 m), the front fenders are short and low, and the seat view is at the front glass looking down (seat 0, 3.15, 0.3, pitch −0.36), so you see the bucket's edge and corners.
+  - **Tipper:** the mirrors are smaller and out on arms, away from the windscreen.
+- **Why:** the Unreal version made these changes after the last parity check (haarklous-ue5 commit aa26d86, 28 Oct 2026, 22:53). The user's goal: the same features and fixes in both games. Its other later commit, 962eded, is an Unreal-only balcony test.
+- **Where:** `site-models.js` (loader cab, fenders, lights; tipper mirrors), `game-site.js` (loader seat and view), `docs/UE5-PARITY.md`.
+- **Checked:** from the loader seat the bucket lip is in the middle of the view (screen −0.03, −0.21), and the eye is 3.1 m above the ground. Node tests 44/44; no console errors.
+- **Status:** PR #14 (branch `fix/site-cab-views-from-ue5`, on top of PR #13).
+
 ### 2026-10-29 · The real Muselunden DiscGolfPark, and a bigger world
 - **What:**
   - **Muselunden DiscGolfPark**, the real 12-hole course by Sinsenkrysset, is in the game at its real place, about 470–800 m north-east of home.
