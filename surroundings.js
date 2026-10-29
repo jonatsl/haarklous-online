@@ -16,7 +16,8 @@
   // Everything you can walk to (±PLAY_HALF) is drawn in the near pass with detailed ground; the far pass (which clips
   // anything closer than 15 m and is drawn underneath) only fills in the distance. NEAR_REACH covers the walkable area.
   const PLAY_HALF = 540, NEAR_REACH = PLAY_HALF + 60, CELL = 270;
-  function create({T, lib, data, renderer, onStatus = () => {}}) {
+  // holes: rectangles of the local frame ({x0, s0, x1, s1}) kept free of trees and bushes (the paved paintball yard, the building site).
+  function create({T, lib, data, renderer, onStatus = () => {}, holes = []}) {
     const near = new T.Group(), far = new T.Group();near.name = 'Surroundings (near)';far.name = 'Surroundings (far)';
     const ground = data.ground, theta = data.geo.theta, cT = Math.cos(theta), sT = Math.sin(theta);
     const geoFrame = parent => {const g = new T.Group();g.rotation.y = theta;g.position.set(data.geo.x, 0, data.geo.z);parent.add(g);return g;};
@@ -35,14 +36,16 @@
     }
     const yLocal = (x, s) => ground + relLocal(x, s);
     const heightWorld = (x, z) => {const l = toLocal(x, z);return yLocal(l.x, l.s);};
-    function terrainMesh(parent, extent, res, canvas, name, drop = 0, hole = 0) {
+    function terrainMesh(parent, extent, res, canvas, name, drop = 0, hole = 0, cut = []) {
       const count = Math.round(2 * extent / res) + 1, pos = new Float32Array(count * count * 3), uv = new Float32Array(count * count * 2), index = [];
       for (let j = 0; j < count; j++) for (let i = 0; i < count; i++) {
         const x = -extent + i * res, s = -extent + j * res, k = j * count + i;
         pos[k * 3] = x;pos[k * 3 + 1] = yLocal(x, s) - drop;pos[k * 3 + 2] = s;uv[k * 2] = (x + extent) / (2 * extent);uv[k * 2 + 1] = 1 - (s + extent) / (2 * extent);
       }
+      // Cells inside the square `hole` (outer ring) or wholly inside a `cut` rectangle (the construction site's soil) are left out.
       const inHole = (i, j) => hole > 0 && -extent + i * res >= -hole - 1e-6 && -extent + (i + 1) * res <= hole + 1e-6 && -extent + j * res >= -hole - 1e-6 && -extent + (j + 1) * res <= hole + 1e-6;
-      for (let j = 0; j < count - 1; j++) for (let i = 0; i < count - 1; i++) {if (inHole(i, j)) continue;const a = j * count + i, b = a + 1, c = a + count, d = c + 1;index.push(a, c, b, b, c, d);}
+      const inCut = (i, j) => cut.some(h => -extent + i * res >= h.x0 && -extent + (i + 1) * res <= h.x1 && -extent + j * res >= h.s0 && -extent + (j + 1) * res <= h.s1);
+      for (let j = 0; j < count - 1; j++) for (let i = 0; i < count - 1; i++) {if (inHole(i, j) || inCut(i, j)) continue;const a = j * count + i, b = a + 1, c = a + count, d = c + 1;index.push(a, c, b, b, c, d);}
       const g = new T.BufferGeometry();g.setAttribute('position', new T.BufferAttribute(pos, 3));g.setAttribute('uv', new T.BufferAttribute(uv, 2));g.setIndex(index);g.computeVertexNormals();
       const tex = new T.CanvasTexture(canvas);tex.colorSpace = T.SRGBColorSpace;tex.anisotropy = 8;
       const m = new T.Mesh(g, new T.MeshStandardMaterial({map: tex, color: 0xa6a6a6, roughness: .97, metalness: 0, envMapIntensity: .35}));
@@ -79,9 +82,9 @@
     const classCanvas = paint(1024, PLAY_HALF, true), classData = classCanvas.getContext('2d').getImageData(0, 0, 1024, 1024).data;
     const surfaceNames = ['grass', 'grass', 'asphalt', 'gravel', 'sand', 'none'];
     function surfaceAt(x, z) {const l = toLocal(x, z), i = Math.floor((l.x + PLAY_HALF) / (2 * PLAY_HALF) * 1024), j = Math.floor((l.s + PLAY_HALF) / (2 * PLAY_HALF) * 1024);if (i < 0 || j < 0 || i > 1023 || j > 1023) return 'grass';return surfaceNames[classData[(j * 1024 + i) * 4]] || 'grass';}
-    const nearTerrain = terrainMesh(geoNear, NEAR_EXT, 4, nearPaint, 'Terrain (near)');
+    const nearTerrain = terrainMesh(geoNear, NEAR_EXT, 4, nearPaint, 'Terrain (near)', 0, 0, holes.filter(h => h.cutGround));
     // Walkable ground from ±300 m out to ±540 m: same 4 m grid as the walking surface, so what you see is what you stand on.
-    const outerTerrain = terrainMesh(geoNear, PLAY_HALF, 4, outerPaint, 'Terrain (outer)', 0, NEAR_EXT);
+    const outerTerrain = terrainMesh(geoNear, PLAY_HALF, 4, outerPaint, 'Terrain (outer)', 0, NEAR_EXT, holes.filter(h => h.cutGround));
     const farTerrain = terrainMesh(geoFar, FAR_EXT, 8, farPaint, 'Terrain (district)', .5);
     // Beyond the mapped district: a generic Oslo townscape tile (blocks of roofs, streets, gardens and parks), repeated about every
     // 1.5 km, so the land seen from the aircraft is not one flat colour. The inner Oslofjord lies about 3 km to the south.
@@ -281,15 +284,15 @@
       crowns.forEach((c, k) => {c.count = counts[k];c.castShadow = castShadow;c.receiveShadow = true;c.instanceMatrix.needsUpdate = true;parent.add(c);});
       trunks.castShadow = castShadow;trunks.receiveShadow = true;trunks.instanceMatrix.needsUpdate = true;parent.add(trunks);
     }
-    const treeCells = new Map(), allTrees = [];
+    const treeCells = new Map(), allTrees = [], inHole = (x, s) => holes.some(h => x > h.x0 && x < h.x1 && s > h.s0 && s < h.s1);
     for (let i = 0; i < data.trees.length; i += 3) {
-      const t = {x: data.trees[i], s: data.trees[i + 1], h: data.trees[i + 2]};allTrees.push(t);
+      const t = {x: data.trees[i], s: data.trees[i + 1], h: data.trees[i + 2]};if (inHole(t.x, t.s)) continue;allTrees.push(t);
       if (Math.hypot(t.x, t.s) < NEAR_REACH) {const k = cellKey(t.x, t.s);if (!treeCells.has(k)) treeCells.set(k, []);treeCells.get(k).push(t);}
     }
     const yard = data.courtyard;
     if (yard) for (let i = 0; i < yard.trees.length; i += 3) {const t = {x: yard.trees[i], s: yard.trees[i + 1], h: yard.trees[i + 2]};allTrees.push(t);const k = cellKey(t.x, t.s);if (!treeCells.has(k)) treeCells.set(k, []);treeCells.get(k).push(t);}
     for (const list of treeCells.values()) plantTrees(geoNear, list, true);plantTrees(geoFar, allTrees, false, crownGeoFar);
-    const bushes = [];for (let i = 0; i < data.bushes.length; i += 3) bushes.push({x: data.bushes[i], s: data.bushes[i + 1], r: data.bushes[i + 2]});
+    const bushes = [];for (let i = 0; i < data.bushes.length; i += 3) if (!inHole(data.bushes[i], data.bushes[i + 1])) bushes.push({x: data.bushes[i], s: data.bushes[i + 1], r: data.bushes[i + 2]});
     {
       const inst = new T.InstancedMesh(bushGeo, bushMat, bushes.length), m = new T.Matrix4(), q = new T.Quaternion(), s = new T.Vector3(), p = new T.Vector3();
       bushes.forEach((b, i) => {q.setFromAxisAngle(new T.Vector3(0, 1, 0), i * 1.7);m.compose(p.set(b.x, yLocal(b.x, b.s) - .1, b.s), q, s.set(b.r, b.r * .8, b.r));inst.setMatrixAt(i, m);});
@@ -297,6 +300,7 @@
     }
     const poleMat = lib.metal(0x3b3f42, .5);
     for (let i = 0; i < data.lamps.length; i += 2) {
+      if (inHole(data.lamps[i], data.lamps[i + 1])) continue;
       const x = data.lamps[i], s = data.lamps[i + 1], y = yLocal(x, s), pole = new T.Mesh(new T.CylinderGeometry(.05, .07, 5, 8), poleMat);pole.position.set(x, y + 2.5, s);pole.castShadow = true;geoNear.add(pole);
       const head = new T.Mesh(new T.CylinderGeometry(.25, .12, .25, 10), poleMat);head.position.set(x, y + 5, s);geoNear.add(head);
     }
