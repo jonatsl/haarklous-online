@@ -9,13 +9,13 @@ Live game: https://haarklous-online.server-smoke.workers.dev · Source: https://
 ## Features (what the game has now)
 
 On `main`:
-- Open world around Haarklous plass 17A, Torshov: real buildings and streets (OpenStreetMap), real ground heights (Kartverket), optional aerial photos; walkable out to about 540 m, drawn properly everywhere you can walk.
+- Open world around Haarklous plass 17A, Torshov: real buildings and streets (OpenStreetMap), real ground heights (Kartverket), optional aerial photos; walkable out to about 760 m (540 m before PR #13), drawn properly everywhere you can walk.
 - Your 4th-floor apartment (your kitchen + bedroom design) and stairwell; the street door and stairs work without the mission; eight neighbouring stairwells.
 - Walking (3.5 m/s), running, crouch (tap ○), prone (hold ○), jump (✕); PS4 controller (USB / Bluetooth) plus keyboard and mouse; look sensitivity setting.
 - Vehicles: Honda CBF600S motorcycle and 7 more motorcycles, 30 cars, excavator, helicopter, two-seat plane; hands on bars / wheel / sticks.
 - Cars and motorcycles follow gravity (9.81 m/s²) and fly over crests and bumps taken fast (PR #5).
 - FPV drone (hold △), photo camera with gallery (tap △), wristwatch (D-pad ↑), map (touchpad).
-- Minigames: two disc golf holes, petanque against Arne; hostage-rescue mission (start at the red ring by the entrance); stay home after the mission.
+- Minigames: the real Muselunden DiscGolfPark (12 holes, PR #13) and two disc golf holes in Torshovdalen, petanque against Arne; hostage-rescue mission (start at the red ring by the entrance); stay home after the mission.
 - Firepit with benches, beer crate and woodpile (fire size shared online); beer and aquavit in the apartment (30 s drunk each).
 - Joker and Kiwi shops at their real places with a cashier; money in kroner (start 500 kr, earned from the mission, minigames and bottle deposit), Norwegian beer hours, a bag of bought items (PR #6).
 - Three hidden stashes with 30-second boosts: 3× running speed, 3× jump height or bullet time.
@@ -28,6 +28,34 @@ On `main`:
 Live site: still runs the older branch `feat/ue5-features` (no jumps, no shops yet) until `main` is deployed.
 
 ## Log
+
+### 2026-10-29 · The real Muselunden DiscGolfPark, and a bigger world
+- **What:**
+  - **Muselunden DiscGolfPark**, the real 12-hole course by Sinsenkrysset, is in the game at its real place, about 470–800 m north-east of home.
+    - It is the course's current layout, "Muselunden 12 hull (2022)": all par 3, lengths 106, 53, 68, 63, 35, 50, 65, 64, 76, 77, 52 and 47 m (par 36).
+    - Each hole has a tee pad, a sign ("HULL n · Par 3 · length") and a basket. You play it like the Torshovdalen holes; the HUD shows the course name. The holes are on the map.
+  - **The world is bigger** so you can reach it: you can walk to ±760 m (was ±540 m), and the ground data reaches ±800 m (was ±600 m). The new ring has its real ground heights, and its OpenStreetMap trees (1,791 more) and street lamps (306 more) are added. Buildings, trees and lamp posts are solid out to the new edge.
+  - Nothing inside the old world moved: the old terrain values, trees and lamps are kept as they were, and the street vehicles start where they did.
+- **Why:**
+  - The user's goal (29 Oct 2026): "implement the real muselunden disc golf park at its real location with all the holes", using UDisc, maps and other sources.
+  - UDisc gives the current layout, lengths and par. Its hole map needs a login, so I did not sign in for you; the places come from the club's own map instead.
+  - The club's map is muselunden.no "Midlertidig banekart 2021". It has the same 12 holes and is georeferenced to the two football pitches in OpenStreetMap (RMS 2.2 m).
+  - The map is a sketch, so each hole is scaled to UDisc's length about its midpoint (ends move up to 8 m). Hole 6's tee then sat on a service road, so that hole slid 3 m along its own line.
+  - The club's older 12-hole sign (lengths 107 … 148 m, one par 4) is a previous layout and was not used.
+- **Where:**
+  - New: `muselunden-data.js`, `tools/make-muselunden.py`, `tools/extend-surroundings.py`, `assets/osm/torshov-nodes-800m.json`, `tests/muselunden.test.cjs`.
+  - Changed: `game-minigames.js` (`discGolf(course)` builds any course), `game-main.js` (second course, prompts, map, HUD, music), `surroundings.js` (`PLAY_HALF` 760, `FAR_EXT` 800, obstacles in the square), `surroundings-data.js` (bigger terrain, more trees and lamps), `generate-surroundings.py` (±800 m, reads the new nodes), `index.html`, `README.md`, `docs/HANDOFF.md`.
+- **Checked:**
+  - Node tests 44/44. New: 12 holes, par 36, UDisc lengths ±0.15 m; every tee and basket is in the OSM course outline (or within 10 m of it), in the walkable world, not in a building and not on a car road.
+  - The old terrain grid inside ±600 m is byte-for-byte the same, and the old trees and lamps are unchanged.
+  - In the game:
+    - the 41 street vehicles start where they did;
+    - walked at Muselunden;
+    - the prompt shows at the tees;
+    - played hole 1 into the basket, and the game moved on to hole 2 with "Muselunden DiscGolfPark · Hull 2/12";
+    - no console errors.
+  - The frame rate was not measured in a visible window (the test tab is hidden).
+- **Status:** PR #13 (branch `feat/muselunden-disc-golf`, on top of PR #12). For the Unreal version: a new haarklous-ue5 issue.
 
 ### 2026-10-29 · HODET N.N. at its real place; the construction site and the paintball course move
 - **What:**
