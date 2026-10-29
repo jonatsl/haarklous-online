@@ -20,7 +20,7 @@
   const PRODUCTS = [
     {id: 'pils', name: 'Ringnes Pils 0,5 l', price: 39.9, beer: true, color: 0x3a6e2e, where: 'fridge', use: 'beer'},
     {id: 'solo', name: 'Solo 0,5 l', price: 29.9, color: 0xf7941d, where: 'fridge', use: 'soda'},
-    {id: 'cola', name: 'Coca-Cola 1,5 l', price: 39.9, color: 0xc8102e, where: 'fridge', use: 'soda'},
+    {id: 'cola', name: 'Coca-Cola 0,5 l', price: 34.9, color: 0xc8102e, where: 'fridge', use: 'soda'},
     {id: 'redbull', name: 'Red Bull 0,25 l', price: 29.9, color: 0x1e3f8f, where: 'fridge', use: 'energy'},
     {id: 'melk', name: 'Tine Lettmelk 1 l', price: 24.9, color: 0xf2f2f2, where: 'fridge', use: 'food', sober: 15},
     {id: 'grandiosa', name: 'Grandiosa', price: 69.9, color: 0x1f4f9c, where: 'shelf', use: 'food', sober: 45},
@@ -31,7 +31,7 @@
     {id: 'polser', name: 'Grillpølser', price: 49.9, color: 0xc7463a, where: 'shelf', use: 'food', sober: 25},
     {id: 'ved', name: 'Sekk med ved', price: 89.9, color: 0x7a5a3a, where: 'floor', use: 'wood'}
   ];
-  const PANT = 2;// kroner per empty bottle or can (Norwegian deposit for 0.5 l and smaller)
+  const PANT = 2;// kroner per empty bottle or can (the Norwegian deposit for 0.5 l and smaller; every drink sold here is 0.5 l or less)
   const kr = v => `${v.toFixed(2).replace('.', ',')} kr`;
   const priceOf = (shop, product) => shop.priceFactor === 1 ? product.price : Math.round(product.price * shop.priceFactor - .9) + .9;
   // Norwegian law: grocery shops may sell beer Mon–Fri 08–20 and Sat 08–18, not on Sundays.
