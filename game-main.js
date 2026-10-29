@@ -70,6 +70,10 @@
     return window.GameStash.create({T, lib, places: [{name: 'stairwell', x: top.x, y: top.y, z: top.z, yaw: Math.atan2(e[8], e[0])}, at('courtyard', -2.8, -41.7, .4), at('park', 104.5, 162.2, 1.2)]});
   })();scene.add(stash.group);
   const shops = window.GameShops.create({T, lib, world, audio});scene.add(shops.group);
+  // HODET N.N., Marianne Heske's 7 m bronze doll's head at the north end of Torshovdalen (OSM node 2965223021, real place
+  // local (9.1, 275.5)), facing south, with its stone steps on the east side.
+  const SCULPTURE_AT = {x: 9.1, s: 275.5};
+  const sculpture = window.GameSculpture.create({T, lib, world, at: SCULPTURE_AT});scene.add(sculpture.group);
   // Ground: the building site's soil (it changes as the machines dig), the paved paintball yard, the terrain elsewhere.
   const siteField = SITE_DATA && window.GameSite ? window.GameSite.fieldFor(SITE_DATA, world) : null;
   const pbCtx = {};// filled in below, once the player, camera and lobby exist
@@ -81,15 +85,15 @@
   }
   const groundFloor = {...world.terrainFloor(), height: p => groundAt(p.x, p.z)};
   const extraObstacles = [...(siteField ? window.GameSite.fenceObstacles(siteField, groundAt) : []), ...(pbRules ? pbRules.obstacles : [])];
-  const staticObstacles = [...apt.obstacles, ...towers.flatMap(towerObstacles), ...world.obstacles(), ...fire.obstacles, ...stash.obstacles, ...shops.obstacles, ...extraObstacles];
-  const walkFloors = [...apt.floors, ...towers.flatMap(towerFloors), ...shops.floors, groundFloor];
+  const staticObstacles = [...apt.obstacles, ...towers.flatMap(towerObstacles), ...world.obstacles(), ...fire.obstacles, ...stash.obstacles, ...shops.obstacles, ...sculpture.obstacles, ...extraObstacles];
+  const walkFloors = [...apt.floors, ...towers.flatMap(towerFloors), ...shops.floors, ...sculpture.floors, groundFloor];
   const walkWorld = collision.createWorld({floors: walkFloors, obstacles: staticObstacles, radius: .18, clearance: .08});
   const vehicleWorlds = new Map();
   let vehicleBlockers = null;// the other vehicles' footprints from the last updateDynamic()
   function worldFor(r) {
     const key = r.toFixed(2);
     if (!vehicleWorlds.has(key)) {
-      const w = collision.createWorld({floors: [groundFloor], obstacles: [...world.obstacles(), ...towers.flatMap(towerObstacles), ...fire.obstacles, ...shops.obstacles, ...extraObstacles], radius: r, clearance: .08});
+      const w = collision.createWorld({floors: [groundFloor], obstacles: [...world.obstacles(), ...towers.flatMap(towerObstacles), ...fire.obstacles, ...shops.obstacles, ...sculpture.obstacles, ...extraObstacles], radius: r, clearance: .08});
       // A world made during play (e.g. the bike's on its first ride) gets the other vehicles at once, not one update later.
       if (vehicleBlockers) collision.setDynamic(w, vehicleBlockers);
       vehicleWorlds.set(key, w);
@@ -160,7 +164,7 @@
 
   // ---------- HUD ----------
   const hud = {
-    discgolf(s) {const el = $('discHud');if (!s) {el.hidden = true;return;}el.hidden = false;el.innerHTML = `<b>Disc golf · Hull ${s.hole}/${s.holes} · Par ${s.par}</b><span>Throws: ${s.strokes.map((n, i) => `H${i + 1} ${n}`).join(' · ')}</span><span>${s.distance} m to the basket</span><i class="meter"><u style="width:${Math.round(s.charge * 100)}%"></u></i><small>${s.message}</small><small>Hold R2 / left mouse, release to throw · left stick ←/→ hyzer · ○ quit</small>`;},
+    discgolf(s) {const el = $('discHud');if (!s) {el.hidden = true;return;}el.hidden = false;el.innerHTML = `<b>${s.course} · Hull ${s.hole}/${s.holes} · Par ${s.par}</b><span>Throws: ${s.strokes.map((n, i) => `H${i + 1} ${n}`).join(' · ')}</span><span>${s.distance} m to the basket</span><i class="meter"><u style="width:${Math.round(s.charge * 100)}%"></u></i><small>${s.message}</small><small>Hold R2 / left mouse, release to throw · left stick ←/→ hyzer · ○ quit</small>`;},
     petanque(s) {
       const el = $('petanqueHud'), marks = $('markers');if (!s) {el.hidden = true;marks.replaceChildren();return;}el.hidden = false;
       el.innerHTML = `<b>Petanque · You ${s.score.you} – ${s.score.npc} ${s.npcName}</b><span>Mène ${s.mene} · Boules left: you ${s.you}, ${s.npcName} ${s.npc}</span><span>${s.hold ? (s.hold === 'you' ? `You hold the point by ${s.margin.toFixed(2)} m` : `${s.npcName} holds the point by ${s.margin.toFixed(2)} m`) : 'Nobody holds the point'}</span><span>${s.turn === 'you' ? `Your turn: ${s.aim === 'jack' ? 'throw the jack (6–10 m)' : (s.shoot ? 'shoot (L2 held)' : 'point (hold L2 to shoot)')}` : s.turn === 'npc' ? `${s.npcName} is throwing…` : ''}</span><i class="meter"><u style="width:${Math.round(s.charge * 100)}%"></u></i><small>${s.message}</small><small>Hold R2 / left mouse for power, release to throw · ○ quit</small>`;
@@ -249,8 +253,9 @@
   }
 
   // ---------- Minigames, photo camera, map ----------
-  const mini = window.GameMinigames.create({T, lib, audio, heightAt, toWorld, data: D, hud, trees: world.trees, reward: (v, why) => earn(v, why)});
-  scene.add(mini.discgolf.group, mini.petanque.group);
+  const mini = window.GameMinigames.create({T, lib, audio, heightAt, toWorld, data: D, hud, trees: world.trees, reward: (v, why) => earn(v, why), muselunden: window.MUSELUNDEN});
+  const discCourses = [mini.discgolf, mini.muselunden].filter(Boolean);
+  scene.add(...discCourses.map(g => g.group), mini.petanque.group);
   const photo = window.GameCamera.create({T, lib, audio, root: view});
   const overlayScene = new T.Scene(), overlayCamera = new T.PerspectiveCamera(55, 1, .01, 5);overlayScene.add(new T.HemisphereLight(0xf1f5ff, 0x4a4540, 2.2));
   const ovSun = new T.DirectionalLight(0xffffff, 1.8);ovSun.position.set(.6, 1, .5);overlayScene.add(ovSun);overlayScene.environment = lib.environment();
@@ -261,6 +266,8 @@
     {...world.toLocal(4.8, 14.2), color: '#b71c1c', label: 'Hostage rescue', glyph: '◎'},
     ...(D.discgolf || []).map((h, i) => ({x: h.tee[0], s: h.tee[1], color: '#6a1b9a', label: `Disc golf ${i + 1}`, glyph: '◉'})),
     ...(D.discgolf || []).map(h => ({x: h.basket[0], s: h.basket[1], color: '#9c4dcc', label: '', glyph: '⛳'})),
+    ...(window.MUSELUNDEN ? window.MUSELUNDEN.holes.map(h => ({x: h.tee[0], s: h.tee[1], color: '#6a1b9a', label: h.n === 1 ? 'Muselunden disc golf 1' : `${h.n}`, glyph: '◉'})) : []),
+    ...(window.MUSELUNDEN ? window.MUSELUNDEN.holes.map(h => ({x: h.basket[0], s: h.basket[1], color: '#9c4dcc', label: '', glyph: '⛳'})) : []),
     ...(D.petanque ? [{x: D.petanque.x, s: D.petanque.s, color: '#00838f', label: 'Petanque', glyph: '●'}] : []),
     {...world.toLocal(AIR.heli.x, AIR.heli.z), color: '#1565c0', label: 'Helipad', glyph: 'H'},
     {...world.toLocal(AIR.plane.x, AIR.plane.z), color: '#1565c0', label: 'Airstrip', glyph: '✈'},
@@ -268,6 +275,7 @@
     ...shops.shops.map(s => {const L = s.local;return {x: L.P0[0] + L.u[0] * L.W / 2 + L.n[0] * L.depth / 2, s: L.P0[1] + L.u[1] * L.W / 2 + L.n[1] * L.depth / 2, color: s.id === 'kiwi' ? '#2e9a3f' : '#d0021b', label: s.name, glyph: '🛒'};}),
     ...(SITE_DATA ? [{x: SITE_DATA.rect.x0 + SITE_DATA.rect.w / 2, s: SITE_DATA.rect.s0 + SITE_DATA.rect.d / 2, color: '#f9a825', label: 'Construction site', glyph: '⛏'}] : []),
     ...(PB_DATA ? [{x: PB_DATA.centre.x, s: PB_DATA.centre.s, color: '#2e7d32', label: 'Paintball', glyph: '✚'}] : []),
+    {x: SCULPTURE_AT.x, s: SCULPTURE_AT.s, color: '#7a5c3e', label: 'HODET N.N.', glyph: '◉'},
     ...(mp ? [...mp.remotes.values()].filter(r => r.seen).map(r => ({...world.toLocal(r.pos.x, r.pos.z), color: window.GameAvatars.slotCss(r.slot), label: r.name, glyph: '●'})) : [])]});
   // Wristwatch (D-pad ↑) shares the first-person overlay with the photo camera.
   const watch = window.GameWatch.create({T, lib});overlayScene.add(watch.model);
@@ -321,7 +329,7 @@
       if (canRide && !pas) return {text: `□ Ride along with ${mp.nameOf(drv)} (${v.kind === 'motorcycle' ? 'pillion' : 'passenger'})`, act: () => tryRide(v)};
       return {text: `${mp.nameOf(drv)} is ${v.aircraft ? 'flying' : 'driving'} the ${v.name}`, act: () => {}};
     }
-    for (const g of [mini.discgolf, mini.petanque]) {const t = g.near({x: player.x, z: player.z, y: player.feet});if (t) return {text: t, act: () => startMinigame(g)};}
+    for (const g of [...discCourses, mini.petanque]) {const t = g.near({x: player.x, z: player.z, y: player.feet});if (t) return {text: t, act: () => startMinigame(g)};}
     const o = lookTarget();
     if (o?.userData.drink && !o.userData.drink.used) {const d = o.userData.drink;return {text: d.kind === 'beer' ? '□ Drink a beer' : `□ Take a sip of ${d.name}`, act: () => drink(d)};}
     if (o?.userData.doorId) {const d = doors.find(d => d.id === o.userData.doorId);if (d) return {text: `□ ${d.open ? 'Close' : 'Open'} ${d.name.toLowerCase()}`, act: () => toggleDoor(d)};}
@@ -514,7 +522,7 @@
     const np = music.position();$('nowPlaying').textContent = np ? `${np.title} (${Math.floor(np.length / 60)}:${String(Math.round(np.length % 60)).padStart(2, '0')} loop)` : '–';
   }
   $('musicVol').oninput = e => {music.setVolume(+e.target.value);renderSettings();};
-  function musicTrack() {if (caseGame?.active) return 'mission';if (player.mode === 'minigame') return player.minigame === mini.discgolf ? 'discgolf' : 'petanque';return 'main';}
+  function musicTrack() {if (caseGame?.active) return 'mission';if (player.mode === 'minigame') return discCourses.includes(player.minigame) ? 'discgolf' : 'petanque';return 'main';}
   $('sensPad').oninput = e => {setSens('pad', +e.target.value);renderSettings();};$('sensMouse').oninput = e => {setSens('mouse', +e.target.value);renderSettings();};
   $('imagery').onchange = e => {try {localStorage.setItem('haarklous-aerial-imagery-v1', e.target.checked ? 'on' : 'off');} catch {}world.setImagery(e.target.checked);};
   let quality = 1;try {quality = +(localStorage.getItem('haarklous-quality') ?? 1);} catch {}
@@ -904,7 +912,7 @@
   }
 
   // ---------- Test / inspection handle ----------
-  window.haarklousGame = {player, vehicles, site, paintball, groundAt, heli, plane, drone, watch, fire, stash, shops, wallet, get basket() {return basket;}, payAt, takeProduct, useItem, earn, openBag, takeBoost, get boost() {return boost;}, set boost(b) {boost = b;}, get mp() {return mp;}, sitDown, standUp, tryDrive, tryRide, openChat, startDrone, stopDrone, floorBelow, doors, mini, music, photo, map, world, apt, towers, walkWorld, get caseGame() {return caseGame;}, place, toggleDoor, enterVehicle, exitVehicle, startMinigame, startMission, drink, interact, findPrompt, renderFrame, begin, get fps() {return fpsAvg;}, kick: () => requestAnimationFrame(frame), get drunk() {return drunk;}, set drunk(v) {drunk = v;}, setStance, camera, scene};
+  window.haarklousGame = {player, vehicles, site, paintball, groundAt, heli, plane, drone, watch, fire, stash, shops, sculpture, wallet, get basket() {return basket;}, payAt, takeProduct, useItem, earn, openBag, takeBoost, get boost() {return boost;}, set boost(b) {boost = b;}, get mp() {return mp;}, sitDown, standUp, tryDrive, tryRide, openChat, startDrone, stopDrone, floorBelow, doors, mini, music, photo, map, world, apt, towers, walkWorld, get caseGame() {return caseGame;}, place, toggleDoor, enterVehicle, exitVehicle, startMinigame, startMission, drink, interact, findPrompt, renderFrame, begin, get fps() {return fpsAvg;}, kick: () => requestAnimationFrame(frame), get drunk() {return drunk;}, set drunk(v) {drunk = v;}, setStance, camera, scene};
   loading.remove();$('start').hidden = false;
   requestAnimationFrame(frame);
 })();

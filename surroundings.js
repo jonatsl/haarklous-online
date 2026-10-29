@@ -15,7 +15,8 @@
   'use strict';
   // Everything you can walk to (±PLAY_HALF) is drawn in the near pass with detailed ground; the far pass (which clips
   // anything closer than 15 m and is drawn underneath) only fills in the distance. NEAR_REACH covers the walkable area.
-  const PLAY_HALF = 540, NEAR_REACH = PLAY_HALF + 60, CELL = 270;
+  // ±760 m since 29 Oct 2026 (was ±540): the real Muselunden disc golf park, 470–815 m north-east of home, is in reach.
+  const PLAY_HALF = 760, NEAR_REACH = PLAY_HALF + 60, CELL = 270;
   // holes: rectangles of the local frame ({x0, s0, x1, s1}) kept free of trees and bushes (the paved paintball yard, the building site).
   function create({T, lib, data, renderer, onStatus = () => {}, holes = []}) {
     const near = new T.Group(), far = new T.Group();near.name = 'Surroundings (near)';far.name = 'Surroundings (far)';
@@ -75,7 +76,7 @@
       if (!classes) {const img = ctx.getImageData(0, 0, size, size), d = img.data;for (let i = 0; i < d.length; i += 4) {const n = (lib.rand() - .5) * 26;d[i] += n;d[i + 1] += n;d[i + 2] += n;}ctx.putImageData(img, 0, 0);}
       return c;
     }
-    const NEAR_EXT = 300, FAR_EXT = 600;
+    const NEAR_EXT = 300, FAR_EXT = 800;// the terrain data reaches ±800 m
     const nearPaint = paint(4096, NEAR_EXT), nearBase = document.createElement('canvas');nearBase.width = nearBase.height = 4096;nearBase.getContext('2d').drawImage(nearPaint, 0, 0);
     const farPaint = paint(2048, FAR_EXT), farBase = document.createElement('canvas');farBase.width = farBase.height = 2048;farBase.getContext('2d').drawImage(farPaint, 0, 0);
     const outerPaint = paint(2048, PLAY_HALF), outerBase = document.createElement('canvas');outerBase.width = outerBase.height = 2048;outerBase.getContext('2d').drawImage(outerPaint, 0, 0);
@@ -83,7 +84,7 @@
     const surfaceNames = ['grass', 'grass', 'asphalt', 'gravel', 'sand', 'none'];
     function surfaceAt(x, z) {const l = toLocal(x, z), i = Math.floor((l.x + PLAY_HALF) / (2 * PLAY_HALF) * 1024), j = Math.floor((l.s + PLAY_HALF) / (2 * PLAY_HALF) * 1024);if (i < 0 || j < 0 || i > 1023 || j > 1023) return 'grass';return surfaceNames[classData[(j * 1024 + i) * 4]] || 'grass';}
     const nearTerrain = terrainMesh(geoNear, NEAR_EXT, 4, nearPaint, 'Terrain (near)', 0, 0, holes.filter(h => h.cutGround));
-    // Walkable ground from ±300 m out to ±540 m: same 4 m grid as the walking surface, so what you see is what you stand on.
+    // Walkable ground from ±300 m out to ±PLAY_HALF: same 4 m grid as the walking surface, so what you see is what you stand on.
     const outerTerrain = terrainMesh(geoNear, PLAY_HALF, 4, outerPaint, 'Terrain (outer)', 0, NEAR_EXT, holes.filter(h => h.cutGround));
     const farTerrain = terrainMesh(geoFar, FAR_EXT, 8, farPaint, 'Terrain (district)', .5);
     // Beyond the mapped district: a generic Oslo townscape tile (blocks of roofs, streets, gardens and parks), repeated about every
@@ -103,7 +104,7 @@
     }
     const horizonTex = new T.CanvasTexture(horizonCanvas);horizonTex.colorSpace = T.SRGBColorSpace;horizonTex.wrapS = horizonTex.wrapT = T.RepeatWrapping;horizonTex.repeat.set(12, 12);horizonTex.anisotropy = 8;
     const horizon = new T.Mesh(new T.PlaneGeometry(18000, 18000), new T.MeshStandardMaterial({map: horizonTex, color: 0xb4b4b4, roughness: 1}));
-    horizon.rotation.x = -Math.PI / 2;horizon.position.y = ground + relLocal(600, 600) - 6;geoFar.add(horizon);
+    horizon.rotation.x = -Math.PI / 2;horizon.position.y = ground + relLocal(FAR_EXT, FAR_EXT) - 6;geoFar.add(horizon);
     const fjord = new T.Mesh(new T.PlaneGeometry(7000, 6000), new T.MeshStandardMaterial({color: 0x3e5d70, roughness: .18, metalness: .15, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2}));
     fjord.rotation.x = -Math.PI / 2;fjord.position.set(-600, horizon.position.y + 2, 6200);geoFar.add(fjord);
 
@@ -369,15 +370,16 @@
     function obstacles() {
       const list = [];
       data.buildings.forEach(b => {
-        const o = b.r.o;if (Math.hypot(o[0], o[1]) > PLAY_HALF + 40) return;
+        const o = b.r.o;if (Math.abs(o[0]) > PLAY_HALF + 40 || Math.abs(o[1]) > PLAY_HALF + 40) return;
         const rings = b.enter !== undefined ? data.enterable[b.enter].collide.map(r => r.o) : [o];
         for (const r of rings) list.push({points: ringWorld(r), minY: b.bottom - .5, maxY: b.top + 4, kind: 'building'});
       });
       const ownRings = (parts, minY, maxY) => parts.forEach(p => list.push({points: pairs(p.o).map(([x, z]) => ({x, z})), minY, maxY, kind: 'building'}));
       ownRings(own.lower, ownBottom - .5, -.16);ownRings(own.band, -.16, own.bandTop);ownRings(own.upper, own.bandTop, own.top + 4);
       const square = (x, s, r, h, kind) => {const pts = [[x - r, s - r], [x + r, s - r], [x + r, s + r], [x - r, s + r]].map(([a, b]) => toWorld(a, b)), y = yLocal(x, s);list.push({points: pts, minY: y - .5, maxY: y + h, kind});};
-      allTrees.forEach(t => {if (Math.hypot(t.x, t.s) < PLAY_HALF) square(t.x, t.s, .28, 6, 'tree');});
-      lamps.forEach(l => {if (Math.hypot(l.x, l.s) < PLAY_HALF) square(l.x, l.s, .1, 5.2, 'lamp');});
+      const walkable = (x, s) => Math.abs(x) < PLAY_HALF && Math.abs(s) < PLAY_HALF;
+      allTrees.forEach(t => {if (walkable(t.x, t.s)) square(t.x, t.s, .28, 6, 'tree');});
+      lamps.forEach(l => {if (walkable(l.x, l.s)) square(l.x, l.s, .1, 5.2, 'lamp');});
       bushes.forEach(b => square(b.x, b.s, .45 * b.r, 1.2, 'bush'));
       hedgeObstacles.forEach(h => {const dx = h.b[0] - h.a[0], dz = h.b[1] - h.a[1], L = Math.hypot(dx, dz), nx = -dz / L * h.w / 2, nz = dx / L * h.w / 2;const pts = [[h.a[0] + nx, h.a[1] + nz], [h.b[0] + nx, h.b[1] + nz], [h.b[0] - nx, h.b[1] - nz], [h.a[0] - nx, h.a[1] - nz]].map(([a, b]) => toWorld(a, b)), y = yLocal(h.a[0], h.a[1]);list.push({points: pts, minY: y - .5, maxY: y + 1, kind: 'hedge'});});
       return list;
