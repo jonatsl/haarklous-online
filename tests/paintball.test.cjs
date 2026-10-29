@@ -86,3 +86,16 @@ test('holding △ for 2 s leaves the game (not before), and a game with nobody l
   assert.equal(L.players[0].rules.ses.state, 'lobby', 'then the lobby opens again');
   assert.equal(L.players[1].rules.ses.state, 'lobby', 'for everyone');
 });
+
+test('cover end caps: the concave jersey barrier profile is filled exactly, with every triangle facing the same way', () => {
+  require('../paintball-models.js');
+  const {capTris} = window.PaintballModels, area2 = (a, b, c) => (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+  const jersey = [[-.3, 0], [.3, 0], [.3, .08], [.13, .32], [.1, .85], [-.1, .85], [-.13, .32], [-.3, .08]];
+  for (const prof of [jersey, jersey.slice().reverse(), [[0, 0], [1, 0], [1, 1], [0, 1]]]) {
+    let poly = 0;prof.forEach((a, i) => {const b = prof[(i + 1) % prof.length];poly += a[0] * b[1] - b[0] * a[1];});
+    const tris = capTris(prof), sum = tris.reduce((s, [a, b, c]) => s + area2(prof[a], prof[b], prof[c]), 0);
+    assert.equal(tris.length, prof.length - 2);
+    for (const [a, b, c] of tris) assert.ok(Math.sign(area2(prof[a], prof[b], prof[c])) === Math.sign(poly), 'a triangle is wound the wrong way');
+    assert.ok(Math.abs(sum - poly) < 1e-9, `caps cover ${sum / 2} m² instead of ${poly / 2} m²`);
+  }
+});
