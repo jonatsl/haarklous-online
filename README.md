@@ -21,7 +21,7 @@ A first-person open-world game set around Haarklous plass 17A, Torshov, Oslo: yo
 | Map | touchpad | M |
 | Pause, settings (sensitivity, music volume, aerial imagery, graphics) | Options (D-pad ←/→ = music volume) | Esc |
 
-**Motorcycle (2005 Honda CBF600S) and cars:** □ to get on/in; R2 throttle, L2 brake (hold when stopped to reverse), left stick steers (the bike leans at speed), right stick looks around. Your gloved hands hold the bars or the wheel, which turn with you. The bike has a six-speed gearbox model and an inline-four engine note.
+**Motorcycle (2005 Honda CBF600S) and cars:** □ to get on/in; R2 throttle, L2 brake (hold when stopped to reverse), left stick steers (the bike leans at speed), right stick looks around. Your gloved hands hold the bars or the wheel, which turn with you. The bike has a six-speed gearbox model and an inline-four engine note. Cars and motorcycles follow real gravity (9.81 m/s²): take a crest or bump faster than gravity can hold you on the ground and you fly until you land – no grip, steering or brakes in the air, a thud and a dip when you touch down.
 
 **Helicopter** (Airbus H125 style, on the grass beside Haarklous plass) and **plane** (single-seat sport plane at the north end of the long grass strip in Torshovdalen; both marked on the map as Helipad and Airstrip): □ to get in. They fly with "Mode 2" sticks, the Battlefield default and the usual RC layout:
 - Helicopter: left stick ↑↓ collective (centred = hover; lift it a little to get off the ground), ←→ pedals (yaw); right stick pitch and roll (it gently levels itself when you let go). The rotor needs a few seconds to spool up.
