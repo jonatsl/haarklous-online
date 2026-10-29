@@ -5954,6 +5954,7 @@ window.PAINTBALL = {"rect": {"x0": -112.0, "s0": 376.0, "w": 64.0, "d": 48.0}, "
  *   ball(team)    {geometry, material} for an InstancedMesh (17.4 mm, glowing team colour).
  *   splat(team)   {geometry, material}: paint splat decal, 1 m plane in XY facing +z (orient and scale it).
  *   COLORS        {blue, red} team colours.
+ * PaintballModels.capTris(points) -> [[a, b, c], ...]: ear-clipping triangles for a simple polygon (Node-tested).
  * Shapes are built like the Python (triangle lists with a material per triangle, uvs box-projected in metres) and
  * turned into one BufferGeometry per material.
  */
@@ -6044,12 +6045,32 @@ window.PAINTBALL = {"rect": {"x0": -112.0, "s0": 376.0, "w": 64.0, "d": 48.0}, "
     return m;
   }
 
-  // A profile in the (z, y) plane extruded from x = x0 to x1 (convex profiles); faces always wind outward.
+  // Triangles filling a simple polygon (convex or not) by ear clipping: index triples in the polygon's own turning order.
+  // A fan only works for convex shapes; on the concave jersey barrier it left a back-facing triangle in each end cap
+  // (see-through, Unreal issue jonatsl/haarklous-ue5#1) and a sliver sticking out past the outline.
+  function capTris(p) {
+    let area = 0;p.forEach((a, i) => {const b = p[(i + 1) % p.length];area += a[0] * b[1] - b[0] * a[1];});
+    const sg = area > 0 ? 1 : -1, cr = (a, b, c) => sg * ((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]));
+    const idx = p.map((_, i) => i), out = [];
+    while (idx.length > 3) {
+      let cut = -1;
+      for (let i = 0; i < idx.length && cut < 0; i++) {
+        const a = idx[(i + idx.length - 1) % idx.length], b = idx[i], c = idx[(i + 1) % idx.length];
+        if (cr(p[a], p[b], p[c]) <= 1e-12) continue;// a concave (or straight) corner is not an ear
+        if (!idx.some(j => j !== a && j !== b && j !== c && cr(p[a], p[b], p[j]) >= 0 && cr(p[b], p[c], p[j]) >= 0 && cr(p[c], p[a], p[j]) >= 0)) {out.push([a, b, c]);cut = i;}
+      }
+      if (cut < 0) break;idx.splice(cut, 1);
+    }
+    if (idx.length === 3) out.push(idx.slice());
+    return out;
+  }
+
+  // A profile in the (z, y) plane extruded from x = x0 to x1 (convex or concave); faces always wind outward.
   function prism(m, profile, x0, x1, mat) {
     let area = 0;profile.forEach((p, i) => {const q = profile[(i + 1) % profile.length];area += p[0] * q[1] - q[0] * p[1];});
     const pts = area > 0 ? profile.slice().reverse() : profile, n = pts.length;
     const L = pts.map(p => [x0, p[1], p[0]]), R = pts.map(p => [x1, p[1], p[0]]);
-    for (let k = 1; k < n - 1; k++) {m.tri(R[0], R[k], R[k + 1], mat);m.tri(L[0], L[k + 1], L[k], mat);}
+    for (const [a, b, c] of capTris(pts)) {m.tri(R[a], R[b], R[c], mat);m.tri(L[a], L[c], L[b], mat);}
     for (let k = 0; k < n; k++) {const k1 = (k + 1) % n;m.quad(L[k], L[k1], R[k1], R[k], mat);}
     return m;
   }
@@ -6407,7 +6428,7 @@ window.PAINTBALL = {"rect": {"x0": -112.0, "s0": 376.0, "w": 64.0, "d": 48.0}, "
 
     return {course, shelter, bench, rack, board, sign, flag, marker, mask, band, ball, splat, COLORS: {blue: BLUE, red: RED}};
   }
-  return {create};
+  return {create, capTris};
 });
 </script>
 <script>/* The urban paintball / reball course (ported from the Unreal version, where the user asked for it on 28 Oct 2026):

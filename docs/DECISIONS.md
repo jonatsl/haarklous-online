@@ -28,6 +28,13 @@ Live site: still runs the older branch `feat/ue5-features` (no jumps, no shops y
 
 ## Log
 
+### 2026-10-29 · Paintball: the concrete barriers' ends are no longer see-through
+- **What:** each end of the concrete (jersey) barriers had a small see-through gap and a thin sliver sticking out past its outline. The barrier's cross-section is narrower above its shoulder (a concave shape), and the end caps were filled as a fan, which only works for convex shapes. One triangle in each cap was wound backwards (so it was not drawn) and one reached outside the outline. The caps are now filled by ear clipping, which works for any simple outline.
+- **Why:** the user reported see-through obstacles in the Unreal paintball course (haarklous-ue5 issue #1, 28 Oct 2026). The web course is built from the same Python, and the same fault was found here. The user's goal: the same fixes in both games.
+- **Where:** `paintball-models.js` (`capTris`, `prism`), `tests/paintball.test.cjs` (new test: caps cover the outline exactly, every triangle the same way round).
+- **Checked:** rays from 384 standing and crouching spots in the course, 15,360 in all, including rings round every barrier end. Before: 9 rays first hit a face from behind (a culled, see-through face), all on the barriers. After: 0. No other cover piece (containers, walls, building shells, car wreck, spools, sandbags, barrels, pallets, tyres) had any. The old fan had one reversed triangle per cap. Node tests 38/38; no console errors.
+- **Status:** PR #10 (branch `fix/paintball-see-through`, on top of PR #9). Details for the Unreal version: https://github.com/jonatsl/haarklous-ue5/issues/1.
+
 ### 2026-10-29 · Three small bugs fixed (found by the Unreal port)
 - **What:**
   - Petanque now ends once a side has 13. Before, the last mène was counted again every frame: the score kept climbing (13–12, 14–12 …), the game only ended with ○, and the 150 kr win reward was paid again every frame.
