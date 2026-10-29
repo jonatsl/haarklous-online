@@ -28,6 +28,13 @@ Live site: still runs the older branch `feat/ue5-features` (no jumps, no shops y
 
 ## Log
 
+### 2026-10-29 · Street lamp posts are solid
+- **What:** the 83 street lamps (OpenStreetMap `highway=street_lamp`, already drawn as a 5 m grey pole with a round head) now block walkers and vehicles like trees do. Before, you could walk and drive straight through them. Lamps inside the construction site and the paintball yard are still left out.
+- **Why:** the Unreal version has no street lamps yet (haarklous-ue5 issue #2, "Add street lamps", 28 Oct 2026). The user's goal is the same features in both games. The web game already had the lamps, so the only gameplay gap was collision. The look is unchanged (no light at night: neither game has a night).
+- **Where:** `surroundings.js` (lamp list and `obstacles()`).
+- **Checked:** the 48 vehicles start at exactly the same places (the parked-car seed 1707 is unaffected, which matters for online play with the Unreal version). Walking into a post stops you 0.32 m from its centre. A car at 30 km/h stops with its centre about 2.4 m from the post. Node tests 38/38.
+- **Status:** PR #11 (branch `feat/solid-street-lamps`, on top of PR #10). Spec for the Unreal version: https://github.com/jonatsl/haarklous-ue5/issues/2.
+
 ### 2026-10-29 · Paintball: the concrete barriers' ends are no longer see-through
 - **What:** each end of the concrete (jersey) barriers had a small see-through gap and a thin sliver sticking out past its outline. The barrier's cross-section is narrower above its shoulder (a concave shape), and the end caps were filled as a fan, which only works for convex shapes. One triangle in each cap was wound backwards (so it was not drawn) and one reached outside the outline. The caps are now filled by ear clipping, which works for any simple outline.
 - **Why:** the user reported see-through obstacles in the Unreal paintball course (haarklous-ue5 issue #1, 28 Oct 2026). The web course is built from the same Python, and the same fault was found here. The user's goal: the same fixes in both games.

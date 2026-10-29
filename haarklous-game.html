@@ -1251,7 +1251,7 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
  * Surroundings.create({T, lib, data, renderer, onStatus}) -> {
  *   near, far, setImagery(on), setSun(dir), attribution,
  *   heightWorld(x, z) -> y, toLocal(x, z) -> {x, s}, toWorld(x, s) -> {x, z},
- *   terrainFloor() (walk-collision floor), obstacles() (buildings, trees, bushes, hedges, in model coordinates),
+ *   terrainFloor() (walk-collision floor), obstacles() (buildings, trees, lamp posts, bushes, hedges, in model coordinates),
  *   surfaceAt(x, z) -> 'grass'|'asphalt'|'gravel'|'sand'|'none', trafficDistance(x, z), greenery(x, z) -> 0..1 }
  * Coordinates: model (world) metres as in the apartment model; "local" = metres east (x) and south (s) of the address.
  */
@@ -1544,10 +1544,11 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
       bushes.forEach((b, i) => {q.setFromAxisAngle(new T.Vector3(0, 1, 0), i * 1.7);m.compose(p.set(b.x, yLocal(b.x, b.s) - .1, b.s), q, s.set(b.r, b.r * .8, b.r));inst.setMatrixAt(i, m);});
       inst.castShadow = true;inst.receiveShadow = true;geoNear.add(inst);
     }
-    const poleMat = lib.metal(0x3b3f42, .5);
+    const poleMat = lib.metal(0x3b3f42, .5), lamps = [];// street lamps (OSM highway=street_lamp); the poles are solid
     for (let i = 0; i < data.lamps.length; i += 2) {
       if (inHole(data.lamps[i], data.lamps[i + 1])) continue;
-      const x = data.lamps[i], s = data.lamps[i + 1], y = yLocal(x, s), pole = new T.Mesh(new T.CylinderGeometry(.05, .07, 5, 8), poleMat);pole.position.set(x, y + 2.5, s);pole.castShadow = true;geoNear.add(pole);
+      const x = data.lamps[i], s = data.lamps[i + 1], y = yLocal(x, s);lamps.push({x, s});
+      const pole = new T.Mesh(new T.CylinderGeometry(.05, .07, 5, 8), poleMat);pole.position.set(x, y + 2.5, s);pole.castShadow = true;geoNear.add(pole);
       const head = new T.Mesh(new T.CylinderGeometry(.25, .12, .25, 10), poleMat);head.position.set(x, y + 5, s);geoNear.add(head);
     }
     const hedgeObstacles = [];
@@ -1622,6 +1623,7 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
       ownRings(own.lower, ownBottom - .5, -.16);ownRings(own.band, -.16, own.bandTop);ownRings(own.upper, own.bandTop, own.top + 4);
       const square = (x, s, r, h, kind) => {const pts = [[x - r, s - r], [x + r, s - r], [x + r, s + r], [x - r, s + r]].map(([a, b]) => toWorld(a, b)), y = yLocal(x, s);list.push({points: pts, minY: y - .5, maxY: y + h, kind});};
       allTrees.forEach(t => {if (Math.hypot(t.x, t.s) < PLAY_HALF) square(t.x, t.s, .28, 6, 'tree');});
+      lamps.forEach(l => {if (Math.hypot(l.x, l.s) < PLAY_HALF) square(l.x, l.s, .1, 5.2, 'lamp');});
       bushes.forEach(b => square(b.x, b.s, .45 * b.r, 1.2, 'bush'));
       hedgeObstacles.forEach(h => {const dx = h.b[0] - h.a[0], dz = h.b[1] - h.a[1], L = Math.hypot(dx, dz), nx = -dz / L * h.w / 2, nz = dx / L * h.w / 2;const pts = [[h.a[0] + nx, h.a[1] + nz], [h.b[0] + nx, h.b[1] + nz], [h.b[0] - nx, h.b[1] - nz], [h.a[0] - nx, h.a[1] - nz]].map(([a, b]) => toWorld(a, b)), y = yLocal(h.a[0], h.a[1]);list.push({points: pts, minY: y - .5, maxY: y + 1, kind: 'hedge'});});
       return list;
