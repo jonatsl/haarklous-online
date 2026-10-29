@@ -29,6 +29,22 @@ Live site: runs `main` (deployed 29 Oct 2026 after PRs #8–#14, version fd96bf7
 
 ## Log
 
+### 2026-10-29 · The distant ground no longer floats above the real ground (issue #17)
+- **What:**
+  - Beyond the terrain data (±800 m) the land is a flat plane with a townscape texture, or the live aerial photo when it is on. That plane was set at the height of the data's south-east corner (+6.7 m in game height), so south and west of home, where the ground is 30–54 m lower, it hung 40–60 m above the real ground. From the air, beyond the detailed ground, you saw that floating sheet.
+  - Now the plane sits just below the lowest ground in the data (−56.9 m).
+  - A new apron joins the edge of the terrain to it. It starts at exactly the terrain's edge heights, with no gap or cliff, and eases to the plane's level by 3 km out.
+  - Also fixed: the live aerial photo for the distance was painted into the townscape texture, which repeats 12 times, so the far imagery was tiled twelve times. It now has its own 2048 px texture over the whole ±9 km, shown once.
+- **Why:** the user saw the "flat map imagery" floating about 50–100 m above the ground when flying south, around the construction site and beyond (29 Oct 2026). The site's move and the bigger world (PRs #12, #13) put the action right where the ground is lowest.
+- **Where:** `surroundings.js` (`BASE_Y`, the apron mesh "Terrain (apron)", `horizonImg`, `setImagery`).
+- **Checked:**
+  - The horizon plane is at −56.9 m; the lowest ground on the data's edge is −54.2 m.
+  - From the helicopter 60 m up at local (−300, 640), looking south: before, the detailed ground ended at a sharp edge with a flat sheet of photo far above it; after, the ground continues smoothly into the distance.
+  - The same 150 m above the construction site.
+  - With imagery on, the distant photo is the 2048 px one, shown once.
+  - Node tests 44/44; no console errors.
+- **Status:** PR (branch `fix/floating-horizon`), closes #17.
+
 ### 2026-10-29 · `main` is live
 - **What:** the game on `main` (PRs #5–#14: jumps, shops, stashes, the Unreal features, the fixes, HODET N.N., Muselunden and the bigger world) is deployed to https://haarklous-online.server-smoke.workers.dev (Cloudflare Worker version fd96bf7e). Before, the live site ran the older branch `feat/ue5-features`.
 - **Why:** `AGENTS.md`: after changing game files, redeploy so the online version matches. `main` now holds everything the old live branch had.
