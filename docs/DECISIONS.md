@@ -29,6 +29,26 @@ Live site: runs `main` (deployed 29 Oct 2026 after PRs #8–#14, version fd96bf7
 
 ## Log
 
+### 2026-10-29 · Fly with the mouse like in Battlefield; hold Shift to look around (issue #16)
+- **What:**
+  - The helicopter, the plane and the FPV drone fly with keyboard and mouse like Battlefield (2042 / 6 defaults):
+    - mouse up = nose down (fly forward), mouse down = nose up, mouse left/right = roll;
+    - W/S = collective / throttle / thrust, A/D = yaw.
+  - How far you move the mouse is how far the aircraft tilts (the mouse's speed is the stick; 700 px/s is full stick at sensitivity 1), and it keeps that tilt.
+    - The helicopter's self-levelling drops to an eighth while you fly by mouse.
+    - In the drone's ANGLE mode the mouse moves the tilt directly, up to 0.75 rad; in ACRO mode the mouse is 0.3 × as strong.
+  - **Hold Shift or the right mouse button to look around.** The aircraft keeps flying straight, and the view turns back when you let go. The right mouse button no longer brakes while flying (S still brakes the plane).
+  - The arrow keys and the controller work as before; using them turns the mouse's "keep the tilt" off.
+- **Why:** the user asked (29 Oct 2026) to fly the drone and helicopter with mouse and keyboard "exactly like" Battlefield, with pitch and roll on the mouse instead of the arrow keys, and to hold e.g. Shift to look around. Battlefield's own free look is the right mouse button, so both work.
+- **Where:** `game-main.js` (`flightSticks`, `flightLook`, `readInput` free look, help texts), `game-aircraft.js` (`hold` in the helicopter and drone), `README.md`, `index.html` (start and pause screens).
+- **Checked (simulated mouse with pointer lock):**
+  - Helicopter: 300 px of mouse up tilts the nose 21° down and it stays (flying forward at 59 km/h); 300 px right banks 28° right and it stays.
+  - Free look: Shift + 400 px left turns the view 55° left of the nose while the helicopter does not move; let go and it is straight ahead again within a second. The right mouse button does the same.
+  - Drone (ANGLE): 250 px up tilts it 32° nose down and it holds; back down levels it; right rolls it right.
+  - Plane: mouse down raises the nose.
+  - Node tests 44/44.
+- **Status:** PR (branch `feat/mouse-flying`, on top of PR #18), closes #16.
+
 ### 2026-10-29 · The distant ground no longer floats above the real ground (issue #17)
 - **What:**
   - Beyond the terrain data (±800 m) the land is a flat plane with a townscape texture, or the live aerial photo when it is on. That plane was set at the height of the data's south-east corner (+6.7 m in game height), so south and west of home, where the ground is 30–54 m lower, it hung 40–60 m above the real ground. From the air, beyond the detailed ground, you saw that floating sheet.
@@ -43,7 +63,7 @@ Live site: runs `main` (deployed 29 Oct 2026 after PRs #8–#14, version fd96bf7
   - The same 150 m above the construction site.
   - With imagery on, the distant photo is the 2048 px one, shown once.
   - Node tests 44/44; no console errors.
-- **Status:** PR (branch `fix/floating-horizon`), closes #17.
+- **Status:** PR #18 (branch `fix/floating-horizon`), closes #17.
 
 ### 2026-10-29 · `main` is live
 - **What:** the game on `main` (PRs #5–#14: jumps, shops, stashes, the Unreal features, the fixes, HODET N.N., Muselunden and the bigger world) is deployed to https://haarklous-online.server-smoke.workers.dev (Cloudflare Worker version fd96bf7e). Before, the live site ran the older branch `feat/ue5-features`.

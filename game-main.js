@@ -340,8 +340,8 @@
 
   // ---------- Vehicles: enter / exit ----------
   const AIR_HELP = {
-    helicopter: 'Helicopter (Mode 2) · left stick ↑↓ collective (centre = hover), ←→ pedals · right stick pitch/roll · R3 / V chase camera · the rotor needs a few seconds to spool up',
-    plane: 'Plane (Mode 2) · left stick ↑ to add throttle (it stays), ←→ rudder/nose wheel · right stick pitch/roll · pull back at about 85 km/h · L2 brakes · R3 / V view'};
+    helicopter: 'Helicopter (Mode 2) · left stick ↑↓ collective (centre = hover), ←→ pedals · right stick pitch/roll · R3 / V chase camera · Keyboard + mouse: W/S collective, A/D pedals, mouse pitch/roll (up = nose down), hold Shift to look around · the rotor needs a few seconds to spool up',
+    plane: 'Plane (Mode 2) · left stick ↑ to add throttle (it stays), ←→ rudder/nose wheel · right stick pitch/roll · pull back at about 85 km/h · L2 brakes · R3 / V view · Keyboard + mouse: W/S throttle, A/D rudder, mouse pitch/roll (up = nose down), hold Shift to look around'};
   function setClip(near, far) {if (camera.near !== near || camera.far !== far) {camera.near = near;camera.far = far;camera.updateProjectionMatrix();}}
   function enterVehicle(v) {watch.hide();player.mode = 'vehicle';player.vehicle = v;player.siteView = 0;player.lookYaw = 0;player.lookPitch = 0;player.chase = false;player.chaseCam = null;v.enter();updateDynamic();if (v.aircraft) setClip(.12, 1600);notice(v.help ? v.help : v.aircraft ? AIR_HELP[v.kind] : v.kind === 'excavator' ? 'Tracks: L1/L2 left, R1/R2 right · Left stick: swing / stick · Right stick: boom / bucket · □ get out' : 'R2 throttle · L2 brake / reverse · Left stick steer · Right stick look · □ get off', v.aircraft || v.help ? 9 : 6);}
   function tryDrive(v) {
@@ -498,7 +498,10 @@
     if (kx || ky) {input.move.x = kx;input.move.y = ky;}
     const map = {Space: 'cross', KeyC: 'circle', KeyE: 'square', KeyF: 'triangle', Escape: 'options', KeyM: 'touchpad', KeyG: 'gallery', KeyZ: 'prone', KeyR: 'reload', ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down', ShiftLeft: 'l3', KeyQ: 'l1', KeyV: 'view', KeyY: 'share'};
     for (const [code, name] of Object.entries(map)) {if (ke(code)) input.pressed.add(name);if (k(code)) input.held[name] = true;}
-    if (mouse.left) input.r2 = Math.max(input.r2, 1);if (mouse.right) input.l2 = Math.max(input.l2, 1);
+    // Flying (helicopter, plane, drone): hold Shift or the right mouse button to look around (Battlefield's free look, issue #16).
+    const flying = player.mode === 'drone' || (player.mode === 'vehicle' && !!player.vehicle?.aircraft);
+    input.freeLook = flying && (k('ShiftLeft') || k('ShiftRight') || mouse.right);
+    if (mouse.left) input.r2 = Math.max(input.r2, 1);if (mouse.right && !flying) input.l2 = Math.max(input.l2, 1);
     if (mouse.leftUp) input.released.add('mouseLeft');if (mouse.leftEdge) input.pressed.add('mouseLeft');
     if (k('KeyW') && player.mode === 'vehicle') input.r2 = 1;if (k('KeyS') && player.mode === 'vehicle') input.l2 = 1;
     mouse.dx = mouse.dy = 0;mouse.leftEdge = mouse.leftUp = false;mouse.wheel = 0;keyEdges.clear();
@@ -710,22 +713,33 @@
     }
   }
   // Mode 2 sticks for the aircraft and the drone; the keyboard uses W/S, A/D and the arrow keys.
-  function flightSticks(input, dl) {
+  // Battlefield-style mouse flying (issue #16): the mouse is the right stick – mouse up = nose down, mouse down = nose up,
+  // left / right = roll – with W / S and A / D as the left stick. The mouse's speed is the stick deflection (700 px/s = full
+  // at sensitivity 1), so how far you move it is how far the aircraft tilts; `hold` asks the aircraft to keep that tilt rather
+  // than level itself. Arrow keys and the controller work as before (they turn `hold` off).
+  const mouseFly = {x: 0, y: 0, hold: false};
+  function flightSticks(input, dl, dt = 1 / 60, mouseScale = 1) {
     const dz = a => Math.abs(a) < .07 ? 0 : a, kb = (a, b) => (input.held[a] ? 1 : 0) - (input.held[b] ? 1 : 0), wob = dl ? Math.sin(performance.now() / 480) * .3 * dl : 0;
-    return {lx: dz(input.move.x) + wob * .5, ly: dz(input.move.y), rx: Math.max(-1, Math.min(1, dz(input.look.x) + kb('right', 'left') + wob)), ry: Math.max(-1, Math.min(1, dz(input.look.y) + kb('down', 'up') + wob * .4)), brake: input.l2};
+    const k = input.freeLook ? 0 : mouseScale * sensitivity.mouse / 700 / Math.max(dt, .004), a = Math.min(1, dt / .05);
+    mouseFly.x += (input.mouse.dx * k - mouseFly.x) * a;mouseFly.y += (input.mouse.dy * k - mouseFly.y) * a;
+    if (k && (input.mouse.dx || input.mouse.dy)) mouseFly.hold = true;
+    if (Math.abs(input.look.x) + Math.abs(input.look.y) > .1 || kb('right', 'left') || kb('down', 'up')) mouseFly.hold = false;
+    return {lx: dz(input.move.x) + wob * .5, ly: dz(input.move.y), rx: Math.max(-1, Math.min(1, dz(input.look.x) + kb('right', 'left') + wob + mouseFly.x)), ry: Math.max(-1, Math.min(1, dz(input.look.y) + kb('down', 'up') + wob * .4 + mouseFly.y)), brake: input.l2, hold: mouseFly.hold};
+  }
+  // Free look while flying: Shift or the right mouse button held, the mouse turns your head; let go and it turns back.
+  function flightLook(input, dt) {
+    if (input.freeLook) {player.lookYaw = Math.max(-2.6, Math.min(2.6, (player.lookYaw || 0) - input.mouse.dx * .0024 * sensitivity.mouse));player.lookPitch = Math.max(-1.1, Math.min(1, (player.lookPitch || 0) - input.mouse.dy * .0024 * sensitivity.mouse));}
+    else {const k = Math.max(0, 1 - dt * 5);player.lookYaw = (player.lookYaw || 0) * k;player.lookPitch = (player.lookPitch || 0) * k;}
+    camera.rotateY(player.lookYaw);camera.rotateX(player.lookPitch);
   }
   function updateAircraft(dt, input, dl) {
     const v = player.vehicle;
     if (input.pressed.has('square') && v.grounded && v.speed < 3) {exitVehicle();return;}
     if (input.pressed.has('r3') || input.pressed.has('view')) {player.chase = !player.chase;player.chaseCam = null;}
-    v.update(dt, flightSticks(input, dl));
+    v.update(dt, flightSticks(input, dl, dt));
     const pose = v.cameraPose(player.chase, player.chaseCam);if (player.chase) player.chaseCam = pose.position.clone();
     camera.position.copy(pose.position);camera.quaternion.copy(pose.quaternion);
-    if (!player.chase) {
-      player.lookYaw = (player.lookYaw || 0) - input.mouse.dx * .0024 * sensitivity.mouse;player.lookPitch = Math.max(-1.1, Math.min(1, (player.lookPitch || 0) - input.mouse.dy * .0024 * sensitivity.mouse));
-      if (!input.mouse.dx) player.lookYaw *= Math.max(0, 1 - dt * .8);if (!input.mouse.dy) player.lookPitch *= Math.max(0, 1 - dt * .8);
-      camera.rotateY(player.lookYaw);camera.rotateX(player.lookPitch);
-    }
+    if (!player.chase) flightLook(input, dt);
     if (camera.fov !== 72) {camera.fov = 72;camera.updateProjectionMatrix();}
     player.x = v.x;player.z = v.z;player.feet = v.y;player.yaw = v.yaw;
     const sp = $('speedo');sp.hidden = false;sp.classList.add('air');sp.textContent = v.broken ? 'CRASHED' : v.hud();
@@ -748,8 +762,8 @@
     if (input.pressed.has('circle') || input.pressed.has('triangle')) {stopDrone();notice('Drone packed away.', 2);return;}
     if (input.pressed.has('l1')) {drone.setMode(drone.mode === 'angle' ? 'acro' : 'angle');notice(drone.mode === 'acro' ? 'ACRO: the right stick sets rotation rates – nothing self-levels. Flips and rolls!' : 'ANGLE: the drone levels itself and holds altitude with the stick centred.', 4);}
     if (input.pressed.has('cross') && (drone.crashed || !drone.armed)) {if (drone.battery > 0) drone.reset();else notice('Battery empty – ○ to pack the drone away, then launch it again with a fresh pack.', 4);}
-    drone.update(dt, flightSticks(input, dl), {floor: floorBelow, solid: (p, a, b) => collision.hitsSolid(walkWorld, p, a, b), listener: {x: player.x, y: player.feet + 1.6, z: player.z}});
-    const pose = drone.cameraPose();camera.position.copy(pose.position);camera.quaternion.copy(pose.quaternion);
+    drone.update(dt, flightSticks(input, dl, dt, drone.mode === 'acro' ? .3 : 1), {floor: floorBelow, solid: (p, a, b) => collision.hitsSolid(walkWorld, p, a, b), listener: {x: player.x, y: player.feet + 1.6, z: player.z}});
+    const pose = drone.cameraPose();camera.position.copy(pose.position);camera.quaternion.copy(pose.quaternion);flightLook(input, dt);
     if (camera.fov !== 100) {camera.fov = 100;camera.updateProjectionMatrix();}
     if ((osdT -= dt) > 0) return;osdT = .1;
     const fl = floorBelow(drone.pos, drone.pos.y + .1), o = drone.osd(fl ? fl.y : heightAt(drone.pos.x, drone.pos.z)), mm = Math.floor(o.time / 60), ss = String(Math.floor(o.time % 60)).padStart(2, '0');

@@ -6,7 +6,8 @@
  * Bodies are rigid: position, velocity, orientation quaternion and body rates (x pitch up, y yaw left, z roll left).
  * GameAircraft.create({T, lib, audio, heightAt, collision, worldFor}) -> {Helicopter, Plane, Drone}
  * Helicopter/Plane: {group, kind, name, aircraft: true, x, y, z, yaw, speed, grounded, forward(), footprint(), enter(), exit(),
- *   update(dt, {lx, ly, rx, ry, brake}), cameraPose(chase), hud()}
+ *   update(dt, {lx, ly, rx, ry, brake, hold}), cameraPose(chase), hud()}  hold: flying by mouse (Battlefield style), keep the
+ *   tilt the mouse gave instead of levelling (helicopter; in the drone's angle mode the mouse moves the tilt)
  * Drone: {launch(x, y, z, yaw), update(dt, input, env), cameraPose(), osd(), setMode()}
  */
 (function (root, factory) {
@@ -160,7 +161,8 @@
         // Cyclic and pedals command rates; with the stick centred it gently levels itself (as in Battlefield). At speed the tail fin
         // weathervanes into the airflow and a bank turns the nose.
         const {pitch, bank} = this.attitude(), vb = this.bodyVel(), fwd = -vb.z;
-        const tw = V3(ry * 1.25 - pitch * 1.2 * (1 - Math.min(1, Math.abs(ry) * 2)), -lx * 1.3, -rx * 1.7 + bank * 1.2 * (1 - Math.min(1, Math.abs(rx) * 2)));
+        const lv = inp.hold ? .15 : 1.2;// flying by mouse: the tilt holds (it levels only slowly)
+        const tw = V3(ry * 1.25 - pitch * lv * (1 - Math.min(1, Math.abs(ry) * 2)), -lx * 1.3, -rx * 1.7 + bank * lv * (1 - Math.min(1, Math.abs(rx) * 2)));
         if (fwd > 5) {tw.y += -Math.atan2(vb.x, fwd) * Math.min(1, fwd / 30) * 1.2 - bank * Math.min(1, sp / 25) * .55;}
         const light = lift > G * .95;
         if (this.grounded && !light) tw.set(0, light ? tw.y : 0, 0);
@@ -303,7 +305,10 @@
         const lx = inp.lx || 0, ly = inp.ly || 0, rx = inp.rx || 0, ry = inp.ry || 0;this.time += dt;
         let thrust;
         if (this.mode === 'angle') {
-          this.yawA -= lx * 3.2 * dt;this.pitchA += (ry * .75 - this.pitchA) * Math.min(1, dt * 9);this.rollA += (rx * .75 - this.rollA) * Math.min(1, dt * 9);
+          this.yawA -= lx * 3.2 * dt;
+          // The stick sets the tilt; flying by mouse, the mouse moves the tilt (up to 0.75 rad) and it stays there.
+          if (inp.hold) {this.pitchA = clamp(this.pitchA + ry * 1.6 * dt, -.75, .75);this.rollA = clamp(this.rollA + rx * 1.6 * dt, -.75, .75);}
+          else {this.pitchA += (ry * .75 - this.pitchA) * Math.min(1, dt * 9);this.rollA += (rx * .75 - this.rollA) * Math.min(1, dt * 9);}
           this.q.setFromEuler(new T.Euler(this.pitchA, this.yawA, -this.rollA, 'YXZ'));
           // Left stick sets the climb rate (±7 m/s); centred it holds altitude.
           thrust = clamp(G + (-ly * 7 - this.vel.y) * 3, 0, 3.4 * G) / Math.max(.6, Math.cos(this.pitchA) * Math.cos(this.rollA));
