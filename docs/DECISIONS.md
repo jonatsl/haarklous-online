@@ -19,14 +19,43 @@ On `main`:
 - Firepit with benches, beer crate and woodpile (fire size shared online); beer and aquavit in the apartment (30 s drunk each).
 - Joker and Kiwi shops at their real places with a cashier; money in kroner (start 500 kr, earned from the mission, minigames and bottle deposit), Norwegian beer hours, a bag of bought items (PR #6).
 - Three hidden stashes with 30-second boosts: 3× running speed, 3× jump height or bullet time.
-- Construction site (140 × 90 m, two gates) with seven machines: dozer, 30 t excavator, wheel loader, articulated hauler, 8x4 tipper, mobile crane, tower crane; diggable soil that keeps its volume; R3 / V changes the machine view (PR #8).
-- Paintball course next to the site: lobby, admin, teams up to 6 v 6, team deathmatch with respawns or in rounds, capture the flag, paint or reball (PR #8).
+- HODET N.N., Marianne Heske's 7 m bronze doll's head, at its real place at the north end of Torshovdalen, with its stone steps (PR #12).
+- Construction site (140 × 90 m, two gates, in the south-west of Torshovdalen since PR #12) with seven machines: dozer, 30 t excavator, wheel loader, articulated hauler, 8x4 tipper, mobile crane, tower crane; diggable soil that keeps its volume; R3 / V changes the machine view (PR #8).
+- Paintball course on the valley floor between the sculpture and the site (since PR #12): lobby, admin, teams up to 6 v 6, team deathmatch with respawns or in rounds, capture the flag, paint or reball (PR #8).
 - Multiplayer on Cloudflare (lobby codes, up to 12 players), passengers in motorcycle / cars / helicopter / plane, text chat with quick chat, lobby-wide voice chat.
 - Soundtrack: 2.5-minute open-world loop plus one loop per minigame and the mission; ambient sound by location.
 
 Live site: still runs the older branch `feat/ue5-features` (no jumps, no shops yet) until `main` is deployed.
 
 ## Log
+
+### 2026-10-29 · HODET N.N. at its real place; the construction site and the paintball course move
+- **What:**
+  - **HODET N.N.** (Marianne Heske, 2014), the 7 m bronze doll's head, stands at its real place at the north end of Torshovdalen (OSM node 2965223021, local 9.1, 275.5).
+    - It faces south down the valley, as in the photos (checked against a 2014 Wikimedia Commons photo and an aerial photo).
+    - It has a short neck and a flat-topped shoulder plate, and the face has lowered eyelids, a small nose, full cheeks and a small mouth.
+    - Four rows of stone steps on its east side, like the small amphitheatre there. You can climb and stand on them.
+    - It is solid and is on the map.
+  - **The construction site** moves 96 m south and 72 m west: fence x −158..−18, s 371..461. Its two gates are where a park footway crosses the fence. Everything inside keeps its place relative to the fence: the pit, stockpiles, offices and machines. The platform is fitted to the new ground.
+  - **The paintball course** moves into the valley floor that the site left (yard x −72..−8, s 296..344). It is 17 m west of the sculpture. The gate is where the lawn is level with the yard, and the lobby is on the lawn south of it.
+  - The site and course data is now made in this repo by `tools/make-site.py` and `tools/make-paintball.py`. These are the Unreal project's generators, ported. With the old numbers they give the old files exactly.
+- **Why:**
+  - The Unreal issue #3 asked for the Torshovdalen sculpture.
+  - Its real place was on the construction site's north fence, beside the gate. The user chose: the sculpture at its real place, the site about 100 m south, and the paintball course somewhere it does not cross buildings or the sculpture ("remove a block if needed").
+  - Straight 100 m south, the site would have crossed the main road along the park and buildings 531 and 539. The nearest clear place is 96 m south and 72 m west (multiples of 8 m, the Unreal far terrain's grid).
+  - The paintball course fits in the freed valley floor, so no block had to be removed.
+  - Torshovdalen also has a smaller concrete sculpture, "Tors bukker" (Anna Widén, 2017). HODET N.N. was taken as "the sculpture".
+- **Where:** `game-sculpture.js` (new), `game-main.js` (place, collision, map), `index.html`, `tools/make-site.py` and `tools/make-paintball.py` (new), `site-data.js` and `paintball-data.js` (regenerated), `tests/places.test.cjs` (new), `README.md`, `docs/HANDOFF.md`, `docs/UE5-PARITY.md`.
+- **Checked:**
+  - Node tests 42/42. New: the sculpture is at the OSM node; the site, paintball yard, lobby and sculpture overlap neither each other nor any building or car road; the face is symmetric.
+  - In the game:
+    - the 41 street vehicles start where they did, and the 7 site machines are inside the new site;
+    - walked in through the site's north gate, and the fence blocks beside it;
+    - paintball lobby, game start in the new yard (floor −27.05), firing, and leaving with △;
+    - walking into the sculpture stops you at its shoulder plate; you can stand on the steps; the view from the south matches the photo;
+    - every ray at the sculpture hits a front face; no console errors.
+  - Not repeated here: digging with the 30 t excavator. In the hidden test tab the simulated stick and bucket did not move. The soil logic does not depend on the place and is covered by `tests/site.test.cjs`.
+- **Status:** PR #12 (branch `feat/hodet-nn-sculpture`, on top of PR #11). For the Unreal version: https://github.com/jonatsl/haarklous-ue5/issues/3 and a new issue for the move.
 
 ### 2026-10-29 · Street lamp posts are solid
 - **What:** the 82 street lamps (OpenStreetMap `highway=street_lamp`, already drawn as a 5 m grey pole with a round head) now block walkers and vehicles like trees do. Before, you could walk and drive straight through them. The map data has 83; the one at local (51.1, 288) stands inside the construction site and is left out, as before.
