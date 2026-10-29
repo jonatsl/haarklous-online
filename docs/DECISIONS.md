@@ -29,7 +29,7 @@ Live site: still runs the older branch `feat/ue5-features` (no jumps, no shops y
 ## Log
 
 ### 2026-10-29 · Street lamp posts are solid
-- **What:** the 83 street lamps (OpenStreetMap `highway=street_lamp`, already drawn as a 5 m grey pole with a round head) now block walkers and vehicles like trees do. Before, you could walk and drive straight through them. Lamps inside the construction site and the paintball yard are still left out.
+- **What:** the 82 street lamps (OpenStreetMap `highway=street_lamp`, already drawn as a 5 m grey pole with a round head) now block walkers and vehicles like trees do. Before, you could walk and drive straight through them. The map data has 83; the one at local (51.1, 288) stands inside the construction site and is left out, as before.
 - **Why:** the Unreal version has no street lamps yet (haarklous-ue5 issue #2, "Add street lamps", 28 Oct 2026). The user's goal is the same features in both games. The web game already had the lamps, so the only gameplay gap was collision. The look is unchanged (no light at night: neither game has a night).
 - **Where:** `surroundings.js` (lamp list and `obstacles()`).
 - **Checked:** the 48 vehicles start at exactly the same places (the parked-car seed 1707 is unaffected, which matters for online play with the Unreal version). Walking into a post stops you 0.32 m from its centre. A car at 30 km/h stops with its centre about 2.4 m from the post. Node tests 38/38.
