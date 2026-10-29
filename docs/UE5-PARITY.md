@@ -54,12 +54,20 @@ simulated DualShock 4, `window.haarklousGame`).
 | Balcony-door prompt fix (UE work in progress) | already fine here: the web raycast only tests interactables | prompt shown from 10 of 10 places |
 | New sounds: diesel engine, paintball shot, splat, bounce, whistle (`HKAudioImpl`) | `game-audio.js` | used by the machines and paintball |
 
+## 2b. Changed here first (29 Oct 2026), to be copied by the Unreal version
+
+- The construction site moved 96 m south and 72 m west, and the paintball course moved into the valley floor the site left, so HODET N.N. (UE issue #3) can stand at its real place. The data is now made in this repo by `tools/make-site.py` and `tools/make-paintball.py` (ports of the UE scripts with new constants); the UE project should run its own scripts with the same constants.
+- The world grew to ±760 m walkable / ±800 m terrain, and the real Muselunden DiscGolfPark (12 holes) was added (`muselunden-data.js`).
+- Checked again on 29 Oct 2026 against the UE commits up to `962eded`: `aa26d86` (higher loader cab, low front fenders, seat view at the glass; small tipper mirrors on arms) is ported; `962eded` is an Unreal-only balcony test.
+- Fixes found by the Unreal port, done here: petanque after 13, petanque freeze, vehicle obstacles (UE issues #7–#9); see-through barrier ends (UE #1); solid street lamps (UE #2).
+
 ## 3. Deliberately not ported
 
 - Graphics only (the user said not to change the graphics): photo-real materials and textures, baked lighting, 3D
   facades, new trees and grass, the photographed sky, the MakeHuman people. They have no gameplay.
-- The web-game bugs listed in the UE `docs/GAMEPLAY-IDEAS.md` (petanque after 13, petanque freeze, vehicle obstacles one
-  update late). Unreal copied them on purpose and is waiting for the user's decision, so both games still have them.
+- (Fixed here on 29 Oct 2026, no longer an exception.) The web-game bugs listed in the UE `docs/GAMEPLAY-IDEAS.md`
+  (petanque after 13, petanque freeze, vehicle obstacles one update late) are fixed in this game; the same fixes are
+  issues in haarklous-ue5.
 
 ## 4. Not verifiable here
 
