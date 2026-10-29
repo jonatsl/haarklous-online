@@ -31,6 +31,8 @@
   const audio = window.GameAudio.create();
   // Soundtrack: a calm 2.5-minute open-world loop, and its own loop for disc golf, petanque and the hostage rescue.
   const music = window.GameMusic.create();
+  // Joker and Kiwi are cut into the ground floors of their real buildings (this has to happen before the buildings are built).
+  window.GameShops.applyNotches(D);
   const world = window.Surroundings.create({T, lib, data: D, renderer, onStatus: t => {const el = $('imageryStatus');if (el) el.textContent = t;}});
   scene.add(world.near);farScene.add(world.far);world.setSun(sunDir);
   const apt = window.GameApartment.build({T, lib, data: window.APARTMENT});scene.add(apt.group);
@@ -63,20 +65,21 @@
     const at = (name, x, z, yaw) => ({name, x, z, y: world.heightWorld(x, z), yaw});
     return window.GameStash.create({T, lib, places: [{name: 'stairwell', x: top.x, y: top.y, z: top.z, yaw: Math.atan2(e[8], e[0])}, at('courtyard', -2.8, -41.7, .4), at('park', 104.5, 162.2, 1.2)]});
   })();scene.add(stash.group);
-  const staticObstacles = [...apt.obstacles, ...towers.flatMap(towerObstacles), ...world.obstacles(), ...fire.obstacles, ...stash.obstacles];
-  const walkFloors = [...apt.floors, ...towers.flatMap(towerFloors), world.terrainFloor()];
+  const shops = window.GameShops.create({T, lib, world, audio});scene.add(shops.group);
+  const staticObstacles = [...apt.obstacles, ...towers.flatMap(towerObstacles), ...world.obstacles(), ...fire.obstacles, ...stash.obstacles, ...shops.obstacles];
+  const walkFloors = [...apt.floors, ...towers.flatMap(towerFloors), ...shops.floors, world.terrainFloor()];
   const walkWorld = collision.createWorld({floors: walkFloors, obstacles: staticObstacles, radius: .18, clearance: .08});
   const vehicleWorlds = new Map();
   function worldFor(r) {
     const key = r.toFixed(2);
-    if (!vehicleWorlds.has(key)) vehicleWorlds.set(key, collision.createWorld({floors: [world.terrainFloor()], obstacles: [...world.obstacles(), ...towers.flatMap(towerObstacles), ...fire.obstacles], radius: r, clearance: .08}));
+    if (!vehicleWorlds.has(key)) vehicleWorlds.set(key, collision.createWorld({floors: [world.terrainFloor()], obstacles: [...world.obstacles(), ...towers.flatMap(towerObstacles), ...fire.obstacles, ...shops.obstacles], radius: r, clearance: .08}));
     return vehicleWorlds.get(key);
   }
   const doors = [...apt.doors, ...towers.flatMap(t => t.stair.doors)];
   const shootTargets = [];[apt.group, ownStair.group].forEach(g => g.traverse(o => {if (o.isMesh && !(o.material.transparent) && o.visible) shootTargets.push(o);}));
   const interactables = [];[apt.group, ...towers.map(t => t.stair.group)].forEach(g => g.traverse(o => {if (o.isMesh && (o.userData.doorId || o.userData.lockedDoor)) interactables.push(o);}));
   apt.drinks.forEach(d => d.object.traverse(o => {if (o.isMesh) {o.userData.drink = d;interactables.push(o);}}));
-  interactables.push(...stash.hitboxes);
+  interactables.push(...stash.hitboxes, ...shops.hitboxes);
 
   // ---------- Vehicles ----------
   const toWorld = world.toWorld, heightAt = world.heightWorld;
@@ -212,12 +215,13 @@
       spawnAreas: () => apt.spawnAreas, stairSpawns, missionStart,
       entrance: () => {const d = apt.doors.find(d => d.name === 'Entrance door');return d ? d.leaf.getWorldPosition(new T.Vector3()) : {x: 1.66, z: 5.83};},
       timeScale: () => worldScale(),
+      onFinish: result => {if (result === 'success') earn(400, 'Reward for rescuing the hostage');},
       setPose: (x, z, yaw, tilt, y) => place(x, z, yaw, y), enterWalk: () => {}, enterImmersive: () => {},
       leave: () => {const yaw = player.yaw;place(player.x, player.z, yaw, player.feet);updateDynamic();notice(inApartment() ? 'Mission over – you are home. Make yourself comfortable.' : 'Mission over.', 4);}});
   }
 
   // ---------- Minigames, photo camera, map ----------
-  const mini = window.GameMinigames.create({T, lib, audio, heightAt, toWorld, data: D, hud, trees: world.trees});
+  const mini = window.GameMinigames.create({T, lib, audio, heightAt, toWorld, data: D, hud, trees: world.trees, reward: (v, why) => earn(v, why)});
   scene.add(mini.discgolf.group, mini.petanque.group);
   const photo = window.GameCamera.create({T, lib, audio, root: view});
   const overlayScene = new T.Scene(), overlayCamera = new T.PerspectiveCamera(55, 1, .01, 5);overlayScene.add(new T.HemisphereLight(0xf1f5ff, 0x4a4540, 2.2));
@@ -233,6 +237,7 @@
     {...world.toLocal(AIR.heli.x, AIR.heli.z), color: '#1565c0', label: 'Helipad', glyph: 'H'},
     {...world.toLocal(AIR.plane.x, AIR.plane.z), color: '#1565c0', label: 'Airstrip', glyph: '✈'},
     {...world.toLocal(FIRE_POS.x, FIRE_POS.z), color: '#e65100', label: 'Firepit', glyph: '🔥'},
+    ...shops.shops.map(s => {const L = s.local;return {x: L.P0[0] + L.u[0] * L.W / 2 + L.n[0] * L.depth / 2, s: L.P0[1] + L.u[1] * L.W / 2 + L.n[1] * L.depth / 2, color: s.id === 'kiwi' ? '#2e9a3f' : '#d0021b', label: s.name, glyph: '🛒'};}),
     ...(mp ? [...mp.remotes.values()].filter(r => r.seen).map(r => ({...world.toLocal(r.pos.x, r.pos.z), color: window.GameAvatars.SLOT_CSS[r.slot % 5], label: r.name, glyph: '●'})) : [])]});
   // Wristwatch (D-pad ↑) shares the first-person overlay with the photo camera.
   const watch = window.GameWatch.create({T, lib});overlayScene.add(watch.model);
@@ -241,7 +246,7 @@
   let drunk = 0;// seconds of drunkenness remaining
   const drunkLevel = () => Math.min(1, drunk / 90);
   function drink(d) {
-    if (d.kind === 'beer') {d.object.visible = false;d.used = true;audio.sfx('bottleOpen');audio.sfx('gulp');drunk += 30;notice('You drink a beer. (+30 s drunk)');}
+    if (d.kind === 'beer') {d.object.visible = false;d.used = true;audio.sfx('bottleOpen');audio.sfx('gulp');drunk += 30;wallet.addPant(1);notice('You drink a beer. (+30 s drunk, +1 bottle for the deposit)');}
     else {if (d.sips <= 0) {notice('The bottle is empty.');return;}d.sips--;audio.sfx('gulp');drunk += 30;notice(`A sip of ${d.name}. (+30 s drunk) · ${d.sips} sips left`);const l = d.object.userData.liquid;if (l) l.scale.y = Math.max(.05, d.sips / 12);}
   }
 
@@ -267,6 +272,7 @@
     // Doors first (the street door of 17A opens normally), then the mission marker beside the entrance.
     {const o = lookTarget();if (o?.userData.doorId) {const d = doors.find(d => d.id === o.userData.doorId);if (d) return {text: `□ ${d.open ? 'Close' : 'Open'} ${d.name.toLowerCase()}`, act: () => toggleDoor(d)};}}
     if (Math.hypot(player.x - MISSION_MARK.x, player.z - MISSION_MARK.z) < 1.6 && Math.abs(player.feet - world.heightWorld(MISSION_MARK.x, MISSION_MARK.z)) < 2) return {text: '□ Start mission: rescue the hostage (4th floor)', act: () => startMission()};
+    const shp = shopPrompt();if (shp) return shp;
     const fp = firePrompt();if (fp) return fp;
     const sp = stashPrompt();if (sp) return sp;
     const v = nearestVehicle();
@@ -329,6 +335,72 @@
     boost = {kind, t: 30};audio.sfx(it.kind === 'line' ? 'sniff' : 'needle');audio.muffle(kind === 'slowmo');
     notice(`${BOOSTS[kind]} for 30 seconds!`, 4);
   }
+  // ---------- Shops (Joker and Kiwi) and money in kroner ----------
+  const wallet = shops.wallet, KR = shops.kr, GREET = ['Hei! Velkommen inn.', 'Hei hei!', 'God dag!', 'Hei, si fra om du trenger hjelp.'];
+  let basket = [], walletT = 0, lastShop = null, bag = null;
+  function earn(amount, why) {if (!(amount > 0)) return;wallet.earn(amount);walletT = 6;audio.sfx('coin');notice(`+${KR(amount)} · ${why}`, 4);}
+  function shopPrompt() {
+    if (player.mode !== 'foot') return null;
+    const s = shops.shopAt(player, player.feet), o = lookTarget(), u = (o && o.userData) || {};
+    if (u.shopItem) {const {shop, product} = u.shopItem, price = shops.priceOf(shop, product);return {text: `□ Take ${product.name} – ${KR(price)}`, act: () => takeProduct(shop, product, price)};}
+    if (u.shopPant) {const n = wallet.pant;return n ? {text: `□ Return ${n} empty bottle${n > 1 ? 's' : ''} – ${KR(n * shops.PANT)}`, act: () => returnPant()} : {text: 'Bottle return – no empty bottles yet', act: () => {}};}
+    if (s && (u.shopTill || shops.atTill(s, player))) {
+      const mine = basket.filter(b => b.shop === s), total = mine.reduce((t, b) => t + b.price, 0);
+      return mine.length ? {text: `□ Pay ${KR(total)} (${mine.length} item${mine.length > 1 ? 's' : ''})`, act: () => payAt(s)} : {text: '□ Talk to the cashier', act: () => s.say(GREET[Math.floor(Math.random() * GREET.length)])};
+    }
+    return null;
+  }
+  function takeProduct(shop, product, price = shops.priceOf(shop, product)) {basket.push({shop, product, price});audio.sfx('click');walletT = 8;notice(`${product.name} in the basket – pay at the till`, 2);}
+  function returnPant() {const n = wallet.cashPant();audio.sfx('pant');walletT = 6;notice(`The machine takes ${n} bottle${n > 1 ? 's' : ''}: +${KR(n * shops.PANT)}`, 3);}
+  function payAt(s) {
+    const mine = basket.filter(b => b.shop === s), beerOk = shops.beerAllowed(new Date());
+    const refused = beerOk ? [] : mine.filter(b => b.product.beer), buy = mine.filter(b => !refused.includes(b)), total = Math.round(buy.reduce((t, b) => t + b.price, 0) * 100) / 100;
+    if (!buy.length) {basket = basket.filter(b => b.shop !== s);s.say('Beklager, jeg kan ikke selge øl nå. Ølsalget er man–fre 08–20 og lør 08–18.');notice('No beer sales now (Norwegian law: Mon–Fri 08–20, Sat 08–18, never on Sunday). The beer goes back.', 5);return;}
+    if (!wallet.pay(total)) {s.say(`Kortet ble avvist – du mangler ${KR(total - wallet.money)}.`);audio.sfx('locked');notice(`Card declined: you have ${KR(wallet.money)}, the total is ${KR(total)}.`, 4);return;}
+    buy.forEach(b => wallet.add(b.product.id));basket = basket.filter(b => b.shop !== s);
+    s.say(refused.length ? `Det blir ${KR(total)}. Ølet må jeg ta tilbake – ølsalget er stengt nå.` : `Det blir ${KR(total)}. Takk for handelen!`);
+    audio.sfx('register');walletT = 8;notice(`Paid ${KR(total)}${refused.length ? ' (no beer at this hour)' : ''} · D-pad ↓ or the ↓ key opens your bag`, 4);
+  }
+  function shopsTick(dt) {
+    shops.update(dt, player, camera);walletT = Math.max(0, walletT - dt);
+    const s = player.mode === 'foot' ? shops.shopAt(player, player.feet) : null;
+    if (s && s !== lastShop) s.say(GREET[Math.floor(Math.random() * 2)]);
+    // Walking out with unpaid items sets off the alarm, and the items go back on the shelves.
+    if (lastShop && s !== lastShop && basket.some(b => b.shop === lastShop)) {audio.sfx('alarm');basket = basket.filter(b => b.shop !== lastShop);notice('BEEP BEEP – the alarm at the door goes off. You put the unpaid items back.', 4);}
+    lastShop = s;if (bag && player.mode !== 'foot') {bag = null;renderBag();}
+    const show = s || basket.length || bag || walletT > 0, w = $('wallet');w.hidden = !show;if (show) w.textContent = `💰 ${KR(wallet.money)} · 🍾 ${wallet.pant}`;
+    const bk = $('basket');bk.hidden = !basket.length;
+    if (basket.length) {const total = basket.reduce((t, b) => t + b.price, 0);bk.innerHTML = '<b>Basket</b>' + basket.map(b => `<div>${b.product.name}<span>${KR(b.price)}</span></div>`).join('') + `<div class="total">Total<span>${KR(total)}</span></div><small>Pay at the till</small>`;}
+  }
+  // The bag: what you have bought (D-pad ↓ / ↓ key on foot).
+  const USE = {beer: 'drink: +30 s drunk, a bottle for the deposit', soda: 'drink: a bottle for the deposit', energy: 'drink: 15 s of 3× speed', food: 'eat: sobers you up', wood: 'empty onto the firepit (+3)'};
+  const bagItems = () => Object.entries(wallet.bag).map(([id, n]) => ({p: shops.products.find(x => x.id === id), n})).filter(e => e.p);
+  function openBag() {bag = {sel: 0, stick: false};watch.hide();renderBag();}
+  function renderBag() {
+    const el = $('bag');el.hidden = !bag;if (!bag) return;const items = bagItems();bag.sel = Math.max(0, Math.min(bag.sel, items.length - 1));
+    el.innerHTML = `<b>Bag · ${KR(wallet.money)} · ${wallet.pant} empty bottle${wallet.pant === 1 ? '' : 's'}</b>` + (items.length ? items.map((e, i) => `<div class="${i === bag.sel ? 'sel' : ''}">${e.n} × ${e.p.name}<small>${USE[e.p.use]}</small></div>`).join('') : '<div>Empty – buy something at Joker or Kiwi</div>') + '<small>↑↓ choose · ✕ / Space use · ○ / C close</small>';
+    // A long bag scrolls so the chosen item stays in view.
+    const sel = el.querySelector('.sel');if (sel) {const t = sel.offsetTop - 34, b = sel.offsetTop + sel.offsetHeight + 30;if (t < el.scrollTop) el.scrollTop = t;else if (b > el.scrollTop + el.clientHeight) el.scrollTop = b - el.clientHeight;}
+  }
+  function bagInput(input) {
+    const y = input.move.y, items = bagItems();
+    if (input.pressed.has('up') || (y < -.5 && !bag.stick)) bag.sel = Math.max(0, bag.sel - 1);
+    if (input.pressed.has('down') || (y > .5 && !bag.stick)) bag.sel = Math.min(Math.max(0, items.length - 1), bag.sel + 1);
+    bag.stick = Math.abs(y) > .5;
+    if (input.pressed.has('cross') && items[bag.sel]) useItem(items[bag.sel].p);
+    if (input.pressed.has('circle')) bag = null;
+    renderBag();input.move.x = input.move.y = 0;['cross', 'circle', 'up', 'down', 'square', 'triangle'].forEach(b => input.pressed.delete(b));
+  }
+  function useItem(p) {
+    if (p.use === 'wood') {
+      if (Math.hypot(player.x - FIRE_POS.x, player.z - FIRE_POS.z) > 8) {notice('Take the firewood to the firepit in the park first.', 3);return;}
+      for (let i = 0; i < 3; i++) setTimeout(() => {fire.throwLog({x: player.x, y: player.feet + 1.3, z: player.z});mp.addWood();}, i * 350);notice('You empty the sack of firewood onto the fire.', 3);
+    } else if (p.use === 'beer') {audio.sfx('bottleOpen');audio.sfx('gulp');drunk += 30;beerT = 20;wallet.addPant(1);notice(`You drink a ${p.name}. (+30 s drunk, +1 bottle for the deposit)`, 3);}
+    else if (p.use === 'soda') {audio.sfx('bottleOpen');audio.sfx('gulp');drunk = Math.max(0, drunk - 10);wallet.addPant(1);notice(`${p.name} – refreshing. (+1 bottle for the deposit)`, 3);}
+    else if (p.use === 'energy') {audio.sfx('bottleOpen');audio.sfx('gulp');boost = {kind: 'speed', t: 15};wallet.addPant(1);notice(`${p.name}: 15 s of 3× speed! (+1 can for the deposit)`, 3);}
+    else {drunk = Math.max(0, drunk - (p.sober || 10));audio.sfx('gulp');notice(`You eat ${p.name}.${p.sober ? ` (−${p.sober} s drunk)` : ''}`, 3);}
+    wallet.take(p.id);walletT = 4;
+  }
   function firePrompt() {
     const near = (p, r) => Math.hypot(player.x - p.x, player.z - p.z) < r && Math.abs(player.feet - fire.center.y) < 1.5;
     if (near(fire.woodpile, 1.9)) return {text: `□ Throw a log on the fire (fire ${Math.round(mp.fireLevel() / fire.MAX * 100)} %)`, act: () => addLog()};
@@ -338,7 +410,7 @@
     return null;
   }
   function addLog() {fire.throwLog({x: player.x, y: player.feet + 1.3, z: player.z});audio.sfx('throw');setTimeout(() => {audio.sfx('thud', {gain: .4});}, 600);mp.addWood();notice('You throw a log on the fire.', 2);}
-  function drinkBeer() {audio.sfx('bottleOpen');audio.sfx('gulp');drunk += 30;beerT = 20;notice('Skål! A beer from the crate. (+30 s drunk)', 3);}
+  function drinkBeer() {audio.sfx('bottleOpen');audio.sfx('gulp');drunk += 30;beerT = 20;wallet.addPant(1);notice('Skål! A beer from the crate. (+30 s drunk, +1 bottle for the deposit)', 3);}
   function sitDown(spot) {watch.hide();if (photo.active) photo.toggle();player.mode = 'sit';player.sitSpot = spot;player.lookYaw = 0;player.lookPitch = -.32;notice('Sitting by the fire · R2 / left mouse: have a beer · □ stand up', 4);}
   function standUp() {const sp = player.sitSpot;player.mode = 'foot';player.sitSpot = null;const dx = fire.center.x - sp.x, dz = fire.center.z - sp.z, l = Math.hypot(dx, dz) || 1;place(sp.x + dx / l * .7, sp.z + dz / l * .7, sp.yaw);}
   function exitVehicle() {
@@ -396,6 +468,7 @@
   function setPaused(p) {paused = p;$('pause').hidden = !p;if (p && document.pointerLockElement === canvas) document.exitPointerLock();if (!p) lockPointer();renderSettings();}
   $('resume').onclick = () => setPaused(false);
   function renderSettings() {
+    $('walletLine').textContent = `Money: ${shops.kr(wallet.money)} · empty bottles: ${wallet.pant} (${shops.kr(wallet.pant * shops.PANT)} at the bottle return)`;
     $('sensPad').value = sensitivity.pad;$('sensMouse').value = sensitivity.mouse;$('sensPadOut').textContent = sensitivity.pad.toFixed(2) + '×';$('sensMouseOut').textContent = sensitivity.mouse.toFixed(2) + '×';
     $('imagery').checked = imageryWanted();$('quality').value = String(quality);
     $('musicVol').value = music.volume;$('musicOut').textContent = music.volume ? Math.round(music.volume * 100) + ' %' : 'off';
@@ -431,6 +504,7 @@
     // Chat: the controller's Share button opens quick chat; keyboard Enter / T opens the text box.
     if (input.pressed.has('share') && !map.open) {quick = quick ? null : {sel: 0, stick: false};renderQuick();}
     if (quick) quickInput(input);
+    if (bag) bagInput(input);
     if (caseGame?.active) {
       // The mission owns ✕ (begin), ○ (leave on panels), Options (pause), □ (door or reload), triggers.
       for (const name of input.pressed) {if (name === 'reload') caseGame.key({key: 'r', code: 'KeyR', repeat: false});else if (name === 'options' || caseGame.state !== 'play') caseGame.padButton(name === 'mouseLeft' ? '' : name);else if (['square', 'touchpad'].includes(name)) caseGame.padButton(name);}
@@ -458,6 +532,7 @@
         } else {const g = gear;gear = null;showGear(null);if (g.open) {gearLast = g.sel;if (g.sel === 1) startDrone();else photo.toggle();} else photo.toggle();}
       }
       if (input.pressed.has('up') && !photo.active && !gear) watch.toggle();
+      if (input.pressed.has('down') && !photo.active && !gear && !bag) {openBag();input.pressed.delete('down');}
     } else if (gear) {gear = null;showGear(null);}
     if (photo.active || player.mode !== 'foot') watch.hide();
     if (photo.active) {
@@ -471,7 +546,7 @@
     // Drunk effect: decays in real time.
     drunk = Math.max(0, drunk - dt);const dl = drunkLevel();
     if (boost && (boost.t -= dt) <= 0) {boost = null;audio.muffle(false);notice('The boost wears off.', 2);}
-    const wdt = dt * worldScale();stash.update(dt);
+    const wdt = dt * worldScale();stash.update(dt);shopsTick(dt);
     if (player.mode === 'vehicle') updateVehicle(dt, input, dl);
     else if (player.mode === 'passenger') updatePassenger(dt, input, dl);
     else if (player.mode === 'sit') updateSit(dt, input, dl);
@@ -487,7 +562,7 @@
     let doorsChanged = false;
     for (const d of doors) if (d.anim) {d.anim.t = Math.min(1, d.anim.t + dt * 2.2);const e = d.anim.t < .5 ? 2 * d.anim.t * d.anim.t : 1 - Math.pow(-2 * d.anim.t + 2, 2) / 2;setDoor(d, d.anim.from + (d.anim.to - d.anim.from) * e);if (d.anim.t >= 1) {d.open = d.anim.to === 1;d.anim = null;doorsChanged = true;}}
     if (doorsChanged || caseGame?.active) updateDynamic();
-    promptTimer -= dt;if (promptTimer <= 0) {promptTimer = .15;promptAction = player.mode === 'minigame' || player.mode === 'drone' || gear?.open || quick || photo.active || (caseGame?.active && caseGame.state !== 'play') ? null : findPrompt();prompt(promptAction?.text);}
+    promptTimer -= dt;if (promptTimer <= 0) {promptTimer = .15;promptAction = player.mode === 'minigame' || player.mode === 'drone' || gear?.open || quick || bag || photo.active || (caseGame?.active && caseGame.state !== 'play') ? null : findPrompt();prompt(promptAction?.text);}
     ambienceTimer -= dt;if (ambienceTimer <= 0) {ambienceTimer = .25;updateAmbience();if (audio.context) music.attach(audio.context);music.play(musicTrack());}
     // Adaptive resolution keeps the frame rate in the 20–30+ fps range on slower PCs.
     if (fpsAvg < 22) {if (++lowFrames > 90 && pixelRatio > .6) {pixelRatio = Math.max(.6, pixelRatio - .1);renderer.setPixelRatio(pixelRatio);resize();lowFrames = 0;}} else lowFrames = 0;
@@ -533,7 +608,8 @@
   }
   function footstep(soft = 1) {
     let surface = 'grass', stair = false;
-    if (inApartment()) {const r = roomAt();surface = r === 'bath' ? 'tile' : r ? 'wood' : 'metal';}
+    if (shops.shopAt(player, player.feet)) surface = 'tile';
+    else if (inApartment()) {const r = roomAt();surface = r === 'bath' ? 'tile' : r ? 'wood' : 'metal';}
     else if (towerAt(player.x, player.z, player.feet)) {surface = 'stone';stair = true;}
     else {const s = world.surfaceAt(player.x, player.z);surface = s === 'asphalt' ? 'asphalt' : s === 'gravel' ? 'gravel' : s === 'sand' ? 'sand' : 'grass';}
     audio.footstep(surface, stair, soft);
@@ -723,7 +799,7 @@
     else {camera.position.set(player.x, player.feet + player.eye, player.z);camera.rotation.order = 'YXZ';camera.rotation.set(player.pitch, player.yaw, 0);}
   }
   function updateAmbience() {
-    const inApt = inFlat(), tw = towerAt(player.x, player.z, player.feet), indoor = inApt || tw ? 1 : player.vehicle && player.vehicle.kind === 'car' ? .7 : player.vehicle && player.vehicle.aircraft ? .4 : 0;
+    const inApt = inFlat(), tw = towerAt(player.x, player.z, player.feet), indoor = inApt || tw || shops.shopAt(player, player.feet) ? 1 : player.vehicle && player.vehicle.kind === 'car' ? .7 : player.vehicle && player.vehicle.aircraft ? .4 : 0;
     audio.ambience({indoor, green: world.greenery(player.x, player.z), traffic: world.trafficDistance(player.x, player.z), height: Math.max(0, player.feet - heightAt(player.x, player.z)) + (inApt ? 10 : 0), stair: Boolean(tw), kitchen: inApt && roomAt() === 'kitchen'});
     // Stair-tower light follows the player into whichever stairwell they are in.
     if (tw) {const l = tw.t.stair.lampAt({x: tw.l.x, z: tw.l.z}, player.feet - tw.t.matrix.elements[13]);if (l) {const p = new T.Vector3(l.x, l.y, l.z).applyMatrix4(tw.t.matrix);towerLamp.position.copy(p);towerLamp.intensity = 5.5;}} else towerLamp.intensity = 0;
@@ -757,7 +833,7 @@
   }
 
   // ---------- Test / inspection handle ----------
-  window.haarklousGame = {player, vehicles, heli, plane, drone, watch, fire, stash, takeBoost, get boost() {return boost;}, set boost(b) {boost = b;}, get mp() {return mp;}, sitDown, standUp, tryDrive, tryRide, openChat, startDrone, stopDrone, floorBelow, doors, mini, music, photo, map, world, apt, towers, walkWorld, get caseGame() {return caseGame;}, place, toggleDoor, enterVehicle, exitVehicle, startMinigame, startMission, drink, interact, findPrompt, renderFrame, begin, get fps() {return fpsAvg;}, kick: () => requestAnimationFrame(frame), get drunk() {return drunk;}, set drunk(v) {drunk = v;}, setStance, camera, scene};
+  window.haarklousGame = {player, vehicles, heli, plane, drone, watch, fire, stash, shops, wallet, get basket() {return basket;}, payAt, takeProduct, useItem, earn, openBag, takeBoost, get boost() {return boost;}, set boost(b) {boost = b;}, get mp() {return mp;}, sitDown, standUp, tryDrive, tryRide, openChat, startDrone, stopDrone, floorBelow, doors, mini, music, photo, map, world, apt, towers, walkWorld, get caseGame() {return caseGame;}, place, toggleDoor, enterVehicle, exitVehicle, startMinigame, startMission, drink, interact, findPrompt, renderFrame, begin, get fps() {return fpsAvg;}, kick: () => requestAnimationFrame(frame), get drunk() {return drunk;}, set drunk(v) {drunk = v;}, setStance, camera, scene};
   loading.remove();$('start').hidden = false;
   requestAnimationFrame(frame);
 })();

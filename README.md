@@ -14,10 +14,11 @@ A first-person open-world game set around Haarklous plass 17A, Torshov, Oslo: yo
 | Run | R2, or click L3 to toggle | Shift |
 | Jump | ✕ | Space |
 | Crouch / lie prone | tap ○ / hold ○ (again to stand) | C / Z |
-| Use (doors, drinks, vehicles, games, mission) | □ | E |
+| Use (doors, drinks, vehicles, games, mission, shop items, till) | □ | E |
 | Photo camera | tap △ (R2 shoot, L2 viewfinder, right stick zoom, □ gallery, ←/→ browse, ○ back) | tap F (left mouse shoot, right mouse viewfinder, G gallery, arrows browse) |
 | Gear menu: camera or FPV drone | hold △, choose with ←/→ (or the left stick), release | hold F, choose with the arrows or the mouse, release |
 | Check the time on your wristwatch | D-pad ↑ (again to lower it) | ↑ |
+| Bag (what you have bought): open, choose, use, close | D-pad ↓, then ↑↓, ✕, ○ | ↓, then ↑↓, Space, C |
 | Map | touchpad | M |
 | Pause, settings (sensitivity, music volume, aerial imagery, graphics) | Options (D-pad ←/→ = music volume) | Esc |
 
@@ -41,6 +42,8 @@ A first-person open-world game set around Haarklous plass 17A, Torshov, Oslo: yo
 **Home:** the street door of 17A is an ordinary door – go in, up the stairs to the 4th floor and through your front door, no mission needed. **Hostage rescue:** stand in the red ring with the sign beside the entrance and press □. After a mission (finished or not), choosing *Leave* keeps you where you are – if you are in the apartment, you simply stay at home. A hostage is in the 4th-floor apartment; 3–5 armed hostiles are in the apartment and in the stairwell. The pistol, health bar and hostile/hostage counter exist only during the mission. L2 aims, R2 fires, □ opens the door in front or reloads, Options pauses.
 
 **Stashes:** three hidden crates – on the top landing of a neighbouring stairwell, in the courtyard behind the building, and by the bushes in the park north of the block. Each has lines to snort and a syringe: □ gives a random 30-second boost – 3× running speed, 3× jump height or bullet time (the world, including the mission's hostiles, slows to about a third while you keep full speed). A used item is back after 90 seconds.
+
+**Shops and money:** Joker Torshov (about 120 m south-west of the flat) and Kiwi Torshov (about 250 m north) are at their real places from OpenStreetMap, built into the ground floor of their buildings, with a glass front, sliding doors, shelves, fridges, firewood, a bottle-return machine and a cashier at the till (both on the map, 🛒). The opening hours are on the door but the shops are always open in the game. Walk in, look at an item and press □ to put it in your basket, then pay at the till with □. You start with 500 kr; the top-right corner shows your money and empty bottles, and the basket shows what you are carrying. Kiwi is about 5 % cheaper. Norwegian rules: beer is only sold Monday–Friday 08–20 and Saturday 08–18 (PC clock), never on Sunday – the cashier takes the beer back. Without enough money the card is declined. Walking out with unpaid items sets off the door alarm and they go back. Bought items go in your bag (D-pad ↓): drinks give an empty bottle that the machine takes for 2 kr, food sobers you up, Red Bull gives 15 s of 3× speed, a beer is +30 s drunk (the beers in the flat and the firepit crate leave an empty bottle too), and a sack of firewood can be emptied onto the firepit (+3 logs). Earn money: hostage rescue 400 kr, disc golf par 50 / birdie 100 / eagle 200 kr, petanque win 150 kr, bottle deposit 2 kr. Money, bottles and bag are saved in the browser.
 
 **Drinks:** six beers on the kitchen worktop and a bottle of aquavit on the TV bench. Each beer or sip adds 30 s of drunkenness: blurred, doubled, swaying vision and drifting walking/steering.
 

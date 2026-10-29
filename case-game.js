@@ -263,7 +263,7 @@
         [{action: 'resume', label: 'Options / ✕ · Resume'}, {action: 'restart', label: 'Touchpad / R · New case'}, {action: 'quit', label: '○ / Esc · Leave'}]);
     }
     function finish(result) {
-      state = result;triggerHeld = false;
+      state = result;triggerHeld = false;if (ctx.onFinish) ctx.onFinish(result);
       const hostiles = plan.actors.filter(a => a.role === 'hostile'), down = hostiles.filter(a => !actors.get(a.id).alive).length;
       const hostageActor = plan.actors.find(a => a.role === 'hostage'), hostageDown = !!hostageActor && !actors.get(hostageActor.id).alive;
       const hostage = plan.hasHostage ? (hostageDown ? '<b class="fail">Shot</b>' : 'Safe') : 'None present';
