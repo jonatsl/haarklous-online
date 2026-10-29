@@ -178,6 +178,16 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
 #boostFx.jump{background:radial-gradient(ellipse at center,transparent 55%,#7dff6a2e 100%)}
 #boostFx.slowmo{background:radial-gradient(ellipse at center,transparent 45%,#1a2a5a66 100%);animation-duration:3.2s}
 @keyframes boostPulse{0%,100%{opacity:.75}50%{opacity:1}}
+
+/* Money, shopping basket and bag */
+#wallet{position:absolute;right:20px;top:18px;padding:6px 14px;border-radius:14px;background:#10241acc;font-weight:700;pointer-events:none}
+#basket{position:absolute;right:20px;top:56px;min-width:230px;padding:10px 14px;border-radius:12px;background:#0b0f14d9;border:1px solid #ffffff22;pointer-events:none;font-size:14px}
+#basket div{display:flex;justify-content:space-between;gap:16px}#basket .total{border-top:1px solid #ffffff33;margin-top:4px;padding-top:4px;font-weight:700}
+#basket small{opacity:.7}
+#bag{position:absolute;left:18px;top:50%;transform:translateY(-50%);min-width:280px;max-width:min(420px,80%);max-height:calc(100% - 140px);overflow-y:auto;scrollbar-width:none;padding:12px;border-radius:12px;background:#0b0f14e6;border:1px solid #ffffff2a;pointer-events:none;display:flex;flex-direction:column;gap:3px}
+#bag div{padding:5px 10px;border-radius:7px;display:flex;flex-direction:column}#bag div small{opacity:.75}
+#bag div.sel{background:#ffd166;color:#111;font-weight:700}#bag > small{color:#ffffffb3;margin-top:4px}
+#bag > b,#bag > small{position:sticky;background:#0b0f14;z-index:1;padding:3px 0}#bag > b{top:-12px}#bag > small{bottom:-12px}
 </style>
 </head>
 <body>
@@ -192,6 +202,9 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
     <div id="drunk" hidden></div>
     <div id="boost" hidden></div>
     <div id="boostFx" hidden></div>
+    <div id="wallet" hidden></div>
+    <div id="basket" hidden></div>
+    <div id="bag" hidden></div>
     <div id="discHud" class="game-card" hidden></div>
     <div id="petanqueHud" class="game-card" hidden></div>
     <div id="gearMenu" hidden><div class="gm-item" data-i="0"><svg viewBox="0 0 48 48" aria-hidden="true"><path d="M6 15h9l4-6h10l4 6h9v24H6z" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/><circle cx="24" cy="27" r="8" fill="none" stroke="currentColor" stroke-width="3"/></svg><b>Camera</b><small>Take photos · gallery</small></div><div class="gm-item" data-i="1"><svg viewBox="0 0 48 48" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="3"><circle cx="11" cy="11" r="7"/><circle cx="37" cy="11" r="7"/><circle cx="11" cy="37" r="7"/><circle cx="37" cy="37" r="7"/><path d="M16 16l16 16M32 16L16 32"/></g><rect x="19" y="19" width="10" height="10" rx="2" fill="currentColor"/></svg><b>FPV drone</b><small>Fly it in first person</small></div><p>Keep holding △ · ←/→ (or ↑/↓) to choose · release to take it out</p></div>
@@ -223,6 +236,7 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
         <span class="eyebrow">PAUSED</span><h2>Settings</h2>
         <label>Controller look sensitivity <output id="sensPadOut"></output><input id="sensPad" type="range" min="0.25" max="3" step="0.05"></label>
         <label>Mouse look sensitivity <output id="sensMouseOut"></output><input id="sensMouse" type="range" min="0.25" max="3" step="0.05"></label>
+        <p id="walletLine" class="small"></p>
         <label>Music volume <output id="musicOut"></output><input id="musicVol" type="range" min="0" max="1" step="0.05"></label>
         <p class="small">Controller: D-pad ←/→ changes the music volume. Now playing: <span id="nowPlaying">–</span></p>
         <section class="mp">
@@ -250,6 +264,7 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
           <dt>FPV drone</dt><dd>Hold △, pick the drone · left stick ↑↓ thrust, ←→ yaw · right stick tilt (angle) or rates (acro) · L1 / Q angle ↔ acro · ✕ reset after a crash · ○ pack away</dd>
           <dt>Multiplayer</dt><dd>Up to five players per lobby (code above) · □ next to a vehicle someone is driving: ride along as passenger (motorcycle, cars, helicopter, plane) · Share / Enter: chat</dd>
           <dt>Firepit</dt><dd>In the park in front of the building: □ sit on a bench, R2 have a beer, □ at the woodpile throws a log on the fire</dd>
+          <dt>Shops</dt><dd>Joker and Kiwi at their real places: □ takes an item, pay at the till, □ at the machine returns empty bottles (2 kr each) · D-pad ↓ / ↓ opens your bag · money: missions, disc golf, petanque, bottle deposit</dd>
           <dt>Stashes</dt><dd>Three hidden crates around the neighbourhood: □ snort a line or use the needle for a random 30-second boost – 3× running speed, 3× jump height or bullet time</dd>
           <dt>Drinks</dt><dd>Beer and aquavit in the apartment: each beer or sip = 30 s drunk</dd>
         </dl>
@@ -2085,6 +2100,11 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
         case 'hit': burst(500, 1, .4, .002, .15, 'lowpass');break;
         case 'cheer': for (let i = 0; i < 6; i++) tone(rand(300, 700), rand(400, 900), .04, .05, .4, 'sawtooth', t + i * .05);break;
         case 'starter': tone(220, 320, .08, .02, .5, 'square');break;
+        case 'coin': tone(1320, 1320, .12, .004, .12, 'triangle');tone(1760, 1760, .12, .004, .3, 'triangle', t + .09);break;
+        case 'register': tone(2400, 2400, .08, .003, .08, 'square');tone(2400, 2400, .08, .003, .08, 'square', t + .14);burst(260, .8, .4, .004, .2, 'lowpass', t + .35);break;
+        case 'alarm': for (let i = 0; i < 6; i++) tone(i % 2 ? 1500 : 1900, i % 2 ? 1500 : 1900, .12, .004, .16, 'square', t + i * .18);break;
+        case 'pant': burst(180, .7, .5, .004, .25, 'lowpass');for (let i = 0; i < 4; i++) burst(rand(2000, 4500), 4, .1, .001, .05, 'bandpass', t + .25 + i * .07);tone(880, 880, .05, .004, .12, 'sine', t + .6);break;
+        case 'shopDoor': burst(700, .5, .08, .15, .45, 'bandpass');break;
         case 'sniff': burst(3200, .8, .35, .18, .35);burst(5200, 1, .18, .1, .25, 'bandpass', t + .05);break;
         case 'needle': burst(4000, 6, .1, .001, .03);for (let i = 0; i < 4; i++) {tone(62, 48, .55, .01, .16, 'sine', t + .35 + i * .55);tone(58, 44, .35, .01, .14, 'sine', t + .55 + i * .55);}break;
         case 'crash': burst(220, .7, 1, .003, 1.4, 'lowpass');burst(1600, .6, .5, .002, .7);tone(70, 30, .6, .003, .9);for (let i = 0; i < 6; i++) burst(rand(2500, 6000), 3, .15, .001, .08, 'bandpass', t + .1 + i * rand(.05, .14));break;
@@ -3074,8 +3094,8 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
       return {s, c, ctx: c.getContext('2d'), tex};
     }
     function roundRect(ctx, x, y, w, h, r) {ctx.beginPath();ctx.moveTo(x + r, y);ctx.arcTo(x + w, y, x + w, y + h, r);ctx.arcTo(x + w, y + h, x, y + h, r);ctx.arcTo(x, y + h, x, y, r);ctx.arcTo(x, y, x + w, y, r);ctx.closePath();}
-    function avatar(slot, name) {
-      const jacket = lib.fabric(SLOT_COLORS[slot % 5]), g = new T.Group();
+    function avatar(slot, name, color) {
+      const jacket = lib.fabric(color ?? SLOT_COLORS[slot % 5]), g = new T.Group();
       const m = (parent, geo, mat, x = 0, y = 0, z = 0) => {const o = new T.Mesh(geo, mat);o.position.set(x, y, z);o.castShadow = true;parent.add(o);return o;};
       const hips = new T.Group();hips.position.y = .95;g.add(hips);
       m(hips, new T.BoxGeometry(.32, .16, .2), pants, 0, 0, 0);
@@ -3447,6 +3467,233 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
     return {group, items, hitboxes, obstacles, nearest, use, update, COOLDOWN};
   }
   return {create};
+});
+</script><script>/* Grocery shops at their real places (OpenStreetMap nodes, Overpass 29 Oct 2026): Joker Torshov (node 1506608498, about 110 m
+ * from the flat) and Kiwi Torshov (node 2476542841, about 270 m). Each shop is cut into the ground floor of the building it is in:
+ * the building outline gets a notch, the shop fills it (glass front with sliding doors and the brand sign, shelves, fridges,
+ * a till with a cashier, a bottle-return machine) and the facade above the shop is rebuilt so the building looks whole.
+ * Money is in Norwegian kroner. The wallet (money, empty bottles, the bag of bought items) is saved in the browser.
+ * GameShops.applyNotches(data)  – call before Surroundings.create (changes the two building outlines).
+ * GameShops.create({T, lib, world, audio}) -> {group, shops, floors, obstacles, hitboxes, wallet, priceOf, beerAllowed,
+ *   shopAt(p, feet), atTill(shop, p), update(dt, player, camera)}
+ */
+(function (root, factory) {
+  root.GameShops = factory();
+})(typeof window === 'undefined' ? globalThis : window, function () {
+  'use strict';
+  // building / edge = the building outline in surroundings-data.js and the wall the shop front is on; t0..t1 = part of that wall.
+  const SHOPS = [
+    {id: 'joker', name: 'Joker Torshov', brand: 'JOKER', osm: 1506608498, building: 888, edge: 6, t0: .08, t1: .92, depth: 10, sign: {bg: '#ffd200', fg: '#d0021b'}, shirt: 0xd0021b, hours: 'Åpent man–fre 07–24 · lør 08–24 · søn 09–24', priceFactor: 1},
+    {id: 'kiwi', name: 'Kiwi Torshov', brand: 'KIWI', osm: 2476542841, building: 156, edge: 20, t0: .04, t1: .40, depth: 10, sign: {bg: '#2e9a3f', fg: '#ffffff'}, shirt: 0x2e9a3f, hours: 'Åpent man–lør 07–23', priceFactor: .95}
+  ];
+  // Prices in kroner (Joker; Kiwi is about 5 % cheaper). where: fridge (back wall), shelf (gondolas), floor (by the door).
+  const PRODUCTS = [
+    {id: 'pils', name: 'Ringnes Pils 0,5 l', price: 39.9, beer: true, color: 0x3a6e2e, where: 'fridge', use: 'beer'},
+    {id: 'solo', name: 'Solo 0,5 l', price: 29.9, color: 0xf7941d, where: 'fridge', use: 'soda'},
+    {id: 'cola', name: 'Coca-Cola 1,5 l', price: 39.9, color: 0xc8102e, where: 'fridge', use: 'soda'},
+    {id: 'redbull', name: 'Red Bull 0,25 l', price: 29.9, color: 0x1e3f8f, where: 'fridge', use: 'energy'},
+    {id: 'melk', name: 'Tine Lettmelk 1 l', price: 24.9, color: 0xf2f2f2, where: 'fridge', use: 'food', sober: 15},
+    {id: 'grandiosa', name: 'Grandiosa', price: 69.9, color: 0x1f4f9c, where: 'shelf', use: 'food', sober: 45},
+    {id: 'kvikklunsj', name: 'Kvikk Lunsj', price: 24.9, color: 0xe8c31a, where: 'shelf', use: 'food', sober: 15},
+    {id: 'banan', name: 'Banan', price: 6.9, color: 0xf3d23c, where: 'shelf', use: 'food', sober: 10},
+    {id: 'brod', name: 'Kneippbrød', price: 39.9, color: 0x9b6a3a, where: 'shelf', use: 'food', sober: 20},
+    {id: 'kaffe', name: 'Friele Frokostkaffe', price: 74.9, color: 0xb3262e, where: 'shelf', use: 'food', sober: 30},
+    {id: 'polser', name: 'Grillpølser', price: 49.9, color: 0xc7463a, where: 'shelf', use: 'food', sober: 25},
+    {id: 'ved', name: 'Sekk med ved', price: 89.9, color: 0x7a5a3a, where: 'floor', use: 'wood'}
+  ];
+  const PANT = 2;// kroner per empty bottle or can (Norwegian deposit for 0.5 l and smaller)
+  const kr = v => `${v.toFixed(2).replace('.', ',')} kr`;
+  const priceOf = (shop, product) => shop.priceFactor === 1 ? product.price : Math.round(product.price * shop.priceFactor - .9) + .9;
+  // Norwegian law: grocery shops may sell beer Mon–Fri 08–20 and Sat 08–18, not on Sundays.
+  function beerAllowed(d) {const day = d.getDay(), h = d.getHours() + d.getMinutes() / 60;if (day === 0) return false;return h >= 8 && h < (day === 6 ? 18 : 20);}
+
+  // ---------- The notch: a rectangle W × depth cut into the building outline behind part of one wall ----------
+  const insidePoly = (p, ring) => {let r = false;for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {const a = ring[i], b = ring[j];if ((a[1] > p[1]) !== (b[1] > p[1]) && p[0] < (b[0] - a[0]) * (p[1] - a[1]) / (b[1] - a[1]) + a[0]) r = !r;}return r;};
+  function notchFor(ring, edge, t0, t1, depthWanted) {
+    const a = ring[edge], b = ring[(edge + 1) % ring.length], dx = b[0] - a[0], ds = b[1] - a[1], L = Math.hypot(dx, ds), u = [dx / L, ds / L];
+    const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];let n = [-u[1], u[0]];if (!insidePoly([mid[0] + n[0] * .5, mid[1] + n[1] * .5], ring)) n = [-n[0], -n[1]];
+    const P0 = [a[0] + dx * t0, a[1] + ds * t0], P1 = [a[0] + dx * t1, a[1] + ds * t1], W = L * (t1 - t0);
+    const at = (fu, fv, d) => [P0[0] + u[0] * W * fu + n[0] * d * fv, P0[1] + u[1] * W * fu + n[1] * d * fv];
+    const fits = d => {
+      for (let i = 0; i <= 12; i++) for (let j = 1; j <= 10; j++) if (!insidePoly(at(.02 + .96 * i / 12, j / 10 * (1 - .3 / d), d), ring)) return false;
+      for (const v of ring) {if (v === a || v === b) continue;const pu = (v[0] - P0[0]) * u[0] + (v[1] - P0[1]) * u[1], pv = (v[0] - P0[0]) * n[0] + (v[1] - P0[1]) * n[1];if (pu > -.3 && pu < W + .3 && pv > -.01 && pv < d + .3) return false;}
+      return true;
+    };
+    let depth = depthWanted;while (depth > 5 && !fits(depth)) depth -= .5;
+    const Q0 = at(0, 1, depth), Q1 = at(1, 1, depth);
+    return {ring: [...ring.slice(0, edge + 1), P0, Q0, Q1, P1, ...ring.slice(edge + 1)], P0, P1, u, n, W, depth};
+  }
+  function applyNotches(data) {
+    for (const s of SHOPS) {
+      const b = data.buildings[s.building];if (!b || s.local) continue;
+      const ring = [];for (let i = 0; i < b.r.o.length; i += 2) ring.push([b.r.o[i], b.r.o[i + 1]]);
+      const nt = notchFor(ring, s.edge, s.t0, s.t1, s.depth);b.r.o = nt.ring.flat();s.local = nt;
+    }
+    return SHOPS;
+  }
+
+  // ---------- Wallet: money (kr), empty bottles, bag of items; saved in the browser ----------
+  function makeWallet() {
+    const KEY = 'haarklous-wallet-v1';let st = {money: 500, pant: 0, bag: {}};
+    try {const s = JSON.parse(localStorage.getItem(KEY) || 'null');if (s && Number.isFinite(s.money)) st = {money: s.money, pant: s.pant | 0, bag: s.bag || {}};} catch {}
+    const save = () => {try {localStorage.setItem(KEY, JSON.stringify(st));} catch {}};
+    const round = v => Math.round(v * 100) / 100;
+    return {
+      get money() {return st.money;}, get pant() {return st.pant;}, get bag() {return st.bag;},
+      earn(v) {if (!(v > 0)) return;st.money = round(st.money + v);save();},
+      pay(v) {if (!(v >= 0) || st.money + 1e-9 < v) return false;st.money = round(st.money - v);save();return true;},
+      addPant(n = 1) {st.pant += n;save();}, cashPant() {const n = st.pant;st.pant = 0;st.money = round(st.money + n * PANT);save();return n;},
+      add(id, n = 1) {st.bag[id] = (st.bag[id] || 0) + n;save();}, take(id) {if (!st.bag[id]) return false;if (--st.bag[id] <= 0) delete st.bag[id];save();return true;},
+      reset(money = 500) {st = {money, pant: 0, bag: {}};save();}
+    };
+  }
+
+  // ---------- The shop buildings ----------
+  function create({T, lib, world, audio}) {
+    const group = new T.Group();group.name = 'Shops';
+    const floors = [], obstacles = [], hitboxes = [], built = [];
+    const avatars = window.GameAvatars ? window.GameAvatars.create({T, lib}) : null;
+    const facadeMat = lib.facade(), plinthMat = lib.plinth(), roofMat = lib.roof();facadeMat.color.setScalar(.78);plinthMat.color.setScalar(.75);
+    const tileM = lib.floorTiles(), wallM = lib.plaster(0xf2f1ec), ceilM = new T.MeshStandardMaterial({color: 0xf4f4f2, roughness: .9});
+    const aluM = lib.metal(0x5b6066, .35), glassM = new T.MeshPhysicalMaterial({color: 0xbfd3dc, transparent: true, opacity: .22, roughness: .04, metalness: .1, side: T.DoubleSide, depthWrite: false});
+    const shelfM = lib.metal(0xd9dbdd, .45), darkM = lib.polymer(0x232528), fridgeM = new T.MeshStandardMaterial({color: 0xe9ecee, roughness: .4, metalness: .2});
+    const lightM = new T.MeshStandardMaterial({color: 0xffffff, emissive: 0xfff6e8, emissiveIntensity: 1.6}), fridgeLightM = new T.MeshStandardMaterial({color: 0xdfefff, emissive: 0xcfe6ff, emissiveIntensity: 1.2});
+    const hitM = new T.MeshBasicMaterial({visible: false}), sackM = lib.fabric(0x8a6a44);
+    const box = (parent, w, h, d, x, y, z, mat) => {const m = new T.Mesh(new T.BoxGeometry(w, h, d), mat);m.position.set(x, y, z);m.castShadow = m.receiveShadow = true;parent.add(m);return m;};
+    function textTexture(w, h, draw) {const c = document.createElement('canvas');c.width = w;c.height = h;draw(c.getContext('2d'), w, h);const t = new T.CanvasTexture(c);t.colorSpace = T.SRGBColorSpace;t.anisotropy = 4;return t;}
+    const productTex = new Map();
+    for (const s of SHOPS) {
+      if (!s.local) continue;
+      const L = s.local, D = L.depth, W = L.W, top = world.data.buildings[s.building].top;
+      // Store frame: x = along the front, z = into the shop, y up from the shop floor.
+      const w0 = world.toWorld(...L.P0), w1 = world.toWorld(...L.P1), wn = world.toWorld(L.P0[0] + L.n[0], L.P0[1] + L.n[1]);
+      let ux = (w1.x - w0.x) / W, uz = (w1.z - w0.z) / W, origin = w0;const nx0 = wn.x - w0.x, nz0 = wn.z - w0.z;
+      if (ux * nz0 - uz * nx0 < 0) {origin = w1;ux = -ux;uz = -uz;}
+      const vx = -uz, vz = ux, toW = (a, b) => ({x: origin.x + ux * a + vx * b, z: origin.z + uz * a + vz * b});
+      let maxH = -1e9;for (let i = 0; i <= 10; i++) for (let j = 0; j <= 10; j++) {const p = toW(W * i / 10, D * j / 10);maxH = Math.max(maxH, world.heightWorld(p.x, p.z));}
+      const floorY = maxH + .05, H = 3.3, storeTop = 3.62, uDoor = W - 2.0;
+      const g = new T.Group();g.position.set(origin.x, floorY, origin.z);g.rotation.y = Math.atan2(-uz, ux);group.add(g);
+      const rect = (a0, a1, b0, b1, minY, maxY, kind = 'shop') => ({points: [toW(a0, b0), toW(a1, b0), toW(a1, b1), toW(a0, b1)], minY: floorY + minY, maxY: floorY + maxY, kind});
+      // Floor, ceiling, wall linings (inset from the building's notch walls so nothing is coplanar).
+      box(g, W, .04, D, W / 2, -.02, D / 2, tileM);box(g, W, .04, D, W / 2, H + .02, D / 2, ceilM);
+      box(g, .02, H, D - .08, .04, H / 2, D / 2, wallM);box(g, .02, H, D - .08, W - .04, H / 2, D / 2, wallM);box(g, W - .08, H, .02, W / 2, H / 2, D - .04, wallM);
+      for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) box(g, 1.2, .04, .3, W * (i + 1) / 4, H - .01, D * (j + 1) / 3, lightM);
+      const light = new T.PointLight(0xfff4e6, 0, 18, 1.5);light.position.set(W / 2, H - .4, D / 2);g.add(light);
+      // Facade above the shop (same brick as the building) and, on a flat roof, the roof over the notch.
+      const fillH = top - floorY - storeTop;
+      if (fillH > .2) {
+        const geo = new T.PlaneGeometry(W, fillH), uv = geo.attributes.uv, vBase = (world.data.buildings[s.building].base + world.data.plinth) - floorY;
+        for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * W, storeTop - vBase + uv.getY(i) * fillH);
+        const f = new T.Mesh(geo, facadeMat);f.rotation.y = Math.PI;f.position.set(W / 2, storeTop + fillH / 2, 0);f.castShadow = f.receiveShadow = true;g.add(f);
+        if (!world.data.buildings[s.building].k) box(g, W, .06, D, W / 2, top - floorY + .03, D / 2, roofMat);
+      }
+      // Shop front: aluminium frame, glass, sliding doors, the brand sign and the opening hours on the glass.
+      box(g, W, .12, .14, W / 2, .06, 0, aluM);box(g, W, .1, .14, W / 2, 2.9, 0, aluM);
+      for (const x of [0, uDoor - .95, uDoor + .95, W]) box(g, .1, 2.95, .14, Math.min(W - .05, Math.max(.05, x)), 1.47, 0, aluM);
+      for (const [a, b] of [[0, uDoor - .95], [uDoor + .95, W]]) {if (b - a < .2) continue;const p = new T.Mesh(new T.PlaneGeometry(b - a, 2.75), glassM);p.position.set((a + b) / 2, 1.5, 0);g.add(p);}
+      const doors = [-1, 1].map(sd => {const d = new T.Group();d.position.set(uDoor + sd * .475, 0, .03);g.add(d);const pane = new T.Mesh(new T.PlaneGeometry(.95, 2.35), glassM);pane.position.y = 1.2;d.add(pane);box(d, .95, .06, .05, 0, 2.37, 0, aluM);box(d, .05, 2.35, .05, -sd * .45, 1.18, 0, aluM);return {g: d, sd};});
+      const signTex = textTexture(1024, 160, (c, w, h) => {c.fillStyle = s.sign.bg;c.fillRect(0, 0, w, h);c.fillStyle = s.sign.fg;c.font = 'bold 118px Arial Black, Arial, sans-serif';c.textAlign = 'center';c.textBaseline = 'middle';c.fillText(s.brand, w / 2, h / 2 + 6);});
+      const signMats = [darkM, darkM, darkM, darkM, darkM, new T.MeshStandardMaterial({map: signTex, emissive: 0xffffff, emissiveMap: signTex, emissiveIntensity: .35, roughness: .5})];
+      const sign = new T.Mesh(new T.BoxGeometry(W, .62, .12), signMats);sign.position.set(W / 2, 3.3, -.06);sign.castShadow = true;g.add(sign);
+      const hoursTex = textTexture(512, 256, (c, w, h) => {c.fillStyle = 'rgba(255,255,255,.92)';c.fillRect(0, 0, w, h);c.fillStyle = '#16191d';c.textAlign = 'center';c.font = 'bold 44px Arial, sans-serif';c.fillText(s.name, w / 2, 70);c.font = '30px Arial, sans-serif';const parts = s.hours.replace('Åpent ', '').split(' · ');c.fillText('Åpent', w / 2, 120);parts.forEach((p, i) => c.fillText(p, w / 2, 160 + i * 36));});
+      const hours = new T.Mesh(new T.PlaneGeometry(.55, .28), new T.MeshBasicMaterial({map: hoursTex}));hours.rotation.y = Math.PI;hours.position.set(uDoor - 1.4, 1.45, -.012);g.add(hours);
+      // Outside: a ramp up to the door if the shop floor is higher than the ground in front of it.
+      // The slab's far end meets the ground where it ends (walk floors only join within 5 cm).
+      let rl = 1.2, rise = 0;for (let it = 0; it < 3; it++) {const e = toW(uDoor, -rl);rise = floorY - world.heightWorld(e.x, e.z);rl = Math.max(1.2, Math.abs(rise) / .22);}
+      {const e = toW(uDoor, -rl);rise = floorY - world.heightWorld(e.x, e.z);}
+      if (rise > .06) {
+        const pos = new Float32Array([uDoor - 1.1, 0, 0, uDoor + 1.1, 0, 0, uDoor + 1.1, -rise, -rl, uDoor - 1.1, -rise, -rl, uDoor - 1.1, -rise - .4, 0, uDoor + 1.1, -rise - .4, 0]);
+        const rg = new T.BufferGeometry();rg.setAttribute('position', new T.BufferAttribute(pos, 3));rg.setIndex([0, 2, 1, 0, 3, 2, 0, 4, 3, 1, 2, 5]);rg.computeVertexNormals();
+        const ramp = new T.Mesh(rg, lib.concrete(0x9c9a94));ramp.material.side = T.DoubleSide;ramp.receiveShadow = true;g.add(ramp);
+      }
+      {
+        const o = toW(uDoor, 0), grad = rise / rl;floors.push({name: `${s.name} entrance`, points: [toW(uDoor - 1.1, 0), toW(uDoor + 1.1, 0), toW(uDoor + 1.1, -rl), toW(uDoor - 1.1, -rl)], y: floorY, slope: {x: vx * grad, z: vz * grad, origin: o}, surfaceKind: 'stone', ceilingHeight: Infinity});
+      }
+      floors.push({name: s.name, points: [toW(0, 0), toW(W, 0), toW(W, D), toW(0, D)], y: floorY, ceilingHeight: H, surfaceKind: 'tile'});
+      // Front glass is solid apart from the door gap.
+      obstacles.push(rect(0, uDoor - .95, -.08, .08, -.5, storeTop), rect(uDoor + .95, W, -.08, .08, -.5, storeTop));
+      // Interior: fridges along the back wall, gondola shelves, the till, the bottle-return machine and firewood sacks.
+      const spots = [], facings = [];
+      const fridgeProducts = PRODUCTS.filter(p => p.where === 'fridge'), shelfProducts = PRODUCTS.filter(p => p.where === 'shelf');
+      const fz0 = D - .85;box(g, W - .7, 2.1, .04, W / 2, 1.05, D - .12, fridgeM);box(g, W - .7, .16, .74, W / 2, 2.02, D - .47, fridgeM);box(g, W - .7, .22, .74, W / 2, .11, D - .47, fridgeM);
+      for (const x of [.37, W - .37]) box(g, .04, 2.1, .74, x, 1.05, D - .47, fridgeM);for (let lv = 0; lv < 4; lv++) box(g, W - .78, .02, .62, W / 2, .27 + lv * .45, D - .47, shelfM);
+      box(g, W - .7, .05, .05, W / 2, 1.92, fz0 + .04, fridgeLightM);
+      const fg = new T.Mesh(new T.PlaneGeometry(W - .8, 1.85), glassM);fg.position.set(W / 2, 1.05, fz0 - .02);g.add(fg);
+      obstacles.push(rect(.35, W - .35, fz0 - .05, D, -.2, 2.2));
+      const segW = (W - .9) / fridgeProducts.length;
+      fridgeProducts.forEach((p, i) => {const cx = .45 + segW * (i + .5);for (let lv = 0; lv < 4; lv++) for (let k = 0; k < Math.floor(segW / .13); k++) facings.push([p, cx - segW / 2 + .08 + k * .13, .28 + lv * .45, fz0 + .3, .1, .22, .1]);spots.push({p, x: cx, y: 1.0, z: fz0 - .1, w: segW - .05, h: 1.8, d: .3, tag: [cx, 2.0, fz0 - .03]});box(g, .03, 1.9, .05, .45 + segW * i, 1.05, fz0 - .03, aluM);});
+      const nG = Math.max(2, Math.min(3, Math.floor((W - 1.6) / 2.6))), gz0 = 3.4, gz1 = D - 2.0, gl = gz1 - gz0;
+      for (let i = 0; i < nG; i++) {
+        const gx = 1.3 + i * (W - 2.8) / Math.max(1, nG - 1);
+        box(g, .9, .1, gl, gx, .05, gz0 + gl / 2, shelfM);box(g, .05, 1.6, gl, gx, .85, gz0 + gl / 2, shelfM);
+        for (const sd of [-1, 1]) {for (let lv = 0; lv < 4; lv++) box(g, .42, .03, gl, gx + sd * .24, .18 + lv * .42, gz0 + gl / 2, shelfM);}
+        obstacles.push(rect(gx - .48, gx + .48, gz0, gz1, -.2, 1.7));
+        [-1, 1].forEach((sd, k) => {
+          const p = shelfProducts[(i * 2 + k) % shelfProducts.length], fx = gx + sd * .3;
+          for (let lv = 0; lv < 4; lv++) for (let m = 0; m < Math.floor(gl / .16); m++) facings.push([p, fx, .195 + lv * .42, gz0 + .1 + m * .16, .16, .22, .13]);
+          spots.push({p, x: gx + sd * .52, y: .9, z: gz0 + gl / 2, w: .25, h: 1.6, d: gl, tag: [gx + sd * .465, 1.42, gz0 + gl / 2], side: sd});
+        });
+      }
+      // Firewood sacks by the left wall near the front.
+      const ved = PRODUCTS.find(p => p.where === 'floor');
+      for (let k = 0; k < 5; k++) {const sk = box(g, .42, .34, .3, .35 + (k % 2) * .05, .17 + Math.floor(k / 2) * .32, 2.2 + (k % 3) * .32, sackM);sk.rotation.y = k * .3;}
+      spots.push({p: ved, x: .5, y: .5, z: 2.5, w: .8, h: 1.0, d: 1.2, tag: [.82, .9, 2.5], side: 1});obstacles.push(rect(.05, .8, 1.95, 3.05, -.2, 1.1));
+      // Till: counter with belt, register and card terminal; the cashier stands between the counter and the window.
+      box(g, 2.4, .9, .65, 2.4, .45, 1.32, lib.wood(0x6b4b33, .6));box(g, 1.6, .04, .45, 2.0, .92, 1.32, darkM);box(g, .4, .28, .34, 3.2, 1.06, 1.2, darkM);box(g, .14, .1, .2, 2.95, .98, 1.6, darkM);
+      const screen = box(g, .3, .2, .02, 3.2, 1.3, 1.05, new T.MeshStandardMaterial({color: 0x0b1a10, emissive: 0x1c5a2a, emissiveIntensity: .9}));screen.rotation.x = -.2;
+      obstacles.push(rect(1.18, 3.62, 1.0, 1.65, -.2, 1.0));
+      const tillHit = new T.Mesh(new T.BoxGeometry(2.4, .6, .8), hitM);tillHit.position.set(2.4, 1.1, 1.4);tillHit.userData = {shopTill: s, noMerge: true};g.add(tillHit);hitboxes.push(tillHit);
+      // Bottle-return machine ("pant") against the right wall.
+      const mach = new T.Group();mach.position.set(W - .38, 0, 1.55);mach.rotation.y = -Math.PI / 2;g.add(mach);
+      box(mach, .6, 1.75, .55, 0, .875, 0, lib.metal(0x9ea3a8, .4));const hole = new T.Mesh(new T.CircleGeometry(.09, 20), darkM);hole.position.set(0, 1.05, .28);mach.add(hole);
+      const pantTex = textTexture(256, 128, (c, w, h) => {c.fillStyle = '#0f5a2a';c.fillRect(0, 0, w, h);c.fillStyle = '#fff';c.font = 'bold 64px Arial, sans-serif';c.textAlign = 'center';c.textBaseline = 'middle';c.fillText('PANT', w / 2, h / 2);});
+      const pl = new T.Mesh(new T.PlaneGeometry(.45, .22), new T.MeshStandardMaterial({map: pantTex, emissive: 0xffffff, emissiveMap: pantTex, emissiveIntensity: .4}));pl.position.set(0, 1.45, .28);mach.add(pl);
+      obstacles.push(rect(W - .7, W - .05, 1.25, 1.85, -.2, 1.8));
+      const pantHit = new T.Mesh(new T.BoxGeometry(.7, 1.6, .7), hitM);pantHit.position.set(W - .38, 1.0, 1.55);pantHit.userData = {shopPant: s, noMerge: true};g.add(pantHit);hitboxes.push(pantHit);
+      // Product facings (one instanced mesh) and price tags.
+      const fGeo = new T.BoxGeometry(1, 1, 1), inst = new T.InstancedMesh(fGeo, new T.MeshStandardMaterial({roughness: .6}), facings.length), mtx = new T.Matrix4(), col = new T.Color();
+      facings.forEach(([p, x, y, z, w, h, d], i) => {mtx.makeScale(w, h, d).setPosition(x, y + h / 2, z);inst.setMatrixAt(i, mtx);col.setHex(p.color).offsetHSL(0, 0, (Math.sin(i * 12.9898) * .5) * .08);inst.setColorAt(i, col);});
+      inst.castShadow = true;inst.receiveShadow = true;g.add(inst);
+      for (const sp of spots) {
+        const price = priceOf(s, sp.p);
+        const tex = textTexture(256, 96, (c, w, h) => {c.fillStyle = '#ffe14d';c.fillRect(0, 0, w, h);c.fillStyle = '#111';c.textAlign = 'center';c.font = 'bold 30px Arial, sans-serif';c.fillText(sp.p.name.length > 16 ? sp.p.name.slice(0, 15) + '…' : sp.p.name, w / 2, 36);c.font = 'bold 38px Arial, sans-serif';c.fillText(kr(price), w / 2, 82);});
+        const tag = new T.Mesh(new T.PlaneGeometry(.24, .09), new T.MeshBasicMaterial({map: tex}));tag.position.set(...sp.tag);
+        if (sp.side === -1) tag.rotation.y = -Math.PI / 2;else if (sp.side === 1) tag.rotation.y = Math.PI / 2;else tag.rotation.y = Math.PI;
+        tag.userData.noMerge = true;g.add(tag);
+        const hit = new T.Mesh(new T.BoxGeometry(sp.side ? sp.w : sp.w, sp.h, sp.side ? sp.d : sp.d), hitM);hit.position.set(sp.x, sp.y, sp.z);hit.userData = {shopItem: {shop: s, product: sp.p}, noMerge: true};g.add(hit);hitboxes.push(hit);
+      }
+      // The cashier.
+      let cashier = null;
+      if (avatars) {cashier = avatars.avatar(0, 'Kasserer', s.shirt);cashier.group.position.set(2.4, 0, .5);cashier.group.rotation.y = Math.PI;g.add(cashier.group);cashier.pose({stance: 'stand'});}
+      [...doors.map(d => d.g), light].forEach(o => {o.userData.noMerge = true;});if (cashier) cashier.group.userData.noMerge = true;
+      lib.mergeStatic(g, o => o.isInstancedMesh || !!o.userData.shopItem || !!o.userData.shopTill || !!o.userData.shopPant);
+      built.push({...s, shop: s, g, floorY, W, D, uDoor, toW, doors, light, cashier, open: 0, ux, uz, origin, vx, vz, greeted: false});
+      s.floorY = floorY;s.W = W;s.D = D;s.toLocal = (x, z) => {const dx = x - origin.x, dz = z - origin.z;return {a: dx * ux + dz * uz, b: dx * vx + dz * vz};};
+      s.say = text => {if (cashier) cashier.say(text);};
+    }
+    // Which shop is the player standing in (on its floor)?
+    function shopAt(p, feet) {for (const s of SHOPS) {if (!s.toLocal) continue;const l = s.toLocal(p.x, p.z);if (l.a > 0 && l.a < s.W && l.b > 0 && l.b < s.D && Math.abs(feet - s.floorY) < 1.4) return s;}return null;}
+    const atTill = (s, p) => {const l = s.toLocal(p.x, p.z);return Math.hypot(l.a - 2.4, l.b - 2.25) < 1.3;};
+    let tt = 0;
+    function update(dt, player, camera) {
+      tt += dt;
+      for (const b of built) {
+        const l = b.shop.toLocal(player.x, player.z), near = Math.hypot(l.a - b.W / 2, l.b - b.D / 2) < 30 && Math.abs(player.feet - b.floorY) < 6;
+        b.light.intensity = near ? 26 : 0;
+        // Sliding doors open when someone is within 2.5 m of them.
+        const want = Math.hypot(l.a - b.uDoor, l.b) < 2.5 && Math.abs(player.feet - b.floorY) < 1.6 ? 1 : 0;
+        if (want && !b.open) audio && audio.sfx('shopDoor');
+        b.open += (want - b.open) * Math.min(1, dt * 5);for (const d of b.doors) d.g.position.x = b.uDoor + d.sd * (.475 + b.open * .9);
+        if (b.cashier) {
+          const inside = l.a > 0 && l.a < b.W && l.b > 0 && l.b < b.D, face = inside ? Math.atan2(-(l.a - 2.4), -(l.b - .5)) : Math.PI;
+          let d = face - Math.PI;d = Math.atan2(Math.sin(d), Math.cos(d));const yaw = Math.PI + Math.max(-1.1, Math.min(1.1, d));
+          b.cashier.group.rotation.y += (yaw - b.cashier.group.rotation.y) * Math.min(1, dt * 3);b.cashier.pose({stance: 'stand', speed: 0, dt});b.cashier.update(dt, camera);
+        }
+      }
+    }
+    return {group, shops: SHOPS.filter(s => s.local), floors, obstacles, hitboxes, wallet: makeWallet(), priceOf, beerAllowed, shopAt, atTill, update, kr, PANT, products: PRODUCTS};
+  }
+  return {SHOPS, PRODUCTS, PANT, applyNotches, notchFor, create, beerAllowed, priceOf, makeWallet};
 });
 </script><script>/* Flying machines for the open world: an Airbus H125-style helicopter, a single-seat low-wing sport plane and an FPV drone.
  * Controls are "Mode 2", the Battlefield default on a controller and the usual RC transmitter layout:
@@ -3874,7 +4121,7 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
   root.GameMinigames = factory();
 })(typeof window === 'undefined' ? globalThis : window, function () {
   'use strict';
-  function create({T, lib, audio, heightAt, toWorld, data, hud, trees}) {
+  function create({T, lib, audio, heightAt, toWorld, data, hud, trees, reward}) {
     const V3 = (x, y, z) => new T.Vector3(x, y, z);
     const mesh = (parent, geo, mat, x = 0, y = 0, z = 0) => {const m = new T.Mesh(geo, mat);m.position.set(x, y, z);m.castShadow = m.receiveShadow = true;parent.add(m);return m;};
     const gauss = () => {let u = 0, v = 0;while (!u) u = Math.random();while (!v) v = Math.random();return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);};
@@ -3973,6 +4220,8 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
           if (r === 'in') {
             const total = game.strokes[game.hole], diff = total - h.par, name = total === 1 ? 'Hole in one!' : diff <= -2 ? 'Eagle!' : diff === -1 ? 'Birdie!' : diff === 0 ? 'Par' : diff === 1 ? 'Bogey' : `+${diff}`;
             game.message = `Hull ${h.n}: ${total} kast · ${name}`;if (diff < 0) audio.sfx('cheer');
+            // Money: par 50 kr, birdie 100 kr, eagle or better 200 kr.
+            if (reward && diff <= 0) reward(diff <= -2 ? 200 : diff === -1 ? 100 : 50, `${name} on disc golf hole ${h.n}`);
             game.pending = {next: true, t: 2.5};D.rest = true;
           } else if (r === 'rest') {D.rest = true;game.lie ={x: D.pos.x, z: D.pos.z, y: heightAt(D.pos.x, D.pos.z)};game.message = `${Math.round(Math.hypot(h.basket.x - D.pos.x, h.basket.z - D.pos.z))} m to the basket. Throw again from where the disc landed.`;game.pending = {lie: true, t: .8};}
           // Follow camera behind and above the disc.
@@ -4119,7 +4368,7 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
               if (jd < 6 || jd > 10 || jack.dead) {game.message = `Jack ${jack.dead ? 'out' : 'at ' + jd.toFixed(1) + ' m'}: thrown again (6–10 m).`;jack.alive = false;jack.dead = false;jack.mesh.visible = false;current = thrower;aimingFor = 'jack';}
               else {current = nextThrower();aimingFor = 'boule';}
             } else if (phase === 'jack') {current = thrower;aimingFor = 'jack';}
-            else {current = nextThrower();aimingFor = 'boule';if (current === null) {const winner = endMene();if (game.score.you >= 13 || game.score.npc >= 13) {const won = game.score.you >= 13;game.message = `${won ? 'You win' : game.npcName + ' wins'} ${game.score.you}–${game.score.npc}!`;if (won) audio.sfx('cheer');game.finish = 4;} else {waiting = 2.5;game.nextFirst = winner;}}}
+            else {current = nextThrower();aimingFor = 'boule';if (current === null) {const winner = endMene();if (game.score.you >= 13 || game.score.npc >= 13) {const won = game.score.you >= 13;game.message = `${won ? 'You win' : game.npcName + ' wins'} ${game.score.you}–${game.score.npc}!`;if (won) {audio.sfx('cheer');if (reward) reward(150, `Petanque win against ${game.npcName}`);}game.finish = 4;} else {waiting = 2.5;game.nextFirst = winner;}}}
             if (current === 'npc') aiTimer = 1.4;
             game.turnId = (game.turnId || 0) + 1;
           }
@@ -4540,7 +4789,7 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
         [{action: 'resume', label: 'Options / ✕ · Resume'}, {action: 'restart', label: 'Touchpad / R · New case'}, {action: 'quit', label: '○ / Esc · Leave'}]);
     }
     function finish(result) {
-      state = result;triggerHeld = false;
+      state = result;triggerHeld = false;if (ctx.onFinish) ctx.onFinish(result);
       const hostiles = plan.actors.filter(a => a.role === 'hostile'), down = hostiles.filter(a => !actors.get(a.id).alive).length;
       const hostageActor = plan.actors.find(a => a.role === 'hostage'), hostageDown = !!hostageActor && !actors.get(hostageActor.id).alive;
       const hostage = plan.hasHostage ? (hostageDown ? '<b class="fail">Shot</b>' : 'Safe') : 'None present';
@@ -4835,6 +5084,8 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
   const audio = window.GameAudio.create();
   // Soundtrack: a calm 2.5-minute open-world loop, and its own loop for disc golf, petanque and the hostage rescue.
   const music = window.GameMusic.create();
+  // Joker and Kiwi are cut into the ground floors of their real buildings (this has to happen before the buildings are built).
+  window.GameShops.applyNotches(D);
   const world = window.Surroundings.create({T, lib, data: D, renderer, onStatus: t => {const el = $('imageryStatus');if (el) el.textContent = t;}});
   scene.add(world.near);farScene.add(world.far);world.setSun(sunDir);
   const apt = window.GameApartment.build({T, lib, data: window.APARTMENT});scene.add(apt.group);
@@ -4867,20 +5118,21 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
     const at = (name, x, z, yaw) => ({name, x, z, y: world.heightWorld(x, z), yaw});
     return window.GameStash.create({T, lib, places: [{name: 'stairwell', x: top.x, y: top.y, z: top.z, yaw: Math.atan2(e[8], e[0])}, at('courtyard', -2.8, -41.7, .4), at('park', 104.5, 162.2, 1.2)]});
   })();scene.add(stash.group);
-  const staticObstacles = [...apt.obstacles, ...towers.flatMap(towerObstacles), ...world.obstacles(), ...fire.obstacles, ...stash.obstacles];
-  const walkFloors = [...apt.floors, ...towers.flatMap(towerFloors), world.terrainFloor()];
+  const shops = window.GameShops.create({T, lib, world, audio});scene.add(shops.group);
+  const staticObstacles = [...apt.obstacles, ...towers.flatMap(towerObstacles), ...world.obstacles(), ...fire.obstacles, ...stash.obstacles, ...shops.obstacles];
+  const walkFloors = [...apt.floors, ...towers.flatMap(towerFloors), ...shops.floors, world.terrainFloor()];
   const walkWorld = collision.createWorld({floors: walkFloors, obstacles: staticObstacles, radius: .18, clearance: .08});
   const vehicleWorlds = new Map();
   function worldFor(r) {
     const key = r.toFixed(2);
-    if (!vehicleWorlds.has(key)) vehicleWorlds.set(key, collision.createWorld({floors: [world.terrainFloor()], obstacles: [...world.obstacles(), ...towers.flatMap(towerObstacles), ...fire.obstacles], radius: r, clearance: .08}));
+    if (!vehicleWorlds.has(key)) vehicleWorlds.set(key, collision.createWorld({floors: [world.terrainFloor()], obstacles: [...world.obstacles(), ...towers.flatMap(towerObstacles), ...fire.obstacles, ...shops.obstacles], radius: r, clearance: .08}));
     return vehicleWorlds.get(key);
   }
   const doors = [...apt.doors, ...towers.flatMap(t => t.stair.doors)];
   const shootTargets = [];[apt.group, ownStair.group].forEach(g => g.traverse(o => {if (o.isMesh && !(o.material.transparent) && o.visible) shootTargets.push(o);}));
   const interactables = [];[apt.group, ...towers.map(t => t.stair.group)].forEach(g => g.traverse(o => {if (o.isMesh && (o.userData.doorId || o.userData.lockedDoor)) interactables.push(o);}));
   apt.drinks.forEach(d => d.object.traverse(o => {if (o.isMesh) {o.userData.drink = d;interactables.push(o);}}));
-  interactables.push(...stash.hitboxes);
+  interactables.push(...stash.hitboxes, ...shops.hitboxes);
 
   // ---------- Vehicles ----------
   const toWorld = world.toWorld, heightAt = world.heightWorld;
@@ -5016,12 +5268,13 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
       spawnAreas: () => apt.spawnAreas, stairSpawns, missionStart,
       entrance: () => {const d = apt.doors.find(d => d.name === 'Entrance door');return d ? d.leaf.getWorldPosition(new T.Vector3()) : {x: 1.66, z: 5.83};},
       timeScale: () => worldScale(),
+      onFinish: result => {if (result === 'success') earn(400, 'Reward for rescuing the hostage');},
       setPose: (x, z, yaw, tilt, y) => place(x, z, yaw, y), enterWalk: () => {}, enterImmersive: () => {},
       leave: () => {const yaw = player.yaw;place(player.x, player.z, yaw, player.feet);updateDynamic();notice(inApartment() ? 'Mission over – you are home. Make yourself comfortable.' : 'Mission over.', 4);}});
   }
 
   // ---------- Minigames, photo camera, map ----------
-  const mini = window.GameMinigames.create({T, lib, audio, heightAt, toWorld, data: D, hud, trees: world.trees});
+  const mini = window.GameMinigames.create({T, lib, audio, heightAt, toWorld, data: D, hud, trees: world.trees, reward: (v, why) => earn(v, why)});
   scene.add(mini.discgolf.group, mini.petanque.group);
   const photo = window.GameCamera.create({T, lib, audio, root: view});
   const overlayScene = new T.Scene(), overlayCamera = new T.PerspectiveCamera(55, 1, .01, 5);overlayScene.add(new T.HemisphereLight(0xf1f5ff, 0x4a4540, 2.2));
@@ -5037,6 +5290,7 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
     {...world.toLocal(AIR.heli.x, AIR.heli.z), color: '#1565c0', label: 'Helipad', glyph: 'H'},
     {...world.toLocal(AIR.plane.x, AIR.plane.z), color: '#1565c0', label: 'Airstrip', glyph: '✈'},
     {...world.toLocal(FIRE_POS.x, FIRE_POS.z), color: '#e65100', label: 'Firepit', glyph: '🔥'},
+    ...shops.shops.map(s => {const L = s.local;return {x: L.P0[0] + L.u[0] * L.W / 2 + L.n[0] * L.depth / 2, s: L.P0[1] + L.u[1] * L.W / 2 + L.n[1] * L.depth / 2, color: s.id === 'kiwi' ? '#2e9a3f' : '#d0021b', label: s.name, glyph: '🛒'};}),
     ...(mp ? [...mp.remotes.values()].filter(r => r.seen).map(r => ({...world.toLocal(r.pos.x, r.pos.z), color: window.GameAvatars.SLOT_CSS[r.slot % 5], label: r.name, glyph: '●'})) : [])]});
   // Wristwatch (D-pad ↑) shares the first-person overlay with the photo camera.
   const watch = window.GameWatch.create({T, lib});overlayScene.add(watch.model);
@@ -5045,7 +5299,7 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
   let drunk = 0;// seconds of drunkenness remaining
   const drunkLevel = () => Math.min(1, drunk / 90);
   function drink(d) {
-    if (d.kind === 'beer') {d.object.visible = false;d.used = true;audio.sfx('bottleOpen');audio.sfx('gulp');drunk += 30;notice('You drink a beer. (+30 s drunk)');}
+    if (d.kind === 'beer') {d.object.visible = false;d.used = true;audio.sfx('bottleOpen');audio.sfx('gulp');drunk += 30;wallet.addPant(1);notice('You drink a beer. (+30 s drunk, +1 bottle for the deposit)');}
     else {if (d.sips <= 0) {notice('The bottle is empty.');return;}d.sips--;audio.sfx('gulp');drunk += 30;notice(`A sip of ${d.name}. (+30 s drunk) · ${d.sips} sips left`);const l = d.object.userData.liquid;if (l) l.scale.y = Math.max(.05, d.sips / 12);}
   }
 
@@ -5071,6 +5325,7 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
     // Doors first (the street door of 17A opens normally), then the mission marker beside the entrance.
     {const o = lookTarget();if (o?.userData.doorId) {const d = doors.find(d => d.id === o.userData.doorId);if (d) return {text: `□ ${d.open ? 'Close' : 'Open'} ${d.name.toLowerCase()}`, act: () => toggleDoor(d)};}}
     if (Math.hypot(player.x - MISSION_MARK.x, player.z - MISSION_MARK.z) < 1.6 && Math.abs(player.feet - world.heightWorld(MISSION_MARK.x, MISSION_MARK.z)) < 2) return {text: '□ Start mission: rescue the hostage (4th floor)', act: () => startMission()};
+    const shp = shopPrompt();if (shp) return shp;
     const fp = firePrompt();if (fp) return fp;
     const sp = stashPrompt();if (sp) return sp;
     const v = nearestVehicle();
@@ -5133,6 +5388,72 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
     boost = {kind, t: 30};audio.sfx(it.kind === 'line' ? 'sniff' : 'needle');audio.muffle(kind === 'slowmo');
     notice(`${BOOSTS[kind]} for 30 seconds!`, 4);
   }
+  // ---------- Shops (Joker and Kiwi) and money in kroner ----------
+  const wallet = shops.wallet, KR = shops.kr, GREET = ['Hei! Velkommen inn.', 'Hei hei!', 'God dag!', 'Hei, si fra om du trenger hjelp.'];
+  let basket = [], walletT = 0, lastShop = null, bag = null;
+  function earn(amount, why) {if (!(amount > 0)) return;wallet.earn(amount);walletT = 6;audio.sfx('coin');notice(`+${KR(amount)} · ${why}`, 4);}
+  function shopPrompt() {
+    if (player.mode !== 'foot') return null;
+    const s = shops.shopAt(player, player.feet), o = lookTarget(), u = (o && o.userData) || {};
+    if (u.shopItem) {const {shop, product} = u.shopItem, price = shops.priceOf(shop, product);return {text: `□ Take ${product.name} – ${KR(price)}`, act: () => takeProduct(shop, product, price)};}
+    if (u.shopPant) {const n = wallet.pant;return n ? {text: `□ Return ${n} empty bottle${n > 1 ? 's' : ''} – ${KR(n * shops.PANT)}`, act: () => returnPant()} : {text: 'Bottle return – no empty bottles yet', act: () => {}};}
+    if (s && (u.shopTill || shops.atTill(s, player))) {
+      const mine = basket.filter(b => b.shop === s), total = mine.reduce((t, b) => t + b.price, 0);
+      return mine.length ? {text: `□ Pay ${KR(total)} (${mine.length} item${mine.length > 1 ? 's' : ''})`, act: () => payAt(s)} : {text: '□ Talk to the cashier', act: () => s.say(GREET[Math.floor(Math.random() * GREET.length)])};
+    }
+    return null;
+  }
+  function takeProduct(shop, product, price = shops.priceOf(shop, product)) {basket.push({shop, product, price});audio.sfx('click');walletT = 8;notice(`${product.name} in the basket – pay at the till`, 2);}
+  function returnPant() {const n = wallet.cashPant();audio.sfx('pant');walletT = 6;notice(`The machine takes ${n} bottle${n > 1 ? 's' : ''}: +${KR(n * shops.PANT)}`, 3);}
+  function payAt(s) {
+    const mine = basket.filter(b => b.shop === s), beerOk = shops.beerAllowed(new Date());
+    const refused = beerOk ? [] : mine.filter(b => b.product.beer), buy = mine.filter(b => !refused.includes(b)), total = Math.round(buy.reduce((t, b) => t + b.price, 0) * 100) / 100;
+    if (!buy.length) {basket = basket.filter(b => b.shop !== s);s.say('Beklager, jeg kan ikke selge øl nå. Ølsalget er man–fre 08–20 og lør 08–18.');notice('No beer sales now (Norwegian law: Mon–Fri 08–20, Sat 08–18, never on Sunday). The beer goes back.', 5);return;}
+    if (!wallet.pay(total)) {s.say(`Kortet ble avvist – du mangler ${KR(total - wallet.money)}.`);audio.sfx('locked');notice(`Card declined: you have ${KR(wallet.money)}, the total is ${KR(total)}.`, 4);return;}
+    buy.forEach(b => wallet.add(b.product.id));basket = basket.filter(b => b.shop !== s);
+    s.say(refused.length ? `Det blir ${KR(total)}. Ølet må jeg ta tilbake – ølsalget er stengt nå.` : `Det blir ${KR(total)}. Takk for handelen!`);
+    audio.sfx('register');walletT = 8;notice(`Paid ${KR(total)}${refused.length ? ' (no beer at this hour)' : ''} · D-pad ↓ or the ↓ key opens your bag`, 4);
+  }
+  function shopsTick(dt) {
+    shops.update(dt, player, camera);walletT = Math.max(0, walletT - dt);
+    const s = player.mode === 'foot' ? shops.shopAt(player, player.feet) : null;
+    if (s && s !== lastShop) s.say(GREET[Math.floor(Math.random() * 2)]);
+    // Walking out with unpaid items sets off the alarm, and the items go back on the shelves.
+    if (lastShop && s !== lastShop && basket.some(b => b.shop === lastShop)) {audio.sfx('alarm');basket = basket.filter(b => b.shop !== lastShop);notice('BEEP BEEP – the alarm at the door goes off. You put the unpaid items back.', 4);}
+    lastShop = s;if (bag && player.mode !== 'foot') {bag = null;renderBag();}
+    const show = s || basket.length || bag || walletT > 0, w = $('wallet');w.hidden = !show;if (show) w.textContent = `💰 ${KR(wallet.money)} · 🍾 ${wallet.pant}`;
+    const bk = $('basket');bk.hidden = !basket.length;
+    if (basket.length) {const total = basket.reduce((t, b) => t + b.price, 0);bk.innerHTML = '<b>Basket</b>' + basket.map(b => `<div>${b.product.name}<span>${KR(b.price)}</span></div>`).join('') + `<div class="total">Total<span>${KR(total)}</span></div><small>Pay at the till</small>`;}
+  }
+  // The bag: what you have bought (D-pad ↓ / ↓ key on foot).
+  const USE = {beer: 'drink: +30 s drunk, a bottle for the deposit', soda: 'drink: a bottle for the deposit', energy: 'drink: 15 s of 3× speed', food: 'eat: sobers you up', wood: 'empty onto the firepit (+3)'};
+  const bagItems = () => Object.entries(wallet.bag).map(([id, n]) => ({p: shops.products.find(x => x.id === id), n})).filter(e => e.p);
+  function openBag() {bag = {sel: 0, stick: false};watch.hide();renderBag();}
+  function renderBag() {
+    const el = $('bag');el.hidden = !bag;if (!bag) return;const items = bagItems();bag.sel = Math.max(0, Math.min(bag.sel, items.length - 1));
+    el.innerHTML = `<b>Bag · ${KR(wallet.money)} · ${wallet.pant} empty bottle${wallet.pant === 1 ? '' : 's'}</b>` + (items.length ? items.map((e, i) => `<div class="${i === bag.sel ? 'sel' : ''}">${e.n} × ${e.p.name}<small>${USE[e.p.use]}</small></div>`).join('') : '<div>Empty – buy something at Joker or Kiwi</div>') + '<small>↑↓ choose · ✕ / Space use · ○ / C close</small>';
+    // A long bag scrolls so the chosen item stays in view.
+    const sel = el.querySelector('.sel');if (sel) {const t = sel.offsetTop - 34, b = sel.offsetTop + sel.offsetHeight + 30;if (t < el.scrollTop) el.scrollTop = t;else if (b > el.scrollTop + el.clientHeight) el.scrollTop = b - el.clientHeight;}
+  }
+  function bagInput(input) {
+    const y = input.move.y, items = bagItems();
+    if (input.pressed.has('up') || (y < -.5 && !bag.stick)) bag.sel = Math.max(0, bag.sel - 1);
+    if (input.pressed.has('down') || (y > .5 && !bag.stick)) bag.sel = Math.min(Math.max(0, items.length - 1), bag.sel + 1);
+    bag.stick = Math.abs(y) > .5;
+    if (input.pressed.has('cross') && items[bag.sel]) useItem(items[bag.sel].p);
+    if (input.pressed.has('circle')) bag = null;
+    renderBag();input.move.x = input.move.y = 0;['cross', 'circle', 'up', 'down', 'square', 'triangle'].forEach(b => input.pressed.delete(b));
+  }
+  function useItem(p) {
+    if (p.use === 'wood') {
+      if (Math.hypot(player.x - FIRE_POS.x, player.z - FIRE_POS.z) > 8) {notice('Take the firewood to the firepit in the park first.', 3);return;}
+      for (let i = 0; i < 3; i++) setTimeout(() => {fire.throwLog({x: player.x, y: player.feet + 1.3, z: player.z});mp.addWood();}, i * 350);notice('You empty the sack of firewood onto the fire.', 3);
+    } else if (p.use === 'beer') {audio.sfx('bottleOpen');audio.sfx('gulp');drunk += 30;beerT = 20;wallet.addPant(1);notice(`You drink a ${p.name}. (+30 s drunk, +1 bottle for the deposit)`, 3);}
+    else if (p.use === 'soda') {audio.sfx('bottleOpen');audio.sfx('gulp');drunk = Math.max(0, drunk - 10);wallet.addPant(1);notice(`${p.name} – refreshing. (+1 bottle for the deposit)`, 3);}
+    else if (p.use === 'energy') {audio.sfx('bottleOpen');audio.sfx('gulp');boost = {kind: 'speed', t: 15};wallet.addPant(1);notice(`${p.name}: 15 s of 3× speed! (+1 can for the deposit)`, 3);}
+    else {drunk = Math.max(0, drunk - (p.sober || 10));audio.sfx('gulp');notice(`You eat ${p.name}.${p.sober ? ` (−${p.sober} s drunk)` : ''}`, 3);}
+    wallet.take(p.id);walletT = 4;
+  }
   function firePrompt() {
     const near = (p, r) => Math.hypot(player.x - p.x, player.z - p.z) < r && Math.abs(player.feet - fire.center.y) < 1.5;
     if (near(fire.woodpile, 1.9)) return {text: `□ Throw a log on the fire (fire ${Math.round(mp.fireLevel() / fire.MAX * 100)} %)`, act: () => addLog()};
@@ -5142,7 +5463,7 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
     return null;
   }
   function addLog() {fire.throwLog({x: player.x, y: player.feet + 1.3, z: player.z});audio.sfx('throw');setTimeout(() => {audio.sfx('thud', {gain: .4});}, 600);mp.addWood();notice('You throw a log on the fire.', 2);}
-  function drinkBeer() {audio.sfx('bottleOpen');audio.sfx('gulp');drunk += 30;beerT = 20;notice('Skål! A beer from the crate. (+30 s drunk)', 3);}
+  function drinkBeer() {audio.sfx('bottleOpen');audio.sfx('gulp');drunk += 30;beerT = 20;wallet.addPant(1);notice('Skål! A beer from the crate. (+30 s drunk, +1 bottle for the deposit)', 3);}
   function sitDown(spot) {watch.hide();if (photo.active) photo.toggle();player.mode = 'sit';player.sitSpot = spot;player.lookYaw = 0;player.lookPitch = -.32;notice('Sitting by the fire · R2 / left mouse: have a beer · □ stand up', 4);}
   function standUp() {const sp = player.sitSpot;player.mode = 'foot';player.sitSpot = null;const dx = fire.center.x - sp.x, dz = fire.center.z - sp.z, l = Math.hypot(dx, dz) || 1;place(sp.x + dx / l * .7, sp.z + dz / l * .7, sp.yaw);}
   function exitVehicle() {
@@ -5200,6 +5521,7 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
   function setPaused(p) {paused = p;$('pause').hidden = !p;if (p && document.pointerLockElement === canvas) document.exitPointerLock();if (!p) lockPointer();renderSettings();}
   $('resume').onclick = () => setPaused(false);
   function renderSettings() {
+    $('walletLine').textContent = `Money: ${shops.kr(wallet.money)} · empty bottles: ${wallet.pant} (${shops.kr(wallet.pant * shops.PANT)} at the bottle return)`;
     $('sensPad').value = sensitivity.pad;$('sensMouse').value = sensitivity.mouse;$('sensPadOut').textContent = sensitivity.pad.toFixed(2) + '×';$('sensMouseOut').textContent = sensitivity.mouse.toFixed(2) + '×';
     $('imagery').checked = imageryWanted();$('quality').value = String(quality);
     $('musicVol').value = music.volume;$('musicOut').textContent = music.volume ? Math.round(music.volume * 100) + ' %' : 'off';
@@ -5235,6 +5557,7 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
     // Chat: the controller's Share button opens quick chat; keyboard Enter / T opens the text box.
     if (input.pressed.has('share') && !map.open) {quick = quick ? null : {sel: 0, stick: false};renderQuick();}
     if (quick) quickInput(input);
+    if (bag) bagInput(input);
     if (caseGame?.active) {
       // The mission owns ✕ (begin), ○ (leave on panels), Options (pause), □ (door or reload), triggers.
       for (const name of input.pressed) {if (name === 'reload') caseGame.key({key: 'r', code: 'KeyR', repeat: false});else if (name === 'options' || caseGame.state !== 'play') caseGame.padButton(name === 'mouseLeft' ? '' : name);else if (['square', 'touchpad'].includes(name)) caseGame.padButton(name);}
@@ -5262,6 +5585,7 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
         } else {const g = gear;gear = null;showGear(null);if (g.open) {gearLast = g.sel;if (g.sel === 1) startDrone();else photo.toggle();} else photo.toggle();}
       }
       if (input.pressed.has('up') && !photo.active && !gear) watch.toggle();
+      if (input.pressed.has('down') && !photo.active && !gear && !bag) {openBag();input.pressed.delete('down');}
     } else if (gear) {gear = null;showGear(null);}
     if (photo.active || player.mode !== 'foot') watch.hide();
     if (photo.active) {
@@ -5275,7 +5599,7 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
     // Drunk effect: decays in real time.
     drunk = Math.max(0, drunk - dt);const dl = drunkLevel();
     if (boost && (boost.t -= dt) <= 0) {boost = null;audio.muffle(false);notice('The boost wears off.', 2);}
-    const wdt = dt * worldScale();stash.update(dt);
+    const wdt = dt * worldScale();stash.update(dt);shopsTick(dt);
     if (player.mode === 'vehicle') updateVehicle(dt, input, dl);
     else if (player.mode === 'passenger') updatePassenger(dt, input, dl);
     else if (player.mode === 'sit') updateSit(dt, input, dl);
@@ -5291,7 +5615,7 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
     let doorsChanged = false;
     for (const d of doors) if (d.anim) {d.anim.t = Math.min(1, d.anim.t + dt * 2.2);const e = d.anim.t < .5 ? 2 * d.anim.t * d.anim.t : 1 - Math.pow(-2 * d.anim.t + 2, 2) / 2;setDoor(d, d.anim.from + (d.anim.to - d.anim.from) * e);if (d.anim.t >= 1) {d.open = d.anim.to === 1;d.anim = null;doorsChanged = true;}}
     if (doorsChanged || caseGame?.active) updateDynamic();
-    promptTimer -= dt;if (promptTimer <= 0) {promptTimer = .15;promptAction = player.mode === 'minigame' || player.mode === 'drone' || gear?.open || quick || photo.active || (caseGame?.active && caseGame.state !== 'play') ? null : findPrompt();prompt(promptAction?.text);}
+    promptTimer -= dt;if (promptTimer <= 0) {promptTimer = .15;promptAction = player.mode === 'minigame' || player.mode === 'drone' || gear?.open || quick || bag || photo.active || (caseGame?.active && caseGame.state !== 'play') ? null : findPrompt();prompt(promptAction?.text);}
     ambienceTimer -= dt;if (ambienceTimer <= 0) {ambienceTimer = .25;updateAmbience();if (audio.context) music.attach(audio.context);music.play(musicTrack());}
     // Adaptive resolution keeps the frame rate in the 20–30+ fps range on slower PCs.
     if (fpsAvg < 22) {if (++lowFrames > 90 && pixelRatio > .6) {pixelRatio = Math.max(.6, pixelRatio - .1);renderer.setPixelRatio(pixelRatio);resize();lowFrames = 0;}} else lowFrames = 0;
@@ -5337,7 +5661,8 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
   }
   function footstep(soft = 1) {
     let surface = 'grass', stair = false;
-    if (inApartment()) {const r = roomAt();surface = r === 'bath' ? 'tile' : r ? 'wood' : 'metal';}
+    if (shops.shopAt(player, player.feet)) surface = 'tile';
+    else if (inApartment()) {const r = roomAt();surface = r === 'bath' ? 'tile' : r ? 'wood' : 'metal';}
     else if (towerAt(player.x, player.z, player.feet)) {surface = 'stone';stair = true;}
     else {const s = world.surfaceAt(player.x, player.z);surface = s === 'asphalt' ? 'asphalt' : s === 'gravel' ? 'gravel' : s === 'sand' ? 'sand' : 'grass';}
     audio.footstep(surface, stair, soft);
@@ -5527,7 +5852,7 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
     else {camera.position.set(player.x, player.feet + player.eye, player.z);camera.rotation.order = 'YXZ';camera.rotation.set(player.pitch, player.yaw, 0);}
   }
   function updateAmbience() {
-    const inApt = inFlat(), tw = towerAt(player.x, player.z, player.feet), indoor = inApt || tw ? 1 : player.vehicle && player.vehicle.kind === 'car' ? .7 : player.vehicle && player.vehicle.aircraft ? .4 : 0;
+    const inApt = inFlat(), tw = towerAt(player.x, player.z, player.feet), indoor = inApt || tw || shops.shopAt(player, player.feet) ? 1 : player.vehicle && player.vehicle.kind === 'car' ? .7 : player.vehicle && player.vehicle.aircraft ? .4 : 0;
     audio.ambience({indoor, green: world.greenery(player.x, player.z), traffic: world.trafficDistance(player.x, player.z), height: Math.max(0, player.feet - heightAt(player.x, player.z)) + (inApt ? 10 : 0), stair: Boolean(tw), kitchen: inApt && roomAt() === 'kitchen'});
     // Stair-tower light follows the player into whichever stairwell they are in.
     if (tw) {const l = tw.t.stair.lampAt({x: tw.l.x, z: tw.l.z}, player.feet - tw.t.matrix.elements[13]);if (l) {const p = new T.Vector3(l.x, l.y, l.z).applyMatrix4(tw.t.matrix);towerLamp.position.copy(p);towerLamp.intensity = 5.5;}} else towerLamp.intensity = 0;
@@ -5561,7 +5886,7 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
   }
 
   // ---------- Test / inspection handle ----------
-  window.haarklousGame = {player, vehicles, heli, plane, drone, watch, fire, stash, takeBoost, get boost() {return boost;}, set boost(b) {boost = b;}, get mp() {return mp;}, sitDown, standUp, tryDrive, tryRide, openChat, startDrone, stopDrone, floorBelow, doors, mini, music, photo, map, world, apt, towers, walkWorld, get caseGame() {return caseGame;}, place, toggleDoor, enterVehicle, exitVehicle, startMinigame, startMission, drink, interact, findPrompt, renderFrame, begin, get fps() {return fpsAvg;}, kick: () => requestAnimationFrame(frame), get drunk() {return drunk;}, set drunk(v) {drunk = v;}, setStance, camera, scene};
+  window.haarklousGame = {player, vehicles, heli, plane, drone, watch, fire, stash, shops, wallet, get basket() {return basket;}, payAt, takeProduct, useItem, earn, openBag, takeBoost, get boost() {return boost;}, set boost(b) {boost = b;}, get mp() {return mp;}, sitDown, standUp, tryDrive, tryRide, openChat, startDrone, stopDrone, floorBelow, doors, mini, music, photo, map, world, apt, towers, walkWorld, get caseGame() {return caseGame;}, place, toggleDoor, enterVehicle, exitVehicle, startMinigame, startMission, drink, interact, findPrompt, renderFrame, begin, get fps() {return fpsAvg;}, kick: () => requestAnimationFrame(frame), get drunk() {return drunk;}, set drunk(v) {drunk = v;}, setStance, camera, scene};
   loading.remove();$('start').hidden = false;
   requestAnimationFrame(frame);
 })();

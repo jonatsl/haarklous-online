@@ -126,6 +126,11 @@
         case 'hit': burst(500, 1, .4, .002, .15, 'lowpass');break;
         case 'cheer': for (let i = 0; i < 6; i++) tone(rand(300, 700), rand(400, 900), .04, .05, .4, 'sawtooth', t + i * .05);break;
         case 'starter': tone(220, 320, .08, .02, .5, 'square');break;
+        case 'coin': tone(1320, 1320, .12, .004, .12, 'triangle');tone(1760, 1760, .12, .004, .3, 'triangle', t + .09);break;
+        case 'register': tone(2400, 2400, .08, .003, .08, 'square');tone(2400, 2400, .08, .003, .08, 'square', t + .14);burst(260, .8, .4, .004, .2, 'lowpass', t + .35);break;
+        case 'alarm': for (let i = 0; i < 6; i++) tone(i % 2 ? 1500 : 1900, i % 2 ? 1500 : 1900, .12, .004, .16, 'square', t + i * .18);break;
+        case 'pant': burst(180, .7, .5, .004, .25, 'lowpass');for (let i = 0; i < 4; i++) burst(rand(2000, 4500), 4, .1, .001, .05, 'bandpass', t + .25 + i * .07);tone(880, 880, .05, .004, .12, 'sine', t + .6);break;
+        case 'shopDoor': burst(700, .5, .08, .15, .45, 'bandpass');break;
         case 'sniff': burst(3200, .8, .35, .18, .35);burst(5200, 1, .18, .1, .25, 'bandpass', t + .05);break;
         case 'needle': burst(4000, 6, .1, .001, .03);for (let i = 0; i < 4; i++) {tone(62, 48, .55, .01, .16, 'sine', t + .35 + i * .55);tone(58, 44, .35, .01, .14, 'sine', t + .55 + i * .55);}break;
         case 'crash': burst(220, .7, 1, .003, 1.4, 'lowpass');burst(1600, .6, .5, .002, .7);tone(70, 30, .6, .003, .9);for (let i = 0; i < 6; i++) burst(rand(2500, 6000), 3, .15, .001, .08, 'bandpass', t + .1 + i * rand(.05, .14));break;

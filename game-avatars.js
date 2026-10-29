@@ -21,8 +21,8 @@
       return {s, c, ctx: c.getContext('2d'), tex};
     }
     function roundRect(ctx, x, y, w, h, r) {ctx.beginPath();ctx.moveTo(x + r, y);ctx.arcTo(x + w, y, x + w, y + h, r);ctx.arcTo(x + w, y + h, x, y + h, r);ctx.arcTo(x, y + h, x, y, r);ctx.arcTo(x, y, x + w, y, r);ctx.closePath();}
-    function avatar(slot, name) {
-      const jacket = lib.fabric(SLOT_COLORS[slot % 5]), g = new T.Group();
+    function avatar(slot, name, color) {
+      const jacket = lib.fabric(color ?? SLOT_COLORS[slot % 5]), g = new T.Group();
       const m = (parent, geo, mat, x = 0, y = 0, z = 0) => {const o = new T.Mesh(geo, mat);o.position.set(x, y, z);o.castShadow = true;parent.add(o);return o;};
       const hips = new T.Group();hips.position.y = .95;g.add(hips);
       m(hips, new T.BoxGeometry(.32, .16, .2), pants, 0, 0, 0);
