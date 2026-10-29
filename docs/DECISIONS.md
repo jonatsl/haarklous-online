@@ -28,6 +28,16 @@ Live site: still runs the older branch `feat/ue5-features` (no jumps, no shops y
 
 ## Log
 
+### 2026-10-29 · Three small bugs fixed (found by the Unreal port)
+- **What:**
+  - Petanque now ends once a side has 13. Before, the last mène was counted again every frame: the score kept climbing (13–12, 14–12 …), the game only ended with ○, and the 150 kr win reward was paid again every frame.
+  - Petanque no longer freezes when every boule in the court has been knocked or thrown out. Whoever still has boules plays on; the mène ends when both sides are out.
+  - A vehicle's collision world made during play (for example the motorcycle's, on its first ride) gets the other vehicles at once. Before, it had none until the next door or vehicle change, so the bike could drive through parked cars.
+- **Why:** the Unreal port found these three bugs (`docs/GAMEPLAY-IDEAS.md` in haarklous-ue5) and copied them on purpose. The user's goal (29 Oct 2026) is the same features and fixes in both games. For the freeze, "whoever has boules plays on" was chosen over the Unreal note's "end the mène", so the side with boules left still gets to throw them.
+- **Where:** `game-minigames.js` (`petanqueNext`, the finish check in the petanque update), `game-main.js` (`worldFor`, `updateDynamic`), `tests/minigames.test.cjs` (new).
+- **Checked:** Node tests 37/37. In the game: petanque from 12–12 played to "You win 13–12!"; the score stayed 13–12, the game ended by itself after 4 s, and exactly 150 kr was paid. The motorcycle on its first ride: before the fix 5 of 6 parked cars did not block it, after the fix all 6 do; the spot right in front of the bike is still free.
+- **Status:** PR #9 (branch `fix/three-bugs-from-ue5`, on top of PR #8). Same fixes for the Unreal version: haarklous-ue5 issues (linked in the PR).
+
 ### 2026-10-29 · One version again: the Unreal features join `main`
 - **What:** the branch `feat/ue5-features` (construction site, paintball, 12 players per lobby, walking 3.5 m/s, see `docs/UE5-PARITY.md`) is merged with `main` (vehicle jumps, shops, stashes, far-away fix). The two versions had grown apart; now one branch has everything. Small fixes while merging: the cashier keeps their own shirt colour with the 12 slot colours; the map shows the shops, the site and the paintball course; the multiplayer screen says "up to 12 players".
 - **Why:** the user's goal (29 Oct 2026): both repos should have the same features and fixes. The fixes for the Unreal issues (paintball, street lamps, sculpture) need the paintball code, which was only on `feat/ue5-features`.

@@ -1,6 +1,6 @@
 /* Minigames in the open world: disc golf (two par-3 holes about 70 m in Torshovdalen) and petanque (singles, 3 boules,
  * game to 13 points, real scoring) against a CGI opponent who always waits at the court.
- * GameMinigames.create({T, lib, audio, heightAt, toWorld, data, hud}) -> {discgolf, petanque}
+ * GameMinigames.create({T, lib, audio, heightAt, toWorld, data, hud}) -> {discgolf, petanque}; GameMinigames.petanqueNext(hold, left)
  * Each game: group (scene objects), near(player) -> prompt text or null, start(player), update(dt, input, view) -> camera override,
  *   active, stop(). Input: {aimYaw, aimPitch, charge(0..1 while held), release (bool), alt (L2 held), cancel}.
  */
@@ -8,6 +8,13 @@
   root.GameMinigames = factory();
 })(typeof window === 'undefined' ? globalThis : window, function () {
   'use strict';
+  // Petanque after the first two boules: the side that is not holding the point throws while it has boules, then the
+  // holder. With no boule left in the court (all thrown out) whoever still has boules plays on. null = the mène is over.
+  function petanqueNext(hold, left) {
+    if (!hold) return left.you > 0 ? 'you' : left.npc > 0 ? 'npc' : null;
+    const other = hold === 'you' ? 'npc' : 'you';
+    return left[other] > 0 ? other : left[hold] > 0 ? hold : null;
+  }
   function create({T, lib, audio, heightAt, toWorld, data, hud, trees, reward}) {
     const V3 = (x, y, z) => new T.Vector3(x, y, z);
     const mesh = (parent, geo, mat, x = 0, y = 0, z = 0) => {const m = new T.Mesh(geo, mat);m.position.set(x, y, z);m.castShadow = m.receiveShadow = true;parent.add(m);return m;};
@@ -218,8 +225,7 @@
       function nextThrower() {
         if (phase === 'jack') {phase = 'first';return thrower;}
         if (phase === 'first') {phase = 'play';const other = thrower === 'you' ? 'npc' : 'you';return other;}
-        const hold = holding(), other = hold === 'you' ? 'npc' : 'you';
-        if (left(other) > 0) return other;if (left(hold) > 0) return hold;return null;
+        return petanqueNext(holding(), {you: left('you'), npc: left('npc')});
       }
       function endMene() {
         const hold = holding();
@@ -249,7 +255,8 @@
         npc.rotation.y = ang + Math.PI + Math.sin(performance.now() / 1300) * .1;
         if (!moving) {
           if (waiting > 0) waiting -= dt;
-          else if (!current) {
+          // Once someone has 13 the game is over: no more mènes (the score and the reward are counted once).
+          else if (!current && game.finish === undefined) {
             if (phase === 'jack' && jack.alive && !jack.flight) {
               const jd = Math.hypot(jack.u - circle.u, jack.v - circle.v);
               if (jd < 6 || jd > 10 || jack.dead) {game.message = `Jack ${jack.dead ? 'out' : 'at ' + jd.toFixed(1) + ' m'}: thrown again (6–10 m).`;jack.alive = false;jack.dead = false;jack.mesh.visible = false;current = thrower;aimingFor = 'jack';}
@@ -287,5 +294,5 @@
     }
     return {discgolf: discGolf(), petanque: petanque()};
   }
-  return {create};
+  return {create, petanqueNext};
 });

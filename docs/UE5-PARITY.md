@@ -58,8 +58,9 @@ simulated DualShock 4, `window.haarklousGame`).
 
 - Graphics only (the user said not to change the graphics): photo-real materials and textures, baked lighting, 3D
   facades, new trees and grass, the photographed sky, the MakeHuman people. They have no gameplay.
-- The web-game bugs listed in the UE `docs/GAMEPLAY-IDEAS.md` (petanque after 13, petanque freeze, vehicle obstacles one
-  update late). Unreal copied them on purpose and is waiting for the user's decision, so both games still have them.
+- (Fixed here on 29 Oct 2026, no longer an exception.) The web-game bugs listed in the UE `docs/GAMEPLAY-IDEAS.md`
+  (petanque after 13, petanque freeze, vehicle obstacles one update late) are fixed in this game; the same fixes are
+  issues in haarklous-ue5.
 
 ## 4. Not verifiable here
 

@@ -85,9 +85,15 @@
   const walkFloors = [...apt.floors, ...towers.flatMap(towerFloors), ...shops.floors, groundFloor];
   const walkWorld = collision.createWorld({floors: walkFloors, obstacles: staticObstacles, radius: .18, clearance: .08});
   const vehicleWorlds = new Map();
+  let vehicleBlockers = null;// the other vehicles' footprints from the last updateDynamic()
   function worldFor(r) {
     const key = r.toFixed(2);
-    if (!vehicleWorlds.has(key)) vehicleWorlds.set(key, collision.createWorld({floors: [groundFloor], obstacles: [...world.obstacles(), ...towers.flatMap(towerObstacles), ...fire.obstacles, ...shops.obstacles, ...extraObstacles], radius: r, clearance: .08}));
+    if (!vehicleWorlds.has(key)) {
+      const w = collision.createWorld({floors: [groundFloor], obstacles: [...world.obstacles(), ...towers.flatMap(towerObstacles), ...fire.obstacles, ...shops.obstacles, ...extraObstacles], radius: r, clearance: .08});
+      // A world made during play (e.g. the bike's on its first ride) gets the other vehicles at once, not one update later.
+      if (vehicleBlockers) collision.setDynamic(w, vehicleBlockers);
+      vehicleWorlds.set(key, w);
+    }
     return vehicleWorlds.get(key);
   }
   const doors = [...apt.doors, ...towers.flatMap(t => t.stair.doors)];
@@ -220,7 +226,7 @@
     collision.setDynamic(walkWorld, list);
     // Other vehicles block the one being driven; it must never collide with its own (parked) footprint.
     const vlist = vehicles.filter(v => v !== player.vehicle).flatMap(v => [].concat(v.footprint()));
-    vehicleWorlds.forEach(w => collision.setDynamic(w, vlist));
+    vehicleBlockers = vlist;vehicleWorlds.forEach(w => collision.setDynamic(w, vlist));
   }
   updateDynamic();
 
