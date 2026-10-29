@@ -25,9 +25,15 @@ On `main`:
 - Multiplayer on Cloudflare (lobby codes, up to 12 players), passengers in motorcycle / cars / helicopter / plane, text chat with quick chat, lobby-wide voice chat.
 - Soundtrack: 2.5-minute open-world loop plus one loop per minigame and the mission; ambient sound by location.
 
-Live site: still runs the older branch `feat/ue5-features` (no jumps, no shops yet) until `main` is deployed.
+Live site: runs `main` (deployed 29 Oct 2026 after PRs #8–#14, version fd96bf7e), so everything above is online.
 
 ## Log
+
+### 2026-10-29 · `main` is live
+- **What:** the game on `main` (PRs #5–#14: jumps, shops, stashes, the Unreal features, the fixes, HODET N.N., Muselunden and the bigger world) is deployed to https://haarklous-online.server-smoke.workers.dev (Cloudflare Worker version fd96bf7e). Before, the live site ran the older branch `feat/ue5-features`.
+- **Why:** `AGENTS.md`: after changing game files, redeploy so the online version matches. `main` now holds everything the old live branch had.
+- **Checked:** the live page is byte-for-byte the local build (`cloud/public/index.html`) and contains the shops, paintball, the sculpture, the Muselunden course and the ±760 m world.
+- **Status:** live.
 
 ### 2026-10-29 · Unreal repo issues brought up to date
 - **What:** haarklous-ue5 now has an issue for every web change and fix it lacks, each with the web numbers, files and checks.
