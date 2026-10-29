@@ -58,6 +58,7 @@ simulated DualShock 4, `window.haarklousGame`).
 
 - The construction site moved 96 m south and 72 m west, and the paintball course moved into the valley floor the site left, so HODET N.N. (UE issue #3) can stand at its real place. The data is now made in this repo by `tools/make-site.py` and `tools/make-paintball.py` (ports of the UE scripts with new constants); the UE project should run its own scripts with the same constants.
 - The world grew to ±760 m walkable / ±800 m terrain, and the real Muselunden DiscGolfPark (12 holes) was added (`muselunden-data.js`).
+- Checked again on 29 Oct 2026 against the UE commits up to `962eded`: `aa26d86` (higher loader cab, low front fenders, seat view at the glass; small tipper mirrors on arms) is ported; `962eded` is an Unreal-only balcony test.
 - Fixes found by the Unreal port, done here: petanque after 13, petanque freeze, vehicle obstacles (UE issues #7–#9); see-through barrier ends (UE #1); solid street lamps (UE #2).
 
 ## 3. Deliberately not ported
