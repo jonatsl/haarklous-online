@@ -17,11 +17,10 @@ On `main`:
 - FPV drone (hold △), photo camera with gallery (tap △), wristwatch (D-pad ↑), map (touchpad).
 - Minigames: two disc golf holes, petanque against Arne; hostage-rescue mission (start at the red ring by the entrance); stay home after the mission.
 - Firepit with benches, beer crate and woodpile (fire size shared online); beer and aquavit in the apartment (30 s drunk each).
+- Joker and Kiwi shops at their real places with a cashier; money in kroner (start 500 kr, earned from the mission, minigames and bottle deposit), Norwegian beer hours, a bag of bought items (PR #6).
 - Three hidden stashes with 30-second boosts: 3× running speed, 3× jump height or bullet time.
 - Multiplayer on Cloudflare (lobby codes, up to 5 players on `main`), passengers in motorcycle / cars / helicopter / plane, text chat with quick chat, lobby-wide voice chat.
 - Soundtrack: 2.5-minute open-world loop plus one loop per minigame and the mission; ambient sound by location.
-
-On branch `feat/grocery-shops` (PR #6), not yet on `main`: Joker and Kiwi shops at their real places with a cashier, and money in kroner (wallet, earning, bottle deposit, bag of bought items).
 
 On branch `feat/ue5-features` (and live), not yet on `main`: construction site with seven machines and diggable soil, paintball (lobby, teams, rounds, capture the flag), 12 players per lobby, walking speed 3.5 m/s.
 
@@ -32,7 +31,7 @@ On branch `feat/ue5-features` (and live), not yet on `main`: construction site w
 - **Why:** the user asked for both shops at their real places, buying items, a cashier and a money system. Norwegian rules chosen: beer only Mon–Fri 08–20 and Sat 08–18 (by the PC clock), never on Sunday (the cashier takes it back); 2 kr deposit (every drink sold is 0.5 l or smaller; bigger bottles would be 3 kr). Opening hours are shown but not enforced, so the shops can always be visited. Leaving with unpaid items sets off the alarm and the items go back (no stealing). Money is saved in the browser per player, not shared online.
 - **Where:** `game-shops.js` (new: shops, products, notch, wallet), `game-main.js` (prompts, basket, paying, bag, earning, HUD), `game-minigames.js` and `case-game.js` (rewards), `game-avatars.js` (shirt colour), `game-audio.js` (coin, till, alarm, bottle machine, door sounds), `index.html`, `style.css`, `README.md`, `tests/shops.test.cjs`.
 - **Checked:** walked in through both doors, took all 8 kinds of shelf, fridge and floor items by aiming and pressing □, paid at the till, beer refused on a Sunday and after 18 on a Saturday, card declined, alarm on leaving, bottle return, bag (open, choose, use, close, long list scrolls), firewood on the firepit (+3), reward notice. Extra frame time in front of the shop about 3 ms. Node tests 28/28.
-- **Status:** PR https://github.com/jonatsl/haarklous-online/pull/6. Same feature for the Unreal version: https://github.com/jonatsl/haarklous-ue5/issues/5.
+- **Status:** PR https://github.com/jonatsl/haarklous-online/pull/6, merged into `main` on 29 Oct 2026 (the user approved). Not live yet: the live site runs `feat/ue5-features`. Same feature for the Unreal version: https://github.com/jonatsl/haarklous-ue5/issues/5.
 
 ### 2026-10-29 · Cars and motorcycles jump over crests (gravity 9.81 m/s²)
 - **What:** cars and motorcycles have real up-and-down movement. Where the ground falls away faster than gravity (9.81 m/s²) can pull the vehicle down, it flies on a ballistic path until it lands. No grip, steering or brakes in the air; the nose follows the flight path; landing gives a thud and a short dip of the view (crash sound on hard landings). In the air only obstacles at the vehicle's height block it. The excavator still hugs the ground.
