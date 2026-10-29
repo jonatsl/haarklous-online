@@ -47,7 +47,7 @@ Live site: runs `main` (deployed 29 Oct 2026 after PRs #8–#14, version fd96bf7
   - Drone (ANGLE): 250 px up tilts it 32° nose down and it holds; back down levels it; right rolls it right.
   - Plane: mouse down raises the nose.
   - Node tests 44/44.
-- **Status:** PR (branch `feat/mouse-flying`, on top of PR #18), closes #16.
+- **Status:** PR #19 (branch `feat/mouse-flying`, on top of PR #18), closes #16. For the Unreal version: https://github.com/jonatsl/haarklous-ue5/issues/13.
 
 ### 2026-10-29 · The distant ground no longer floats above the real ground (issue #17)
 - **What:**
@@ -63,7 +63,7 @@ Live site: runs `main` (deployed 29 Oct 2026 after PRs #8–#14, version fd96bf7
   - The same 150 m above the construction site.
   - With imagery on, the distant photo is the 2048 px one, shown once.
   - Node tests 44/44; no console errors.
-- **Status:** PR #18 (branch `fix/floating-horizon`), closes #17.
+- **Status:** PR #18 (branch `fix/floating-horizon`), closes #17. For the Unreal version: https://github.com/jonatsl/haarklous-ue5/issues/14.
 
 ### 2026-10-29 · `main` is live
 - **What:** the game on `main` (PRs #5–#14: jumps, shops, stashes, the Unreal features, the fixes, HODET N.N., Muselunden and the bigger world) is deployed to https://haarklous-online.server-smoke.workers.dev (Cloudflare Worker version fd96bf7e). Before, the live site ran the older branch `feat/ue5-features`.
