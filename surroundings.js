@@ -3,7 +3,7 @@
  * bushes, courtyard dressing, street lamps; sky and the hills around Oslo. Ground texture: an offline map
  * painting; when online and allowed, Esri World Imagery is fetched live and painted onto the terrain.
  * Surroundings.create({T, lib, data, renderer, onStatus}) -> {
- *   near, far, setImagery(on), setSun(dir), attribution,
+ *   near, far, setImagery(on), setSun(dir), setOvercast(0..1), attribution,
  *   heightWorld(x, z) -> y, toLocal(x, z) -> {x, s}, toWorld(x, s) -> {x, z},
  *   terrainFloor() (walk-collision floor), obstacles() (buildings, trees, lamp posts, bushes, hedges, in model coordinates),
  *   surfaceAt(x, z) -> 'grass'|'asphalt'|'gravel'|'sand'|'none', trafficDistance(x, z), greenery(x, z) -> 0..1 }
@@ -103,8 +103,35 @@
       const img = c.getImageData(0, 0, 512, 512), d = img.data;for (let i = 0; i < d.length; i += 4) {const n = (lib.rand() - .5) * 18;d[i] += n;d[i + 1] += n;d[i + 2] += n;}c.putImageData(img, 0, 0);
     }
     const horizonTex = new T.CanvasTexture(horizonCanvas);horizonTex.colorSpace = T.SRGBColorSpace;horizonTex.wrapS = horizonTex.wrapT = T.RepeatWrapping;horizonTex.repeat.set(12, 12);horizonTex.anisotropy = 8;
-    const horizon = new T.Mesh(new T.PlaneGeometry(18000, 18000), new T.MeshStandardMaterial({map: horizonTex, color: 0xb4b4b4, roughness: 1}));
-    horizon.rotation.x = -Math.PI / 2;horizon.position.y = ground + relLocal(FAR_EXT, FAR_EXT) - 6;geoFar.add(horizon);
+    // Live aerial imagery for the distance is drawn once over the whole ±9 km (not repeated like the townscape tile).
+    const horizonImg = document.createElement('canvas');horizonImg.width = horizonImg.height = 2048;
+    const horizonImgTex = new T.CanvasTexture(horizonImg);horizonImgTex.colorSpace = T.SRGBColorSpace;horizonImgTex.anisotropy = 8;
+    const horizonMat = new T.MeshStandardMaterial({map: horizonTex, color: 0xb4b4b4, roughness: 1});
+    // The flat land beyond the terrain data lies below the lowest ground in the data, so it never floats above the real ground
+    // (issue #17: it used to sit at the height of one corner, 40–60 m above the low ground south-west of home). An apron
+    // joins the terrain's edge to it: it starts at exactly the edge heights and eases down (or up) to that level by 3 km out.
+    let lowest = Infinity;for (let i = 0; i < grid.length; i++) lowest = Math.min(lowest, grid[i]);
+    const BASE_Y = ground + lowest - 2, APRON = 3000;
+    {
+      const ticks = [];for (let v = -FAR_EXT; v <= FAR_EXT + 1e-6; v += 8) ticks.push(v);
+      for (const d of [40, 100, 200, 400, 700, 1100, 1600, 2200, APRON]) {ticks.push(FAR_EXT + d);ticks.unshift(-FAR_EXT - d);}
+      const n = ticks.length, pos = new Float32Array(n * n * 3), uv = new Float32Array(n * n * 2), index = [];
+      const ease = t => t * t * (3 - 2 * t), clampD = v => Math.max(-FAR_EXT, Math.min(FAR_EXT, v));
+      for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+        const x = ticks[i], z = ticks[j], k = j * n + i, out = Math.max(Math.abs(x), Math.abs(z)) - FAR_EXT;
+        const edge = yLocal(clampD(x), clampD(z)) - .5;// the district terrain's own height at the nearest edge point (it is drawn .5 m low)
+        pos[k * 3] = x;pos[k * 3 + 1] = out <= 1e-6 ? edge : edge + (BASE_Y - edge) * ease(Math.min(1, out / APRON));pos[k * 3 + 2] = z;
+        uv[k * 2] = (x + 9000) / 18000;uv[k * 2 + 1] = 1 - (z + 9000) / 18000;
+      }
+      for (let j = 0; j < n - 1; j++) for (let i = 0; i < n - 1; i++) {
+        if (ticks[i] >= -FAR_EXT - 1e-6 && ticks[i + 1] <= FAR_EXT + 1e-6 && ticks[j] >= -FAR_EXT - 1e-6 && ticks[j + 1] <= FAR_EXT + 1e-6) continue;// inside the terrain data
+        const a = j * n + i, b = a + 1, c = a + n, d = c + 1;index.push(a, c, b, b, c, d);
+      }
+      const geo = new T.BufferGeometry();geo.setAttribute('position', new T.BufferAttribute(pos, 3));geo.setAttribute('uv', new T.BufferAttribute(uv, 2));geo.setIndex(index);geo.computeVertexNormals();
+      const apron = new T.Mesh(geo, horizonMat);apron.name = 'Terrain (apron)';apron.receiveShadow = true;geoFar.add(apron);
+    }
+    const horizon = new T.Mesh(new T.PlaneGeometry(18000, 18000), horizonMat);
+    horizon.rotation.x = -Math.PI / 2;horizon.position.y = BASE_Y - .5;geoFar.add(horizon);
     const fjord = new T.Mesh(new T.PlaneGeometry(7000, 6000), new T.MeshStandardMaterial({color: 0x3e5d70, roughness: .18, metalness: .15, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2}));
     fjord.rotation.x = -Math.PI / 2;fjord.position.set(-600, horizon.position.y + 2, 6200);geoFar.add(fjord);
 
@@ -237,7 +264,7 @@
     function restore(target, base) {const c = target.getContext('2d');c.drawImage(base, 0, 0);}
     async function setImagery(on) {
       const token = ++imageryToken;
-      if (!on) {restore(nearPaint, nearBase);restore(outerPaint, outerBase);restore(farPaint, farBase);nearTerrain.tex.needsUpdate = outerTerrain.tex.needsUpdate = farTerrain.tex.needsUpdate = true;imageryState = 'off';onStatus('Map-based ground (aerial imagery off).');return;}
+      if (!on) {restore(nearPaint, nearBase);restore(outerPaint, outerBase);restore(farPaint, farBase);nearTerrain.tex.needsUpdate = outerTerrain.tex.needsUpdate = farTerrain.tex.needsUpdate = true;horizonMat.map = horizonTex;horizonMat.needsUpdate = true;imageryState = 'off';onStatus('Map-based ground (aerial imagery off).');return;}
       if (typeof navigator !== 'undefined' && navigator.onLine === false) {imageryState = 'offline';onStatus('Offline: map-based ground. Aerial imagery loads when online.');return;}
       imageryState = 'loading';onStatus('Loading aerial imagery…');
       const [nearTiles, outerTiles, farTiles, horizonTiles] = await Promise.all([loadTiles(18, NEAR_EXT, token), loadTiles(17, PLAY_HALF, token), loadTiles(15, FAR_EXT, token), loadTiles(12, 9000, token)]);
@@ -246,8 +273,8 @@
       drawInto(nearPaint, NEAR_EXT, nearTiles, true);fillShadows(nearPaint, nearBase);maskLean(nearPaint, nearBase, NEAR_EXT);
       if (outerTiles.loaded > outerTiles.failed) {drawInto(outerPaint, PLAY_HALF, outerTiles, true);fillShadows(outerPaint, outerBase);maskLean(outerPaint, outerBase, PLAY_HALF);}
       drawInto(farPaint, FAR_EXT, farTiles, true);fillShadows(farPaint, farBase);
-      drawInto(horizonCanvas, 9000, horizonTiles, true);
-      nearTerrain.tex.needsUpdate = outerTerrain.tex.needsUpdate = farTerrain.tex.needsUpdate = horizonTex.needsUpdate = true;imageryState = 'on';onStatus('Aerial imagery: Esri World Imagery (loaded live, not stored).');
+      if (horizonTiles.loaded > horizonTiles.failed) {const c = horizonImg.getContext('2d');c.drawImage(horizonCanvas, 0, 0, 2048, 2048);drawInto(horizonImg, 9000, horizonTiles, true);horizonImgTex.needsUpdate = true;horizonMat.map = horizonImgTex;horizonMat.needsUpdate = true;}
+      nearTerrain.tex.needsUpdate = outerTerrain.tex.needsUpdate = farTerrain.tex.needsUpdate = true;imageryState = 'on';onStatus('Aerial imagery: Esri World Imagery (loaded live, not stored).');
     }
 
     // ---------- Trees and bushes ----------
@@ -335,16 +362,18 @@
     // ---------- Sky and hills ----------
     const sunDirection = new T.Vector3(0, 1, 0);
     const sky = new T.Mesh(new T.SphereGeometry(20000, 48, 24), new T.ShaderMaterial({
-      side: T.BackSide, depthWrite: false, fog: false, uniforms: {sun: {value: sunDirection}},
+      side: T.BackSide, depthWrite: false, fog: false, uniforms: {sun: {value: sunDirection}, overcast: {value: 0}},
       vertexShader: 'varying vec3 vDir; void main(){ vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
-      fragmentShader: `uniform vec3 sun; varying vec3 vDir;
+      fragmentShader: `uniform vec3 sun; uniform float overcast; varying vec3 vDir;
         float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
         float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y);}
         float fbm(vec2 p){float v=0.0,a=.5;for(int i=0;i<5;i++){v+=a*n(p);p*=2.03;a*=.5;}return v;}
         void main(){vec3 d=normalize(vDir);float up=clamp(d.y,0.0,1.0);vec3 col=mix(vec3(.70,.80,.89),vec3(.22,.42,.78),pow(up,.55));
-          float s=max(dot(d,normalize(sun)),0.0);col+=vec3(1.0,.9,.7)*pow(s,700.0)*6.0+vec3(1.0,.85,.6)*pow(s,12.0)*.25;
-          if(d.y>0.0){vec2 uv=d.xz/(d.y+.12)*1.6;float c=smoothstep(.5,.78,fbm(uv+vec2(3.1,1.7)));col=mix(col,vec3(1.0)*(.92+.08*fbm(uv*3.0)),c*.85*smoothstep(0.0,.18,d.y));}
-          if(d.y<0.0) col=vec3(.70,.80,.89)*.92;gl_FragColor=vec4(col,1.0);
+          float s=max(dot(d,normalize(sun)),0.0);col+=(vec3(1.0,.9,.7)*pow(s,700.0)*6.0+vec3(1.0,.85,.6)*pow(s,12.0)*.25)*(1.0-overcast);
+          // Real weather (issue #23): more and greyer clouds with the cloud cover; fully overcast the sky is a flat grey.
+          if(d.y>0.0){vec2 uv=d.xz/(d.y+.12)*1.6;float c=smoothstep(.5-.42*overcast,.78-.3*overcast,fbm(uv+vec2(3.1,1.7)));col=mix(col,mix(vec3(1.0),vec3(.62,.65,.69),overcast)*(.92+.08*fbm(uv*3.0)),c*.85*smoothstep(0.0,.18,d.y));}
+          col=mix(col,vec3(.60,.63,.67),overcast*overcast*.7);
+          if(d.y<0.0) col=mix(vec3(.70,.80,.89)*.92,vec3(.58,.61,.64),overcast);gl_FragColor=vec4(col,1.0);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>
         }`
@@ -364,6 +393,7 @@
     }
     const farSun = new T.DirectionalLight(0xfff1dc, 2.4), farSky = new T.HemisphereLight(0xcfe0ee, 0x5a5a4a, 1.3);far.add(farSun, farSky);
     function setSun(direction) {sunDirection.copy(direction).normalize();farSun.position.copy(sunDirection).multiplyScalar(1000);}
+    function setOvercast(v) {sky.material.uniforms.overcast.value = Math.max(0, Math.min(1, v));}// 0 clear … 1 fully overcast (real weather)
 
     // ---------- Collision and queries (model coordinates) ----------
     const ringWorld = flat => pairs(flat).map(([x, s]) => toWorld(x, s));
@@ -395,7 +425,7 @@
     }
     function greenery(x, z) {const l = toLocal(x, z);let n = 0;for (const t of allTrees) if (Math.abs(t.x - l.x) < 40 && Math.abs(t.s - l.s) < 40) n++;for (const b of bushes) if (Math.abs(b.x - l.x) < 25 && Math.abs(b.s - l.s) < 25) n += .3;return Math.min(1, n / 18);}
 
-    return {near, far, setImagery, setSun, get imageryState() {return imageryState;}, attribution: data.attribution, ground, heightWorld, toLocal, toWorld, terrainFloor, obstacles, surfaceAt, trafficDistance, greenery, data, playHalf: PLAY_HALF, trees: allTrees};
+    return {near, far, setImagery, setSun, setOvercast, get imageryState() {return imageryState;}, attribution: data.attribution, ground, heightWorld, toLocal, toWorld, terrainFloor, obstacles, surfaceAt, trafficDistance, greenery, data, playHalf: PLAY_HALF, trees: allTrees};
   }
   return {create};
 });

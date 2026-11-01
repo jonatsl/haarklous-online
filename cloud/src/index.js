@@ -18,6 +18,8 @@ export default {
       return env.LOBBY.get(env.LOBBY.idFromName(code)).fetch(request);
     }
     if (url.pathname === '/health') return new Response('ok');
+    // Real weather (issue #23): one shared cache of MET Norway's forecast for Haarklous plass.
+    if (url.pathname === '/weather') return env.WEATHER.get(env.WEATHER.idFromName('haarklous')).fetch(request);
     return env.ASSETS.fetch(request);
   }
 };
@@ -81,5 +83,41 @@ export class Lobby {
     if (!this.players.delete(p.id)) return;
     for (const o of Object.values(this.occ)) {if (o.d === p.id) delete o.d;if (o.p === p.id) delete o.p;}
     this.broadcast({t: 'leave', id: p.id});this.broadcast({t: 'occ', occ: this.occ});
+  }
+}
+
+/* MET Norway Locationforecast 2.0 (complete) for Haarklous plass, cached for every player (issue #23). MET's terms: identify the
+ * app in the User-Agent, never ask again before the answer's Expires time, ask with If-Modified-Since = the last Last-Modified,
+ * back off on errors, credit "MET Norway" (CC BY 4.0). Browsers should not call api.met.no themselves, so the game asks here.
+ * GET /weather -> {source, licence, updated_at, fetched_at, timeseries: [the first 6 hourly entries]} with CORS for any page.
+ */
+const MET_URL = 'https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=59.9364&lon=10.7767';
+const MET_UA = 'haarklous-online/1.0 https://haarklous-online.server-smoke.workers.dev';
+export class Weather {
+  constructor(ctx) {this.ctx = ctx;this.c = null;this.pending = null;}
+  async fetch() {
+    if (!this.c) this.c = (await this.ctx.storage.get('c')) || null;
+    if (!this.c || Date.now() >= this.c.expires) {
+      if (!this.pending) this.pending = this.refresh().finally(() => {this.pending = null;});
+      await this.pending;
+    }
+    const cors = {'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json'};
+    if (!this.c) return new Response('{"error":"unavailable"}', {status: 502, headers: cors});
+    return new Response(this.c.body, {headers: {...cors, 'Cache-Control': `public, max-age=${Math.max(60, Math.floor((this.c.expires - Date.now()) / 1000))}`}});
+  }
+  async refresh() {
+    const headers = {'User-Agent': MET_UA, Accept: 'application/json'};
+    if (this.c && this.c.lastModified) headers['If-Modified-Since'] = this.c.lastModified;
+    try {
+      const r = await fetch(MET_URL, {headers}), expires = Date.parse(r.headers.get('Expires') || '') || Date.now() + 30 * 60e3;
+      if (r.status === 200 || r.status === 203) {
+        const j = await r.json();
+        this.c = {lastModified: r.headers.get('Last-Modified'), expires, body: JSON.stringify({
+          source: 'MET Norway', licence: 'CC BY 4.0', updated_at: j.properties.meta.updated_at, fetched_at: new Date().toISOString(),
+          deprecated: r.status === 203, timeseries: j.properties.timeseries.slice(0, 6)})};
+      } else if (r.status === 304 && this.c) this.c.expires = expires;
+      else if (this.c) this.c.expires = Date.now() + 10 * 60e3;// 429 / 5xx: keep the old forecast and ask again later
+      if (this.c) await this.ctx.storage.put('c', this.c);
+    } catch {if (this.c) this.c.expires = Date.now() + 10 * 60e3;}
   }
 }
