@@ -79,7 +79,7 @@ Live site: runs `main` (deployed 1 Nov 2026 after PRs #18, #19 and #27–#33, ve
   - With two players in one lobby:
     - the second player boarded, saw the pilot and the countdown, sat facing the tail, and could jump at 1289 m;
     - when the first player's tab closed at about 1300 m, the second player's computer took over and kept circling.
-- **Status:** PR (branch `fix/caravan-game-pilot`), not merged yet.
+- **Status:** PR #36 (branch `fix/caravan-game-pilot`, from `main`), not merged yet. For the Unreal version: https://github.com/jonatsl/haarklous-ue5/issues/21#issuecomment-6564696830.
 
 ### 2026-11-01 · `main` is live (PRs #18, #19, #27–#33)
 - **What:** the nine PRs for issues #16, #17 and #20–#26 are merged into `main` and deployed to https://haarklous-online.server-smoke.workers.dev (Cloudflare Worker version 1e8ad84e).
