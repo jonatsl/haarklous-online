@@ -1,7 +1,7 @@
 /* Other players: a jointed humanoid (jacket colour per player slot) with walk, crouch, prone, sit, drive and ride poses,
  * a beer bottle when drinking, a name tag and a chat bubble; plus a small FPV quad for players flying their drone.
  * GameAvatars.create({T, lib}) -> {avatar(slot, name) -> Avatar, drone() -> Group, SLOT_COLORS}
- * Avatar: {group, setName(n), say(text), pose({stance, speed, dt, beer, seat}), update(dt, camera), dispose()}
+ * Avatar: {group, setName(n), say(text), pose({stance, speed, dt, beer, seat}), update(dt, camera, showTag = true), dispose()}
  * The group's origin is between the feet and it faces -z (like the camera at yaw 0). For seated poses the origin is the hip.
  */
 (function (root, factory) {
@@ -99,9 +99,10 @@
         if (beer && seated) {R.arm.sh.rotation.x = .5;R.arm.el.rotation.x = 1.6;}
         tag.s.position.y = seated ? 1.2 : stance === 'prone' ? .7 : stance === 'crouch' ? 1.75 : 2.08;bubble.s.position.y = tag.s.position.y + .45;
       }
-      function update(dt, camera) {
+      // showTag false hides the name tag (paintball: opponents' names are hidden, issue #25).
+      function update(dt, camera, showTag = true) {
         if (bubbleT > 0 && (bubbleT -= dt) <= 0) bubble.s.visible = false;
-        const d = camera.position.distanceTo(g.getWorldPosition(tmp));tag.s.visible = d < 90;const k = Math.max(1, d / 14);tag.s.scale.set(1.3 * k, .26 * k, 1);bubble.s.scale.set(2.4 * Math.max(1, d / 18), .7 * Math.max(1, d / 18), 1);
+        const d = camera.position.distanceTo(g.getWorldPosition(tmp));tag.s.visible = showTag && d < 90;const k = Math.max(1, d / 14);tag.s.scale.set(1.3 * k, .26 * k, 1);bubble.s.scale.set(2.4 * Math.max(1, d / 18), .7 * Math.max(1, d / 18), 1);
       }
       setName(name);pose({});
       return {group: g, joints: {head, L: L.arm, R: R.arm}, setName, say, pose, update, dispose() {g.traverse(o => {if (o.geometry) o.geometry.dispose();});tag.tex.dispose();bubble.tex.dispose();}};

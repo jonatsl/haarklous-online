@@ -48,3 +48,13 @@ test("the doll's face: symmetric, the nose stands out most, nothing on the back 
   for (let u = -1.2; u <= 1.2; u += .1) for (let v = -.9; v <= .9; v += .1) {const c = Math.sqrt(Math.max(0, 1 - v * v));assert.ok(headShape(c * Math.sin(u), v, c * Math.cos(u)) <= nose + 1e-9);}
   assert.equal(headShape(0, 0, -1), 0);
 });
+
+test('Torshovoksen (Oksefontenen) stands at OSM node 331273417, its island clear of buildings and the ring road', () => {
+  const lat = 59.9345685, lon = 10.7669381, x = (lon - D.origin.lon) * 111320 * Math.cos(D.origin.lat * Math.PI / 180), s = -(lat - D.origin.lat) * 111320;
+  assert.ok(Math.abs(x - -542.0) < .1 && Math.abs(s - 204.3) < .1, `${x.toFixed(2)}, ${s.toFixed(2)}`);
+  const island = {x0: x - 6, s0: s - 6, x1: x + 6, s1: s + 6};// the octagonal island fits in this square
+  D.buildings.forEach((b, i) => {const ring = pairs(b.r.o);assert.ok(!ring.some((p, k) => segNear(island, p, ring[(k + 1) % ring.length], 0)), `building ${i}`);});
+  // The ring road round the island: its near edge must stay outside the island (radius 6 m).
+  const dist = ([ax, as], [bx, bs]) => {const dx = bx - ax, ds = bs - as, L = dx * dx + ds * ds || 1, t = Math.max(0, Math.min(1, ((x - ax) * dx + (s - as) * ds) / L));return Math.hypot(x - ax - t * dx, s - as - t * ds);};
+  for (const rd of D.roads.filter(r => ['residential', 'tertiary', 'secondary', 'primary', 'service'].includes(r.k))) {const p = pairs(rd.p);for (let k = 0; k + 1 < p.length; k++) assert.ok(dist(p[k], p[k + 1]) - rd.w / 2 > 6, `${rd.k} ${rd.n} ${(dist(p[k], p[k + 1]) - rd.w / 2).toFixed(1)} m from the centre`);}
+});

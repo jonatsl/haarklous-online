@@ -12,22 +12,177 @@ On `main`:
 - Open world around Haarklous plass 17A, Torshov: real buildings and streets (OpenStreetMap), real ground heights (Kartverket), optional aerial photos; walkable out to about 760 m (540 m before PR #13), drawn properly everywhere you can walk.
 - Your 4th-floor apartment (your kitchen + bedroom design) and stairwell; the street door and stairs work without the mission; eight neighbouring stairwells.
 - Walking (3.5 m/s), running, crouch (tap ○), prone (hold ○), jump (✕); PS4 controller (USB / Bluetooth) plus keyboard and mouse; look sensitivity setting.
-- Vehicles: Honda CBF600S motorcycle and 7 more motorcycles, 30 cars, excavator, helicopter, two-seat plane; hands on bars / wheel / sticks.
+- Vehicles: Honda CBF600S motorcycle and 7 more motorcycles, 30 cars, excavator, helicopter, two-seat plane, Caravan jump plane; hands on bars / wheel / sticks.
 - Cars and motorcycles follow gravity (9.81 m/s²) and fly over crests and bumps taken fast (PR #5).
 - FPV drone (hold △), photo camera with gallery (tap △), wristwatch (D-pad ↑), map (touchpad).
 - Minigames: the real Muselunden DiscGolfPark (12 holes, PR #13) and two disc golf holes in Torshovdalen, petanque against Arne; hostage-rescue mission (start at the red ring by the entrance); stay home after the mission.
 - Firepit with benches, beer crate and woodpile (fire size shared online); beer and aquavit in the apartment (30 s drunk each).
 - Joker and Kiwi shops at their real places with a cashier; money in kroner (start 500 kr, earned from the mission, minigames and bottle deposit), Norwegian beer hours, a bag of bought items (PR #6).
 - Three hidden stashes with 30-second boosts: 3× running speed, 3× jump height or bullet time.
+- Torshovoksen, the bull on Oksefontenen at Hegermanns plass, at its real place (issue #20).
+- Real weather from MET Norway: clouds, fog, rain, sleet and snow, wind (issue #23).
+- Skydiving: a jump flight to 3000 m every 8 minutes for the whole lobby, or a player flies the Caravan jump plane; freefall, canopy, landing (issue #22).
 - HODET N.N., Marianne Heske's 7 m bronze doll's head, at its real place at the north end of Torshovdalen, with its stone steps (PR #12).
 - Construction site (140 × 90 m, two gates, in the south-west of Torshovdalen since PR #12) with seven machines: dozer, 30 t excavator, wheel loader, articulated hauler, 8x4 tipper, mobile crane, tower crane; diggable soil that keeps its volume; R3 / V changes the machine view (PR #8).
 - Paintball course on the valley floor between the sculpture and the site (since PR #12): lobby, admin, teams up to 6 v 6, team deathmatch with respawns or in rounds, capture the flag, paint or reball (PR #8).
 - Multiplayer on Cloudflare (lobby codes, up to 12 players), passengers in motorcycle / cars / helicopter / plane, text chat with quick chat, lobby-wide voice chat.
 - Soundtrack: 2.5-minute open-world loop plus one loop per minigame and the mission; ambient sound by location.
 
-Live site: runs `main` (deployed 29 Oct 2026 after PRs #8–#14, version fd96bf7e), so everything above is online.
+Live site: runs `main` (deployed 1 Nov 2026 after PRs #18, #19 and #27–#33, version 1e8ad84e), so everything above is online.
 
 ## Log
+
+### 2026-11-01 · `main` is live (PRs #18, #19, #27–#33)
+- **What:** the nine PRs for issues #16, #17 and #20–#26 are merged into `main` and deployed to https://haarklous-online.server-smoke.workers.dev (Cloudflare Worker version 1e8ad84e).
+  - The Worker now also has the `Weather` Durable Object (migration v2) for the real weather.
+- **Why:** the user approved merging all nine and redeploying (1 Nov 2026). `AGENTS.md`: after changing game files, redeploy so the online version matches.
+- **Checked:**
+  - The live page is byte-for-byte the local build (`cloud/public/index.html`).
+  - `/weather` returns MET Norway's forecast (6 hours; 7.4 °C, fair, at the time).
+  - The live game starts, shows the real weather on the pause screen, joins a lobby, and has the jump flight, the Caravan and Torshovoksen. No console errors.
+- **Status:** live.
+
+### 2026-11-01 · Skydiving (issue #22)
+- **What:** you can go skydiving.
+  - A Cessna 208 Caravan jump plane stands at the airstrip in Torshovdalen ("Skydiving" on the map).
+  - **Jump flight:** every 8 minutes a jump flight leaves from the north end of the strip. Everybody in the lobby sees the same plane, because its path follows the lobby's shared clock.
+    - □ boards while it waits (the prompt counts down).
+    - It climbs in a spiral to 3000 m (the climb is sped up, about 2.5 minutes), opens the door and gives a 60-second green light: ✕ / Space jumps.
+    - Anyone still on board when it flies off is put back at the airstrip.
+  - **Or a player flies the Caravan:** it has the plane's flight model with the Caravan's numbers and automatic take-off flaps. Others board at the door (□) and can jump once it is above 300 m.
+  - **Places:** 12 places on two benches, facing the tail; in a lobby your place is your player number.
+  - **Freefall:** about 54 m/s belly down, drifted by the real wind.
+    - Left stick / W A S D: track forward, back-slide, turn.
+    - A beep at 1500 m and "PULL!" at 1000 m; ✕ / Space pulls.
+    - The reserve opens by itself at 300 m if you are still falling fast.
+  - **Canopy:** opens over 3 s, then about 10 m/s forward and 5 m/s down.
+    - Toggles steer, front risers dive, and the flare (↓ / S) slows you for about 3 s and then stalls.
+    - Landing: under 3.5 m/s down is soft, under 6 m/s hard, more is a crash (you get up again).
+  - R3 / V gives a view from behind you.
+  - **Online:** other players see you sitting in the plane, falling belly down and under a canopy in your colour.
+- **Why:** the user's issue #22: "Implement skydiving in the game. Jumping from an airplane (find the most popular airplane for skydiving)."
+  - The Cessna 208 Caravan is the most common jump plane at drop zones worldwide (turbine, 15+ jumpers, big door).
+  - Freefall speed (about 200 km/h belly down), the 3000–4000 m jump height, the pull height of about 1000 m and the automatic reserve opener follow normal sport-parachuting practice.
+  - The jump flight lets people skydive without a pilot. The flown Caravan keeps it a multiplayer thing.
+- **Where:**
+  - `game-skydive.js` (new: jumper physics, flight schedule, canopy model).
+  - `game-aircraft.js` (`JumpPlane`, take-off flaps `flapsCl`).
+  - `game-main.js` (boarding, jump seat, skydive mode, camera, HUD, map marker, Caravan help).
+  - `game-multiplayer.js` (others in the jump flight, freefall and canopy poses).
+  - `index.html`, `README.md`, `tests/skydive.test.cjs`, `docs/HANDOFF.md`.
+- **Checked:**
+  - Node tests 53/53. New: terminal speed; tracking; the AAD; the canopy flare gives a soft landing and no flare a hard one; the flight schedule is continuous and banks the right way.
+  - In the browser: boarding, the climb, the green light, the jump, freefall, the canopy and a soft landing with a flare.
+  - The Caravan takes off from the strip (about 110 km/h).
+  - With two players online: the other player sits in the right seat in the jump flight, falls belly down, then hangs under a canopy.
+  - Haze from 3000 m fixed (the near fog now thins as the view gets longer). No console errors.
+- **Status:** PR #33 (branch `feat/skydiving`, on top of PR #32), closes #22. For the Unreal version: https://github.com/jonatsl/haarklous-ue5/issues/21. Merged into `main` on 1 Nov 2026 and live (the user approved PRs #18, #19 and #27–#33 together).
+
+### 2026-11-01 · Torshovoksen at its real place (issue #20)
+- **What:** Oksefontenen, the fountain with "Torshovoksen" (Asbjørg Borgfelt, unveiled 1929), stands in the middle of Hegermanns plass at OpenStreetMap node 331273417 (local −542.0, 204.3).
+  - The bronze bull charges with its head low by a rock, tail curled up, facing SSW (bearing 204°) along Mastrups gate.
+  - It stands on a two-tier stone pedestal in a raised basin, inside a larger basin on an octagonal paved island, with four stone lizards spouting water.
+  - The island is a low step you can stand on; the basin is solid. It is on the map ("Torshovoksen").
+- **Why:**
+  - The user's issue #20: "The torshov bull is a popular/well known Landmark. Implement it in its real place."
+  - Research (Oslo kommune's art collection OKK.00070, OSM, Wikipedia, photos):
+    - the official name is Oksefontenen; "Torshovoksen" is its popular name (OSM alt_name; Skeid's supporters "Oksene" are named after it);
+    - bronze bull, larvikite basins and plinth;
+    - the facing is inferred from photos;
+    - the sizes are estimates (±20 %); there are no published measurements.
+  - The sculpture is under copyright until 2047 (Norway has no freedom of panorama for artworks), so the model is a simple likeness, not a copy, and no photos are shipped.
+- **Where:** `game-sculpture.js` (`createFountain`), `game-main.js` (place, collision, map), `tests/places.test.cjs`, `README.md`, `docs/HANDOFF.md`.
+- **Checked:**
+  - In the game: the island sits on the street (0.05 m above the centre's ground), and the bull faces 204.0°.
+  - Side and close-up screenshots: the fountain, the basins, the water arcs and the bull with its head down and tail up.
+  - Node tests 48/48. New: the place matches the OSM node; the island is clear of buildings; the ring road's edge is more than 6 m from the centre.
+  - No console errors.
+- **Status:** PR #32 (branch `feat/torshovoksen`, on top of PR #31), closes #20. For the Unreal version: https://github.com/jonatsl/haarklous-ue5/issues/20. Merged into `main` on 1 Nov 2026 and live (the user approved PRs #18, #19 and #27–#33 together).
+
+### 2026-11-01 · Real weather from MET Norway (yr.no's data) (issue #23)
+- **What:** the game shows the real weather at Haarklous plass.
+  - Clouds dim the sun and grey the sky (more and greyer clouds in the sky shader).
+  - Fog thickens the haze.
+  - Rain, sleet or snow falls around you outdoors (not indoors), slanted by the real wind.
+  - The wind sounds stronger or weaker with the real wind speed, and rain has its own sound.
+  - The pause screen says e.g. "7.9 °C · partly cloudy · wind 4.6 m/s from NNE", credits MET Norway (CC BY 4.0) and shows when it was fetched. A short notice shows it when the game starts.
+  - It is fetched when the game starts and every hour plus a random 0–10 minutes, and it steps on to the next hour by itself. Without internet the game keeps its sunny day.
+- **Why:**
+  - The user's issue #23: "Get real weather in-game from yr.no and use it in-game. Update every hour."
+  - yr.no's forecasts come from MET Norway's open API (api.met.no). MET's terms:
+    - browsers should not call it directly;
+    - every request must identify the app in the User-Agent (which browsers cannot set);
+    - never ask again before the answer's Expires time;
+    - credit "MET Norway", not "yr".
+  - So the game's own Cloudflare Worker fetches it once for everybody (a `Weather` Durable Object keeps the answer), and the game asks the Worker.
+  - The Worker sends the User-Agent "haarklous-online/1.0 https://haarklous-online.server-smoke.workers.dev". MET also asks for a contact email or website; none is added yet (the user decides).
+- **Where:** `cloud/src/index.js` (`/weather`, `class Weather`), `cloud/wrangler.toml` (binding, migration v2), `game-weather.js` (new), `game-main.js` (`applyWeather`, update, audio), `surroundings.js` (`setOvercast`, sky shader), `game-audio.js` (rain sound, wind by speed), `index.html` (pause-screen line), `tests/weather.test.cjs` (new), `.claude/launch.json` (local Worker), `README.md`, `docs/HANDOFF.md`.
+- **Checked:**
+  - The local Worker (`wrangler dev`) fetched the real forecast: 7.9 °C, 47 % cloud, partly cloudy, wind 4.6 m/s from 16°. The second request came from the cache (max-age about 1900 s), with CORS.
+  - In the game with that data: sun 3.4 → 2.4, sky 49 % overcast, fog a little thicker, the notice and the pause line.
+  - Made-up heavy rain (8 m/s wind) and snow: screenshots show slanted rain streaks and soft round snowflakes; none inside the flat.
+  - Node tests 47/47 (3 new: MET symbols incl. their odd spellings, picking the hour, the text). No console errors.
+  - Not live until the Worker is deployed with the new Durable Object.
+- **Status:** PR #31 (branch `feat/real-weather`, on top of PR #30), closes #23. For the Unreal version: https://github.com/jonatsl/haarklous-ue5/issues/19. Merged into `main` on 1 Nov 2026 and live (the user approved PRs #18, #19 and #27–#33 together).
+
+### 2026-11-01 · Paintball: players no longer look as if they are under the ground (issue #26)
+- **What:** the paintball yard's ground mesh is now cut out under the yard, as it is under the construction site's soil, so only the yard's flat floor and its retaining walls are there.
+  - Before, the hillside's ground was still drawn through the yard: half the yard had ground above the floor, up to 4.6 m, mostly at the red end.
+  - A player standing correctly on the floor there (feet −27.05 m) had the ground drawn 3.8 m above their feet, so opponents seemed to be under the ground.
+- **Why:** the user's issue #26: "When playing paintball sometimes the opposing players appear to be under ground. Check through how this works, reproduce and fix."
+  - Reproduced with three browser tabs in one online paintball game: positions and the network were right (every player's feet at the floor height on every screen).
+  - The yard sits in a slope (its ground goes from 3.9 m below to 5.1 m above the floor), and the old place had the same problem (up to 4.9 m).
+- **Where:** `game-main.js` (a `cutGround` hole for the exact yard rectangle; the slightly larger tree-free hole stays).
+- **Checked:**
+  - 0 ground triangles left inside the yard (near and outer ground).
+  - 9 sight lines at 1.2 m across the yard from the blue base to the red base: none blocked by ground.
+  - Screenshots from the blue base (flat floor all the way) and from the high corner outside (the hill meets the retaining walls, no gaps).
+  - Node tests 44/44.
+- **Status:** PR #30 (branch `fix/paintball-ground`, on top of PR #29), closes #26. For the Unreal version: https://github.com/jonatsl/haarklous-ue5/issues/18. Merged into `main` on 1 Nov 2026 and live (the user approved PRs #18, #19 and #27–#33 together).
+
+### 2026-11-01 · Paintball: only your team-mates' name tags (issue #25)
+- **What:** during a paintball game you see the name tags of your own team only. Your opponents' names are hidden, so you have to spot them. In the paintball lobby and everywhere else, all name tags show as before.
+- **Why:** the user's issue #25: "See only the same team players' name tags".
+- **Where:** `game-avatars.js` (`update(dt, camera, showTag)`), `game-multiplayer.js` (asks `ctx.showTag(id)`), `game-main.js` (`showTag`: hide when you are in a game and they are playing on the other team), `README.md`.
+- **Checked:**
+  - Three browser tabs in one online lobby joined the paintball lobby; all tags showed.
+  - The admin started team deathmatch. On the blue player's screen the blue team-mate's tag showed and the red opponent's was hidden. On the red player's screen both blue players' tags were hidden.
+  - Node tests 44/44.
+- **Status:** PR #29 (branch `feat/paintball-team-name-tags`, on top of PR #28), closes #25. For the Unreal version: https://github.com/jonatsl/haarklous-ue5/issues/17. Merged into `main` on 1 Nov 2026 and live (the user approved PRs #18, #19 and #27–#33 together).
+
+### 2026-11-01 · Other players are arrows on your map (issue #24)
+- **What:** on the map (touchpad / M) every other player in your lobby is now an arrow in their player colour, pointing the way they face, with their name above it. Before they were round dots without a direction. Your own arrow stays dark blue and is drawn on top. The map legend has an "Other players in your lobby" entry.
+- **Why:** the user's issue #24: "See other players' arrows on your own map".
+- **Where:** `game-map.js` (`arrow()`, `player.others`, legend), `game-main.js` (the `others` list passed to `map.draw`; the old dots removed from the POI list), `style.css`, `README.md`.
+- **Checked:** two browser tabs in one online lobby (T3NU). The second player stood 25 m away facing yaw 1.2. In the first tab the map drew one arrow, "Player 527", in that player's colour (#4d9de0), at their position, with exactly their heading. Screenshot checked. Node tests 44/44.
+- **Status:** PR #28 (branch `feat/map-other-players`, on top of PR #27), closes #24. For the Unreal version: https://github.com/jonatsl/haarklous-ue5/issues/16. Merged into `main` on 1 Nov 2026 and live (the user approved PRs #18, #19 and #27–#33 together).
+
+### 2026-11-01 · The map arrow points the way you face (issue #21)
+- **What:** your arrow on the map (touchpad / M) pointed exactly the opposite way: it was turned 180° too far. It now points where you are facing.
+- **Why:** the user's issue #21: "Make the mini map arrow point in the true direction the player is facing." The heading was `-(yaw - theta) + π`; the `+ π` was wrong.
+- **Where:** `game-main.js` (the `map.draw` call).
+- **Checked:** with the map open, facing four different ways (yaw 0, 1, 2.5, −1.2): the arrow is 0.0° from the true facing (it was 180°). Node tests 44/44.
+- **Status:** PR #27 (branch `fix/map-arrow-direction`, on top of PR #19), closes #21. For the Unreal version: https://github.com/jonatsl/haarklous-ue5/issues/15. Merged into `main` on 1 Nov 2026 and live (the user approved PRs #18, #19 and #27–#33 together).
+
+### 2026-10-29 · Fly with the mouse like in Battlefield; hold Shift to look around (issue #16)
+- **What:**
+  - The helicopter, the plane and the FPV drone fly with keyboard and mouse like Battlefield (2042 / 6 defaults):
+    - mouse up = nose down (fly forward), mouse down = nose up, mouse left/right = roll;
+    - W/S = collective / throttle / thrust, A/D = yaw.
+  - How far you move the mouse is how far the aircraft tilts (the mouse's speed is the stick; 700 px/s is full stick at sensitivity 1), and it keeps that tilt.
+    - The helicopter's self-levelling drops to an eighth while you fly by mouse.
+    - In the drone's ANGLE mode the mouse moves the tilt directly, up to 0.75 rad; in ACRO mode the mouse is 0.3 × as strong.
+  - **Hold Shift or the right mouse button to look around.** The aircraft keeps flying straight, and the view turns back when you let go. The right mouse button no longer brakes while flying (S still brakes the plane).
+  - The arrow keys and the controller work as before; using them turns the mouse's "keep the tilt" off.
+- **Why:** the user asked (29 Oct 2026) to fly the drone and helicopter with mouse and keyboard "exactly like" Battlefield, with pitch and roll on the mouse instead of the arrow keys, and to hold e.g. Shift to look around. Battlefield's own free look is the right mouse button, so both work.
+- **Where:** `game-main.js` (`flightSticks`, `flightLook`, `readInput` free look, help texts), `game-aircraft.js` (`hold` in the helicopter and drone), `README.md`, `index.html` (start and pause screens).
+- **Checked (simulated mouse with pointer lock):**
+  - Helicopter: 300 px of mouse up tilts the nose 21° down and it stays (flying forward at 59 km/h); 300 px right banks 28° right and it stays.
+  - Free look: Shift + 400 px left turns the view 55° left of the nose while the helicopter does not move; let go and it is straight ahead again within a second. The right mouse button does the same.
+  - Drone (ANGLE): 250 px up tilts it 32° nose down and it holds; back down levels it; right rolls it right.
+  - Plane: mouse down raises the nose.
+  - Node tests 44/44.
+- **Status:** PR #19 (branch `feat/mouse-flying`, on top of PR #18), closes #16. For the Unreal version: https://github.com/jonatsl/haarklous-ue5/issues/13. Merged into `main` on 1 Nov 2026 and live (the user approved PRs #18, #19 and #27–#33 together).
 
 ### 2026-10-29 · The distant ground no longer floats above the real ground (issue #17)
 - **What:**
@@ -43,7 +198,7 @@ Live site: runs `main` (deployed 29 Oct 2026 after PRs #8–#14, version fd96bf7
   - The same 150 m above the construction site.
   - With imagery on, the distant photo is the 2048 px one, shown once.
   - Node tests 44/44; no console errors.
-- **Status:** PR (branch `fix/floating-horizon`), closes #17.
+- **Status:** PR #18 (branch `fix/floating-horizon`), closes #17. For the Unreal version: https://github.com/jonatsl/haarklous-ue5/issues/14. Merged into `main` on 1 Nov 2026 and live (the user approved PRs #18, #19 and #27–#33 together).
 
 ### 2026-10-29 · `main` is live
 - **What:** the game on `main` (PRs #5–#14: jumps, shops, stashes, the Unreal features, the fixes, HODET N.N., Muselunden and the bigger world) is deployed to https://haarklous-online.server-smoke.workers.dev (Cloudflare Worker version fd96bf7e). Before, the live site ran the older branch `feat/ue5-features`.
