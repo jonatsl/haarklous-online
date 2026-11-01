@@ -60,6 +60,8 @@ do $$ begin
   if not exists (select from pg_roles where rolname = 'haarklous_worker') then create role haarklous_worker nologin; end if;
 end $$;
 alter role haarklous_worker set search_path = game_auth, extensions;
+-- Safety net: a transaction left open by a stuck request is ended after 30 s (on 1 Nov 2026 a sign-up waited for ever).
+alter role haarklous_worker set idle_in_transaction_session_timeout = '30s';
 grant usage on schema game_auth to haarklous_worker;
 grant select, insert, update, delete on all tables in schema game_auth to haarklous_worker;
 grant usage on schema extensions to haarklous_worker;

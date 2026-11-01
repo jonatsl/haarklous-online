@@ -5,7 +5,7 @@
  *
  * GameAccount.check({mode, name, email, password}) -> error text | ''   (pure, Node-tested; mode 'signup' | 'login')
  * GameAccount.available(location) -> true when the page is served by the Worker itself   (pure)
- * GameAccount.create({onChange}) -> {user, busy, available, load(), signUp(name, email, password), logIn(email, password), logOut()}
+ * GameAccount.create({onChange, timeoutMs = 20000}) -> {user, busy, available, load(), signUp(name, email, password), logIn(email, password), logOut()}
  *   signUp / logIn / logOut resolve to an error text, or '' when it worked.
  */
 (function (root, factory) {
@@ -35,13 +35,18 @@
     PASSWORD_TOO_LONG: 'The password can be at most 72 characters.',
     INVALID_EMAIL: 'Type a valid email address.'
   };
-  function create({onChange} = {}) {
+  function create({onChange, timeoutMs = 20000} = {}) {
     let user = null, busy = false;
     const ok = typeof location !== 'undefined' && available(location);
     const changed = () => onChange && onChange();
     async function call(path, body) {
-      const r = await fetch(`/api/auth/${path}`, body === undefined ? {credentials: 'same-origin'} :
-        {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+      // Never wait for ever: after 20 s the form says so and can be sent again.
+      const stop = new AbortController(), timer = setTimeout(() => stop.abort(), timeoutMs);let r;
+      try {
+        r = await fetch(`/api/auth/${path}`, body === undefined ? {credentials: 'same-origin', signal: stop.signal} :
+          {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body), signal: stop.signal});
+      } catch (e) {if (stop.signal.aborted) throw new Error('The account server did not answer – try again in a moment.');throw e;}
+      finally {clearTimeout(timer);}
       let j = null;try {j = await r.json();} catch {}
       if (r.status === 429) throw new Error('Too many tries – wait a minute and try again.');
       if (!r.ok) throw new Error((j && (WORDS[j.code] || j.message)) || `The account server answered ${r.status}.`);
