@@ -3,6 +3,8 @@ dist/
 cloud/public/
 # Local tools and caches
 cloud/.wrangler/
+cloud/.dev.vars
+**/supabase/.temp/
 .wrangler/
 .claude/
 node_modules/

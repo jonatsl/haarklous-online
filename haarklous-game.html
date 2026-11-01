@@ -165,6 +165,8 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
 .mp-join input{width:90px;text-transform:uppercase;font:700 18px ui-monospace,Consolas,monospace;letter-spacing:3px;padding:4px 8px}
 #mpPlayers{list-style:none;margin:6px 0;padding:0;display:flex;flex-wrap:wrap;gap:6px 14px}
 #mpPlayers i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
+.acct input{font:inherit;padding:5px 8px;border-radius:6px;max-width:320px}
+.acct-error{color:#ff9e9e;opacity:1}.acct-error:empty{display:none}
 .link{user-select:all;word-break:break-all;color:#9fd3ff}
 #codePad{margin:8px 0;padding:10px;border-radius:10px;background:#0006;text-align:center}
 #codePad .slots{display:flex;gap:10px;justify-content:center;margin:8px 0}
@@ -232,7 +234,7 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
       <div class="panel">
         <span class="eyebrow">HAARKLOUS PLASS 17A · TORSHOV · OSLO</span>
         <h1>Haarklous online</h1>
-        <p>Walk the neighbourhood, go home to your 4th-floor apartment (street door of 17A, up the stairs), go into the stairwells, ride the Honda CBF600, drive the parked cars or the excavator, work the machines on the construction site, go skydiving from the jump plane, play paintball, disc golf in Torshovdalen and petanque in the park, take photos, and start the hostage-rescue mission at the red marker beside the entrance of number 17A. Play together: up to twelve players per lobby – your lobby code is in the pause menu.</p>
+        <p>Walk the neighbourhood, go home to your 4th-floor apartment (street door of 17A, up the stairs), go into the stairwells, ride the Honda CBF600, drive the parked cars or the excavator, work the machines on the construction site, go skydiving from the jump plane, play paintball, disc golf in Torshovdalen and petanque in the park, take photos, and start the hostage-rescue mission at the red marker beside the entrance of number 17A. Play together: up to twelve players per lobby – your lobby code is in the pause menu, and there you can also log in or create an account (optional, email and password).</p>
         <dl class="controls">
           <dt>Move / look</dt><dd>Left stick / WASD · Right stick / mouse</dd>
           <dt>✕ / Space</dt><dd>Jump</dd>
@@ -257,6 +259,18 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
         <label>Music volume <output id="musicOut"></output><input id="musicVol" type="range" min="0" max="1" step="0.05"></label>
         <p class="small">Controller: D-pad ←/→ changes the music volume. Now playing: <span id="nowPlaying">–</span></p>
         <p id="weatherLine" class="small">Weather: loading the real weather…</p>
+        <section class="mp acct">
+          <h3>Account <small>(optional)</small></h3>
+          <p id="acctStatus" class="small">You are not logged in – you can play without an account.</p>
+          <form id="acctForm" autocomplete="on">
+            <label id="acctNameRow" hidden>Player name <input id="acctName" maxlength="24" autocomplete="nickname"></label>
+            <label>Email <input id="acctEmail" type="email" maxlength="254" autocomplete="email" spellcheck="false"></label>
+            <label>Password <input id="acctPassword" type="password" maxlength="72" autocomplete="current-password"></label>
+            <div class="mp-join"><button id="acctSubmit" type="submit">Log in</button><button id="acctMode" type="button">New here? Create an account</button></div>
+          </form>
+          <div id="acctIn" hidden><button id="acctLogout" type="button">Log out</button></div>
+          <p id="acctError" class="small acct-error" role="alert"></p>
+        </section>
         <section class="mp">
           <h3>Multiplayer <small>(up to 12 players)</small></h3>
           <p id="mpStatus" class="small">Offline</p>
@@ -3074,6 +3088,78 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
     };
   }
   return {create, ALPHABET};
+});
+</script><script>/* Player accounts (optional): log in with email and password. The game's Cloudflare Worker runs Better Auth with the accounts
+ * in Supabase (cloud/src/auth.js); the session is an HttpOnly cookie on that host, so accounts work only in the online version
+ * (https://haarklous-online.server-smoke.workers.dev, or `npx wrangler dev` on localhost). Playing needs no account.
+ * When you are logged in, your account name is your name in the lobbies.
+ *
+ * GameAccount.check({mode, name, email, password}) -> error text | ''   (pure, Node-tested; mode 'signup' | 'login')
+ * GameAccount.available(location) -> true when the page is served by the Worker itself   (pure)
+ * GameAccount.create({onChange}) -> {user, busy, available, load(), signUp(name, email, password), logIn(email, password), logOut()}
+ *   signUp / logIn / logOut resolve to an error text, or '' when it worked.
+ */
+(function (root, factory) {
+  const api = factory();
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  else root.GameAccount = api;
+})(typeof window === 'undefined' ? globalThis : window, function () {
+  'use strict';
+  const ONLINE = 'https://haarklous-online.server-smoke.workers.dev';
+  const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  function check({mode, name, email, password}) {
+    if (mode === 'signup' && !String(name || '').trim()) return 'Choose a player name.';
+    if (mode === 'signup' && String(name).trim().length > 24) return 'The name can be at most 24 characters.';
+    if (!EMAIL.test(String(email || '').trim())) return 'Type a valid email address.';
+    if (!password) return 'Type your password.';
+    if (mode === 'signup' && password.length < 8) return 'The password needs at least 8 characters.';
+    if (mode === 'signup' && new TextEncoder().encode(password).length > 72) return 'The password can be at most 72 characters.';
+    return '';
+  }
+  const available = loc => (loc.protocol === 'https:' && /workers\.dev$/.test(loc.hostname)) || /^(localhost|127\.0\.0\.1)$/.test(loc.hostname);
+  // Better Auth's error codes in plain words.
+  const WORDS = {
+    INVALID_EMAIL_OR_PASSWORD: 'Wrong email or password.',
+    USER_ALREADY_EXISTS: 'There is already an account with that email – log in instead.',
+    USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL: 'There is already an account with that email – log in instead.',
+    PASSWORD_TOO_SHORT: 'The password needs at least 8 characters.',
+    PASSWORD_TOO_LONG: 'The password can be at most 72 characters.',
+    INVALID_EMAIL: 'Type a valid email address.'
+  };
+  function create({onChange} = {}) {
+    let user = null, busy = false;
+    const ok = typeof location !== 'undefined' && available(location);
+    const changed = () => onChange && onChange();
+    async function call(path, body) {
+      const r = await fetch(`/api/auth/${path}`, body === undefined ? {credentials: 'same-origin'} :
+        {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+      let j = null;try {j = await r.json();} catch {}
+      if (r.status === 429) throw new Error('Too many tries – wait a minute and try again.');
+      if (!r.ok) throw new Error((j && (WORDS[j.code] || j.message)) || `The account server answered ${r.status}.`);
+      return j;
+    }
+    async function run(fn) {
+      if (!ok) return `Accounts work in the online version: ${ONLINE}`;
+      busy = true;changed();
+      try {await fn();return '';}
+      catch (e) {return e instanceof TypeError ? 'No connection to the account server.' : e.message;}
+      finally {busy = false;changed();}
+    }
+    return {
+      get user() {return user;}, get busy() {return busy;}, available: ok, onlineUrl: ONLINE,
+      load: () => run(async () => {const j = await call('get-session');user = j && j.user ? j.user : null;}),
+      signUp: (name, email, password) => run(async () => {
+        const err = check({mode: 'signup', name, email, password});if (err) throw new Error(err);
+        user = (await call('sign-up/email', {name: name.trim(), email: email.trim(), password})).user;
+      }),
+      logIn: (email, password) => run(async () => {
+        const err = check({mode: 'login', email, password});if (err) throw new Error(err);
+        user = (await call('sign-in/email', {email: email.trim(), password, rememberMe: true})).user;
+      }),
+      logOut: () => run(async () => {await call('sign-out', {});user = null;})
+    };
+  }
+  return {check, available, create};
 });
 </script><script>/* Lobby voice chat: peer-to-peer WebRTC audio between the players in the lobby.
  * Everybody in the lobby hears everybody at full volume, wherever they are on the map (no distance fall-off).
@@ -9071,6 +9157,29 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
   $('mpHome').onclick = () => {mp.net.home();notice('Back in your own lobby.', 3);};
   $('mpName').onchange = e => {mp.net.setName(e.target.value);renderMp();};
   $('mpMic').onchange = async e => {const ok = await mp.setMic(e.target.checked);if (!ok && e.target.checked) notice('The microphone could not be opened (permission denied or no microphone).', 5);renderMp();};
+  // ---------- Account (pause menu, optional): email + password through the Worker (Better Auth + Supabase) ----------
+  let acctMode = 'login';
+  const account = window.GameAccount.create({onChange: renderAccount});
+  function renderAccount() {
+    const u = account.user, signup = acctMode === 'signup';
+    $('acctStatus').textContent = !account.available ? `Accounts work in the online version (${account.onlineUrl}) – you can play without one.` :
+      u ? `Logged in as ${u.name} (${u.email}). Your account name is your name in the lobbies.` : signup ? 'Create an account: player name, email and a password of at least 8 characters.' : 'You are not logged in – you can play without an account.';
+    $('acctForm').hidden = !account.available || !!u;$('acctIn').hidden = !u;
+    $('acctNameRow').hidden = !signup;$('acctPassword').autocomplete = signup ? 'new-password' : 'current-password';
+    $('acctSubmit').textContent = account.busy ? 'Wait…' : signup ? 'Create account' : 'Log in';
+    $('acctMode').textContent = signup ? 'I have an account – log in' : 'New here? Create an account';
+    $('acctSubmit').disabled = $('acctLogout').disabled = account.busy;
+  }
+  // The account name is the lobby name while you are logged in.
+  const acctDone = err => {$('acctError').textContent = err;if (!err) {$('acctPassword').value = '';if (account.user) {mp.net.setName(account.user.name);renderMp();}}renderAccount();};
+  $('acctMode').onclick = () => {acctMode = acctMode === 'signup' ? 'login' : 'signup';if (!$('acctName').value) $('acctName').value = mp.net.name;$('acctError').textContent = '';renderAccount();};
+  $('acctForm').onsubmit = async e => {
+    e.preventDefault();const email = $('acctEmail').value, pw = $('acctPassword').value;
+    const err = acctMode === 'signup' ? await account.signUp($('acctName').value, email, pw) : await account.logIn(email, pw);
+    acctDone(err);if (!err) notice(`Logged in as ${account.user.name}.`, 3);
+  };
+  $('acctLogout').onclick = async () => {const err = await account.logOut();acctDone(err);if (!err) notice('Logged out.', 3);};
+  renderAccount();if (account.available) account.load().then(acctDone);
   function applyDoor(id, open, instant) {
     const d = doors.find(x => x.id === id);if (!d) return;
     if (instant) {d.anim = null;d.open = open;setDoor(d, open ? 1 : 0);updateDynamic();return;}

@@ -31,7 +31,7 @@
       <div class="panel">
         <span class="eyebrow">HAARKLOUS PLASS 17A · TORSHOV · OSLO</span>
         <h1>Haarklous online</h1>
-        <p>Walk the neighbourhood, go home to your 4th-floor apartment (street door of 17A, up the stairs), go into the stairwells, ride the Honda CBF600, drive the parked cars or the excavator, work the machines on the construction site, go skydiving from the jump plane, play paintball, disc golf in Torshovdalen and petanque in the park, take photos, and start the hostage-rescue mission at the red marker beside the entrance of number 17A. Play together: up to twelve players per lobby – your lobby code is in the pause menu.</p>
+        <p>Walk the neighbourhood, go home to your 4th-floor apartment (street door of 17A, up the stairs), go into the stairwells, ride the Honda CBF600, drive the parked cars or the excavator, work the machines on the construction site, go skydiving from the jump plane, play paintball, disc golf in Torshovdalen and petanque in the park, take photos, and start the hostage-rescue mission at the red marker beside the entrance of number 17A. Play together: up to twelve players per lobby – your lobby code is in the pause menu, and there you can also log in or create an account (optional, email and password).</p>
         <dl class="controls">
           <dt>Move / look</dt><dd>Left stick / WASD · Right stick / mouse</dd>
           <dt>✕ / Space</dt><dd>Jump</dd>
@@ -56,6 +56,18 @@
         <label>Music volume <output id="musicOut"></output><input id="musicVol" type="range" min="0" max="1" step="0.05"></label>
         <p class="small">Controller: D-pad ←/→ changes the music volume. Now playing: <span id="nowPlaying">–</span></p>
         <p id="weatherLine" class="small">Weather: loading the real weather…</p>
+        <section class="mp acct">
+          <h3>Account <small>(optional)</small></h3>
+          <p id="acctStatus" class="small">You are not logged in – you can play without an account.</p>
+          <form id="acctForm" autocomplete="on">
+            <label id="acctNameRow" hidden>Player name <input id="acctName" maxlength="24" autocomplete="nickname"></label>
+            <label>Email <input id="acctEmail" type="email" maxlength="254" autocomplete="email" spellcheck="false"></label>
+            <label>Password <input id="acctPassword" type="password" maxlength="72" autocomplete="current-password"></label>
+            <div class="mp-join"><button id="acctSubmit" type="submit">Log in</button><button id="acctMode" type="button">New here? Create an account</button></div>
+          </form>
+          <div id="acctIn" hidden><button id="acctLogout" type="button">Log out</button></div>
+          <p id="acctError" class="small acct-error" role="alert"></p>
+        </section>
         <section class="mp">
           <h3>Multiplayer <small>(up to 12 players)</small></h3>
           <p id="mpStatus" class="small">Offline</p>
@@ -93,7 +105,7 @@
       </div>
     </section>
   </main>
-  <script src="vendor/three.min.js"></script><script src="apartment-data.js"></script><script src="walk-collision.js"></script><script src="gamepad-controls.js"></script><script src="materials.js"></script><script src="furnishings.js"></script><script src="stairwell.js"></script><script src="surroundings-data.js"></script><script src="surroundings.js"></script><script src="viewmodel.js"></script><script src="game-apartment.js"></script><script src="game-audio.js"></script><script src="game-music.js"></script><script src="game-vehicles.js"></script><script src="game-net.js"></script><script src="game-voice.js"></script><script src="game-avatars.js"></script><script src="game-multiplayer.js"></script><script src="game-fire.js"></script><script src="game-stash.js"></script><script src="game-shops.js"></script><script src="game-sculpture.js"></script><script src="game-aircraft.js"></script><script src="game-watch.js"></script><script src="muselunden-data.js"></script><script src="game-minigames.js"></script>
+  <script src="vendor/three.min.js"></script><script src="apartment-data.js"></script><script src="walk-collision.js"></script><script src="gamepad-controls.js"></script><script src="materials.js"></script><script src="furnishings.js"></script><script src="stairwell.js"></script><script src="surroundings-data.js"></script><script src="surroundings.js"></script><script src="viewmodel.js"></script><script src="game-apartment.js"></script><script src="game-audio.js"></script><script src="game-music.js"></script><script src="game-vehicles.js"></script><script src="game-net.js"></script><script src="game-account.js"></script><script src="game-voice.js"></script><script src="game-avatars.js"></script><script src="game-multiplayer.js"></script><script src="game-fire.js"></script><script src="game-stash.js"></script><script src="game-shops.js"></script><script src="game-sculpture.js"></script><script src="game-aircraft.js"></script><script src="game-watch.js"></script><script src="muselunden-data.js"></script><script src="game-minigames.js"></script>
 <script src="site-data.js"></script>
 <script src="site-models.js"></script>
 <script src="game-site.js"></script>
