@@ -11,7 +11,7 @@ compatibility_flags = ["nodejs_compat"]
 # Player accounts: Supabase Postgres through Hyperdrive (the id is filled in by scripts/set-db-secret.mjs).
 [[hyperdrive]]
 binding = "HYPERDRIVE"
-id = ""
+id = "64f1d3facb554856bbc528594b9df0e8"
 # `npx wrangler dev` only: a local Postgres (none needed for the rest of the game; account requests then fail).
 localConnectionString = "postgres://postgres:postgres@127.0.0.1:5432/postgres"
 

@@ -30,7 +30,7 @@ On `main`:
 
 Live site: runs `main` (deployed 1 Nov 2026 after PRs #18, #19 and #27–#33, version 1e8ad84e), so everything above is online.
 
-On branch `feat/accounts` (not merged, not live yet):
+On branch `feat/accounts` (live since 1 Nov 2026, not merged into `main` yet):
 - Player accounts (optional): create an account or log in with email and password in the pause menu; your account name is your lobby name.
 
 ## Log
@@ -45,8 +45,13 @@ On branch `feat/accounts` (not merged, not live yet):
 - **Why:** the user asked for "login with email and password using betterauth and supabase" (1 Nov 2026). The user made the Supabase organisation and project and logged the Supabase CLI in. Login is optional so the offline file and friends without an account keep working (our choice).
 - **Not yet:** no email is sent, so there is no email check and no "forgot password". That needs an email service (e.g. Resend). Accounts do not save anything yet (progress, money, etc.).
 - **Where:** `game-account.js` (new), `index.html`, `style.css`, `game-main.js` (pause menu), `cloud/src/auth.js` (new), `cloud/src/index.js`, `cloud/wrangler.toml` (`nodejs_compat`, Hyperdrive), `cloud/package.json` (better-auth 1.7.15, pg), `cloud/sql/accounts.sql` (applied to Supabase), `cloud/scripts/set-db-secret.mjs`, `tests/account.test.cjs`, `README.md`.
-- **Checked:** `node --test tests/*.cjs` (59 pass); `wrangler deploy --dry-run` bundles (373 KB gzip); in the browser with `wrangler dev`, the pause menu shows the form, the sign-up switch works, a short password is caught, and the server answers "not set up yet" cleanly. Tables are created in Supabase.
-- **Status:** branch `feat/accounts`. Not live: the user must run `node scripts/set-db-secret.mjs` in `cloud/` once (Claude Code may not write Cloudflare secrets), then deploy and test a real sign-up.
+- **Checked:**
+  - `node --test tests/*.cjs`: 59 pass.
+  - In the browser with `wrangler dev`: the pause menu shows the form, the sign-up switch works, a short password is caught, and the server answers "not set up yet" cleanly.
+  - Live: `/api/auth/get-session` answers in about 0.4 s. A login with an unknown email is checked against Supabase through Hyperdrive and refused ("Wrong email or password").
+  - Claude did not create accounts on the live site. The first real sign-up is the user's own.
+- **Setup done (1 Nov 2026):** the user ran `node scripts/set-db-secret.mjs` (Claude Code may not write Cloudflare secrets). Hyperdrive `haarklous-db` is `64f1d3facb554856bbc528594b9df0e8`, and `BETTER_AUTH_SECRET` is set. Wrangler and the Supabase CLI are now dev dependencies in `cloud/`, because npx's download cache broke twice on this PC.
+- **Status:** branch `feat/accounts`, deployed (Worker version a8bb1af2). The live site now runs this branch, which is `main` plus accounts.
 
 ### 2026-11-01 · `main` is live (PRs #18, #19, #27–#33)
 - **What:** the nine PRs for issues #16, #17 and #20–#26 are merged into `main` and deployed to https://haarklous-online.server-smoke.workers.dev (Cloudflare Worker version 1e8ad84e).
