@@ -51,6 +51,13 @@ User goal: give this light HTML game every feature, minigame and function of the
   - `game-aircraft.js` `JumpPlane extends Plane`: kind 'jumpplane', 2600 kg, S 25.96, Tmax 13 kN, `flapsCl` .55 (cl0 + flapsCl × clamp((65 − V)/15)), gearH 1.55, 12 `jumpSeats` (±0.42 x, z −2.3 + k·0.82, facing the tail), hips `j0..j11`, `doorWorld()`, `seatWorld(i)`. Parked at world (−107.6, −16.7), yaw 0.5236, beside the strip (taxi onto the strip before take-off: trees and a lamp are in its straight path).
   - game-main: modes `jumpseat` and `skydive`; `autoPlane` (a JumpPlane outside `vehicles`) follows `jumpFlight`. Multiplayer state: `ja` = seat in the jump flight, or `v` + `s = 'j<seat>'` in the flown Caravan; `sky` 'f' / 'c'. `skyPose` turns remote avatars belly down and shows their canopy; `autoAnchor` seats them.
   - `applyNearFog()` scales the near fog by 450 / camera.far, so the ground stays clear from 3000 m.
+  - **The game's pilot** (1 Nov 2026, the user's wish): `pilotGround` / `pilotOrbit` / `pilotFlight` in game-skydive.js, `gp` in game-main.
+    - Ground: wait 10 s at its spot, Hermite taxi at 5 m/s to `CARAVAN_HOLD` (strip, 26 m from the north end), hold while `clearToRoll` says the scheduled flight is on the strip (cycle 445–480 and 0–80 s), then `flight()` from the hold point; 'done' when the 'away' plane is hidden → `caravan.reset()`.
+    - Air: a level circle, R 650 m, on the side toward the world origin, at least 300 m AGL, attitude blended from the hand-over.
+    - The caller holds the Caravan's 'd' seat (`drivingIndex` returns it while `gp`) and sends `vs`; its state carries `gp` (phase), `gl` (seconds left), `gg` (green).
+    - A jumper in the air with no 'd' claims it after 1.5 s and starts the circle. Nobody aboard: 1 s on the ground (stopped), 30 s in the air.
+    - `leaveGamePilot()` runs before this computer takes another seat. △ = call / hand over; ✕ in the cockpit above 300 m = hand over and jump.
+  - Remote aircraft: index 10 of `netGet` (on the ground) is never eased in `smoothVehicle`. `seatCamera()` runs again after `mp.update`.
 - `tools/make-site.py`, `tools/make-paintball.py` (29 Oct 2026): the UE project's generators ported here; they read `surroundings-data.js` and write `site-data.js` / `paintball-data.js`. With the old constants they reproduce the old files exactly. Change the place constants (`DX`, `DS`, `GATES`; `RECT`, `PLAY`, `GATE`, `LOBBY`) and run `python tools/make-site.py` / `python tools/make-paintball.py`, then `python build.py`.
 - **12 players per lobby** (`cloud/src/index.js` MAX_PLAYERS = 12, slots 0–11; client shows the server's `max`; 12 slot colours).
 - **Walking speed 3.5 m/s** when standing (the user's wish in the UE version); crouch/prone and running unchanged.

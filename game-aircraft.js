@@ -309,7 +309,7 @@
       constructor(x, z, yaw) {
         super(x, z, yaw);
         Object.assign(this, {kind: 'jumpplane', name: 'Cessna 208 Caravan jump plane', length: 12.7, width: 15.9, height: 4.5, radius: 4.5, top: 3.0, crashSpeed: 9,
-          exitSide: 1.9, exitFwd: 3.3, mass: 2600, S: 25.96, Tmax: 13000, flapsCl: .55, chaseDist: 26, seatPitch: -.04});
+          exitSide: 1.9, exitFwd: 3.3, mass: 2600, S: 25.96, Tmax: 13000, flapsCl: .55, chaseDist: 26, seatPitch: -.04, cullDistance: 6000});// seen by jumpers far below
         this.rects = [[0, 0, 12.6, 1.8], [-.6, 0, .5, 4.2]];// fuselage, main gear legs (the high wing and tail are above head height)
         this.seat = V3(-.42, .5, -3.35);
         this.hips = {d: {pos: V3(-.42, -.2, -3.15)}, p: {pos: V3(.42, -.2, -3.15)}};this.passengerEye = V3(.42, .5, -3.35);
@@ -319,7 +319,7 @@
         this.door = V3(-1.05, .0, 1.55);// just outside the roll-up door
         this.gearH = 1.55;this.reset();
       }
-      hipAnchor(seat) {const h = this.hips[seat];return h ? {obj: this.group, pos: h.pos, stance: 'sit'} : null;}
+      hipAnchor(seat) {const h = this.hips[seat];return h ? {obj: this.group, pos: h.pos, stance: 'sit', yaw: h.yaw || 0} : null;}// jumpers face the tail
       doorWorld() {this.group.updateMatrixWorld(true);return this.door.clone().applyMatrix4(this.group.matrixWorld);}
       seatWorld(i) {this.group.updateMatrixWorld(true);return this.jumpSeats[i % 12].clone().applyMatrix4(this.group.matrixWorld);}
       build() {
