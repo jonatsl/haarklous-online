@@ -1129,6 +1129,29 @@
   $('mpHome').onclick = () => {mp.net.home();notice('Back in your own lobby.', 3);};
   $('mpName').onchange = e => {mp.net.setName(e.target.value);renderMp();};
   $('mpMic').onchange = async e => {const ok = await mp.setMic(e.target.checked);if (!ok && e.target.checked) notice('The microphone could not be opened (permission denied or no microphone).', 5);renderMp();};
+  // ---------- Account (pause menu, optional): email + password through the Worker (Better Auth + Supabase) ----------
+  let acctMode = 'login';
+  const account = window.GameAccount.create({onChange: renderAccount});
+  function renderAccount() {
+    const u = account.user, signup = acctMode === 'signup';
+    $('acctStatus').textContent = !account.available ? `Accounts work in the online version (${account.onlineUrl}) – you can play without one.` :
+      u ? `Logged in as ${u.name} (${u.email}). Your account name is your name in the lobbies.` : signup ? 'Create an account: player name, email and a password of at least 8 characters.' : 'You are not logged in – you can play without an account.';
+    $('acctForm').hidden = !account.available || !!u;$('acctIn').hidden = !u;
+    $('acctNameRow').hidden = !signup;$('acctPassword').autocomplete = signup ? 'new-password' : 'current-password';
+    $('acctSubmit').textContent = account.busy ? 'Wait…' : signup ? 'Create account' : 'Log in';
+    $('acctMode').textContent = signup ? 'I have an account – log in' : 'New here? Create an account';
+    $('acctSubmit').disabled = $('acctLogout').disabled = account.busy;
+  }
+  // The account name is the lobby name while you are logged in.
+  const acctDone = err => {$('acctError').textContent = err;if (!err) {$('acctPassword').value = '';if (account.user) {mp.net.setName(account.user.name);renderMp();}}renderAccount();};
+  $('acctMode').onclick = () => {acctMode = acctMode === 'signup' ? 'login' : 'signup';if (!$('acctName').value) $('acctName').value = mp.net.name;$('acctError').textContent = '';renderAccount();};
+  $('acctForm').onsubmit = async e => {
+    e.preventDefault();const email = $('acctEmail').value, pw = $('acctPassword').value;
+    const err = acctMode === 'signup' ? await account.signUp($('acctName').value, email, pw) : await account.logIn(email, pw);
+    acctDone(err);if (!err) notice(`Logged in as ${account.user.name}.`, 3);
+  };
+  $('acctLogout').onclick = async () => {const err = await account.logOut();acctDone(err);if (!err) notice('Logged out.', 3);};
+  renderAccount();if (account.available) account.load().then(acctDone);
   function applyDoor(id, open, instant) {
     const d = doors.find(x => x.id === id);if (!d) return;
     if (instant) {d.anim = null;d.open = open;setDoor(d, open ? 1 : 0);updateDynamic();return;}

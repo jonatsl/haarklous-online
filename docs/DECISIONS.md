@@ -26,9 +26,10 @@ On `main`:
 - Construction site (140 × 90 m, two gates, in the south-west of Torshovdalen since PR #12) with seven machines: dozer, 30 t excavator, wheel loader, articulated hauler, 8x4 tipper, mobile crane, tower crane; diggable soil that keeps its volume; R3 / V changes the machine view (PR #8).
 - Paintball course on the valley floor between the sculpture and the site (since PR #12): lobby, admin, teams up to 6 v 6, team deathmatch with respawns or in rounds, capture the flag, paint or reball (PR #8).
 - Multiplayer on Cloudflare (lobby codes, up to 12 players), passengers in motorcycle / cars / helicopter / plane, text chat with quick chat, lobby-wide voice chat.
+- Player accounts (optional): create an account or log in with email and password in the pause menu; your account name is your lobby name (PR #34, Better Auth + Supabase).
 - Soundtrack: 2.5-minute open-world loop plus one loop per minigame and the mission; ambient sound by location.
 
-Live site: runs `main` (deployed 1 Nov 2026 after PRs #18, #19 and #27–#33, version 1e8ad84e), so everything above is online.
+Live site: runs `main` (Worker version cacad9aa, deployed 1 Nov 2026; PR #34 merged the same evening, and `main` builds byte-for-byte to the live page), so everything above is online.
 
 ## Log
 
@@ -64,7 +65,7 @@ Live site: runs `main` (deployed 1 Nov 2026 after PRs #18, #19 and #27–#33, ve
   - `game-aircraft.js` (the Caravan's view distance and seat facing).
   - `tests/skydive.test.cjs`, `README.md`, `index.html`, `docs/HANDOFF.md`.
 - **Checked:**
-  - Node tests 55/55. New tests:
+  - Node tests 58/58 after merging `main` (with the account tests). New tests:
     - the ground flight: waits, taxis, holds behind the jump flight, takes off, climbs to 3000 m without jumps;
     - the wheels stay on a sloping strip;
     - the taxi never passes the scheduled flight's boarding place;
@@ -80,6 +81,28 @@ Live site: runs `main` (deployed 1 Nov 2026 after PRs #18, #19 and #27–#33, ve
     - the second player boarded, saw the pilot and the countdown, sat facing the tail, and could jump at 1289 m;
     - when the first player's tab closed at about 1300 m, the second player's computer took over and kept circling.
 - **Status:** PR #36 (branch `fix/caravan-game-pilot`, from `main`), not merged yet. For the Unreal version: https://github.com/jonatsl/haarklous-ue5/issues/21#issuecomment-6564696830.
+
+### 2026-11-01 · Player accounts with email and password (Better Auth + Supabase)
+- **What:** an optional **Account** section in the pause menu: create an account (player name, email, password of at least 8 characters), log in, log out. You stay logged in for 30 days. When logged in, your account name becomes your name in the lobbies. Playing still needs no account, and the offline file shows where accounts work.
+  - The Worker runs Better Auth at `/api/auth/*`. Accounts are stored in the Supabase project "Haarklous Online" (ref `sxhqirmecalxcnyojjki`, Ireland), in the schema `game_auth` (tables `user`, `session`, `account`, `verification`).
+  - The Worker reaches Supabase through Cloudflare Hyperdrive (`haarklous-db`, query cache off). Workers' own network sockets do not accept Supabase's self-signed certificate.
+  - The Worker logs in as its own database role `haarklous_worker`, which can use only `game_auth` and bcrypt. Its random password is made by `cloud/scripts/set-db-secret.mjs`; Postgres only ever sees its SCRAM hash, and nobody has to type or see it.
+  - Passwords are hashed by Postgres (bcrypt, cost 10), not by Better Auth's scrypt in JavaScript, which uses more CPU than a free Worker gets.
+  - Better Auth's rate limit: 30 tries a minute.
+- **Why:** the user asked for "login with email and password using betterauth and supabase" (1 Nov 2026). The user made the Supabase organisation and project and logged the Supabase CLI in. Login is optional so the offline file and friends without an account keep working (our choice).
+- **Not yet:** no email is sent, so there is no email check and no "forgot password". That needs an email service (e.g. Resend). Accounts do not save anything yet (progress, money, etc.).
+- **Where:** `game-account.js` (new), `index.html`, `style.css`, `game-main.js` (pause menu), `cloud/src/auth.js` (new), `cloud/src/index.js`, `cloud/wrangler.toml` (`nodejs_compat`, Hyperdrive), `cloud/package.json` (better-auth 1.7.15, pg), `cloud/sql/accounts.sql` (applied to Supabase), `cloud/scripts/set-db-secret.mjs`, `tests/account.test.cjs`, `README.md`.
+- **Checked:**
+  - `node --test tests/*.cjs`: 56 pass (3 of them new, for accounts).
+  - In the browser with `wrangler dev`: the pause menu shows the form, the sign-up switch works, a short password is caught, and the server answers "not set up yet" cleanly.
+  - Live: `/api/auth/get-session` answers in about 0.4 s. A login with an unknown email is checked against Supabase through Hyperdrive and refused ("Wrong email or password").
+  - Claude did not create accounts on the live site. The first real sign-up is the user's own.
+- **Setup done (1 Nov 2026):** the user ran `node scripts/set-db-secret.mjs` (Claude Code may not write Cloudflare secrets). Hyperdrive `haarklous-db` is `64f1d3facb554856bbc528594b9df0e8`, and `BETTER_AUTH_SECRET` is set. Wrangler and the Supabase CLI are now dev dependencies in `cloud/`, because npx's download cache broke twice on this PC.
+- **Mix-up, fixed the same evening:** another session was working on skydiving (the game's pilot for the Caravan) in the same folder.
+  - The first deploy (Worker version a8bb1af2) and the commit "Accounts are live" picked up its unfinished changes.
+  - The next commit takes them out of this branch; the skydiving work itself stays untouched on disk.
+  - The site was redeployed from a clean copy of the branch (Worker version cacad9aa). The live page is byte-for-byte that clean build.
+- **Status:** on `main` (PR https://github.com/jonatsl/haarklous-online/pull/34, merged 1 Nov 2026 at the user's request) and live (Worker version cacad9aa).
 
 ### 2026-11-01 · `main` is live (PRs #18, #19, #27–#33)
 - **What:** the nine PRs for issues #16, #17 and #20–#26 are merged into `main` and deployed to https://haarklous-online.server-smoke.workers.dev (Cloudflare Worker version 1e8ad84e).

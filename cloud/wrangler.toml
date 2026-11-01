@@ -5,6 +5,15 @@ main = "src/index.js"
 compatibility_date = "2025-09-01"
 account_id = "46fd597da1c5fe9de4c3ebbaae86f906"
 workers_dev = true
+# Better Auth and the Postgres driver (player accounts, src/auth.js) need Node's APIs.
+compatibility_flags = ["nodejs_compat"]
+
+# Player accounts: Supabase Postgres through Hyperdrive (the id is filled in by scripts/set-db-secret.mjs).
+[[hyperdrive]]
+binding = "HYPERDRIVE"
+id = "64f1d3facb554856bbc528594b9df0e8"
+# `npx wrangler dev` only: a local Postgres (none needed for the rest of the game; account requests then fail).
+localConnectionString = "postgres://postgres:postgres@127.0.0.1:5432/postgres"
 
 [assets]
 directory = "./public"
