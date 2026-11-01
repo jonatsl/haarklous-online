@@ -21,7 +21,7 @@ On `main`:
 - Three hidden stashes with 30-second boosts: 3× running speed, 3× jump height or bullet time.
 - Torshovoksen, the bull on Oksefontenen at Hegermanns plass, at its real place (issue #20).
 - Real weather from MET Norway: clouds, fog, rain, sleet and snow, wind (issue #23).
-- Skydiving: a jump flight to 3000 m every 8 minutes for the whole lobby, or a player flies the Caravan jump plane; freefall, canopy, landing (issue #22).
+- Skydiving: a jump flight to 3000 m every 8 minutes for the whole lobby, or the Caravan jump plane flown by a player or by the game's pilot (alone too: fly it up and jump); freefall, canopy, landing (issue #22).
 - HODET N.N., Marianne Heske's 7 m bronze doll's head, at its real place at the north end of Torshovdalen, with its stone steps (PR #12).
 - Construction site (140 × 90 m, two gates, in the south-west of Torshovdalen since PR #12) with seven machines: dozer, 30 t excavator, wheel loader, articulated hauler, 8x4 tipper, mobile crane, tower crane; diggable soil that keeps its volume; R3 / V changes the machine view (PR #8).
 - Paintball course on the valley floor between the sculpture and the site (since PR #12): lobby, admin, teams up to 6 v 6, team deathmatch with respawns or in rounds, capture the flag, paint or reball (PR #8).
@@ -29,9 +29,21 @@ On `main`:
 - Player accounts (optional): create an account or log in with email and password in the pause menu; your account name is your lobby name (PR #34, Better Auth + Supabase).
 - Soundtrack: 2.5-minute open-world loop plus one loop per minigame and the mission; ambient sound by location.
 
-Live site: runs `main` (Worker version cacad9aa, deployed 1 Nov 2026; PR #34 merged the same evening, and `main` builds byte-for-byte to the live page), so everything above is online.
+Live site: runs `main` (Worker version 43457da0, deployed 1 Nov 2026 after PRs #36 and #37; `main` builds byte-for-byte to the live page), so everything above is online.
 
 ## Log
+
+### 2026-11-01 · `main` is live (PRs #36 and #37)
+- **What:** the game's pilot for the Caravan (PR #36) and the sign-up fix (PR #37) are merged into `main` and deployed (Cloudflare Worker version 43457da0).
+  - Deployed from a clean worktree of the merged code (not the shared folder), with `cloud/` packages installed by `npm ci`.
+  - In Supabase: the 30 s idle-transaction limit for `haarklous_worker` is set, and the hung sign-up's connection was ended.
+- **Why:** the user approved merging both, deploying, and the two database steps (1 Nov 2026).
+- **Checked:**
+  - The live page is byte-for-byte the local build.
+  - `/api/auth/get-session` answers 200 in about 0.6 s.
+  - The live game starts, joins a lobby, shows the real weather and the account form, and has the game's pilot. No console errors.
+  - A real sign-up is the user's own (Claude does not create accounts on the live site).
+- **Status:** live.
 
 ### 2026-11-01 · Accounts: sign-up no longer hangs on "Wait…"
 - **What:**
@@ -49,7 +61,56 @@ Live site: runs `main` (Worker version cacad9aa, deployed 1 Nov 2026; PR #34 mer
   - Node tests 57/57, including a new one: a server that never answers gives the "did not answer" message and the form is ready again.
   - Better Auth's code (`api/routes/sign-up.mjs` line 144: `runWithTransaction`, line 214: `password.hash`, both inside) confirms the order.
   - The real sign-up can only be tried on the live site, by the user (Claude does not create accounts there).
-- **Status:** PR #37 (branch `fix/account-signup-hang`), not merged yet. After deploying: apply the SQL change, and end the stuck connection (`pg_terminate_backend` for `haarklous_worker` "idle in transaction"; it rolls back nothing).
+- **Status:** on `main` (PR #37, merged 1 Nov 2026 with the user's OK) and live (Worker version 43457da0). The SQL change is applied (`haarklous_worker` has `idle_in_transaction_session_timeout=30s`), and the stuck connection (pid 12455, idle in a transaction for 522 s after the email lookup) was ended. There were 0 users, so nothing was lost.
+
+### 2026-11-01 · Skydiving: the game's pilot, jumping out of the plane you fly, and getting off on the ground
+- **What:**
+  - **Bug fix:** in a jump seat, □ now gets you off while the plane stands still (the prompt showed, but nothing listened to □ there).
+  - **The game's pilot:** in the Caravan's jump seats, △ / F calls a pilot from the game.
+    - It waits 10 s for others to board and taxis onto the strip, 26 m from its north end.
+    - It waits there while the scheduled jump flight is boarding or rolling ahead, so the two planes stay at least about 200 m apart.
+    - Then it flies the scheduled flight's climb to 3000 m and jump run with the green light, and flies home.
+    - With nobody aboard it is called off on the ground, or flies home after 30 s in the air (the Caravan reappears at its place).
+    - A pilot (white shirt) sits in the left seat on every screen.
+  - **Jump from the plane you fly:** in the Caravan's cockpit, ✕ / Space above 300 m hands the controls to the game's pilot and you jump. △ / F hands over and sends you to the back.
+    - In the air the game's pilot circles level (radius 650 m, toward home, at least 300 m up). So one player alone can fly up and jump.
+  - **Multiplayer:**
+    - The computer that calls the game's pilot holds the Caravan's driver seat and sends its position, like a player flying it.
+    - If the plane has no pilot in the air (that player left), a jumper's computer takes over within about 2 s.
+- **Fixes found while testing with two players:**
+  - On other players' screens a plane's "on the ground" flag was eased between updates and never reached "in the air", so jumpers in a Caravan flown by someone else could never jump. It is no longer eased.
+  - On other players' screens the jump seat camera trailed the plane by a frame (about 1 m at climb speed, behind the cabin wall in the back seats). It is now placed after the plane has moved.
+  - Other players in jump seats now face the tail on your screen too.
+  - The Caravan stays visible from far away (it vanished 170 m after you jumped).
+  - Planes rolling for take-off now follow the slope of the strip (they floated up to 1.3 m above it).
+- **Why:** the user (1 Nov 2026):
+  - "i cant exit the plane when having entered it as a jumper when its on the ground."
+  - "I also want to be able to choose to have the plane flown by a pilot provided by the game."
+  - "If only one player, it should be possible to fly the plane and jump out of it as a skydiver."
+  - The pilot uses the scheduled flight's path (sped-up climb) so it is predictable and the same for everyone. It taxis to a hold point behind the scheduled flight's boarding place, because both planes have 16 m wings and the Caravan's parking spot has trees straight ahead.
+- **Where:**
+  - `game-skydive.js` (`pilotGround`, `pilotOrbit`, `pilotFlight`, `clearToRoll`; `plan` follows the ground).
+  - `game-main.js` (the game's pilot, hand-over, □ / △ in the jump seat, the pilot in the left seat, HUD, prompts).
+  - `game-multiplayer.js` (the on-ground flag, seat facing, a granted seat counts at once).
+  - `game-aircraft.js` (the Caravan's view distance and seat facing).
+  - `tests/skydive.test.cjs`, `README.md`, `index.html`, `docs/HANDOFF.md`.
+- **Checked:**
+  - Node tests 59/59 after merging `main` (with the account tests). New tests:
+    - the ground flight: waits, taxis, holds behind the jump flight, takes off, climbs to 3000 m without jumps;
+    - the wheels stay on a sloping strip;
+    - the taxi never passes the scheduled flight's boarding place;
+    - the in-air pilot starts where the plane is and circles level at least 300 m up.
+  - In the browser, alone:
+    - □ gets you off the Caravan and the boarding jump flight;
+    - △ calls the game's pilot: it waits, taxis and rolls, climbs to 1180 m, then 2960 m with the green light; ✕ jumps;
+    - with nobody aboard it went home after 30 s;
+    - flying it yourself at 600 m, ✕ jumped and the pilot circled at about 620 m;
+    - △ in the cockpit on the ground sent you to the back;
+    - getting off before take-off called it off.
+  - With two players in one lobby:
+    - the second player boarded, saw the pilot and the countdown, sat facing the tail, and could jump at 1289 m;
+    - when the first player's tab closed at about 1300 m, the second player's computer took over and kept circling.
+- **Status:** on `main` (PR #36, merged 1 Nov 2026 with the user's OK) and live (Worker version 43457da0).
 
 ### 2026-11-01 · Player accounts with email and password (Better Auth + Supabase)
 - **What:** an optional **Account** section in the pause menu: create an account (player name, email, password of at least 8 characters), log in, log out. You stay logged in for 30 days. When logged in, your account name becomes your name in the lobbies. Playing still needs no account, and the offline file shows where accounts work.

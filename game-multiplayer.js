@@ -48,7 +48,7 @@
           for (const [i, o] of Object.entries(before)) if (o.d && o.d !== net.you && !(occ[i] && occ[i].d === o.d)) vehTargets.delete(+i);
           break;
         }
-        case 'claim': {const res = pending.get(+m.v);if (res) {pending.delete(+m.v);res({ok: m.ok, by: m.by});}break;}
+        case 'claim': {if (m.ok) (occ[m.v] || (occ[m.v] = {}))[m.seat] = net.you;const res = pending.get(+m.v);if (res) {pending.delete(+m.v);res({ok: m.ok, by: m.by});}break;}// a granted seat is ours at once
         case 'chat': {const mine = m.id === net.you;ctx.onChat(m, mine);if (!mine) {const r = remotes.get(m.id);if (r) r.av.say(m.text);}break;}
         case 'door': ctx.applyDoor(m.id, m.open, false);break;
         case 'fire': fire = m.fire;if (m.by && m.by !== net.you) {const r = remotes.get(m.by);if (r && ctx.onRemoteWood) ctx.onRemoteWood(r);}break;
@@ -81,7 +81,7 @@
       if (v.aircraft) {
         for (let j = 0; j < 3; j++) out[j] += (a[j] - out[j]) * k;
         const q = new T.Quaternion(out[3], out[4], out[5], out[6]).slerp(new T.Quaternion(a[3], a[4], a[5], a[6]), k);out[3] = q.x;out[4] = q.y;out[5] = q.z;out[6] = q.w;
-        for (let j = 7; j < a.length; j++) out[j] += (a[j] - out[j]) * k;
+        for (let j = 7; j < a.length; j++) out[j] = j >= 10 ? tgt.a[j] : out[j] + (a[j] - out[j]) * k;// 10: on the ground (a yes / no, never eased)
       } else {
         for (let j = 0; j < a.length; j++) out[j] = j >= 3 && j <= 5 ? angLerp(out[j], a[j], k) : out[j] + (a[j] - out[j]) * k;
       }
@@ -103,7 +103,7 @@
         const g = r.av.group;g.visible = true;let stance = st.st || 'stand';
         const vi = st.v ?? -1, anchor = vi >= 0 && vehicles[vi] ? vehicles[vi].hipAnchor(st.s) : st.ja != null && ctx.autoAnchor ? ctx.autoAnchor(st.ja) : null;
         if (anchor) {
-          anchor.obj.updateWorldMatrix(true, false);g.position.copy(anchor.obj.localToWorld(anchor.pos.clone()));g.quaternion.copy(anchor.obj.getWorldQuaternion(new T.Quaternion()));stance = anchor.stance;r.pos.copy(g.position);r.speed = 0;
+          anchor.obj.updateWorldMatrix(true, false);g.position.copy(anchor.obj.localToWorld(anchor.pos.clone()));g.quaternion.copy(anchor.obj.getWorldQuaternion(new T.Quaternion()));if (anchor.yaw) g.rotateY(anchor.yaw);stance = anchor.stance;r.pos.copy(g.position);r.speed = 0;
         } else {
           const target = new T.Vector3(st.p[0], st.p[1], st.p[2]);
           if (!r.seen || r.pos.distanceTo(target) > 12) r.pos.copy(target);

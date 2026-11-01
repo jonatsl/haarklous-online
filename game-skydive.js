@@ -15,6 +15,8 @@
  * GameSkydive.flight(t, plan) -> {phase, x, y, z, yaw, pitch, roll, speed, green, door, visible}   (pure; t = seconds in
  *   the cycle; plan from GameSkydive.plan({start: {x, z}, yaw, groundY, gearH}))
  * GameSkydive.canopy(T, color) -> Group (a ram-air canopy with lines; origin at the jumper's harness)
+ * The game's pilot in the Caravan (pure): pilotGround({t0, from, hold, ground, gearH}) or pilotOrbit({t0, pos, yaw, pitch,
+ *   roll, speed, vy, toward, ground}) -> G; pilotFlight(t, G) -> {phase, x, y, z, yaw, pitch, roll, speed, green, left}
  */
 (function (root, factory) {
   const api = factory();
@@ -79,12 +81,14 @@
   // ---------- The scheduled jump flight: an 8-minute cycle, the same on every screen (server clock) ----------
   const CYCLE = 480, BOARD_FROM = 455, ROLL = [75, 85], CLIMBOUT = [85, 95], SPIRAL = [95, 245], RUN = [245, 305], AWAY = [305, 455];
   const JUMP_AGL = 3000, R = 650, V_SPIRAL = 48, V_RUN = 48, V_AWAY = 50;
-  function plan({start, yaw, groundY, gearH = 1.55}) {
+  // ground(x, z) (optional): the real ground height, so the wheels stay on a sloping strip during the roll.
+  function plan({start, yaw, groundY, gearH = 1.55, ground = null}) {
     const d = {x: -Math.sin(yaw), z: -Math.cos(yaw)}, n = {x: -d.z, z: d.x};
     const E = {x: start.x + d.x * 550, z: start.z + d.z * 550}, C = {x: E.x + n.x * R, z: E.z + n.z * R}, w = V_SPIRAL / R, th = w * (SPIRAL[1] - SPIRAL[0]);
     const e0 = {x: E.x - C.x, z: E.z - C.z}, rot = (a, t) => ({x: a.x * Math.cos(t) - a.z * Math.sin(t), z: a.x * Math.sin(t) + a.z * Math.cos(t)});
     const J0 = (() => {const e = rot(e0, th);return {x: C.x + e.x, z: C.z + e.z};})(), Jd = (() => {const e = rot(e0, th);const L = Math.hypot(e.x, e.z);return {x: -e.z / L, z: e.x / L};})();
-    return {start, yaw, d, n, E, C, w, e0, rot, J0, Jd, groundY, gearH, top: groundY + JUMP_AGL};
+    const liftY = (ground ? ground(start.x + d.x * 180, start.z + d.z * 180) : groundY) + gearH;// where the wheels leave the ground
+    return {start, yaw, d, n, E, C, w, e0, rot, J0, Jd, groundY, gearH, ground, liftY, top: groundY + JUMP_AGL};
   }
   const yawOf = (dx, dz) => Math.atan2(-dx, -dz);
   function flight(t, P) {
@@ -94,18 +98,72 @@
       const left = t >= BOARD_FROM ? CYCLE - t + ROLL[0] : ROLL[0] - t;
       return {...base, phase: 'board', leavesIn: left, x: P.start.x, y: P.groundY + P.gearH, z: P.start.z, yaw: P.yaw, speed: 0, door: true};
     }
-    if (t < ROLL[1]) {const s = t - ROLL[0], dist = 1.8 * s * s;return {...base, phase: 'roll', x: P.start.x + P.d.x * dist, y: P.groundY + P.gearH, z: P.start.z + P.d.z * dist, yaw: P.yaw, speed: 3.6 * s, pitch: s > 8.5 ? (s - 8.5) * .05 : 0};}
-    if (t < CLIMBOUT[1]) {const s = t - CLIMBOUT[0], dist = 180 + 37 * s;return {...base, phase: 'climb', x: P.start.x + P.d.x * dist, y: P.groundY + P.gearH + 6 * s, z: P.start.z + P.d.z * dist, yaw: P.yaw, speed: 37, pitch: Math.atan2(6, 37)};}
+    if (t < ROLL[1]) {
+      const s = t - ROLL[0], dist = 1.8 * s * s, x = P.start.x + P.d.x * dist, z = P.start.z + P.d.z * dist;
+      return {...base, phase: 'roll', x, y: (P.ground ? P.ground(x, z) : P.groundY) + P.gearH, z, yaw: P.yaw, speed: 3.6 * s, pitch: s > 8.5 ? (s - 8.5) * .05 : 0};
+    }
+    const liftY = P.liftY ?? P.groundY + P.gearH;
+    if (t < CLIMBOUT[1]) {const s = t - CLIMBOUT[0], dist = 180 + 37 * s;return {...base, phase: 'climb', x: P.start.x + P.d.x * dist, y: liftY + 6 * s, z: P.start.z + P.d.z * dist, yaw: P.yaw, speed: 37, pitch: Math.atan2(6, 37)};}
     if (t < SPIRAL[1]) {
       const s = t - SPIRAL[0], e = P.rot(P.e0, P.w * s), x = P.C.x + e.x, z = P.C.z + e.z, L = Math.hypot(e.x, e.z), vx = -e.z / L, vz = e.x / L;
-      const climb = (JUMP_AGL - 60) / (SPIRAL[1] - SPIRAL[0]), yr = yawOf(vx, vz);
+      const y0 = liftY + 60, climb = (P.top - y0) / (SPIRAL[1] - SPIRAL[0]), yr = yawOf(vx, vz);// ends exactly at the jump run's height
       // A coordinated turn: bank toward the centre (the yaw keeps changing the same way all round the circle).
       const y2 = yawOf(-P.rot(P.e0, P.w * (s + .1)).z, P.rot(P.e0, P.w * (s + .1)).x), turnRate = Math.atan2(Math.sin(y2 - yr), Math.cos(y2 - yr)) / .1;
-      return {...base, phase: 'climb', x, y: P.groundY + P.gearH + 60 + climb * s, z, yaw: yr, speed: V_SPIRAL, pitch: Math.atan2(climb, V_SPIRAL), roll: Math.atan(turnRate * V_SPIRAL / G)};
+      return {...base, phase: 'climb', x, y: y0 + climb * s, z, yaw: yr, speed: V_SPIRAL, pitch: Math.atan2(climb, V_SPIRAL), roll: Math.atan(turnRate * V_SPIRAL / G)};
     }
     if (t < RUN[1]) {const s = t - RUN[0];return {...base, phase: 'run', x: P.J0.x + P.Jd.x * V_RUN * s, y: P.top, z: P.J0.z + P.Jd.z * V_RUN * s, yaw: yawOf(P.Jd.x, P.Jd.z), speed: V_RUN, door: true, green: s >= 5 && s <= 55};}
     const s = t - AWAY[0], dist = V_RUN * (RUN[1] - RUN[0]) + V_AWAY * s;
     return {...base, phase: 'away', x: P.J0.x + P.Jd.x * dist, y: P.top - 18 * s, z: P.J0.z + P.Jd.z * dist, yaw: yawOf(P.Jd.x, P.Jd.z), speed: V_AWAY, pitch: -Math.atan2(18, V_AWAY), visible: s < 140};
+  }
+
+  // ---------- The game's pilot in the Caravan (1 Nov 2026, the user: "choose to have the plane flown by a pilot provided by the game") ----------
+  // From the ground: 10 s for jumpers to board, a taxi along a smooth curve onto the strip (the hold point, behind the
+  // scheduled flight's boarding place), a hold while the scheduled flight is boarding or rolling ahead, then the scheduled
+  // flight's own profile from the hold point (roll, climbing spiral to 3000 m, jump run with the green light, away).
+  // Both planes fly the same path, so the hold keeps them at least 4 s (about 200 m) apart.
+  // In the air (the player flying it hands over, or its pilot is gone): a level circle of 650 m, at least 300 m up.
+  const WAIT = 10, TAXI_V = 5, BLOCK = [445, 80], ORBIT_R = 650, ORBIT_CLIMB = 6;
+  // The scheduled flight is on the strip ahead from 445 s (it appears at 455) to 80 s of its cycle: wait until it is clear.
+  function clearToRoll(t) {const c = ((t % CYCLE) + CYCLE) % CYCLE;return c >= BLOCK[0] ? t + CYCLE - c + BLOCK[1] : c < BLOCK[1] ? t + BLOCK[1] - c : t;}
+  // t0 = now (s, the lobby's clock); from / hold = {x, z, yaw}; ground(x, z) = ground height (or a flat groundY).
+  function pilotGround({t0, from, hold, ground = null, groundY = 0, gearH = 1.55, wait = WAIT}) {
+    const gy = (x, z) => ground ? ground(x, z) : groundY, D = Math.hypot(hold.x - from.x, hold.z - from.z), M = Math.max(8, D * 1.1);
+    const fd = {x: -Math.sin(from.yaw), z: -Math.cos(from.yaw)}, hd = {x: -Math.sin(hold.yaw), z: -Math.cos(hold.yaw)};
+    const at = u => {const u2 = u * u, u3 = u2 * u, a = 2 * u3 - 3 * u2 + 1, b = u3 - 2 * u2 + u, c = -2 * u3 + 3 * u2, e = u3 - u2;
+      return {x: a * from.x + b * M * fd.x + c * hold.x + e * M * hd.x, z: a * from.z + b * M * fd.z + c * hold.z + e * M * hd.z};};
+    const cum = [0];let prev = at(0);for (let i = 1; i <= 60; i++) {const p = at(i / 60);cum.push(cum[i - 1] + Math.hypot(p.x - prev.x, p.z - prev.z));prev = p;}
+    const L = D < 1 ? 0 : cum[60], taxiT = L / TAXI_V;
+    return {kind: 'ground', t0, wait, from, hold, at, cum, L, taxiT, rollAt: clearToRoll(t0 + wait + taxiT), gy, gearH, P: plan({start: hold, yaw: hold.yaw, groundY: gy(hold.x, hold.z), gearH, ground})};
+  }
+  // pos {x, y, z}, yaw / pitch / roll (three.js YXZ), speed, vy: the plane as the pilot gets it; it circles toward `toward`.
+  function pilotOrbit({t0, pos, yaw, pitch = 0, roll = 0, speed, vy = 0, toward = {x: 0, z: 0}, ground = null, groundY = 0, minAGL = 300}) {
+    const V = clamp(speed || 0, 35, 55), r = {x: Math.cos(yaw), z: -Math.sin(yaw)};// to the right of the heading
+    const right = {x: pos.x + r.x * ORBIT_R, z: pos.z + r.z * ORBIT_R}, left = {x: pos.x - r.x * ORBIT_R, z: pos.z - r.z * ORBIT_R};
+    const turnRight = Math.hypot(right.x - toward.x, right.z - toward.z) <= Math.hypot(left.x - toward.x, left.z - toward.z), C = turnRight ? right : left;
+    const tau = 3, settle = pos.y + vy * tau, gap = Math.max(0, (ground ? ground(pos.x, pos.z) : groundY) + minAGL - settle);
+    return {kind: 'air', t0, C, e0: {x: pos.x - C.x, z: pos.z - C.z}, sgn: turnRight ? 1 : -1, V, y0: pos.y, vy0: vy, tau, gap, pitch0: pitch, roll0: roll};
+  }
+  function orbitAt(t, O) {
+    const s = Math.max(0, t - O.t0), th = O.sgn * O.V * s / ORBIT_R, e = {x: O.e0.x * Math.cos(th) - O.e0.z * Math.sin(th), z: O.e0.x * Math.sin(th) + O.e0.z * Math.cos(th)};
+    const k = Math.exp(-s / O.tau), climbing = ORBIT_CLIMB * s < O.gap, vy = O.vy0 * k + (climbing ? ORBIT_CLIMB : 0);
+    const y = O.y0 + O.vy0 * O.tau * (1 - k) + Math.min(ORBIT_CLIMB * s, O.gap), bank = -O.sgn * Math.atan(O.V * O.V / (ORBIT_R * G)), blend = Math.exp(-s / 1.5);
+    const pitch = Math.atan2(vy, O.V);
+    return {phase: 'orbit', x: O.C.x + e.x, y, z: O.C.z + e.z, yaw: yawOf(O.sgn * -e.z, O.sgn * e.x), speed: O.V, pitch: pitch + (O.pitch0 - pitch) * blend, roll: bank + (O.roll0 - bank) * blend,
+      green: false, door: true, visible: true};
+  }
+  // The pilot's plane at time t: phase 'wait' | 'taxi' | 'hold' (left: seconds) | the flight's phases | 'orbit' | 'done'.
+  function pilotFlight(t, G) {
+    if (G.kind === 'air') return orbitAt(t, G);
+    const s = t - G.t0, still = (p, yaw, speed, phase, left) => ({phase, x: p.x, y: G.gy(p.x, p.z) + G.gearH, z: p.z, yaw, speed, pitch: 0, roll: 0, green: false, door: true, visible: true, left});
+    if (s < G.wait) return still(G.from, G.from.yaw, 0, 'wait', G.wait - s);
+    if (s < G.wait + G.taxiT) {
+      const k = (s - G.wait) / G.taxiT, d = k * k * (3 - 2 * k) * G.L;let i = 1;while (i < 60 && G.cum[i] < d) i++;
+      const u = (i - 1 + (d - G.cum[i - 1]) / ((G.cum[i] - G.cum[i - 1]) || 1)) / 60, a = G.at(Math.max(0, u - .01)), b = G.at(Math.min(1, u + .01));
+      return still(G.at(u), yawOf(b.x - a.x, b.z - a.z), 6 * k * (1 - k) * G.L / G.taxiT, 'taxi', 0);
+    }
+    if (t < G.rollAt) return still(G.hold, G.hold.yaw, 0, 'hold', G.rollAt - t);
+    const tf = ROLL[0] + (t - G.rollAt), f = tf < BOARD_FROM ? flight(tf, G.P) : null;
+    return f && f.visible ? f : {phase: 'done', visible: false};
   }
 
   // A ram-air sport canopy: 9 cells in a gentle arch about 5.3 m wide and 2.4 m deep, 2.6 m above the harness, with lines.
@@ -122,5 +180,5 @@
     g.add(new T.LineSegments(lg, new T.LineBasicMaterial({color: 0xd8d8d8, transparent: true, opacity: .7})));g.userData.rib = rib;
     return g;
   }
-  return {Jumper, plan, flight, canopy, CYCLE, JUMP_AGL, AAD_ALT, PULL_HINT, VT, CANOPY, phases: {BOARD_FROM, ROLL, CLIMBOUT, SPIRAL, RUN, AWAY}};
+  return {Jumper, plan, flight, canopy, pilotGround, pilotOrbit, pilotFlight, clearToRoll, CYCLE, JUMP_AGL, AAD_ALT, PULL_HINT, VT, CANOPY, phases: {BOARD_FROM, ROLL, CLIMBOUT, SPIRAL, RUN, AWAY}};
 });

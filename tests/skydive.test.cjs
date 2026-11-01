@@ -44,3 +44,41 @@ test('the scheduled flight: boards, rolls, climbs to 3000 m, flies a straight ju
   const sp = S.flight(150, P), sp2 = S.flight(151, P), yawRate = Math.atan2(Math.sin(sp2.yaw - sp.yaw), Math.cos(sp2.yaw - sp.yaw));
   assert.ok(Math.abs(sp.roll) > .2 && Math.abs(sp.roll) < .5 && Math.sign(sp.roll) === Math.sign(yawRate), `bank ${sp.roll}, turn ${yawRate}`);
 });
+
+test('the game\'s pilot from the ground: waits, taxis onto the strip, holds behind the jump flight, then flies its profile without jumps', () => {
+  const yaw = .5236, d = {x: -Math.sin(yaw), z: -Math.cos(yaw)}, n = {x: -d.z, z: d.x}, at = (a, l) => ({x: d.x * a + n.x * l, z: d.z * a + n.z * l});
+  const ground = (x, z) => -(x * d.x + z * d.z) * .01;// the strip falls 1 m per 100 m
+  const from = {...at(10, 16), yaw}, hold = {...at(26, 0), yaw};
+  // Called at 440 s of the scheduled cycle: it is about to board on the strip ahead, so the pilot holds until 80 s.
+  const G = S.pilotGround({t0: 440, from, hold, ground, gearH: 1.55});
+  assert.equal(S.pilotFlight(445, G).phase, 'wait');
+  const tx = S.pilotFlight(440 + 10 + G.taxiT / 2, G);assert.equal(tx.phase, 'taxi');assert.ok(tx.speed > 3 && tx.speed < 8, `taxi ${tx.speed}`);
+  assert.ok(G.taxiT > 4 && G.taxiT < 12, `taxi takes ${G.taxiT} s`);
+  assert.equal(G.rollAt, 480 + 80);const h = S.pilotFlight(500, G);assert.equal(h.phase, 'hold');assert.ok(Math.abs(h.left - 60) < .01);
+  assert.ok(Math.hypot(h.x - hold.x, h.z - hold.z) < 1e-6);
+  let prev = S.pilotFlight(440, G), maxJump = 0, top = -1e9, wheels = 0, phases = new Set();
+  for (let t = 440.05; t < 1200; t += .05) {
+    const f = S.pilotFlight(t, G);phases.add(f.phase);if (f.phase === 'done') break;
+    maxJump = Math.max(maxJump, Math.hypot(f.x - prev.x, f.y - prev.y, f.z - prev.z) - Math.max(f.speed, prev.speed) * .05);
+    if (['wait', 'taxi', 'hold', 'roll'].includes(f.phase)) wheels = Math.max(wheels, Math.abs(f.y - 1.55 - ground(f.x, f.z)));
+    top = Math.max(top, f.y);prev = f;
+  }
+  assert.deepEqual([...phases], ['wait', 'taxi', 'hold', 'roll', 'climb', 'run', 'away', 'done']);
+  assert.ok(maxJump < .6, `position jumps ${maxJump.toFixed(2)} m`);assert.ok(wheels < 1e-6, `wheels off the ground by ${wheels}`);
+  assert.ok(Math.abs(top - (ground(hold.x, hold.z) + S.JUMP_AGL)) < .01, `jump height ${top}`);
+  // The taxi never passes the scheduled flight's boarding place (45 m along the strip).
+  for (let u = 0; u <= 1; u += .01) {const p = G.at(u);assert.ok(p.x * d.x + p.z * d.z <= 26 + 1e-9);}
+  // At a quiet moment of the cycle it rolls as soon as it reaches the hold point.
+  const Q = S.pilotGround({t0: 200, from, hold, ground});assert.equal(Q.rollAt, 200 + 10 + Q.taxiT);
+});
+
+test('the game\'s pilot in the air: takes the plane as it is, circles level toward home, at least 300 m up', () => {
+  const O = S.pilotOrbit({t0: 0, pos: {x: 800, y: 1200, z: 0}, yaw: 0, speed: 48, vy: 5, roll: .4, toward: {x: 0, z: 0}, groundY: 0});
+  const a = S.pilotFlight(0, O);assert.ok(Math.hypot(a.x - 800, a.y - 1200, a.z) < 1e-6, 'starts where the plane is');
+  assert.ok(Math.abs(a.yaw) < 1e-6 && Math.abs(a.roll - .4) < 1e-6, 'and as it is');
+  const b = S.pilotFlight(.1, O);assert.ok(Math.abs(b.x - 800) < .2 && b.z < -4.5, 'still flying the same way');
+  const C = O.C;assert.ok(Math.hypot(C.x, C.z) < 800, 'circles on the side toward home');
+  for (const t of [20, 60, 90]) {const f = S.pilotFlight(t, O);assert.ok(Math.abs(Math.hypot(f.x - C.x, f.z - C.z) - 650) < 1e-6);assert.ok(Math.abs(f.y - (1200 + 15)) < .5, `level at ${f.y}`);}
+  const low = S.pilotOrbit({t0: 0, pos: {x: 0, y: 120, z: 0}, yaw: 1, speed: 30, vy: -2, ground: () => 20});
+  assert.ok(S.pilotFlight(120, low).y >= 20 + 300 - 1e-6, 'climbs to 300 m above the ground');
+});
