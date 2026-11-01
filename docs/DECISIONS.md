@@ -29,6 +29,32 @@ Live site: runs `main` (deployed 29 Oct 2026 after PRs #8–#14, version fd96bf7
 
 ## Log
 
+### 2026-11-01 · Real weather from MET Norway (yr.no's data) (issue #23)
+- **What:** the game shows the real weather at Haarklous plass.
+  - Clouds dim the sun and grey the sky (more and greyer clouds in the sky shader).
+  - Fog thickens the haze.
+  - Rain, sleet or snow falls around you outdoors (not indoors), slanted by the real wind.
+  - The wind sounds stronger or weaker with the real wind speed, and rain has its own sound.
+  - The pause screen says e.g. "7.9 °C · partly cloudy · wind 4.6 m/s from NNE", credits MET Norway (CC BY 4.0) and shows when it was fetched. A short notice shows it when the game starts.
+  - It is fetched when the game starts and every hour plus a random 0–10 minutes, and it steps on to the next hour by itself. Without internet the game keeps its sunny day.
+- **Why:**
+  - The user's issue #23: "Get real weather in-game from yr.no and use it in-game. Update every hour."
+  - yr.no's forecasts come from MET Norway's open API (api.met.no). MET's terms:
+    - browsers should not call it directly;
+    - every request must identify the app in the User-Agent (which browsers cannot set);
+    - never ask again before the answer's Expires time;
+    - credit "MET Norway", not "yr".
+  - So the game's own Cloudflare Worker fetches it once for everybody (a `Weather` Durable Object keeps the answer), and the game asks the Worker.
+  - The Worker sends the User-Agent "haarklous-online/1.0 https://haarklous-online.server-smoke.workers.dev". MET also asks for a contact email or website; none is added yet (the user decides).
+- **Where:** `cloud/src/index.js` (`/weather`, `class Weather`), `cloud/wrangler.toml` (binding, migration v2), `game-weather.js` (new), `game-main.js` (`applyWeather`, update, audio), `surroundings.js` (`setOvercast`, sky shader), `game-audio.js` (rain sound, wind by speed), `index.html` (pause-screen line), `tests/weather.test.cjs` (new), `.claude/launch.json` (local Worker), `README.md`, `docs/HANDOFF.md`.
+- **Checked:**
+  - The local Worker (`wrangler dev`) fetched the real forecast: 7.9 °C, 47 % cloud, partly cloudy, wind 4.6 m/s from 16°. The second request came from the cache (max-age about 1900 s), with CORS.
+  - In the game with that data: sun 3.4 → 2.4, sky 49 % overcast, fog a little thicker, the notice and the pause line.
+  - Made-up heavy rain (8 m/s wind) and snow: screenshots show slanted rain streaks and soft round snowflakes; none inside the flat.
+  - Node tests 47/47 (3 new: MET symbols incl. their odd spellings, picking the hour, the text). No console errors.
+  - Not live until the Worker is deployed with the new Durable Object.
+- **Status:** PR (branch `feat/real-weather`, on top of PR #30), closes #23.
+
 ### 2026-11-01 · Paintball: players no longer look as if they are under the ground (issue #26)
 - **What:** the paintball yard's ground mesh is now cut out under the yard, as it is under the construction site's soil, so only the yard's flat floor and its retaining walls are there.
   - Before, the hillside's ground was still drawn through the yard: half the yard had ground above the floor, up to 4.6 m, mostly at the red end.
@@ -42,7 +68,7 @@ Live site: runs `main` (deployed 29 Oct 2026 after PRs #8–#14, version fd96bf7
   - 9 sight lines at 1.2 m across the yard from the blue base to the red base: none blocked by ground.
   - Screenshots from the blue base (flat floor all the way) and from the high corner outside (the hill meets the retaining walls, no gaps).
   - Node tests 44/44.
-- **Status:** PR (branch `fix/paintball-ground`, on top of PR #29), closes #26.
+- **Status:** PR #30 (branch `fix/paintball-ground`, on top of PR #29), closes #26. For the Unreal version: https://github.com/jonatsl/haarklous-ue5/issues/18.
 
 ### 2026-11-01 · Paintball: only your team-mates' name tags (issue #25)
 - **What:** during a paintball game you see the name tags of your own team only. Your opponents' names are hidden, so you have to spot them. In the paintball lobby and everywhere else, all name tags show as before.

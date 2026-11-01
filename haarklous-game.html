@@ -256,6 +256,7 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
         <p id="walletLine" class="small"></p>
         <label>Music volume <output id="musicOut"></output><input id="musicVol" type="range" min="0" max="1" step="0.05"></label>
         <p class="small">Controller: D-pad ←/→ changes the music volume. Now playing: <span id="nowPlaying">–</span></p>
+        <p id="weatherLine" class="small">Weather: loading the real weather…</p>
         <section class="mp">
           <h3>Multiplayer <small>(up to 12 players)</small></h3>
           <p id="mpStatus" class="small">Offline</p>
@@ -1249,7 +1250,7 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
  * bushes, courtyard dressing, street lamps; sky and the hills around Oslo. Ground texture: an offline map
  * painting; when online and allowed, Esri World Imagery is fetched live and painted onto the terrain.
  * Surroundings.create({T, lib, data, renderer, onStatus}) -> {
- *   near, far, setImagery(on), setSun(dir), attribution,
+ *   near, far, setImagery(on), setSun(dir), setOvercast(0..1), attribution,
  *   heightWorld(x, z) -> y, toLocal(x, z) -> {x, s}, toWorld(x, s) -> {x, z},
  *   terrainFloor() (walk-collision floor), obstacles() (buildings, trees, lamp posts, bushes, hedges, in model coordinates),
  *   surfaceAt(x, z) -> 'grass'|'asphalt'|'gravel'|'sand'|'none', trafficDistance(x, z), greenery(x, z) -> 0..1 }
@@ -1608,16 +1609,18 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
     // ---------- Sky and hills ----------
     const sunDirection = new T.Vector3(0, 1, 0);
     const sky = new T.Mesh(new T.SphereGeometry(20000, 48, 24), new T.ShaderMaterial({
-      side: T.BackSide, depthWrite: false, fog: false, uniforms: {sun: {value: sunDirection}},
+      side: T.BackSide, depthWrite: false, fog: false, uniforms: {sun: {value: sunDirection}, overcast: {value: 0}},
       vertexShader: 'varying vec3 vDir; void main(){ vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
-      fragmentShader: `uniform vec3 sun; varying vec3 vDir;
+      fragmentShader: `uniform vec3 sun; uniform float overcast; varying vec3 vDir;
         float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
         float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y);}
         float fbm(vec2 p){float v=0.0,a=.5;for(int i=0;i<5;i++){v+=a*n(p);p*=2.03;a*=.5;}return v;}
         void main(){vec3 d=normalize(vDir);float up=clamp(d.y,0.0,1.0);vec3 col=mix(vec3(.70,.80,.89),vec3(.22,.42,.78),pow(up,.55));
-          float s=max(dot(d,normalize(sun)),0.0);col+=vec3(1.0,.9,.7)*pow(s,700.0)*6.0+vec3(1.0,.85,.6)*pow(s,12.0)*.25;
-          if(d.y>0.0){vec2 uv=d.xz/(d.y+.12)*1.6;float c=smoothstep(.5,.78,fbm(uv+vec2(3.1,1.7)));col=mix(col,vec3(1.0)*(.92+.08*fbm(uv*3.0)),c*.85*smoothstep(0.0,.18,d.y));}
-          if(d.y<0.0) col=vec3(.70,.80,.89)*.92;gl_FragColor=vec4(col,1.0);
+          float s=max(dot(d,normalize(sun)),0.0);col+=(vec3(1.0,.9,.7)*pow(s,700.0)*6.0+vec3(1.0,.85,.6)*pow(s,12.0)*.25)*(1.0-overcast);
+          // Real weather (issue #23): more and greyer clouds with the cloud cover; fully overcast the sky is a flat grey.
+          if(d.y>0.0){vec2 uv=d.xz/(d.y+.12)*1.6;float c=smoothstep(.5-.42*overcast,.78-.3*overcast,fbm(uv+vec2(3.1,1.7)));col=mix(col,mix(vec3(1.0),vec3(.62,.65,.69),overcast)*(.92+.08*fbm(uv*3.0)),c*.85*smoothstep(0.0,.18,d.y));}
+          col=mix(col,vec3(.60,.63,.67),overcast*overcast*.7);
+          if(d.y<0.0) col=mix(vec3(.70,.80,.89)*.92,vec3(.58,.61,.64),overcast);gl_FragColor=vec4(col,1.0);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>
         }`
@@ -1637,6 +1640,7 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
     }
     const farSun = new T.DirectionalLight(0xfff1dc, 2.4), farSky = new T.HemisphereLight(0xcfe0ee, 0x5a5a4a, 1.3);far.add(farSun, farSky);
     function setSun(direction) {sunDirection.copy(direction).normalize();farSun.position.copy(sunDirection).multiplyScalar(1000);}
+    function setOvercast(v) {sky.material.uniforms.overcast.value = Math.max(0, Math.min(1, v));}// 0 clear … 1 fully overcast (real weather)
 
     // ---------- Collision and queries (model coordinates) ----------
     const ringWorld = flat => pairs(flat).map(([x, s]) => toWorld(x, s));
@@ -1668,7 +1672,7 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
     }
     function greenery(x, z) {const l = toLocal(x, z);let n = 0;for (const t of allTrees) if (Math.abs(t.x - l.x) < 40 && Math.abs(t.s - l.s) < 40) n++;for (const b of bushes) if (Math.abs(b.x - l.x) < 25 && Math.abs(b.s - l.s) < 25) n += .3;return Math.min(1, n / 18);}
 
-    return {near, far, setImagery, setSun, get imageryState() {return imageryState;}, attribution: data.attribution, ground, heightWorld, toLocal, toWorld, terrainFloor, obstacles, surfaceAt, trafficDistance, greenery, data, playHalf: PLAY_HALF, trees: allTrees};
+    return {near, far, setImagery, setSun, setOvercast, get imageryState() {return imageryState;}, attribution: data.attribution, ground, heightWorld, toLocal, toWorld, terrainFloor, obstacles, surfaceAt, trafficDistance, greenery, data, playHalf: PLAY_HALF, trees: allTrees};
   }
   return {create};
 });
@@ -2065,7 +2069,9 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
       const traffic = noise(), trafF = ctx.createBiquadFilter(), trafG = ctx.createGain();trafF.type = 'lowpass';trafF.frequency.value = 260;trafG.gain.value = 0;traffic.connect(trafF).connect(trafG);out(trafG);traffic.start();
       const room = noise(), roomF = ctx.createBiquadFilter(), roomG = ctx.createGain();roomF.type = 'lowpass';roomF.frequency.value = 140;roomG.gain.value = 0;room.connect(roomF).connect(roomG);out(roomG);room.start();
       const hum = ctx.createOscillator(), humG = ctx.createGain();hum.frequency.value = 100;hum.type = 'sine';humG.gain.value = 0;hum.connect(humG);out(humG);hum.start();
-      amb = {windG, windF, trafG, roomG, humG, state: {indoor: 0, green: .5, traffic: 0, height: 0, stair: false, kitchen: false}, birdTimer: 0, carTimer: 3, last: now()};
+      // Rain (real weather, issue #23): a soft hiss, louder in heavier rain, muffled indoors.
+      const rain = noise(), rainF = ctx.createBiquadFilter(), rainG = ctx.createGain();rainF.type = 'bandpass';rainF.frequency.value = 2600;rainF.Q.value = .5;rainG.gain.value = 0;rain.connect(rainF).connect(rainG);out(rainG);rain.start();
+      amb = {windG, windF, trafG, roomG, humG, rainG, rainF, state: {indoor: 0, green: .5, traffic: 0, height: 0, stair: false, kitchen: false, rain: 0, windSpeed: 4}, birdTimer: 0, carTimer: 3, last: now()};
       setInterval(tickAmbience, 120);
     }
     function ambience(state) {if (amb) Object.assign(amb.state, state);}
@@ -2073,7 +2079,9 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
       if (!amb || ctx.state !== 'running') return;
       const s = amb.state, t = now(), dt = Math.min(.5, t - amb.last);amb.last = t;const outdoors = 1 - s.indoor;
       const set = (param, v) => param.setTargetAtTime(v, t, .4);
-      set(amb.windG.gain, (.012 + .03 * Math.min(1, s.height / 12)) * outdoors + .004 * s.indoor);
+      const windK = Math.min(2.2, .45 + (s.windSpeed || 0) / 7);// the real wind speed (m/s) makes the wind louder or quieter
+      set(amb.windG.gain, ((.012 + .03 * Math.min(1, s.height / 12)) * outdoors + .004 * s.indoor) * windK);
+      set(amb.rainG.gain, (s.rain || 0) * (.05 * outdoors + .012 * s.indoor));amb.rainF.frequency.setTargetAtTime(s.indoor > .5 ? 900 : 2600, t, .3);
       amb.windF.frequency.setTargetAtTime(300 + 260 * (.5 + .5 * Math.sin(t * .23)) + 200 * Math.sin(t * .071), t, .8);
       const tr = Math.max(0, 1 - s.traffic / 70);set(amb.trafG.gain, (.012 + .05 * tr * tr) * (outdoors + .25 * s.indoor));
       set(amb.roomG.gain, .03 * s.indoor);set(amb.humG.gain, s.kitchen ? .006 : 0);
@@ -7084,6 +7092,102 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
   }
   return {create};
 });
+</script><script>/* Real weather (issue #23): MET Norway's forecast for Haarklous plass (Locationforecast 2.0 complete), fetched through the
+ * game's own Cloudflare Worker (/weather adds the User-Agent MET asks for and caches the answer for everybody) when the game
+ * starts and then every hour plus a random 0–10 minutes. The hour now is the last forecast entry that has started.
+ * Credit: "Weather: data from MET Norway (CC BY 4.0)".
+ *
+ * GameWeather.parse(json, nowMs) -> state | null   (pure, Node-tested)
+ *   state: {time, temp °C, wind m/s, windFrom °, gust, clouds 0..1, fog 0..1, humidity %, precip mm/h, symbol,
+ *           kind 'clear'|'fair'|'partly'|'cloudy'|'fog'|'rain'|'sleet'|'snow', intensity 0..1, thunder, updatedAt, fetchedAt}
+ * GameWeather.classify(symbol, precip) -> {kind, intensity, thunder}   (pure)
+ * GameWeather.describe(state) -> e.g. "7.9 °C · partly cloudy · wind 4.6 m/s from NNE"
+ * GameWeather.create({T, url, onChange}) -> {state, group (precipitation), load(), update(dt, camera, {indoor, windWorld})}
+ */
+(function (root, factory) {
+  const api = factory();
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  else root.GameWeather = api;
+})(typeof window === 'undefined' ? globalThis : window, function () {
+  'use strict';
+  const clamp01 = v => Math.max(0, Math.min(1, v));
+  // MET symbol codes (github.com/metno/weathericons): strip _day/_night/_polartwilight, then read the words.
+  function classify(symbol, precip = 0) {
+    const s = String(symbol || '').trim().replace(/_(day|night|polartwilight)$/, '');
+    const thunder = s.includes('thunder');
+    const amount = s.startsWith('heavy') ? .95 : s.startsWith('light') ? .35 : .65;
+    const intensity = clamp01(Math.max(amount * (s.includes('showers') ? .85 : 1), Math.min(1, (precip || 0) / 4)));
+    if (s.includes('snow')) return {kind: 'snow', intensity, thunder};
+    if (s.includes('sleet')) return {kind: 'sleet', intensity, thunder};
+    if (s.includes('rain')) return {kind: 'rain', intensity, thunder};
+    if (s === 'fog') return {kind: 'fog', intensity: 0, thunder};
+    if (s === 'cloudy') return {kind: 'cloudy', intensity: 0, thunder};
+    if (s === 'partlycloudy') return {kind: 'partly', intensity: 0, thunder};
+    if (s === 'fair') return {kind: 'fair', intensity: 0, thunder};
+    return {kind: 'clear', intensity: 0, thunder};
+  }
+  function parse(json, nowMs = Date.now()) {
+    const ts = json && json.timeseries;if (!Array.isArray(ts) || !ts.length) return null;
+    let e = ts[0];for (const t of ts) if (Date.parse(t.time) <= nowMs) e = t;
+    const d = (e.data && e.data.instant && e.data.instant.details) || {}, n1 = (e.data && (e.data.next_1_hours || e.data.next_6_hours)) || {};
+    const symbol = (n1.summary && n1.summary.symbol_code) || 'cloudy', precip = (n1.details && n1.details.precipitation_amount) || 0;
+    const c = classify(symbol, precip);
+    return {time: e.time, temp: d.air_temperature, wind: d.wind_speed || 0, windFrom: d.wind_from_direction || 0, gust: d.wind_speed_of_gust,
+      clouds: clamp01((d.cloud_area_fraction ?? 50) / 100), fog: clamp01((d.fog_area_fraction || 0) / 100), humidity: d.relative_humidity,
+      precip, symbol, ...c, updatedAt: json.updated_at, fetchedAt: json.fetched_at};
+  }
+  const NAMES = {clear: 'clear sky', fair: 'fair', partly: 'partly cloudy', cloudy: 'cloudy', fog: 'fog', rain: 'rain', sleet: 'sleet', snow: 'snow'};
+  const compass = deg => ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'][Math.round(((deg % 360) + 360) % 360 / 22.5) % 16];
+  function describe(w) {
+    if (!w) return 'No weather data';
+    const what = (w.intensity > .8 && ['rain', 'sleet', 'snow'].includes(w.kind) ? 'heavy ' : w.intensity < .4 && ['rain', 'sleet', 'snow'].includes(w.kind) ? 'light ' : '') + NAMES[w.kind] + (w.thunder ? ' and thunder' : '');
+    return `${w.temp != null ? w.temp.toFixed(1) + ' °C · ' : ''}${what} · wind ${w.wind.toFixed(1)} m/s from ${compass(w.windFrom)}`;
+  }
+
+  function create({T, url, onChange = () => {}}) {
+    const api = {state: null, group: new T.Group(), error: null};api.group.name = 'Weather (precipitation)';
+    // Precipitation: a 30 m box of drops that follows the camera. Rain = short streaks along the fall, snow / sleet = flakes.
+    const N = 7000, BOX = 30, HALF = BOX / 2, pos = new Float32Array(N * 3), seg = new Float32Array(N * 6), rnd = () => Math.random();
+    for (let i = 0; i < N; i++) {pos[i * 3] = (rnd() - .5) * BOX;pos[i * 3 + 1] = rnd() * BOX - 6;pos[i * 3 + 2] = (rnd() - .5) * BOX;}
+    const rainGeo = new T.BufferGeometry();rainGeo.setAttribute('position', new T.BufferAttribute(seg, 3));
+    const rain = new T.LineSegments(rainGeo, new T.LineBasicMaterial({color: 0xb8c4d0, transparent: true, opacity: .6, depthWrite: false}));
+    const flakeGeo = new T.BufferGeometry();flakeGeo.setAttribute('position', new T.BufferAttribute(pos, 3));
+    const dot = document.createElement('canvas');dot.width = dot.height = 32;{const x = dot.getContext('2d'), gr = x.createRadialGradient(16, 16, 0, 16, 16, 16);gr.addColorStop(0, 'rgba(255,255,255,1)');gr.addColorStop(.5, 'rgba(255,255,255,.8)');gr.addColorStop(1, 'rgba(255,255,255,0)');x.fillStyle = gr;x.fillRect(0, 0, 32, 32);}
+    const flakes = new T.Points(flakeGeo, new T.PointsMaterial({color: 0xffffff, size: .09, map: new T.CanvasTexture(dot), transparent: true, opacity: .95, depthWrite: false}));// round, soft flakes
+    for (const m of [rain, flakes]) {m.frustumCulled = false;m.visible = false;api.group.add(m);}
+    let refreshT = null;
+    async function load() {
+      try {
+        const r = await fetch(url, {cache: 'no-store'});if (!r.ok) throw new Error('HTTP ' + r.status);
+        api.json = await r.json();api.state = parse(api.json);api.error = null;onChange(api.state);
+      } catch (e) {api.error = String(e.message || e);}
+      clearTimeout(refreshT);refreshT = setTimeout(load, (60 + Math.random() * 10) * 60e3);// every hour, never on the dot
+    }
+    // The forecast steps on every hour by itself (the cached answer holds six hours).
+    let hourCheck = 0;
+    api.update = (dt, camera, {indoor = false, windWorld = {x: 0, z: 0}} = {}) => {
+      if (api.json && (hourCheck -= dt) <= 0) {hourCheck = 30;const s = parse(api.json);if (s && api.state && s.time !== api.state.time) {api.state = s;onChange(s);}}
+      const w = api.state, kind = w && w.kind, wet = !indoor && w && ['rain', 'sleet', 'snow'].includes(kind) && w.intensity > 0;
+      rain.visible = !!wet && kind !== 'snow';flakes.visible = !!wet && kind !== 'rain';if (!wet) return;
+      const count = Math.round(N * (.15 + .85 * w.intensity)), c = camera.position;
+      const fall = kind === 'rain' ? 8.5 : kind === 'sleet' ? 4.5 : 1.1, drift = kind === 'snow' ? .55 : .9;
+      const vx = windWorld.x * drift, vz = windWorld.z * drift, len = kind === 'rain' ? .07 : 0;
+      for (let i = 0; i < N; i++) {
+        let x = pos[i * 3] + vx * dt, y = pos[i * 3 + 1] - fall * dt, z = pos[i * 3 + 2] + vz * dt;
+        if (kind === 'snow') {x += Math.sin(y * 1.7 + i) * .3 * dt;z += Math.cos(y * 1.3 + i) * .3 * dt;}
+        if (y < -6) y += BOX;x = ((x + HALF) % BOX + BOX) % BOX - HALF;z = ((z + HALF) % BOX + BOX) % BOX - HALF;
+        pos[i * 3] = x;pos[i * 3 + 1] = y;pos[i * 3 + 2] = z;
+        const k = i * 6;seg[k] = x;seg[k + 1] = y;seg[k + 2] = z;seg[k + 3] = x - vx * len;seg[k + 4] = y + fall * len;seg[k + 5] = z - vz * len;
+      }
+      rainGeo.setDrawRange(0, count * 2);flakeGeo.setDrawRange(0, kind === 'sleet' ? Math.round(count * .5) : count);
+      rainGeo.attributes.position.needsUpdate = true;flakeGeo.attributes.position.needsUpdate = true;
+      api.group.position.set(c.x, c.y, c.z);
+    };
+    api.load = load;
+    return api;
+  }
+  return {create, parse, classify, describe};
+});
 </script><script>/* Map overlay (touchpad / M): the neighbourhood from OpenStreetMap with street names, your apartment, the
  * hostage-rescue start, the disc golf holes and the petanque court, and you (arrow). Vehicles are not shown.
  * Left stick / drag pans, right stick / wheel zooms, ○ / M / Esc closes.
@@ -7755,6 +7859,25 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
   // local (9.1, 275.5)), facing south, with its stone steps on the east side.
   const SCULPTURE_AT = {x: 9.1, s: 275.5};
   const sculpture = window.GameSculpture.create({T, lib, world, at: SCULPTURE_AT});scene.add(sculpture.group);
+  // Real weather (issue #23): MET Norway's forecast for Haarklous plass through the game's Worker (/weather), every hour. Clouds
+  // dim the sun and grey the sky, fog thickens the haze, rain / sleet / snow fall around you outdoors, the wind blows them and is
+  // heard, and the pause screen shows it with the credit. Offline it stays as the fixed sunny day.
+  const WEATHER_URL = new URLSearchParams(location.search).get('weather') || (/workers\.dev$/.test(location.hostname) ? '/weather' : 'https://haarklous-online.server-smoke.workers.dev/weather');
+  const BASE_LIGHT = {sun: sun.intensity, sky: sky.intensity, fog: scene.fog.density, farFog: farScene.fog.density, fogColor: scene.fog.color.clone()};
+  let weatherWind = {x: 0, z: 0};
+  function applyWeather(w) {
+    const c = w.clouds, wet = ['rain', 'sleet', 'snow'].includes(w.kind) ? w.intensity : 0, overcast = Math.min(1, c * 1.05 + wet * .25 + w.fog * .5);
+    sun.intensity = BASE_LIGHT.sun * (1 - .72 * Math.pow(overcast, 1.3));sky.intensity = BASE_LIGHT.sky * (1 + .12 * overcast);
+    scene.fog.density = BASE_LIGHT.fog * (1 + .8 * overcast) + w.fog * .018 + wet * .0035;farScene.fog.density = BASE_LIGHT.farFog * (1 + 1.5 * overcast) + w.fog * .002;
+    scene.fog.color.copy(BASE_LIGHT.fogColor).lerp(new T.Color(0xa7aeb5), overcast);farScene.fog.color.copy(scene.fog.color);world.setOvercast(overcast);
+    // Wind blows toward (from + 180°); north is -s on the map, east is +x.
+    const to = (w.windFrom + 180) * Math.PI / 180, lx = Math.sin(to), ls = -Math.cos(to), cT = Math.cos(theta), sT = Math.sin(theta);
+    weatherWind = {x: (lx * cT + ls * sT) * w.wind, z: (-lx * sT + ls * cT) * w.wind};
+    const at = new Date(w.fetchedAt || Date.now()), hhmm = `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
+    $('weatherLine').innerHTML = `Weather now at Haarklous plass: ${window.GameWeather.describe(w)} · data from <a href="https://api.met.no/" target="_blank" rel="noopener">MET Norway</a> (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>), fetched ${hhmm}`;
+    if (!weather.shown) {weather.shown = true;notice(`Real weather: ${window.GameWeather.describe(w)} (MET Norway)`, 5);}
+  }
+  const weather = window.GameWeather.create({T, url: WEATHER_URL, onChange: w => applyWeather(w)});scene.add(weather.group);weather.load();
   // Ground: the building site's soil (it changes as the machines dig), the paved paintball yard, the terrain elsewhere.
   const siteField = SITE_DATA && window.GameSite ? window.GameSite.fieldFor(SITE_DATA, world) : null;
   const pbCtx = {};// filled in below, once the player, camera and lobby exist
@@ -8302,6 +8425,7 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
     for (const d of doors) if (d.anim) {d.anim.t = Math.min(1, d.anim.t + dt * 2.2);const e = d.anim.t < .5 ? 2 * d.anim.t * d.anim.t : 1 - Math.pow(-2 * d.anim.t + 2, 2) / 2;setDoor(d, d.anim.from + (d.anim.to - d.anim.from) * e);if (d.anim.t >= 1) {d.open = d.anim.to === 1;d.anim = null;doorsChanged = true;}}
     if (doorsChanged || caseGame?.active) updateDynamic();
     promptTimer -= dt;if (promptTimer <= 0) {promptTimer = .15;promptAction = player.mode === 'minigame' || player.mode === 'drone' || gear?.open || quick || bag || photo.active || (caseGame?.active && caseGame.state !== 'play') ? null : findPrompt();prompt(promptAction?.text);}
+    weather.update(dt, camera, {indoor: weatherIndoor, windWorld: weatherWind});
     ambienceTimer -= dt;if (ambienceTimer <= 0) {ambienceTimer = .25;updateAmbience();if (audio.context) music.attach(audio.context);music.play(musicTrack());}
     // Adaptive resolution keeps the frame rate in the 20–30+ fps range on slower PCs.
     if (fpsAvg < 22) {if (++lowFrames > 90 && pixelRatio > .6) {pixelRatio = Math.max(.6, pixelRatio - .1);renderer.setPixelRatio(pixelRatio);resize();lowFrames = 0;}} else lowFrames = 0;
@@ -8576,9 +8700,11 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
     if (r.camera) {camera.position.set(r.camera.x, r.camera.y, r.camera.z);camera.lookAt(r.camera.lookAt);}
     else {camera.position.set(player.x, player.feet + player.eye, player.z);camera.rotation.order = 'YXZ';camera.rotation.set(player.pitch, player.yaw, 0);}
   }
+  let weatherIndoor = false;
   function updateAmbience() {
     const inApt = inFlat(), tw = towerAt(player.x, player.z, player.feet), indoor = inApt || tw || shops.shopAt(player, player.feet) ? 1 : player.vehicle && player.vehicle.kind === 'car' ? .7 : player.vehicle && player.vehicle.aircraft ? .4 : 0;
-    audio.ambience({indoor, green: world.greenery(player.x, player.z), traffic: world.trafficDistance(player.x, player.z), height: Math.max(0, player.feet - heightAt(player.x, player.z)) + (inApt ? 10 : 0), stair: Boolean(tw), kitchen: inApt && roomAt() === 'kitchen'});
+    weatherIndoor = indoor >= 1 && player.mode !== 'drone';const ws = weather.state, wet = ws && ['rain', 'sleet', 'snow'].includes(ws.kind) ? ws.intensity : 0;
+    audio.ambience({indoor, rain: ws && ws.kind === 'rain' ? wet : ws && ws.kind === 'sleet' ? wet * .6 : 0, windSpeed: ws ? ws.wind : 4, green: world.greenery(player.x, player.z), traffic: world.trafficDistance(player.x, player.z), height: Math.max(0, player.feet - heightAt(player.x, player.z)) + (inApt ? 10 : 0), stair: Boolean(tw), kitchen: inApt && roomAt() === 'kitchen'});
     // Stair-tower light follows the player into whichever stairwell they are in.
     if (tw) {const l = tw.t.stair.lampAt({x: tw.l.x, z: tw.l.z}, player.feet - tw.t.matrix.elements[13]);if (l) {const p = new T.Vector3(l.x, l.y, l.z).applyMatrix4(tw.t.matrix);towerLamp.position.copy(p);towerLamp.intensity = 5.5;}} else towerLamp.intensity = 0;
     if (player.mode !== 'vehicle' && player.mode !== 'passenger') $('speedo').hidden = true;
@@ -8611,7 +8737,7 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
   }
 
   // ---------- Test / inspection handle ----------
-  window.haarklousGame = {player, vehicles, site, paintball, groundAt, heli, plane, drone, watch, fire, stash, shops, sculpture, wallet, get basket() {return basket;}, payAt, takeProduct, useItem, earn, openBag, takeBoost, get boost() {return boost;}, set boost(b) {boost = b;}, get mp() {return mp;}, sitDown, standUp, tryDrive, tryRide, openChat, startDrone, stopDrone, floorBelow, doors, mini, music, photo, map, world, apt, towers, walkWorld, get caseGame() {return caseGame;}, place, toggleDoor, enterVehicle, exitVehicle, startMinigame, startMission, drink, interact, findPrompt, renderFrame, begin, get fps() {return fpsAvg;}, kick: () => requestAnimationFrame(frame), get drunk() {return drunk;}, set drunk(v) {drunk = v;}, setStance, camera, scene};
+  window.haarklousGame = {player, vehicles, site, paintball, groundAt, heli, plane, drone, watch, fire, stash, shops, sculpture, weather, applyWeather, wallet, get basket() {return basket;}, payAt, takeProduct, useItem, earn, openBag, takeBoost, get boost() {return boost;}, set boost(b) {boost = b;}, get mp() {return mp;}, sitDown, standUp, tryDrive, tryRide, openChat, startDrone, stopDrone, floorBelow, doors, mini, music, photo, map, world, apt, towers, walkWorld, get caseGame() {return caseGame;}, place, toggleDoor, enterVehicle, exitVehicle, startMinigame, startMission, drink, interact, findPrompt, renderFrame, begin, get fps() {return fpsAvg;}, kick: () => requestAnimationFrame(frame), get drunk() {return drunk;}, set drunk(v) {drunk = v;}, setStance, camera, scene};
   loading.remove();$('start').hidden = false;
   requestAnimationFrame(frame);
 })();

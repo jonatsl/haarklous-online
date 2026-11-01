@@ -77,6 +77,25 @@
   // local (9.1, 275.5)), facing south, with its stone steps on the east side.
   const SCULPTURE_AT = {x: 9.1, s: 275.5};
   const sculpture = window.GameSculpture.create({T, lib, world, at: SCULPTURE_AT});scene.add(sculpture.group);
+  // Real weather (issue #23): MET Norway's forecast for Haarklous plass through the game's Worker (/weather), every hour. Clouds
+  // dim the sun and grey the sky, fog thickens the haze, rain / sleet / snow fall around you outdoors, the wind blows them and is
+  // heard, and the pause screen shows it with the credit. Offline it stays as the fixed sunny day.
+  const WEATHER_URL = new URLSearchParams(location.search).get('weather') || (/workers\.dev$/.test(location.hostname) ? '/weather' : 'https://haarklous-online.server-smoke.workers.dev/weather');
+  const BASE_LIGHT = {sun: sun.intensity, sky: sky.intensity, fog: scene.fog.density, farFog: farScene.fog.density, fogColor: scene.fog.color.clone()};
+  let weatherWind = {x: 0, z: 0};
+  function applyWeather(w) {
+    const c = w.clouds, wet = ['rain', 'sleet', 'snow'].includes(w.kind) ? w.intensity : 0, overcast = Math.min(1, c * 1.05 + wet * .25 + w.fog * .5);
+    sun.intensity = BASE_LIGHT.sun * (1 - .72 * Math.pow(overcast, 1.3));sky.intensity = BASE_LIGHT.sky * (1 + .12 * overcast);
+    scene.fog.density = BASE_LIGHT.fog * (1 + .8 * overcast) + w.fog * .018 + wet * .0035;farScene.fog.density = BASE_LIGHT.farFog * (1 + 1.5 * overcast) + w.fog * .002;
+    scene.fog.color.copy(BASE_LIGHT.fogColor).lerp(new T.Color(0xa7aeb5), overcast);farScene.fog.color.copy(scene.fog.color);world.setOvercast(overcast);
+    // Wind blows toward (from + 180°); north is -s on the map, east is +x.
+    const to = (w.windFrom + 180) * Math.PI / 180, lx = Math.sin(to), ls = -Math.cos(to), cT = Math.cos(theta), sT = Math.sin(theta);
+    weatherWind = {x: (lx * cT + ls * sT) * w.wind, z: (-lx * sT + ls * cT) * w.wind};
+    const at = new Date(w.fetchedAt || Date.now()), hhmm = `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
+    $('weatherLine').innerHTML = `Weather now at Haarklous plass: ${window.GameWeather.describe(w)} · data from <a href="https://api.met.no/" target="_blank" rel="noopener">MET Norway</a> (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>), fetched ${hhmm}`;
+    if (!weather.shown) {weather.shown = true;notice(`Real weather: ${window.GameWeather.describe(w)} (MET Norway)`, 5);}
+  }
+  const weather = window.GameWeather.create({T, url: WEATHER_URL, onChange: w => applyWeather(w)});scene.add(weather.group);weather.load();
   // Ground: the building site's soil (it changes as the machines dig), the paved paintball yard, the terrain elsewhere.
   const siteField = SITE_DATA && window.GameSite ? window.GameSite.fieldFor(SITE_DATA, world) : null;
   const pbCtx = {};// filled in below, once the player, camera and lobby exist
@@ -624,6 +643,7 @@
     for (const d of doors) if (d.anim) {d.anim.t = Math.min(1, d.anim.t + dt * 2.2);const e = d.anim.t < .5 ? 2 * d.anim.t * d.anim.t : 1 - Math.pow(-2 * d.anim.t + 2, 2) / 2;setDoor(d, d.anim.from + (d.anim.to - d.anim.from) * e);if (d.anim.t >= 1) {d.open = d.anim.to === 1;d.anim = null;doorsChanged = true;}}
     if (doorsChanged || caseGame?.active) updateDynamic();
     promptTimer -= dt;if (promptTimer <= 0) {promptTimer = .15;promptAction = player.mode === 'minigame' || player.mode === 'drone' || gear?.open || quick || bag || photo.active || (caseGame?.active && caseGame.state !== 'play') ? null : findPrompt();prompt(promptAction?.text);}
+    weather.update(dt, camera, {indoor: weatherIndoor, windWorld: weatherWind});
     ambienceTimer -= dt;if (ambienceTimer <= 0) {ambienceTimer = .25;updateAmbience();if (audio.context) music.attach(audio.context);music.play(musicTrack());}
     // Adaptive resolution keeps the frame rate in the 20–30+ fps range on slower PCs.
     if (fpsAvg < 22) {if (++lowFrames > 90 && pixelRatio > .6) {pixelRatio = Math.max(.6, pixelRatio - .1);renderer.setPixelRatio(pixelRatio);resize();lowFrames = 0;}} else lowFrames = 0;
@@ -898,9 +918,11 @@
     if (r.camera) {camera.position.set(r.camera.x, r.camera.y, r.camera.z);camera.lookAt(r.camera.lookAt);}
     else {camera.position.set(player.x, player.feet + player.eye, player.z);camera.rotation.order = 'YXZ';camera.rotation.set(player.pitch, player.yaw, 0);}
   }
+  let weatherIndoor = false;
   function updateAmbience() {
     const inApt = inFlat(), tw = towerAt(player.x, player.z, player.feet), indoor = inApt || tw || shops.shopAt(player, player.feet) ? 1 : player.vehicle && player.vehicle.kind === 'car' ? .7 : player.vehicle && player.vehicle.aircraft ? .4 : 0;
-    audio.ambience({indoor, green: world.greenery(player.x, player.z), traffic: world.trafficDistance(player.x, player.z), height: Math.max(0, player.feet - heightAt(player.x, player.z)) + (inApt ? 10 : 0), stair: Boolean(tw), kitchen: inApt && roomAt() === 'kitchen'});
+    weatherIndoor = indoor >= 1 && player.mode !== 'drone';const ws = weather.state, wet = ws && ['rain', 'sleet', 'snow'].includes(ws.kind) ? ws.intensity : 0;
+    audio.ambience({indoor, rain: ws && ws.kind === 'rain' ? wet : ws && ws.kind === 'sleet' ? wet * .6 : 0, windSpeed: ws ? ws.wind : 4, green: world.greenery(player.x, player.z), traffic: world.trafficDistance(player.x, player.z), height: Math.max(0, player.feet - heightAt(player.x, player.z)) + (inApt ? 10 : 0), stair: Boolean(tw), kitchen: inApt && roomAt() === 'kitchen'});
     // Stair-tower light follows the player into whichever stairwell they are in.
     if (tw) {const l = tw.t.stair.lampAt({x: tw.l.x, z: tw.l.z}, player.feet - tw.t.matrix.elements[13]);if (l) {const p = new T.Vector3(l.x, l.y, l.z).applyMatrix4(tw.t.matrix);towerLamp.position.copy(p);towerLamp.intensity = 5.5;}} else towerLamp.intensity = 0;
     if (player.mode !== 'vehicle' && player.mode !== 'passenger') $('speedo').hidden = true;
@@ -933,7 +955,7 @@
   }
 
   // ---------- Test / inspection handle ----------
-  window.haarklousGame = {player, vehicles, site, paintball, groundAt, heli, plane, drone, watch, fire, stash, shops, sculpture, wallet, get basket() {return basket;}, payAt, takeProduct, useItem, earn, openBag, takeBoost, get boost() {return boost;}, set boost(b) {boost = b;}, get mp() {return mp;}, sitDown, standUp, tryDrive, tryRide, openChat, startDrone, stopDrone, floorBelow, doors, mini, music, photo, map, world, apt, towers, walkWorld, get caseGame() {return caseGame;}, place, toggleDoor, enterVehicle, exitVehicle, startMinigame, startMission, drink, interact, findPrompt, renderFrame, begin, get fps() {return fpsAvg;}, kick: () => requestAnimationFrame(frame), get drunk() {return drunk;}, set drunk(v) {drunk = v;}, setStance, camera, scene};
+  window.haarklousGame = {player, vehicles, site, paintball, groundAt, heli, plane, drone, watch, fire, stash, shops, sculpture, weather, applyWeather, wallet, get basket() {return basket;}, payAt, takeProduct, useItem, earn, openBag, takeBoost, get boost() {return boost;}, set boost(b) {boost = b;}, get mp() {return mp;}, sitDown, standUp, tryDrive, tryRide, openChat, startDrone, stopDrone, floorBelow, doors, mini, music, photo, map, world, apt, towers, walkWorld, get caseGame() {return caseGame;}, place, toggleDoor, enterVehicle, exitVehicle, startMinigame, startMission, drink, interact, findPrompt, renderFrame, begin, get fps() {return fpsAvg;}, kick: () => requestAnimationFrame(frame), get drunk() {return drunk;}, set drunk(v) {drunk = v;}, setStance, camera, scene};
   loading.remove();$('start').hidden = false;
   requestAnimationFrame(frame);
 })();

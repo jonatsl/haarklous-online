@@ -37,7 +37,9 @@
       const traffic = noise(), trafF = ctx.createBiquadFilter(), trafG = ctx.createGain();trafF.type = 'lowpass';trafF.frequency.value = 260;trafG.gain.value = 0;traffic.connect(trafF).connect(trafG);out(trafG);traffic.start();
       const room = noise(), roomF = ctx.createBiquadFilter(), roomG = ctx.createGain();roomF.type = 'lowpass';roomF.frequency.value = 140;roomG.gain.value = 0;room.connect(roomF).connect(roomG);out(roomG);room.start();
       const hum = ctx.createOscillator(), humG = ctx.createGain();hum.frequency.value = 100;hum.type = 'sine';humG.gain.value = 0;hum.connect(humG);out(humG);hum.start();
-      amb = {windG, windF, trafG, roomG, humG, state: {indoor: 0, green: .5, traffic: 0, height: 0, stair: false, kitchen: false}, birdTimer: 0, carTimer: 3, last: now()};
+      // Rain (real weather, issue #23): a soft hiss, louder in heavier rain, muffled indoors.
+      const rain = noise(), rainF = ctx.createBiquadFilter(), rainG = ctx.createGain();rainF.type = 'bandpass';rainF.frequency.value = 2600;rainF.Q.value = .5;rainG.gain.value = 0;rain.connect(rainF).connect(rainG);out(rainG);rain.start();
+      amb = {windG, windF, trafG, roomG, humG, rainG, rainF, state: {indoor: 0, green: .5, traffic: 0, height: 0, stair: false, kitchen: false, rain: 0, windSpeed: 4}, birdTimer: 0, carTimer: 3, last: now()};
       setInterval(tickAmbience, 120);
     }
     function ambience(state) {if (amb) Object.assign(amb.state, state);}
@@ -45,7 +47,9 @@
       if (!amb || ctx.state !== 'running') return;
       const s = amb.state, t = now(), dt = Math.min(.5, t - amb.last);amb.last = t;const outdoors = 1 - s.indoor;
       const set = (param, v) => param.setTargetAtTime(v, t, .4);
-      set(amb.windG.gain, (.012 + .03 * Math.min(1, s.height / 12)) * outdoors + .004 * s.indoor);
+      const windK = Math.min(2.2, .45 + (s.windSpeed || 0) / 7);// the real wind speed (m/s) makes the wind louder or quieter
+      set(amb.windG.gain, ((.012 + .03 * Math.min(1, s.height / 12)) * outdoors + .004 * s.indoor) * windK);
+      set(amb.rainG.gain, (s.rain || 0) * (.05 * outdoors + .012 * s.indoor));amb.rainF.frequency.setTargetAtTime(s.indoor > .5 ? 900 : 2600, t, .3);
       amb.windF.frequency.setTargetAtTime(300 + 260 * (.5 + .5 * Math.sin(t * .23)) + 200 * Math.sin(t * .071), t, .8);
       const tr = Math.max(0, 1 - s.traffic / 70);set(amb.trafG.gain, (.012 + .05 * tr * tr) * (outdoors + .25 * s.indoor));
       set(amb.roomG.gain, .03 * s.indoor);set(amb.humG.gain, s.kitchen ? .006 : 0);
