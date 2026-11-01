@@ -29,12 +29,22 @@ Live site: runs `main` (deployed 29 Oct 2026 after PRs #8–#14, version fd96bf7
 
 ## Log
 
+### 2026-11-01 · Paintball: only your team-mates' name tags (issue #25)
+- **What:** during a paintball game you see the name tags of your own team only. Your opponents' names are hidden, so you have to spot them. In the paintball lobby and everywhere else, all name tags show as before.
+- **Why:** the user's issue #25: "See only the same team players' name tags".
+- **Where:** `game-avatars.js` (`update(dt, camera, showTag)`), `game-multiplayer.js` (asks `ctx.showTag(id)`), `game-main.js` (`showTag`: hide when you are in a game and they are playing on the other team), `README.md`.
+- **Checked:**
+  - Three browser tabs in one online lobby joined the paintball lobby; all tags showed.
+  - The admin started team deathmatch. On the blue player's screen the blue team-mate's tag showed and the red opponent's was hidden. On the red player's screen both blue players' tags were hidden.
+  - Node tests 44/44.
+- **Status:** PR (branch `feat/paintball-team-name-tags`, on top of PR #28), closes #25.
+
 ### 2026-11-01 · Other players are arrows on your map (issue #24)
 - **What:** on the map (touchpad / M) every other player in your lobby is now an arrow in their player colour, pointing the way they face, with their name above it. Before they were round dots without a direction. Your own arrow stays dark blue and is drawn on top. The map legend has an "Other players in your lobby" entry.
 - **Why:** the user's issue #24: "See other players' arrows on your own map".
 - **Where:** `game-map.js` (`arrow()`, `player.others`, legend), `game-main.js` (the `others` list passed to `map.draw`; the old dots removed from the POI list), `style.css`, `README.md`.
 - **Checked:** two browser tabs in one online lobby (T3NU). The second player stood 25 m away facing yaw 1.2. In the first tab the map drew one arrow, "Player 527", in that player's colour (#4d9de0), at their position, with exactly their heading. Screenshot checked. Node tests 44/44.
-- **Status:** PR (branch `feat/map-other-players`, on top of PR #27), closes #24.
+- **Status:** PR #28 (branch `feat/map-other-players`, on top of PR #27), closes #24. For the Unreal version: https://github.com/jonatsl/haarklous-ue5/issues/16.
 
 ### 2026-11-01 · The map arrow points the way you face (issue #21)
 - **What:** your arrow on the map (touchpad / M) pointed exactly the opposite way: it was turned 180° too far. It now points where you are facing.
