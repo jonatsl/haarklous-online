@@ -28,9 +28,19 @@ On `main`:
 - Multiplayer on Cloudflare (lobby codes, up to 12 players), passengers in motorcycle / cars / helicopter / plane, text chat with quick chat, lobby-wide voice chat.
 - Soundtrack: 2.5-minute open-world loop plus one loop per minigame and the mission; ambient sound by location.
 
-Live site: runs `main` (deployed 29 Oct 2026 after PRs #8–#14, version fd96bf7e), so everything above is online.
+Live site: runs `main` (deployed 1 Nov 2026 after PRs #18, #19 and #27–#33, version 1e8ad84e), so everything above is online.
 
 ## Log
+
+### 2026-11-01 · `main` is live (PRs #18, #19, #27–#33)
+- **What:** the nine PRs for issues #16, #17 and #20–#26 are merged into `main` and deployed to https://haarklous-online.server-smoke.workers.dev (Cloudflare Worker version 1e8ad84e).
+  - The Worker now also has the `Weather` Durable Object (migration v2) for the real weather.
+- **Why:** the user approved merging all nine and redeploying (1 Nov 2026). `AGENTS.md`: after changing game files, redeploy so the online version matches.
+- **Checked:**
+  - The live page is byte-for-byte the local build (`cloud/public/index.html`).
+  - `/weather` returns MET Norway's forecast (6 hours; 7.4 °C, fair, at the time).
+  - The live game starts, shows the real weather on the pause screen, joins a lobby, and has the jump flight, the Caravan and Torshovoksen. No console errors.
+- **Status:** live.
 
 ### 2026-11-01 · Skydiving (issue #22)
 - **What:** you can go skydiving.
@@ -66,7 +76,7 @@ Live site: runs `main` (deployed 29 Oct 2026 after PRs #8–#14, version fd96bf7
   - The Caravan takes off from the strip (about 110 km/h).
   - With two players online: the other player sits in the right seat in the jump flight, falls belly down, then hangs under a canopy.
   - Haze from 3000 m fixed (the near fog now thins as the view gets longer). No console errors.
-- **Status:** PR #33 (branch `feat/skydiving`, on top of PR #32), closes #22. For the Unreal version: https://github.com/jonatsl/haarklous-ue5/issues/21.
+- **Status:** PR #33 (branch `feat/skydiving`, on top of PR #32), closes #22. For the Unreal version: https://github.com/jonatsl/haarklous-ue5/issues/21. Merged into `main` on 1 Nov 2026 and live (the user approved PRs #18, #19 and #27–#33 together).
 
 ### 2026-11-01 · Torshovoksen at its real place (issue #20)
 - **What:** Oksefontenen, the fountain with "Torshovoksen" (Asbjørg Borgfelt, unveiled 1929), stands in the middle of Hegermanns plass at OpenStreetMap node 331273417 (local −542.0, 204.3).
@@ -87,7 +97,7 @@ Live site: runs `main` (deployed 29 Oct 2026 after PRs #8–#14, version fd96bf7
   - Side and close-up screenshots: the fountain, the basins, the water arcs and the bull with its head down and tail up.
   - Node tests 48/48. New: the place matches the OSM node; the island is clear of buildings; the ring road's edge is more than 6 m from the centre.
   - No console errors.
-- **Status:** PR #32 (branch `feat/torshovoksen`, on top of PR #31), closes #20. For the Unreal version: https://github.com/jonatsl/haarklous-ue5/issues/20.
+- **Status:** PR #32 (branch `feat/torshovoksen`, on top of PR #31), closes #20. For the Unreal version: https://github.com/jonatsl/haarklous-ue5/issues/20. Merged into `main` on 1 Nov 2026 and live (the user approved PRs #18, #19 and #27–#33 together).
 
 ### 2026-11-01 · Real weather from MET Norway (yr.no's data) (issue #23)
 - **What:** the game shows the real weather at Haarklous plass.
@@ -113,7 +123,7 @@ Live site: runs `main` (deployed 29 Oct 2026 after PRs #8–#14, version fd96bf7
   - Made-up heavy rain (8 m/s wind) and snow: screenshots show slanted rain streaks and soft round snowflakes; none inside the flat.
   - Node tests 47/47 (3 new: MET symbols incl. their odd spellings, picking the hour, the text). No console errors.
   - Not live until the Worker is deployed with the new Durable Object.
-- **Status:** PR #31 (branch `feat/real-weather`, on top of PR #30), closes #23. For the Unreal version: https://github.com/jonatsl/haarklous-ue5/issues/19.
+- **Status:** PR #31 (branch `feat/real-weather`, on top of PR #30), closes #23. For the Unreal version: https://github.com/jonatsl/haarklous-ue5/issues/19. Merged into `main` on 1 Nov 2026 and live (the user approved PRs #18, #19 and #27–#33 together).
 
 ### 2026-11-01 · Paintball: players no longer look as if they are under the ground (issue #26)
 - **What:** the paintball yard's ground mesh is now cut out under the yard, as it is under the construction site's soil, so only the yard's flat floor and its retaining walls are there.
@@ -128,7 +138,7 @@ Live site: runs `main` (deployed 29 Oct 2026 after PRs #8–#14, version fd96bf7
   - 9 sight lines at 1.2 m across the yard from the blue base to the red base: none blocked by ground.
   - Screenshots from the blue base (flat floor all the way) and from the high corner outside (the hill meets the retaining walls, no gaps).
   - Node tests 44/44.
-- **Status:** PR #30 (branch `fix/paintball-ground`, on top of PR #29), closes #26. For the Unreal version: https://github.com/jonatsl/haarklous-ue5/issues/18.
+- **Status:** PR #30 (branch `fix/paintball-ground`, on top of PR #29), closes #26. For the Unreal version: https://github.com/jonatsl/haarklous-ue5/issues/18. Merged into `main` on 1 Nov 2026 and live (the user approved PRs #18, #19 and #27–#33 together).
 
 ### 2026-11-01 · Paintball: only your team-mates' name tags (issue #25)
 - **What:** during a paintball game you see the name tags of your own team only. Your opponents' names are hidden, so you have to spot them. In the paintball lobby and everywhere else, all name tags show as before.
@@ -138,21 +148,21 @@ Live site: runs `main` (deployed 29 Oct 2026 after PRs #8–#14, version fd96bf7
   - Three browser tabs in one online lobby joined the paintball lobby; all tags showed.
   - The admin started team deathmatch. On the blue player's screen the blue team-mate's tag showed and the red opponent's was hidden. On the red player's screen both blue players' tags were hidden.
   - Node tests 44/44.
-- **Status:** PR #29 (branch `feat/paintball-team-name-tags`, on top of PR #28), closes #25. For the Unreal version: https://github.com/jonatsl/haarklous-ue5/issues/17.
+- **Status:** PR #29 (branch `feat/paintball-team-name-tags`, on top of PR #28), closes #25. For the Unreal version: https://github.com/jonatsl/haarklous-ue5/issues/17. Merged into `main` on 1 Nov 2026 and live (the user approved PRs #18, #19 and #27–#33 together).
 
 ### 2026-11-01 · Other players are arrows on your map (issue #24)
 - **What:** on the map (touchpad / M) every other player in your lobby is now an arrow in their player colour, pointing the way they face, with their name above it. Before they were round dots without a direction. Your own arrow stays dark blue and is drawn on top. The map legend has an "Other players in your lobby" entry.
 - **Why:** the user's issue #24: "See other players' arrows on your own map".
 - **Where:** `game-map.js` (`arrow()`, `player.others`, legend), `game-main.js` (the `others` list passed to `map.draw`; the old dots removed from the POI list), `style.css`, `README.md`.
 - **Checked:** two browser tabs in one online lobby (T3NU). The second player stood 25 m away facing yaw 1.2. In the first tab the map drew one arrow, "Player 527", in that player's colour (#4d9de0), at their position, with exactly their heading. Screenshot checked. Node tests 44/44.
-- **Status:** PR #28 (branch `feat/map-other-players`, on top of PR #27), closes #24. For the Unreal version: https://github.com/jonatsl/haarklous-ue5/issues/16.
+- **Status:** PR #28 (branch `feat/map-other-players`, on top of PR #27), closes #24. For the Unreal version: https://github.com/jonatsl/haarklous-ue5/issues/16. Merged into `main` on 1 Nov 2026 and live (the user approved PRs #18, #19 and #27–#33 together).
 
 ### 2026-11-01 · The map arrow points the way you face (issue #21)
 - **What:** your arrow on the map (touchpad / M) pointed exactly the opposite way: it was turned 180° too far. It now points where you are facing.
 - **Why:** the user's issue #21: "Make the mini map arrow point in the true direction the player is facing." The heading was `-(yaw - theta) + π`; the `+ π` was wrong.
 - **Where:** `game-main.js` (the `map.draw` call).
 - **Checked:** with the map open, facing four different ways (yaw 0, 1, 2.5, −1.2): the arrow is 0.0° from the true facing (it was 180°). Node tests 44/44.
-- **Status:** PR #27 (branch `fix/map-arrow-direction`, on top of PR #19), closes #21. For the Unreal version: https://github.com/jonatsl/haarklous-ue5/issues/15.
+- **Status:** PR #27 (branch `fix/map-arrow-direction`, on top of PR #19), closes #21. For the Unreal version: https://github.com/jonatsl/haarklous-ue5/issues/15. Merged into `main` on 1 Nov 2026 and live (the user approved PRs #18, #19 and #27–#33 together).
 
 ### 2026-10-29 · Fly with the mouse like in Battlefield; hold Shift to look around (issue #16)
 - **What:**
@@ -172,7 +182,7 @@ Live site: runs `main` (deployed 29 Oct 2026 after PRs #8–#14, version fd96bf7
   - Drone (ANGLE): 250 px up tilts it 32° nose down and it holds; back down levels it; right rolls it right.
   - Plane: mouse down raises the nose.
   - Node tests 44/44.
-- **Status:** PR #19 (branch `feat/mouse-flying`, on top of PR #18), closes #16. For the Unreal version: https://github.com/jonatsl/haarklous-ue5/issues/13.
+- **Status:** PR #19 (branch `feat/mouse-flying`, on top of PR #18), closes #16. For the Unreal version: https://github.com/jonatsl/haarklous-ue5/issues/13. Merged into `main` on 1 Nov 2026 and live (the user approved PRs #18, #19 and #27–#33 together).
 
 ### 2026-10-29 · The distant ground no longer floats above the real ground (issue #17)
 - **What:**
@@ -188,7 +198,7 @@ Live site: runs `main` (deployed 29 Oct 2026 after PRs #8–#14, version fd96bf7
   - The same 150 m above the construction site.
   - With imagery on, the distant photo is the 2048 px one, shown once.
   - Node tests 44/44; no console errors.
-- **Status:** PR #18 (branch `fix/floating-horizon`), closes #17. For the Unreal version: https://github.com/jonatsl/haarklous-ue5/issues/14.
+- **Status:** PR #18 (branch `fix/floating-horizon`), closes #17. For the Unreal version: https://github.com/jonatsl/haarklous-ue5/issues/14. Merged into `main` on 1 Nov 2026 and live (the user approved PRs #18, #19 and #27–#33 together).
 
 ### 2026-10-29 · `main` is live
 - **What:** the game on `main` (PRs #5–#14: jumps, shops, stashes, the Unreal features, the fixes, HODET N.N., Muselunden and the bigger world) is deployed to https://haarklous-online.server-smoke.workers.dev (Cloudflare Worker version fd96bf7e). Before, the live site ran the older branch `feat/ue5-features`.
