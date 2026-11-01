@@ -36,7 +36,10 @@
   // The construction site and the paintball yard (ported from the Unreal version): no trees or bushes grow in them.
   const SITE_DATA = window.SITE, PB_DATA = window.PAINTBALL;
   const holes = [SITE_DATA && {x0: SITE_DATA.rect.x0, s0: SITE_DATA.rect.s0, x1: SITE_DATA.rect.x0 + SITE_DATA.rect.w, s1: SITE_DATA.rect.s0 + SITE_DATA.rect.d, cutGround: true},
-    PB_DATA && {x0: PB_DATA.rect.x0 - 1, s0: PB_DATA.rect.s0 - 1, x1: PB_DATA.rect.x0 + PB_DATA.rect.w + 1, s1: PB_DATA.rect.s0 + PB_DATA.rect.d + 1}].filter(Boolean);
+    PB_DATA && {x0: PB_DATA.rect.x0 - 1, s0: PB_DATA.rect.s0 - 1, x1: PB_DATA.rect.x0 + PB_DATA.rect.w + 1, s1: PB_DATA.rect.s0 + PB_DATA.rect.d + 1},
+    // The yard's own floor and retaining walls replace the ground there: without this cut the hillside was drawn through the
+    // yard, up to 4.6 m above the floor, and players on it looked as if they were under the ground (issue #26).
+    PB_DATA && {x0: PB_DATA.rect.x0, s0: PB_DATA.rect.s0, x1: PB_DATA.rect.x0 + PB_DATA.rect.w, s1: PB_DATA.rect.s0 + PB_DATA.rect.d, cutGround: true}].filter(Boolean);
   const world = window.Surroundings.create({T, lib, data: D, renderer, holes, onStatus: t => {const el = $('imageryStatus');if (el) el.textContent = t;}});
   scene.add(world.near);farScene.add(world.far);world.setSun(sunDir);
   const apt = window.GameApartment.build({T, lib, data: window.APARTMENT});scene.add(apt.group);

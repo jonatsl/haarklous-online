@@ -29,6 +29,21 @@ Live site: runs `main` (deployed 29 Oct 2026 after PRs #8–#14, version fd96bf7
 
 ## Log
 
+### 2026-11-01 · Paintball: players no longer look as if they are under the ground (issue #26)
+- **What:** the paintball yard's ground mesh is now cut out under the yard, as it is under the construction site's soil, so only the yard's flat floor and its retaining walls are there.
+  - Before, the hillside's ground was still drawn through the yard: half the yard had ground above the floor, up to 4.6 m, mostly at the red end.
+  - A player standing correctly on the floor there (feet −27.05 m) had the ground drawn 3.8 m above their feet, so opponents seemed to be under the ground.
+- **Why:** the user's issue #26: "When playing paintball sometimes the opposing players appear to be under ground. Check through how this works, reproduce and fix."
+  - Reproduced with three browser tabs in one online paintball game: positions and the network were right (every player's feet at the floor height on every screen).
+  - The yard sits in a slope (its ground goes from 3.9 m below to 5.1 m above the floor), and the old place had the same problem (up to 4.9 m).
+- **Where:** `game-main.js` (a `cutGround` hole for the exact yard rectangle; the slightly larger tree-free hole stays).
+- **Checked:**
+  - 0 ground triangles left inside the yard (near and outer ground).
+  - 9 sight lines at 1.2 m across the yard from the blue base to the red base: none blocked by ground.
+  - Screenshots from the blue base (flat floor all the way) and from the high corner outside (the hill meets the retaining walls, no gaps).
+  - Node tests 44/44.
+- **Status:** PR (branch `fix/paintball-ground`, on top of PR #29), closes #26.
+
 ### 2026-11-01 · Paintball: only your team-mates' name tags (issue #25)
 - **What:** during a paintball game you see the name tags of your own team only. Your opponents' names are hidden, so you have to spot them. In the paintball lobby and everywhere else, all name tags show as before.
 - **Why:** the user's issue #25: "See only the same team players' name tags".
@@ -37,7 +52,7 @@ Live site: runs `main` (deployed 29 Oct 2026 after PRs #8–#14, version fd96bf7
   - Three browser tabs in one online lobby joined the paintball lobby; all tags showed.
   - The admin started team deathmatch. On the blue player's screen the blue team-mate's tag showed and the red opponent's was hidden. On the red player's screen both blue players' tags were hidden.
   - Node tests 44/44.
-- **Status:** PR (branch `feat/paintball-team-name-tags`, on top of PR #28), closes #25.
+- **Status:** PR #29 (branch `feat/paintball-team-name-tags`, on top of PR #28), closes #25. For the Unreal version: https://github.com/jonatsl/haarklous-ue5/issues/17.
 
 ### 2026-11-01 · Other players are arrows on your map (issue #24)
 - **What:** on the map (touchpad / M) every other player in your lobby is now an arrow in their player colour, pointing the way they face, with their name above it. Before they were round dots without a direction. Your own arrow stays dark blue and is drawn on top. The map legend has an "Other players in your lobby" entry.
