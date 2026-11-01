@@ -1,4 +1,4 @@
-/* Give the Worker its own database login. Run from cloud/ (after `npx supabase login` and `npx wrangler login`):
+/* Give the Worker its own database login. Run from cloud/ (after `npm install`, `npx supabase login` and `npx wrangler login`):
  *   node scripts/set-db-secret.mjs                 new password for haarklous_worker -> Hyperdrive "haarklous-db" (+ BETTER_AUTH_SECRET the first time)
  *   node scripts/set-db-secret.mjs --auth-secret   also a new BETTER_AUTH_SECRET (logs every player out)
  * A random password is made here; Postgres only ever gets its SCRAM hash, and the password itself is never printed.
@@ -14,7 +14,12 @@ import pg from 'pg';
 
 const REF = 'sxhqirmecalxcnyojjki', ROLE = 'haarklous_worker', NAME = 'haarklous-db';
 const HOSTS = ['aws-1-eu-west-1.pooler.supabase.com', 'aws-0-eu-west-1.pooler.supabase.com'];
-const npx = (args, input) => execFileSync('npx', ['--yes', ...args], {input, stdio: ['pipe', 'pipe', 'pipe'], shell: process.platform === 'win32'}).toString();
+// The CLIs installed in cloud/node_modules (npm install), run by this Node itself: no npx download, no shell.
+const CLI = {supabase: 'node_modules/supabase/dist/supabase.js', wrangler: 'node_modules/wrangler/bin/wrangler.js'};
+function npx([cli, ...args], input) {
+  try {return execFileSync(process.execPath, [CLI[cli], ...args], {input, stdio: ['pipe', 'pipe', 'pipe']}).toString();}
+  catch (e) {console.error(`${cli} ${args[0]} ${args[1] || ''} failed:\n${String(e.stderr || e.message).replace(password, '***')}`);process.exit(1);}
+}
 
 function scram(password) {
   const salt = randomBytes(16), salted = pbkdf2Sync(password, salt, 4096, 32, 'sha256');
