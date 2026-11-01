@@ -50,7 +50,7 @@ Live site: runs `main` (deployed 29 Oct 2026 after PRs #8–#14, version fd96bf7
   - Side and close-up screenshots: the fountain, the basins, the water arcs and the bull with its head down and tail up.
   - Node tests 48/48. New: the place matches the OSM node; the island is clear of buildings; the ring road's edge is more than 6 m from the centre.
   - No console errors.
-- **Status:** PR (branch `feat/torshovoksen`, on top of PR #31), closes #20.
+- **Status:** PR #32 (branch `feat/torshovoksen`, on top of PR #31), closes #20. For the Unreal version: https://github.com/jonatsl/haarklous-ue5/issues/20.
 
 ### 2026-11-01 · Real weather from MET Norway (yr.no's data) (issue #23)
 - **What:** the game shows the real weather at Haarklous plass.
