@@ -51,6 +51,8 @@ R3 (keyboard V) switches the view of a machine: from the cab, from outside (the 
 
 **HODET N.N.** (Marianne Heske, 2014): the 7 m bronze doll's head stands at its real place at the north end of Torshovdalen, facing south down the valley, with stone steps on its east side that you can climb and sit on. It is on the map.
 
+**Torshovoksen** (the bull on Oksefontenen, Asbjørg Borgfelt, 1929): the bronze bull charging with its head low stands at its real place on the fountain in the middle of Hegermanns plass, facing south-south-west along Mastrups gate, with its two basins and four water-spouting lizards. It is on the map. The model is a simple likeness.
+
 **Disc golf**: two courses. **Muselunden DiscGolfPark**, the real 12-hole course at its real place by Sinsenkrysset, about 700 m north-east of home (layout "Muselunden 12 hull (2022)", all par 3, 35–106 m; on the map), and two par-3 holes of about 70 m in Torshovdalen. Stand on a tee pad, □ to play. Aim with the camera, hold R2 for power and release to throw; left stick ←/→ adds hyzer/anhyzer. Within 11 m you putt. Chains catch slow discs; scorecard on screen. ○ quits.
 
 **Petanque** (gravel court in the park): □ to play singles against Arne (3 boules each, first to 13). The jack must land 6–10 m away; the player not holding the point throws next; at the end of each mène the leader scores one point per boule closer than the opponent's best; the next circle is where the jack ended. Hold R2 for distance and release; hold L2 to shoot (flat throw that knocks boules). Throws land roughly where you aim, with scatter. The HUD shows the score, mène, boules left, who holds the point and by how much, and distance labels over the boules.

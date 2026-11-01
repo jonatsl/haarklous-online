@@ -19,6 +19,8 @@ On `main`:
 - Firepit with benches, beer crate and woodpile (fire size shared online); beer and aquavit in the apartment (30 s drunk each).
 - Joker and Kiwi shops at their real places with a cashier; money in kroner (start 500 kr, earned from the mission, minigames and bottle deposit), Norwegian beer hours, a bag of bought items (PR #6).
 - Three hidden stashes with 30-second boosts: 3× running speed, 3× jump height or bullet time.
+- Torshovoksen, the bull on Oksefontenen at Hegermanns plass, at its real place (issue #20).
+- Real weather from MET Norway: clouds, fog, rain, sleet and snow, wind (issue #23).
 - HODET N.N., Marianne Heske's 7 m bronze doll's head, at its real place at the north end of Torshovdalen, with its stone steps (PR #12).
 - Construction site (140 × 90 m, two gates, in the south-west of Torshovdalen since PR #12) with seven machines: dozer, 30 t excavator, wheel loader, articulated hauler, 8x4 tipper, mobile crane, tower crane; diggable soil that keeps its volume; R3 / V changes the machine view (PR #8).
 - Paintball course on the valley floor between the sculpture and the site (since PR #12): lobby, admin, teams up to 6 v 6, team deathmatch with respawns or in rounds, capture the flag, paint or reball (PR #8).
@@ -28,6 +30,27 @@ On `main`:
 Live site: runs `main` (deployed 29 Oct 2026 after PRs #8–#14, version fd96bf7e), so everything above is online.
 
 ## Log
+
+### 2026-11-01 · Torshovoksen at its real place (issue #20)
+- **What:** Oksefontenen, the fountain with "Torshovoksen" (Asbjørg Borgfelt, unveiled 1929), stands in the middle of Hegermanns plass at OpenStreetMap node 331273417 (local −542.0, 204.3).
+  - The bronze bull charges with its head low by a rock, tail curled up, facing SSW (bearing 204°) along Mastrups gate.
+  - It stands on a two-tier stone pedestal in a raised basin, inside a larger basin on an octagonal paved island, with four stone lizards spouting water.
+  - The island is a low step you can stand on; the basin is solid. It is on the map ("Torshovoksen").
+- **Why:**
+  - The user's issue #20: "The torshov bull is a popular/well known Landmark. Implement it in its real place."
+  - Research (Oslo kommune's art collection OKK.00070, OSM, Wikipedia, photos):
+    - the official name is Oksefontenen; "Torshovoksen" is its popular name (OSM alt_name; Skeid's supporters "Oksene" are named after it);
+    - bronze bull, larvikite basins and plinth;
+    - the facing is inferred from photos;
+    - the sizes are estimates (±20 %); there are no published measurements.
+  - The sculpture is under copyright until 2047 (Norway has no freedom of panorama for artworks), so the model is a simple likeness, not a copy, and no photos are shipped.
+- **Where:** `game-sculpture.js` (`createFountain`), `game-main.js` (place, collision, map), `tests/places.test.cjs`, `README.md`, `docs/HANDOFF.md`.
+- **Checked:**
+  - In the game: the island sits on the street (0.05 m above the centre's ground), and the bull faces 204.0°.
+  - Side and close-up screenshots: the fountain, the basins, the water arcs and the bull with its head down and tail up.
+  - Node tests 48/48. New: the place matches the OSM node; the island is clear of buildings; the ring road's edge is more than 6 m from the centre.
+  - No console errors.
+- **Status:** PR (branch `feat/torshovoksen`, on top of PR #31), closes #20.
 
 ### 2026-11-01 · Real weather from MET Norway (yr.no's data) (issue #23)
 - **What:** the game shows the real weather at Haarklous plass.
@@ -53,7 +76,7 @@ Live site: runs `main` (deployed 29 Oct 2026 after PRs #8–#14, version fd96bf7
   - Made-up heavy rain (8 m/s wind) and snow: screenshots show slanted rain streaks and soft round snowflakes; none inside the flat.
   - Node tests 47/47 (3 new: MET symbols incl. their odd spellings, picking the hour, the text). No console errors.
   - Not live until the Worker is deployed with the new Durable Object.
-- **Status:** PR (branch `feat/real-weather`, on top of PR #30), closes #23.
+- **Status:** PR #31 (branch `feat/real-weather`, on top of PR #30), closes #23. For the Unreal version: https://github.com/jonatsl/haarklous-ue5/issues/19.
 
 ### 2026-11-01 · Paintball: players no longer look as if they are under the ground (issue #26)
 - **What:** the paintball yard's ground mesh is now cut out under the yard, as it is under the construction site's soil, so only the yard's flat floor and its retaining walls are there.
