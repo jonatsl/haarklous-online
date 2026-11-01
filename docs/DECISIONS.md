@@ -49,7 +49,7 @@ Live site: runs `main` (Worker version cacad9aa, deployed 1 Nov 2026; PR #34 mer
   - Node tests 57/57, including a new one: a server that never answers gives the "did not answer" message and the form is ready again.
   - Better Auth's code (`api/routes/sign-up.mjs` line 144: `runWithTransaction`, line 214: `password.hash`, both inside) confirms the order.
   - The real sign-up can only be tried on the live site, by the user (Claude does not create accounts there).
-- **Status:** PR (branch `fix/account-signup-hang`), not merged yet. After deploying: apply the SQL change, and end the stuck connection (`pg_terminate_backend` for `haarklous_worker` "idle in transaction"; it rolls back nothing).
+- **Status:** PR #37 (branch `fix/account-signup-hang`), not merged yet. After deploying: apply the SQL change, and end the stuck connection (`pg_terminate_backend` for `haarklous_worker` "idle in transaction"; it rolls back nothing).
 
 ### 2026-11-01 · Player accounts with email and password (Better Auth + Supabase)
 - **What:** an optional **Account** section in the pause menu: create an account (player name, email, password of at least 8 characters), log in, log out. You stay logged in for 30 days. When logged in, your account name becomes your name in the lobbies. Playing still needs no account, and the offline file shows where accounts work.
