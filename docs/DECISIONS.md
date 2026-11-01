@@ -30,7 +30,7 @@ On `main`:
 
 Live site: runs `main` (deployed 1 Nov 2026 after PRs #18, #19 and #27–#33, version 1e8ad84e), so everything above is online.
 
-On branch `feat/accounts` (live since 1 Nov 2026, not merged into `main` yet):
+On branch `feat/accounts`, PR #34 (live since 1 Nov 2026, not merged into `main` yet):
 - Player accounts (optional): create an account or log in with email and password in the pause menu; your account name is your lobby name.
 
 ## Log
@@ -55,7 +55,7 @@ On branch `feat/accounts` (live since 1 Nov 2026, not merged into `main` yet):
   - The first deploy (Worker version a8bb1af2) and the commit "Accounts are live" picked up its unfinished changes.
   - The next commit takes them out of this branch; the skydiving work itself stays untouched on disk.
   - The site was redeployed from a clean copy of the branch (Worker version cacad9aa). The live page is byte-for-byte that clean build.
-- **Status:** branch `feat/accounts`, live (Worker version cacad9aa). The live site now runs this branch, which is `main` plus accounts.
+- **Status:** branch `feat/accounts`, PR https://github.com/jonatsl/haarklous-online/pull/34, live (Worker version cacad9aa). The live site now runs this branch, which is `main` plus accounts.
 
 ### 2026-11-01 · `main` is live (PRs #18, #19, #27–#33)
 - **What:** the nine PRs for issues #16, #17 and #20–#26 are merged into `main` and deployed to https://haarklous-online.server-smoke.workers.dev (Cloudflare Worker version 1e8ad84e).
