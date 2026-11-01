@@ -1,0 +1,13 @@
+{
+  "name": "haarklous-online",
+  "private": true,
+  "description": "Haarklous online on Cloudflare: the game, the lobbies, the weather and the player accounts (Better Auth + Supabase).",
+  "type": "module",
+  "scripts": {
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "better-auth": "^1.7.15",
+    "pg": "^8.23.1"
+  }
+}

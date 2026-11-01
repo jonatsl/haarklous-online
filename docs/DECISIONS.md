@@ -30,7 +30,23 @@ On `main`:
 
 Live site: runs `main` (deployed 1 Nov 2026 after PRs #18, #19 and #27–#33, version 1e8ad84e), so everything above is online.
 
+On branch `feat/accounts` (not merged, not live yet):
+- Player accounts (optional): create an account or log in with email and password in the pause menu; your account name is your lobby name.
+
 ## Log
+
+### 2026-11-01 · Player accounts with email and password (Better Auth + Supabase)
+- **What:** an optional **Account** section in the pause menu: create an account (player name, email, password of at least 8 characters), log in, log out. You stay logged in for 30 days. When logged in, your account name becomes your name in the lobbies. Playing still needs no account, and the offline file shows where accounts work.
+  - The Worker runs Better Auth at `/api/auth/*`. Accounts are stored in the Supabase project "Haarklous Online" (ref `sxhqirmecalxcnyojjki`, Ireland), in the schema `game_auth` (tables `user`, `session`, `account`, `verification`).
+  - The Worker reaches Supabase through Cloudflare Hyperdrive (`haarklous-db`, query cache off). Workers' own network sockets do not accept Supabase's self-signed certificate.
+  - The Worker logs in as its own database role `haarklous_worker`, which can use only `game_auth` and bcrypt. Its random password is made by `cloud/scripts/set-db-secret.mjs`; Postgres only ever sees its SCRAM hash, and nobody has to type or see it.
+  - Passwords are hashed by Postgres (bcrypt, cost 10), not by Better Auth's scrypt in JavaScript, which uses more CPU than a free Worker gets.
+  - Better Auth's rate limit: 30 tries a minute.
+- **Why:** the user asked for "login with email and password using betterauth and supabase" (1 Nov 2026). The user made the Supabase organisation and project and logged the Supabase CLI in. Login is optional so the offline file and friends without an account keep working (our choice).
+- **Not yet:** no email is sent, so there is no email check and no "forgot password". That needs an email service (e.g. Resend). Accounts do not save anything yet (progress, money, etc.).
+- **Where:** `game-account.js` (new), `index.html`, `style.css`, `game-main.js` (pause menu), `cloud/src/auth.js` (new), `cloud/src/index.js`, `cloud/wrangler.toml` (`nodejs_compat`, Hyperdrive), `cloud/package.json` (better-auth 1.7.15, pg), `cloud/sql/accounts.sql` (applied to Supabase), `cloud/scripts/set-db-secret.mjs`, `tests/account.test.cjs`, `README.md`.
+- **Checked:** `node --test tests/*.cjs` (59 pass); `wrangler deploy --dry-run` bundles (373 KB gzip); in the browser with `wrangler dev`, the pause menu shows the form, the sign-up switch works, a short password is caught, and the server answers "not set up yet" cleanly. Tables are created in Supabase.
+- **Status:** branch `feat/accounts`. Not live: the user must run `node scripts/set-db-secret.mjs` in `cloud/` once (Claude Code may not write Cloudflare secrets), then deploy and test a real sign-up.
 
 ### 2026-11-01 · `main` is live (PRs #18, #19, #27–#33)
 - **What:** the nine PRs for issues #16, #17 and #20–#26 are merged into `main` and deployed to https://haarklous-online.server-smoke.workers.dev (Cloudflare Worker version 1e8ad84e).
