@@ -12,7 +12,7 @@ On `main`:
 - Open world around Haarklous plass 17A, Torshov: real buildings and streets (OpenStreetMap), real ground heights (Kartverket), optional aerial photos; walkable out to about 760 m (540 m before PR #13), drawn properly everywhere you can walk.
 - Your 4th-floor apartment (your kitchen + bedroom design) and stairwell; the street door and stairs work without the mission; eight neighbouring stairwells.
 - Walking (3.5 m/s), running, crouch (tap ○), prone (hold ○), jump (✕); PS4 controller (USB / Bluetooth) plus keyboard and mouse; look sensitivity setting.
-- Vehicles: Honda CBF600S motorcycle and 7 more motorcycles, 30 cars, excavator, helicopter, two-seat plane; hands on bars / wheel / sticks.
+- Vehicles: Honda CBF600S motorcycle and 7 more motorcycles, 30 cars, excavator, helicopter, two-seat plane, Caravan jump plane; hands on bars / wheel / sticks.
 - Cars and motorcycles follow gravity (9.81 m/s²) and fly over crests and bumps taken fast (PR #5).
 - FPV drone (hold △), photo camera with gallery (tap △), wristwatch (D-pad ↑), map (touchpad).
 - Minigames: the real Muselunden DiscGolfPark (12 holes, PR #13) and two disc golf holes in Torshovdalen, petanque against Arne; hostage-rescue mission (start at the red ring by the entrance); stay home after the mission.
@@ -21,6 +21,7 @@ On `main`:
 - Three hidden stashes with 30-second boosts: 3× running speed, 3× jump height or bullet time.
 - Torshovoksen, the bull on Oksefontenen at Hegermanns plass, at its real place (issue #20).
 - Real weather from MET Norway: clouds, fog, rain, sleet and snow, wind (issue #23).
+- Skydiving: a jump flight to 3000 m every 8 minutes for the whole lobby, or a player flies the Caravan jump plane; freefall, canopy, landing (issue #22).
 - HODET N.N., Marianne Heske's 7 m bronze doll's head, at its real place at the north end of Torshovdalen, with its stone steps (PR #12).
 - Construction site (140 × 90 m, two gates, in the south-west of Torshovdalen since PR #12) with seven machines: dozer, 30 t excavator, wheel loader, articulated hauler, 8x4 tipper, mobile crane, tower crane; diggable soil that keeps its volume; R3 / V changes the machine view (PR #8).
 - Paintball course on the valley floor between the sculpture and the site (since PR #12): lobby, admin, teams up to 6 v 6, team deathmatch with respawns or in rounds, capture the flag, paint or reball (PR #8).
@@ -30,6 +31,42 @@ On `main`:
 Live site: runs `main` (deployed 29 Oct 2026 after PRs #8–#14, version fd96bf7e), so everything above is online.
 
 ## Log
+
+### 2026-11-01 · Skydiving (issue #22)
+- **What:** you can go skydiving.
+  - A Cessna 208 Caravan jump plane stands at the airstrip in Torshovdalen ("Skydiving" on the map).
+  - **Jump flight:** every 8 minutes a jump flight leaves from the north end of the strip. Everybody in the lobby sees the same plane, because its path follows the lobby's shared clock.
+    - □ boards while it waits (the prompt counts down).
+    - It climbs in a spiral to 3000 m (the climb is sped up, about 2.5 minutes), opens the door and gives a 60-second green light: ✕ / Space jumps.
+    - Anyone still on board when it flies off is put back at the airstrip.
+  - **Or a player flies the Caravan:** it has the plane's flight model with the Caravan's numbers and automatic take-off flaps. Others board at the door (□) and can jump once it is above 300 m.
+  - **Places:** 12 places on two benches, facing the tail; in a lobby your place is your player number.
+  - **Freefall:** about 54 m/s belly down, drifted by the real wind.
+    - Left stick / W A S D: track forward, back-slide, turn.
+    - A beep at 1500 m and "PULL!" at 1000 m; ✕ / Space pulls.
+    - The reserve opens by itself at 300 m if you are still falling fast.
+  - **Canopy:** opens over 3 s, then about 10 m/s forward and 5 m/s down.
+    - Toggles steer, front risers dive, and the flare (↓ / S) slows you for about 3 s and then stalls.
+    - Landing: under 3.5 m/s down is soft, under 6 m/s hard, more is a crash (you get up again).
+  - R3 / V gives a view from behind you.
+  - **Online:** other players see you sitting in the plane, falling belly down and under a canopy in your colour.
+- **Why:** the user's issue #22: "Implement skydiving in the game. Jumping from an airplane (find the most popular airplane for skydiving)."
+  - The Cessna 208 Caravan is the most common jump plane at drop zones worldwide (turbine, 15+ jumpers, big door).
+  - Freefall speed (about 200 km/h belly down), the 3000–4000 m jump height, the pull height of about 1000 m and the automatic reserve opener follow normal sport-parachuting practice.
+  - The jump flight lets people skydive without a pilot. The flown Caravan keeps it a multiplayer thing.
+- **Where:**
+  - `game-skydive.js` (new: jumper physics, flight schedule, canopy model).
+  - `game-aircraft.js` (`JumpPlane`, take-off flaps `flapsCl`).
+  - `game-main.js` (boarding, jump seat, skydive mode, camera, HUD, map marker, Caravan help).
+  - `game-multiplayer.js` (others in the jump flight, freefall and canopy poses).
+  - `index.html`, `README.md`, `tests/skydive.test.cjs`, `docs/HANDOFF.md`.
+- **Checked:**
+  - Node tests 53/53. New: terminal speed; tracking; the AAD; the canopy flare gives a soft landing and no flare a hard one; the flight schedule is continuous and banks the right way.
+  - In the browser: boarding, the climb, the green light, the jump, freefall, the canopy and a soft landing with a flare.
+  - The Caravan takes off from the strip (about 110 km/h).
+  - With two players online: the other player sits in the right seat in the jump flight, falls belly down, then hangs under a canopy.
+  - Haze from 3000 m fixed (the near fog now thins as the view gets longer). No console errors.
+- **Status:** PR (branch `feat/skydiving`, on top of PR #32), closes #22.
 
 ### 2026-11-01 · Torshovoksen at its real place (issue #20)
 - **What:** Oksefontenen, the fountain with "Torshovoksen" (Asbjørg Borgfelt, unveiled 1929), stands in the middle of Hegermanns plass at OpenStreetMap node 331273417 (local −542.0, 204.3).

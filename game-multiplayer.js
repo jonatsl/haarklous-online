@@ -101,7 +101,7 @@
       for (const r of remotes.values()) {
         const st = r.st;if (!st) {r.av.group.visible = false;continue;}
         const g = r.av.group;g.visible = true;let stance = st.st || 'stand';
-        const vi = st.v ?? -1, anchor = vi >= 0 && vehicles[vi] ? vehicles[vi].hipAnchor(st.s) : null;
+        const vi = st.v ?? -1, anchor = vi >= 0 && vehicles[vi] ? vehicles[vi].hipAnchor(st.s) : st.ja != null && ctx.autoAnchor ? ctx.autoAnchor(st.ja) : null;
         if (anchor) {
           anchor.obj.updateWorldMatrix(true, false);g.position.copy(anchor.obj.localToWorld(anchor.pos.clone()));g.quaternion.copy(anchor.obj.getWorldQuaternion(new T.Quaternion()));stance = anchor.stance;r.pos.copy(g.position);r.speed = 0;
         } else {
@@ -110,6 +110,7 @@
           const before = r.pos.clone(), k = 1 - Math.exp(-dt * 10);r.pos.lerp(target, k);r.yaw = angLerp(r.yaw, st.y || 0, k);
           r.speed += ((dt > 0 ? before.distanceTo(r.pos) / dt : 0) - r.speed) * Math.min(1, dt * 6);
           g.position.copy(r.pos);g.quaternion.setFromEuler(new T.Euler(0, r.yaw, 0));
+          if (ctx.skyPose) ctx.skyPose(r, st, g);// skydiving: belly-down in freefall, a canopy over them (game-main)
           if (st.sit) stance = 'sit';
         }
         r.seen = true;r.av.pose({stance, speed: stance === 'stand' || stance === 'crouch' || stance === 'prone' ? r.speed : 0, dt, beer: !!st.b, marker: ctx.holdsMarker ? ctx.holdsMarker(r.id) : false});r.av.update(dt, cam, ctx.showTag ? ctx.showTag(r.id) : true);

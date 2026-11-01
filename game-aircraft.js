@@ -4,7 +4,9 @@
  *               ←→ yaw (pedals, rudder; nose-wheel steering on the ground)
  *   right stick ↑↓ pitch (pull back = nose up), ←→ roll
  * Bodies are rigid: position, velocity, orientation quaternion and body rates (x pitch up, y yaw left, z roll left).
- * GameAircraft.create({T, lib, audio, heightAt, collision, worldFor}) -> {Helicopter, Plane, Drone}
+ * GameAircraft.create({T, lib, audio, heightAt, collision, worldFor}) -> {Helicopter, Plane, JumpPlane, Drone}
+ *   JumpPlane: the Cessna 208 Caravan (skydiving, issue #22): the Plane's flight model, 12 jumper places (hips j0..j11,
+ *   seatWorld(i)), door (doorWorld())
  * Helicopter/Plane: {group, kind, name, aircraft: true, x, y, z, yaw, speed, grounded, forward(), footprint(), enter(), exit(),
  *   update(dt, {lx, ly, rx, ry, brake, hold}), cameraPose(chase), hud()}  hold: flying by mouse (Battlefield style), keep the
  *   tilt the mouse gave instead of levelling (helicopter; in the drone's angle mode the mouse moves the tilt)
@@ -191,6 +193,12 @@
         this.mass = 700;this.S = 14;this.Tmax = 3600;this.throttle = 0;this.prop = 0;
         this.seat = V3(0, .84, .3);this.seatPitch = -.06;this.chaseDist = 14;
         this.hips = {d: {pos: V3(0, -.04, .45)}, p: {pos: V3(0, -.02, 1.32)}};this.passengerEye = V3(0, .9, 1.22);
+        this.build();
+        this.reset();
+      }
+      // The sport plane's model (a subclass builds its own with the same moving parts: propG, bladeMat, pdisc, stick, lever,
+      // elevator, rudder, ailerons, hands, armGroup).
+      build() {
         const g = this.group, white = paintMat(0xf4f5f2), blue = paintMat(0x1d4f9c), glass = glassMat(), shell = paintMat(0xf4f5f2);shell.side = T.DoubleSide;
         // Fuselage (lathe, nose at -z): nose and tail closed, the cockpit section open on top under the canopy so you can see
         // the panel, stick and your hands from the seat. Cowling stripe, canopy bubble.
@@ -231,7 +239,6 @@
         this.addArm(this.hands[0], [.2, .2, .32]);this.addArm(this.hands[1], [-.3, .2, .38]);
         g.traverse(o => {if (o.isMesh && o.material === glass) o.castShadow = false;});
         [this.propG, this.elevator, this.rudder, this.stick, this.lever, this.armGroup, ...this.ailerons].forEach(o => {o.userData.noMerge = true;});lib.mergeStatic(g);
-        this.reset();
       }
       reset() {super.reset();this.throttle = 0;}
       enter() {this.enterCommon();this.engine = audio.engine('plane');audio.sfx('starter');this.prop = 700;}
@@ -250,7 +257,8 @@
         const prev = this.pos.clone(), {f, u, r} = this.axes(), v = this.vel, V = v.length(), vb = this.bodyVel();
         const alpha = V > 2 ? Math.atan2(-vb.y, -vb.z) : 0, beta = V > 2 ? Math.atan2(vb.x, -vb.z) : 0, qS = .5 * RHO * V * V * this.S;
         // Lift with a stall above about 15°, induced drag, a side force that stops sideslip, and propeller thrust that fades with speed.
-        const a0 = .3, clMax = .25 + 4.8 * a0;let CL = Math.abs(alpha) < a0 ? .25 + 4.8 * alpha : Math.sign(alpha) * clMax * Math.max(.45, 1 - (Math.abs(alpha) - a0) * 2.5);
+        // Flaps (the Caravan, flapsCl): extra lift below about 50 m/s for take-off and landing, gone by 65 m/s (the sport plane has none).
+        const cl0 = .25 + (this.flapsCl || 0) * clamp((65 - V) / 15, 0, 1), a0 = .3, clMax = cl0 + 4.8 * a0;let CL = Math.abs(alpha) < a0 ? cl0 + 4.8 * alpha : Math.sign(alpha) * clMax * Math.max(.45, 1 - (Math.abs(alpha) - a0) * 2.5);
         if (vb.z > 0) CL = 0;
         const vhat = V > .1 ? v.clone().divideScalar(V) : f.clone(), F = V3();
         F.addScaledVector(V3().crossVectors(r, vhat).normalize(), qS * CL);
@@ -293,6 +301,83 @@
     // ---------- FPV drone (5-inch quad, about 650 g) ----------
     // Angle mode: the right stick sets the tilt and it levels itself; thrust holds altitude with the left stick centred.
     // Acro mode: the right stick sets rotation rates (flips and rolls), nothing self-levels – real freestyle FPV.
+    // ---------- Cessna 208B Grand Caravan jump plane (issue #22): 12.7 m long, 15.9 m high wing, 26 m², turboprop ----------
+    // The sport plane's flight model with the Caravan's numbers (2.6 t lightly loaded, 13 kN of static thrust, automatic
+    // take-off flaps: it lifts off at about 30 m/s after some 130 m, so it gets off the 280 m grass strip). Twelve jumper places on two benches in the cabin and a roll-up door
+    // on the left behind the wing. Model frame: nose at -z, the origin on the centre line at the cabin floor + 0.6 m.
+    class JumpPlane extends Plane {
+      constructor(x, z, yaw) {
+        super(x, z, yaw);
+        Object.assign(this, {kind: 'jumpplane', name: 'Cessna 208 Caravan jump plane', length: 12.7, width: 15.9, height: 4.5, radius: 4.5, top: 3.0, crashSpeed: 9,
+          exitSide: 1.9, exitFwd: 3.3, mass: 2600, S: 25.96, Tmax: 13000, flapsCl: .55, chaseDist: 26, seatPitch: -.04});
+        this.rects = [[0, 0, 12.6, 1.8], [-.6, 0, .5, 4.2]];// fuselage, main gear legs (the high wing and tail are above head height)
+        this.seat = V3(-.42, .5, -3.35);
+        this.hips = {d: {pos: V3(-.42, -.2, -3.15)}, p: {pos: V3(.42, -.2, -3.15)}};this.passengerEye = V3(.42, .5, -3.35);
+        // Jumpers sit on two benches along the cabin, facing the tail; place n = n-th player in the lobby.
+        this.jumpSeats = [];for (let k = 0; k < 6; k++) for (const sx of [-1, 1]) this.jumpSeats.push(V3(sx * .42, -.32, -2.3 + k * .82));
+        for (let i = 0; i < 12; i++) this.hips['j' + i] = {pos: this.jumpSeats[i], yaw: Math.PI};
+        this.door = V3(-1.05, .0, 1.55);// just outside the roll-up door
+        this.gearH = 1.55;this.reset();
+      }
+      hipAnchor(seat) {const h = this.hips[seat];return h ? {obj: this.group, pos: h.pos, stance: 'sit'} : null;}
+      doorWorld() {this.group.updateMatrixWorld(true);return this.door.clone().applyMatrix4(this.group.matrixWorld);}
+      seatWorld(i) {this.group.updateMatrixWorld(true);return this.jumpSeats[i % 12].clone().applyMatrix4(this.group.matrixWorld);}
+      build() {
+        const g = this.group, white = paintMat(0xf2f3f1), blue = paintMat(0x1f4f9a), red = paintMat(0xc8322c), glass = glassMat(), shell = paintMat(0xf2f3f1);shell.side = T.DoubleSide;
+        const inner = new T.MeshStandardMaterial({color: 0x5a5f66, roughness: .85, side: T.DoubleSide}), floorM = new T.MeshStandardMaterial({color: 0x3a3d42, roughness: .9});
+        // Cabin: a squarish tube 1.64 x 1.6 m, open at the door; nose cone with the engine cowling; tail cone rising to the fin.
+        const cabin = (z0, z1, sideOpen) => {
+          const L = z1 - z0, zc = (z0 + z1) / 2;
+          box(g, 1.64, .06, L, 0, -.62, zc, floorM);box(g, 1.64, .06, L, 0, .98, zc, shell);
+          box(g, .05, 1.6, L, .82, .18, zc, shell);
+          if (!sideOpen) box(g, .05, 1.6, L, -.82, .18, zc, shell);
+          else {box(g, .05, 1.6, 1.1, -.82, .18, z0 + .55, shell);box(g, .05, .3, L - 1.1, -.82, .83, (z0 + 1.1 + z1) / 2, shell);}
+        };
+        cabin(-4.3, .9, false);cabin(.9, 2.25, true);// the door opening: 1.35 m wide, 1.3 m high, left side behind the wing
+        box(g, 1.62, 1.56, .04, 0, .18, 2.27, inner);// cabin back wall
+        for (let k = 0; k < 4; k++) for (const sx of [-1, 1]) box(g, .02, .32, .38, sx * .845, .45, -2.2 + k * .95, glass);// windows
+        const prof = (pts, z, mat, sc = [1, 1]) => {const l = new T.LatheGeometry(pts.map(([r, y]) => new T.Vector2(r, y)), 20);l.rotateX(Math.PI / 2);l.translate(0, 0, z);const m = mesh(g, l, mat);m.scale.set(sc[0], sc[1], 1);return m;};
+        prof([[0, 0], [.22, .15], [.5, .7], [.62, 1.5], [.68, 2.0]], -6.3, white, [1.2, 1.2]);// nose and cowling, at -6.3 .. -4.3
+        prof([[.95, 0], [.86, 1.4], [.55, 2.8], [.3, 3.9], [.12, 4.15]], 2.25, white, [.86, .9]).position.y = .2;// tail cone
+        box(g, 1.7, .08, 9.2, 0, -.5, -1.6, blue);// belly stripe
+        box(g, .02, .14, 6.6, .84, .32, -.9, red);box(g, .02, .14, 6.6, -.84, .32, -1.5, red);// cheat lines
+        // Windscreen and cockpit.
+        const ws = box(g, 1.5, .55, .05, 0, .65, -4.25, glass);ws.rotation.x = -.6;
+        box(g, 1.3, .3, .1, 0, .2, -3.95, dark);for (let i = 0; i < 6; i++) {const gg = mesh(g, new T.CylinderGeometry(.04, .04, .01, 16), gaugeM, -.5 + i * .2, .24, -3.89);gg.rotation.x = Math.PI / 2;}
+        for (const sx of [-1, 1]) {box(g, .5, .1, .5, sx * .42, -.42, -3.1, seatM);const bk = box(g, .5, .7, .1, sx * .42, -.05, -2.82, seatM);bk.rotation.x = -.2;}
+        for (const sx of [-1, 1]) box(g, .32, .34, 4.9, sx * .42, -.45, -.05, seatM);// the two jumper benches
+        // High wing with struts, flaps and ailerons.
+        const planform = new T.Shape();planform.moveTo(-7.95, -.95);planform.lineTo(7.95, -.95);planform.lineTo(7.95, .95);planform.lineTo(-7.95, .95);planform.closePath();
+        const wing = new T.ExtrudeGeometry(planform, {depth: .18, bevelEnabled: true, bevelThickness: .04, bevelSize: .04, bevelSegments: 2});wing.rotateX(Math.PI / 2);
+        mesh(g, wing, white, 0, 1.18, -2.2);
+        for (const sx of [-1, 1]) {rod(g, [sx * .8, -.45, -2.35], [sx * 3.4, 1.05, -2.35], .045, metal);box(g, .08, .1, 1.9, sx * 7.95, 1.05, -2.2, red);}
+        this.ailerons = [-1, 1].map(s => {const hinge = new T.Group();hinge.position.set(s * 5.6, 1.04, -1.25);g.add(hinge);box(hinge, 3.4, .07, .4, 0, 0, .2, white);return hinge;});
+        // Tail: stabilizer with elevator, fin with rudder (the fin top is about 4.5 m above the ground).
+        box(g, 6.2, .1, .9, 0, .75, 5.65, white);
+        this.elevator = new T.Group();this.elevator.position.set(0, .75, 6.1);g.add(this.elevator);box(this.elevator, 6.0, .08, .45, 0, 0, .22, white);
+        const finS = new T.Shape();finS.moveTo(0, 0);finS.lineTo(1.9, 0);finS.lineTo(1.5, 2.55);finS.lineTo(.9, 2.55);finS.closePath();
+        const finG = new T.ExtrudeGeometry(finS, {depth: .1, bevelEnabled: false});finG.translate(0, 0, -.05);finG.rotateY(-Math.PI / 2);mesh(g, finG, white, 0, .4, 4.6);
+        this.rudder = new T.Group();this.rudder.position.set(0, .4, 6.45);g.add(this.rudder);box(this.rudder, .08, 2.4, .45, 0, 1.25, .22, blue);
+        // Fixed tricycle gear on spring legs.
+        for (const s of [-1, 1]) {rod(g, [s * .7, -.6, -.6], [s * 1.95, -1.17, -.6], .06, metal);const w = mesh(g, new T.CylinderGeometry(.38, .38, .22, 20), rubber, s * 1.95, -1.17, -.6);w.rotation.z = Math.PI / 2;}
+        rod(g, [0, -.6, -5.3], [0, -1.25, -5.45], .06, metal);const nw = mesh(g, new T.CylinderGeometry(.3, .3, .16, 18), rubber, 0, -1.25, -5.45);nw.rotation.z = Math.PI / 2;
+        // Three-blade propeller.
+        this.propG = new T.Group();this.propG.position.set(0, .05, -6.35);g.add(this.propG);
+        const spin = mesh(this.propG, new T.ConeGeometry(.22, .5, 18), blue, 0, 0, -.22);spin.rotation.x = -Math.PI / 2;
+        this.bladeMat = new T.MeshStandardMaterial({color: 0x202124, roughness: .5, transparent: true, opacity: 1});
+        for (let i = 0; i < 3; i++) {const bg = new T.Group();bg.rotation.z = i * Math.PI * 2 / 3;this.propG.add(bg);const b = box(bg, .16, 1.3, .05, 0, .7, 0, this.bladeMat);b.rotation.y = .3;}
+        this.pdisc = mesh(this.propG, new T.CircleGeometry(1.35, 32), new T.MeshBasicMaterial({color: 0x2a2b2e, transparent: true, opacity: 0, side: T.DoubleSide, depthWrite: false}));this.pdisc.castShadow = false;
+        // Pilot's control column (works like the stick in the flight model) and the power lever.
+        this.stick = new T.Group();this.stick.position.set(-.42, -.05, -3.8);g.add(this.stick);rod(this.stick, [0, 0, 0], [0, .38, .12], .02, dark);rod(this.stick, [-.16, .38, .12], [.16, .38, .12], .022, dark);
+        this.lever = new T.Group();this.lever.position.set(0, .05, -3.75);g.add(this.lever);rod(this.lever, [0, 0, 0], [0, .16, -.06], .012, dark);
+        this.armGroup = new T.Group();g.add(this.armGroup);this.armGroup.visible = false;
+        this.hands = [hand(this.stick, .12, .38, .12, stickGrip, false), hand(this.lever, 0, .16, -.06, new T.Euler(0, 0, 0), true)];this.hands.forEach(h => {h.visible = false;});
+        this.addArm(this.hands[0], [-.15, .1, -3.3]);this.addArm(this.hands[1], [-.15, .1, -3.25]);
+        g.traverse(o => {if (o.isMesh && o.material === glass) o.castShadow = false;});
+        [this.propG, this.elevator, this.rudder, this.stick, this.lever, this.armGroup, ...this.ailerons].forEach(o => {o.userData.noMerge = true;});lib.mergeStatic(g);
+      }
+    }
+
     class Drone {
       constructor() {this.pos = V3();this.vel = V3();this.q = new T.Quaternion();this.mode = 'angle';this.battery = 1;this.armed = false;this.crashed = false;this.yawA = 0;this.pitchA = 0;this.rollA = 0;this.time = 0;this.thrust = 0;this.home = V3();this.engine = null;}
       launch(x, y, z, yaw) {this.pos.set(x, y + .06, z);this.home.copy(this.pos);this.vel.set(0, 0, 0);this.yawA = yaw;this.pitchA = this.rollA = 0;this.q.setFromEuler(new T.Euler(0, yaw, 0, 'YXZ'));this.battery = 1;this.armed = true;this.crashed = false;this.time = 0;this.landed = true;audio.sfx('arm');this.engine = audio.engine('drone');}
@@ -342,7 +427,7 @@
         return {mode: this.mode === 'angle' ? 'ANGLE' : 'ACRO', battery: Math.round(this.battery * 100), volts: volts.toFixed(1), alt: Math.max(0, this.pos.y - groundY), speed: this.vel.length() * 3.6, time: this.time, dist: Math.hypot(this.pos.x - this.home.x, this.pos.z - this.home.z), armed: this.armed, crashed: this.crashed, thrust: this.thrust};
       }
     }
-    return {Helicopter, Plane, Drone};
+    return {Helicopter, Plane, JumpPlane, Drone};
   }
   return {create};
 });
