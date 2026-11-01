@@ -3,7 +3,7 @@
  * bushes, courtyard dressing, street lamps; sky and the hills around Oslo. Ground texture: an offline map
  * painting; when online and allowed, Esri World Imagery is fetched live and painted onto the terrain.
  * Surroundings.create({T, lib, data, renderer, onStatus}) -> {
- *   near, far, setImagery(on), setSun(dir), attribution,
+ *   near, far, setImagery(on), setSun(dir), setOvercast(0..1), attribution,
  *   heightWorld(x, z) -> y, toLocal(x, z) -> {x, s}, toWorld(x, s) -> {x, z},
  *   terrainFloor() (walk-collision floor), obstacles() (buildings, trees, lamp posts, bushes, hedges, in model coordinates),
  *   surfaceAt(x, z) -> 'grass'|'asphalt'|'gravel'|'sand'|'none', trafficDistance(x, z), greenery(x, z) -> 0..1 }
@@ -362,16 +362,18 @@
     // ---------- Sky and hills ----------
     const sunDirection = new T.Vector3(0, 1, 0);
     const sky = new T.Mesh(new T.SphereGeometry(20000, 48, 24), new T.ShaderMaterial({
-      side: T.BackSide, depthWrite: false, fog: false, uniforms: {sun: {value: sunDirection}},
+      side: T.BackSide, depthWrite: false, fog: false, uniforms: {sun: {value: sunDirection}, overcast: {value: 0}},
       vertexShader: 'varying vec3 vDir; void main(){ vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
-      fragmentShader: `uniform vec3 sun; varying vec3 vDir;
+      fragmentShader: `uniform vec3 sun; uniform float overcast; varying vec3 vDir;
         float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
         float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y);}
         float fbm(vec2 p){float v=0.0,a=.5;for(int i=0;i<5;i++){v+=a*n(p);p*=2.03;a*=.5;}return v;}
         void main(){vec3 d=normalize(vDir);float up=clamp(d.y,0.0,1.0);vec3 col=mix(vec3(.70,.80,.89),vec3(.22,.42,.78),pow(up,.55));
-          float s=max(dot(d,normalize(sun)),0.0);col+=vec3(1.0,.9,.7)*pow(s,700.0)*6.0+vec3(1.0,.85,.6)*pow(s,12.0)*.25;
-          if(d.y>0.0){vec2 uv=d.xz/(d.y+.12)*1.6;float c=smoothstep(.5,.78,fbm(uv+vec2(3.1,1.7)));col=mix(col,vec3(1.0)*(.92+.08*fbm(uv*3.0)),c*.85*smoothstep(0.0,.18,d.y));}
-          if(d.y<0.0) col=vec3(.70,.80,.89)*.92;gl_FragColor=vec4(col,1.0);
+          float s=max(dot(d,normalize(sun)),0.0);col+=(vec3(1.0,.9,.7)*pow(s,700.0)*6.0+vec3(1.0,.85,.6)*pow(s,12.0)*.25)*(1.0-overcast);
+          // Real weather (issue #23): more and greyer clouds with the cloud cover; fully overcast the sky is a flat grey.
+          if(d.y>0.0){vec2 uv=d.xz/(d.y+.12)*1.6;float c=smoothstep(.5-.42*overcast,.78-.3*overcast,fbm(uv+vec2(3.1,1.7)));col=mix(col,mix(vec3(1.0),vec3(.62,.65,.69),overcast)*(.92+.08*fbm(uv*3.0)),c*.85*smoothstep(0.0,.18,d.y));}
+          col=mix(col,vec3(.60,.63,.67),overcast*overcast*.7);
+          if(d.y<0.0) col=mix(vec3(.70,.80,.89)*.92,vec3(.58,.61,.64),overcast);gl_FragColor=vec4(col,1.0);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>
         }`
@@ -391,6 +393,7 @@
     }
     const farSun = new T.DirectionalLight(0xfff1dc, 2.4), farSky = new T.HemisphereLight(0xcfe0ee, 0x5a5a4a, 1.3);far.add(farSun, farSky);
     function setSun(direction) {sunDirection.copy(direction).normalize();farSun.position.copy(sunDirection).multiplyScalar(1000);}
+    function setOvercast(v) {sky.material.uniforms.overcast.value = Math.max(0, Math.min(1, v));}// 0 clear … 1 fully overcast (real weather)
 
     // ---------- Collision and queries (model coordinates) ----------
     const ringWorld = flat => pairs(flat).map(([x, s]) => toWorld(x, s));
@@ -422,7 +425,7 @@
     }
     function greenery(x, z) {const l = toLocal(x, z);let n = 0;for (const t of allTrees) if (Math.abs(t.x - l.x) < 40 && Math.abs(t.s - l.s) < 40) n++;for (const b of bushes) if (Math.abs(b.x - l.x) < 25 && Math.abs(b.s - l.s) < 25) n += .3;return Math.min(1, n / 18);}
 
-    return {near, far, setImagery, setSun, get imageryState() {return imageryState;}, attribution: data.attribution, ground, heightWorld, toLocal, toWorld, terrainFloor, obstacles, surfaceAt, trafficDistance, greenery, data, playHalf: PLAY_HALF, trees: allTrees};
+    return {near, far, setImagery, setSun, setOvercast, get imageryState() {return imageryState;}, attribution: data.attribution, ground, heightWorld, toLocal, toWorld, terrainFloor, obstacles, surfaceAt, trafficDistance, greenery, data, playHalf: PLAY_HALF, trees: allTrees};
   }
   return {create};
 });
