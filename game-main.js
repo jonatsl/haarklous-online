@@ -566,7 +566,8 @@
     if (map.open) {
       if (input.pressed.has('circle')) map.toggle();
       map.pan(input.move.x * 400 * dt, input.move.y * 400 * dt);if (input.look.y) map.zoom(Math.exp(-input.look.y * dt * 2));
-      map.draw({x: player.x, z: player.z, headingLocal: -(player.yaw - theta) + Math.PI});renderFrame(dt, t);return;
+      // The map's "up" is north (-s); facing (-sin yaw, -cos yaw) in the world is -(yaw - theta) on the map (issue #21: it was 180° off).
+      map.draw({x: player.x, z: player.z, headingLocal: -(player.yaw - theta)});renderFrame(dt, t);return;
     }
     // △: a tap takes out the photo camera (or puts it away); holding it opens the gear menu: camera or FPV drone.
     if (player.mode === 'foot' && !caseGame?.active && !pbBusy()) {// the paintball lobby and game use △ and the D-pad

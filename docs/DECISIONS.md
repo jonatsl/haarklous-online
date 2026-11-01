@@ -29,6 +29,13 @@ Live site: runs `main` (deployed 29 Oct 2026 after PRs #8–#14, version fd96bf7
 
 ## Log
 
+### 2026-11-01 · The map arrow points the way you face (issue #21)
+- **What:** your arrow on the map (touchpad / M) pointed exactly the opposite way: it was turned 180° too far. It now points where you are facing.
+- **Why:** the user's issue #21: "Make the mini map arrow point in the true direction the player is facing." The heading was `-(yaw - theta) + π`; the `+ π` was wrong.
+- **Where:** `game-main.js` (the `map.draw` call).
+- **Checked:** with the map open, facing four different ways (yaw 0, 1, 2.5, −1.2): the arrow is 0.0° from the true facing (it was 180°). Node tests 44/44.
+- **Status:** PR (branch `fix/map-arrow-direction`, on top of PR #19), closes #21. For the Unreal version: haarklous-ue5 issue (the same `+ PI` is in `HKGameExtras.cpp`).
+
 ### 2026-10-29 · Fly with the mouse like in Battlefield; hold Shift to look around (issue #16)
 - **What:**
   - The helicopter, the plane and the FPV drone fly with keyboard and mouse like Battlefield (2042 / 6 defaults):
