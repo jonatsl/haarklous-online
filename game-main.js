@@ -77,6 +77,32 @@
   // local (9.1, 275.5)), facing south, with its stone steps on the east side.
   const SCULPTURE_AT = {x: 9.1, s: 275.5};
   const sculpture = window.GameSculpture.create({T, lib, world, at: SCULPTURE_AT});scene.add(sculpture.group);
+  // Oksefontenen with Torshovoksen in the middle of Hegermanns plass (OSM node 331273417, issue #20), the bull facing SSW.
+  const OKSEN_AT = {x: -542.0, s: 204.3};
+  const oksen = window.GameSculpture.createFountain({T, lib, world, at: OKSEN_AT, bearing: 204});scene.add(oksen.group);
+  // Real weather (issue #23): MET Norway's forecast for Haarklous plass through the game's Worker (/weather), every hour. Clouds
+  // dim the sun and grey the sky, fog thickens the haze, rain / sleet / snow fall around you outdoors, the wind blows them and is
+  // heard, and the pause screen shows it with the credit. Offline it stays as the fixed sunny day.
+  const WEATHER_URL = new URLSearchParams(location.search).get('weather') || (/workers\.dev$/.test(location.hostname) ? '/weather' : 'https://haarklous-online.server-smoke.workers.dev/weather');
+  const BASE_LIGHT = {sun: sun.intensity, sky: sky.intensity, fog: scene.fog.density, farFog: farScene.fog.density, fogColor: scene.fog.color.clone()};
+  // The near haze is tuned for a 450 m view on foot; when the view reaches further (flying, skydiving) it thins in step,
+  // so the ground below is not washed out while the far layer beyond it looks clear.
+  let nearFog = scene.fog.density;
+  function applyNearFog() {scene.fog.density = nearFog * Math.min(1, 450 / camera.far);}
+  let weatherWind = {x: 0, z: 0};
+  function applyWeather(w) {
+    const c = w.clouds, wet = ['rain', 'sleet', 'snow'].includes(w.kind) ? w.intensity : 0, overcast = Math.min(1, c * 1.05 + wet * .25 + w.fog * .5);
+    sun.intensity = BASE_LIGHT.sun * (1 - .72 * Math.pow(overcast, 1.3));sky.intensity = BASE_LIGHT.sky * (1 + .12 * overcast);
+    nearFog = BASE_LIGHT.fog * (1 + .8 * overcast) + w.fog * .018 + wet * .0035;applyNearFog();farScene.fog.density = BASE_LIGHT.farFog * (1 + 1.5 * overcast) + w.fog * .002;
+    scene.fog.color.copy(BASE_LIGHT.fogColor).lerp(new T.Color(0xa7aeb5), overcast);farScene.fog.color.copy(scene.fog.color);world.setOvercast(overcast);
+    // Wind blows toward (from + 180°); north is -s on the map, east is +x.
+    const to = (w.windFrom + 180) * Math.PI / 180, lx = Math.sin(to), ls = -Math.cos(to), cT = Math.cos(theta), sT = Math.sin(theta);
+    weatherWind = {x: (lx * cT + ls * sT) * w.wind, z: (-lx * sT + ls * cT) * w.wind};
+    const at = new Date(w.fetchedAt || Date.now()), hhmm = `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
+    $('weatherLine').innerHTML = `Weather now at Haarklous plass: ${window.GameWeather.describe(w)} · data from <a href="https://api.met.no/" target="_blank" rel="noopener">MET Norway</a> (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>), fetched ${hhmm}`;
+    if (!weather.shown) {weather.shown = true;notice(`Real weather: ${window.GameWeather.describe(w)} (MET Norway)`, 5);}
+  }
+  const weather = window.GameWeather.create({T, url: WEATHER_URL, onChange: w => applyWeather(w)});scene.add(weather.group);weather.load();
   // Ground: the building site's soil (it changes as the machines dig), the paved paintball yard, the terrain elsewhere.
   const siteField = SITE_DATA && window.GameSite ? window.GameSite.fieldFor(SITE_DATA, world) : null;
   const pbCtx = {};// filled in below, once the player, camera and lobby exist
@@ -88,15 +114,15 @@
   }
   const groundFloor = {...world.terrainFloor(), height: p => groundAt(p.x, p.z)};
   const extraObstacles = [...(siteField ? window.GameSite.fenceObstacles(siteField, groundAt) : []), ...(pbRules ? pbRules.obstacles : [])];
-  const staticObstacles = [...apt.obstacles, ...towers.flatMap(towerObstacles), ...world.obstacles(), ...fire.obstacles, ...stash.obstacles, ...shops.obstacles, ...sculpture.obstacles, ...extraObstacles];
-  const walkFloors = [...apt.floors, ...towers.flatMap(towerFloors), ...shops.floors, ...sculpture.floors, groundFloor];
+  const staticObstacles = [...apt.obstacles, ...towers.flatMap(towerObstacles), ...world.obstacles(), ...fire.obstacles, ...stash.obstacles, ...shops.obstacles, ...sculpture.obstacles, ...oksen.obstacles, ...extraObstacles];
+  const walkFloors = [...apt.floors, ...towers.flatMap(towerFloors), ...shops.floors, ...sculpture.floors, ...oksen.floors, groundFloor];
   const walkWorld = collision.createWorld({floors: walkFloors, obstacles: staticObstacles, radius: .18, clearance: .08});
   const vehicleWorlds = new Map();
   let vehicleBlockers = null;// the other vehicles' footprints from the last updateDynamic()
   function worldFor(r) {
     const key = r.toFixed(2);
     if (!vehicleWorlds.has(key)) {
-      const w = collision.createWorld({floors: [groundFloor], obstacles: [...world.obstacles(), ...towers.flatMap(towerObstacles), ...fire.obstacles, ...shops.obstacles, ...sculpture.obstacles, ...extraObstacles], radius: r, clearance: .08});
+      const w = collision.createWorld({floors: [groundFloor], obstacles: [...world.obstacles(), ...towers.flatMap(towerObstacles), ...fire.obstacles, ...shops.obstacles, ...sculpture.obstacles, ...oksen.obstacles, ...extraObstacles], radius: r, clearance: .08});
       // A world made during play (e.g. the bike's on its first ride) gets the other vehicles at once, not one update later.
       if (vehicleBlockers) collision.setDynamic(w, vehicleBlockers);
       vehicleWorlds.set(key, w);
@@ -159,6 +185,9 @@
   const site = siteField && window.SiteModels ? window.GameSite.create({T, lib, audio, VH, models: window.SiteModels.create({T, lib}), data: SITE_DATA, world, field: siteField, groundAt, surfaceAt: world.surfaceAt,
     onSpill: (x, z, vol) => {spilled += vol;if (spilled < .4) return;pile(x, z, Math.max(.4, Math.min(2.2, Math.cbrt(spilled * 3 / (Math.PI * .7)))));spilled = 0;}}) : null;
   if (site) {scene.add(site.group);vehicles.push(...site.machines);}
+  // Skydiving (issue #22): the Cessna 208 Caravan jump plane beside the airstrip, flown by a player with up to 12 jumpers.
+  AIR.jump = {x: -107.6, z: -16.7, yaw: .5236};
+  const caravan = new AC.JumpPlane(AIR.jump.x, AIR.jump.z, AIR.jump.yaw);vehicles.push(caravan);
   vehicles.forEach(v => {v.spawn = v.netGet();});
   vehicles.forEach(v => scene.add(v.group));
   vehicles.filter(v => v.kind === 'excavator').forEach(ex => {
@@ -279,6 +308,8 @@
     ...(SITE_DATA ? [{x: SITE_DATA.rect.x0 + SITE_DATA.rect.w / 2, s: SITE_DATA.rect.s0 + SITE_DATA.rect.d / 2, color: '#f9a825', label: 'Construction site', glyph: '⛏'}] : []),
     ...(PB_DATA ? [{x: PB_DATA.centre.x, s: PB_DATA.centre.s, color: '#2e7d32', label: 'Paintball', glyph: '✚'}] : []),
     {x: SCULPTURE_AT.x, s: SCULPTURE_AT.s, color: '#7a5c3e', label: 'HODET N.N.', glyph: '◉'},
+    {x: OKSEN_AT.x, s: OKSEN_AT.s, color: '#3a4436', label: 'Torshovoksen', glyph: '◉'},
+    {...world.toLocal(AIR.jump.x, AIR.jump.z), color: '#c8322c', label: 'Skydiving (jump plane)', glyph: '🪂'},
   ]});
   // Wristwatch (D-pad ↑) shares the first-person overlay with the photo camera.
   const watch = window.GameWatch.create({T, lib});overlayScene.add(watch.model);
@@ -314,6 +345,8 @@
     return best;
   }
   function findPrompt() {
+    if (player.mode === 'jumpseat') return jumpseatPrompt();
+    if (player.mode === 'skydive') return null;
     if (player.mode === 'vehicle') {const v = player.vehicle;return (v.aircraft ? v.grounded && v.speed < 3 : Math.abs(v.speed) < 3) ? {text: `□ ${v.kind === 'motorcycle' ? 'Get off' : 'Get out'}`, act: () => exitVehicle()} : null;}
     if (player.mode === 'passenger') {const v = player.vehicle;return (v.aircraft ? v.grounded && v.speed < 3 : Math.abs(v.speed) < 3) ? {text: `□ ${v.kind === 'motorcycle' ? 'Get off' : 'Get out'}`, act: () => exitPassenger()} : null;}
     if (player.mode === 'sit') return {text: '□ Stand up · R2 have a beer', act: () => standUp()};
@@ -325,6 +358,7 @@
     const shp = shopPrompt();if (shp) return shp;
     const fp = firePrompt();if (fp) return fp;
     const sp = stashPrompt();if (sp) return sp;
+    const jp = boardPrompt();if (jp) return jp;
     const v = nearestVehicle();
     if (v) {
       const i = vehicles.indexOf(v), drv = mp.occupant(i, 'd'), pas = mp.occupant(i, 'p'), canRide = !!v.hipAnchor('p');
@@ -344,8 +378,9 @@
   // ---------- Vehicles: enter / exit ----------
   const AIR_HELP = {
     helicopter: 'Helicopter (Mode 2) · left stick ↑↓ collective (centre = hover), ←→ pedals · right stick pitch/roll · R3 / V chase camera · Keyboard + mouse: W/S collective, A/D pedals, mouse pitch/roll (up = nose down), hold Shift to look around · the rotor needs a few seconds to spool up',
-    plane: 'Plane (Mode 2) · left stick ↑ to add throttle (it stays), ←→ rudder/nose wheel · right stick pitch/roll · pull back at about 85 km/h · L2 brakes · R3 / V view · Keyboard + mouse: W/S throttle, A/D rudder, mouse pitch/roll (up = nose down), hold Shift to look around'};
-  function setClip(near, far) {if (camera.near !== near || camera.far !== far) {camera.near = near;camera.far = far;camera.updateProjectionMatrix();}}
+    plane: 'Plane (Mode 2) · left stick ↑ to add throttle (it stays), ←→ rudder/nose wheel · right stick pitch/roll · pull back at about 85 km/h · L2 brakes · R3 / V view · Keyboard + mouse: W/S throttle, A/D rudder, mouse pitch/roll (up = nose down), hold Shift to look around',
+    jumpplane: 'Caravan jump plane (Mode 2, flies like the plane) · left stick ↑ throttle (it stays), ←→ rudder/nose wheel · right stick pitch/roll · the flaps are automatic: pull back at about 110 km/h · L2 brakes · R3 / V view · others board at the door (□) and can jump above 300 m · Keyboard + mouse: W/S throttle, A/D rudder, mouse pitch/roll, hold Shift to look around'};
+  function setClip(near, far) {if (camera.near !== near || camera.far !== far) {camera.near = near;camera.far = far;camera.updateProjectionMatrix();applyNearFog();}}
   function enterVehicle(v) {watch.hide();player.mode = 'vehicle';player.vehicle = v;player.siteView = 0;player.lookYaw = 0;player.lookPitch = 0;player.chase = false;player.chaseCam = null;v.enter();updateDynamic();if (v.aircraft) setClip(.12, 1600);notice(v.help ? v.help : v.aircraft ? AIR_HELP[v.kind] : v.kind === 'excavator' ? 'Tracks: L1/L2 left, R1/R2 right · Left stick: swing / stick · Right stick: boom / bucket · □ get out' : 'R2 throttle · L2 brake / reverse · Left stick steer · Right stick look · □ get off', v.aircraft || v.help ? 9 : 6);}
   function tryDrive(v) {
     const i = vehicles.indexOf(v);
@@ -605,10 +640,13 @@
     if (player.mode === 'vehicle') updateVehicle(dt, input, dl);
     else if (player.mode === 'passenger') updatePassenger(dt, input, dl);
     else if (player.mode === 'sit') updateSit(dt, input, dl);
+    else if (player.mode === 'jumpseat') updateJumpseat(dt, input, dl);
+    else if (player.mode === 'skydive') updateSkydive(dt, input, dl);
     else if (player.mode === 'drone') updateDrone(dt, input, dl);
     else if (player.mode === 'minigame') updateMinigame(dt, input, dl);
     else updateFoot(dt, input, dl);
     // Other vehicles: parked ones idle (far ones are hidden and skipped), ones driven by other players are posed by the lobby.
+    updateJumpFlight(dt);
     cullT -= dt;if (cullT <= 0) {cullT = .4;for (const v of vehicles) {const near = Math.hypot(v.x - camera.position.x, v.z - camera.position.z) < (v.cullDistance || 170);v.group.visible = near || v === player.vehicle;}if (vehicles.some((v, i) => mp.remoteDriven(i))) updateDynamic();}
     vehicles.forEach((v, i) => {if (v === player.vehicle && player.mode === 'vehicle') return;if (mp.remoteDriven(i)) return;if (!v.group.visible && Math.abs(v.speed || 0) < .01 && !v.aircraft) return;v.update(wdt, {});});
     beerT = Math.max(0, beerT - dt);mp.update(dt);
@@ -624,6 +662,7 @@
     for (const d of doors) if (d.anim) {d.anim.t = Math.min(1, d.anim.t + dt * 2.2);const e = d.anim.t < .5 ? 2 * d.anim.t * d.anim.t : 1 - Math.pow(-2 * d.anim.t + 2, 2) / 2;setDoor(d, d.anim.from + (d.anim.to - d.anim.from) * e);if (d.anim.t >= 1) {d.open = d.anim.to === 1;d.anim = null;doorsChanged = true;}}
     if (doorsChanged || caseGame?.active) updateDynamic();
     promptTimer -= dt;if (promptTimer <= 0) {promptTimer = .15;promptAction = player.mode === 'minigame' || player.mode === 'drone' || gear?.open || quick || bag || photo.active || (caseGame?.active && caseGame.state !== 'play') ? null : findPrompt();prompt(promptAction?.text);}
+    weather.update(dt, camera, {indoor: weatherIndoor, windWorld: weatherWind});
     ambienceTimer -= dt;if (ambienceTimer <= 0) {ambienceTimer = .25;updateAmbience();if (audio.context) music.attach(audio.context);music.play(musicTrack());}
     // Adaptive resolution keeps the frame rate in the 20–30+ fps range on slower PCs.
     if (fpsAvg < 22) {if (++lowFrames > 90 && pixelRatio > .6) {pixelRatio = Math.max(.6, pixelRatio - .1);renderer.setPixelRatio(pixelRatio);resize();lowFrames = 0;}} else lowFrames = 0;
@@ -777,6 +816,117 @@
       `<div class="bl">ALT ${o.alt.toFixed(1)} m<br>THR ${Math.round(o.thrust * 100)} %</div><div class="br">${Math.round(o.speed)} km/h<br>HOME ${Math.round(o.dist)} m</div><div class="mid">-+-</div>` +
       (o.crashed ? '<div class="warn">CRASHED<br><small>✕ reset · ○ pack away</small></div>' : o.battery <= 0 ? '<div class="warn">BATTERY EMPTY</div>' : o.battery < 20 ? '<div class="warn">LOW BATTERY</div>' : '');
   }
+  // ---------- Skydiving (issue #22) ----------
+  // The scheduled jump flight: an 8-minute cycle on the shared server clock (boarding at the strip, take-off, a climbing
+  // spiral to 3000 m, a 60 s jump run with the green light, then it flies off). Everybody sees the same flight.
+  const SKY = window.GameSkydive, jumpStart = {x: AIR.plane.x - Math.sin(AIR.plane.yaw) * 45, z: AIR.plane.z - Math.cos(AIR.plane.yaw) * 45};
+  const jumpPlan = SKY.plan({start: jumpStart, yaw: AIR.plane.yaw, groundY: heightAt(jumpStart.x, jumpStart.z), gearH: 1.55});
+  const autoPlane = new AC.JumpPlane(jumpStart.x, jumpStart.z, AIR.plane.yaw);autoPlane.prop = 900;scene.add(autoPlane.group);
+  const skyd = {ride: null, jumper: null, canopy: null, beeps: {}, chase: false, chaseCam: null};// skydiving state
+  let jumpFlight = SKY.flight(0, jumpPlan);
+  const skyClock = () => (mp && mp.net.online ? mp.net.serverNow() : Date.now()) / 1000;
+  function updateJumpFlight(dt) {
+    const f = jumpFlight = SKY.flight(skyClock(), jumpPlan);
+    autoPlane.pos.set(f.x, f.y, f.z);autoPlane.q.setFromEuler(new T.Euler(f.pitch, f.yaw, f.roll, 'YXZ'));autoPlane.vel.set(-Math.sin(f.yaw) * f.speed, 0, -Math.cos(f.yaw) * f.speed);
+    autoPlane.prop = f.phase === 'board' ? 900 : 2600;autoPlane.spin(dt);autoPlane.place();autoPlane.group.visible = f.visible;
+  }
+  // Your place in the plane: your player number in a lobby (12 places, 12 players), else the first place.
+  const mySeat = () => (mp && mp.net.online ? mp.net.slot : 0) % 12;
+  function boardPrompt() {
+    if (player.mode !== 'foot') return null;
+    const f = jumpFlight;
+    if (f.phase === 'board' && Math.hypot(player.x - f.x, player.z - f.z) < 9) {const m = Math.floor(f.leavesIn / 60), ss = String(Math.floor(f.leavesIn % 60)).padStart(2, '0');return {text: `□ Board the jump flight (leaves in ${m}:${ss}, up to 3000 m) · place ${mySeat() + 1}`, act: () => boardAuto()};}
+    const d = caravan.doorWorld();
+    if (Math.hypot(player.x - d.x, player.z - d.z) < 3.2 && caravan.grounded && caravan.speed < 3) return {text: `□ Board the Caravan as a jumper (place ${mySeat() + 1})${mp.occupant(vehicles.indexOf(caravan), 'd') ? ' · ' + mp.nameOf(mp.occupant(vehicles.indexOf(caravan), 'd')) + ' flies' : ' · somebody must fly it'}`, act: () => boardCaravan()};
+    return null;
+  }
+  function enterSeat(craft, auto) {
+    watch.hide();if (photo.active) photo.toggle();player.mode = 'jumpseat';player.vehicle = null;skyd.ride = {craft, auto, seat: mySeat()};player.lookYaw = 0;player.lookPitch = 0;
+    setClip(.12, 1600);audio.sfx('doorClose');notice(auto ? 'You are on the jump flight. It climbs to 3000 m; at the green light press ✕ (Space) to jump. □ gets off before take-off.' : 'You are a jumper in the Caravan. When it is above 300 m, press ✕ (Space) to jump.', 6);
+  }
+  const boardAuto = () => enterSeat(autoPlane, true), boardCaravan = () => enterSeat(caravan, false);
+  function leaveSeat(where) {const p = where || skyd.ride.craft.doorWorld();skyd.ride = null;player.mode = 'foot';place(p.x, p.z, player.yaw);setClip(.05, 450);}
+  function canJump() {
+    const R = skyd.ride;if (!R) return false;const c = R.craft, agl = c.pos.y - heightAt(c.pos.x, c.pos.z);
+    return R.auto ? jumpFlight.green : !c.grounded && agl > 300;
+  }
+  function jumpseatPrompt() {
+    const R = skyd.ride;if (!R) return null;
+    const onGround = R.auto ? jumpFlight.phase === 'board' : R.craft.grounded && R.craft.speed < 3;
+    if (onGround) return {text: '□ Get off the plane', act: () => leaveSeat()};
+    return null;
+  }
+  function updateJumpseat(dt, input, dl) {
+    const R = skyd.ride, c = R.craft, f = jumpFlight;
+    // The scheduled flight: anybody still on board when it has flown off is brought back to the airstrip.
+    if (R.auto && f.phase === 'away' && !f.visible) {leaveSeat(jumpStart);notice('The jump plane landed back at the airfield.', 4);return;}
+    if (!R.auto && c.broken) {leaveSeat(c.exitPoint());return;}
+    if (input.pressed.has('cross') && canJump()) {jump();return;}
+    const hip = c.seatWorld(R.seat);
+    player.lookYaw = Math.max(-2.6, Math.min(2.6, (player.lookYaw || 0) - input.mouse.dx * .0024 * sensitivity.mouse - input.look.x * 2.2 * sensitivity.pad * dt));
+    player.lookPitch = Math.max(-1.1, Math.min(1, (player.lookPitch || 0) - input.mouse.dy * .0024 * sensitivity.mouse - input.look.y * 1.6 * sensitivity.pad * dt));
+    c.group.updateMatrixWorld(true);camera.position.copy(hip).add(new T.Vector3(0, .78, 0).applyQuaternion(c.q));
+    // You sit facing the tail; looking round turns your head.
+    camera.quaternion.copy(c.q).multiply(new T.Quaternion().setFromEuler(new T.Euler(player.lookPitch, Math.PI + player.lookYaw, 0, 'YXZ')));
+    if (camera.fov !== 70) {camera.fov = 70;camera.updateProjectionMatrix();}
+    player.x = hip.x;player.z = hip.z;player.feet = hip.y;player.yaw = new T.Euler().setFromQuaternion(c.q, 'YXZ').y + Math.PI;// you face the tail
+    const agl = c.pos.y - heightAt(c.pos.x, c.pos.z), sp = $('speedo');sp.hidden = false;sp.classList.add('air');
+    const m = Math.floor(Math.max(0, R.auto && f.phase === 'board' ? f.leavesIn : 0) / 60), ss = String(Math.floor(Math.max(0, R.auto ? f.leavesIn || 0 : 0) % 60)).padStart(2, '0');
+    sp.textContent = R.auto ? (f.phase === 'board' ? `JUMP FLIGHT · boarding · leaves in ${m}:${ss}` : f.green ? `GREEN LIGHT · ${Math.round(agl)} m · ✕ / Space: JUMP` : f.phase === 'run' ? `Jump run · ${Math.round(agl)} m · door open, wait for the green light` : `Climbing · ${Math.round(agl)} m${f.phase === 'climb' ? ' · the climb is sped up' : ''}`)
+      : `Jumper in the Caravan · ${Math.round(agl)} m · ${canJump() ? '✕ / Space: JUMP' : 'you can jump above 300 m'}`;
+    setClip(agl > 800 ? .4 : .12, Math.min(9000, Math.max(1600, agl * 2.5 + 1200)));
+  }
+  // Out of the door: the jumper starts with the plane's speed and falls; the plane keeps flying.
+  function jump() {
+    const R = skyd.ride, c = R.craft, d = c.doorWorld(), v = c.vel;
+    skyd.jumper = new SKY.Jumper({x: d.x, y: d.y, z: d.z, vx: v.x, vy: v.y, vz: v.z, yaw: new T.Euler().setFromQuaternion(c.q, 'YXZ').y + Math.PI / 2});// out of the left door, facing away from the plane
+    skyd.ride = null;skyd.beeps = {};player.mode = 'skydive';skyd.chase = false;skyd.chaseCam = null;audio.sfx('throw');
+    if (!skyd.canopy) {const av = window.GameAvatars.create({T, lib});skyd.canopy = SKY.canopy(T, av.SLOT_COLORS[mySeat() % 12]);skyd.canopy.visible = false;scene.add(skyd.canopy);
+      skyd.body = av.avatar(mySeat(), '');skyd.body.group.visible = false;scene.add(skyd.body.group);}// your own body, seen in the outside view
+    notice('Freefall! W tracks, A/D turn, S back-slides · ✕ / Space pulls at about 1000 m · R3 / V outside view', 6);
+  }
+  function updateSkydive(dt, input, dl) {
+    const J = skyd.jumper;
+    if (input.pressed.has('r3') || input.pressed.has('view')) {skyd.chase = !skyd.chase;skyd.chaseCam = null;}
+    const inp = {fwd: Math.max(-1, Math.min(1, -input.move.y)), turn: Math.max(-1, Math.min(1, input.move.x)), pull: input.pressed.has('cross')};
+    const ev = J.update(dt, inp, {ground: (x, z) => groundAt(x, z), wind: weatherWind, blocked: (x, y, z) => collision.hitsSolid(walkWorld, {x, z}, y + .2, y + 1.6)});
+    const agl = J.agl;
+    if (ev === 'pull') audio.sfx('throw');
+    if (ev === 'reserve') notice('Your reserve opened automatically (300 m)!', 4);
+    if (ev === 'open') {audio.sfx('thud', {gain: .7});notice('Canopy open · A/D steer · W front risers · S flare just before you land', 5);}
+    for (const [h, txt] of [[1500, '1500 m'], [1000, 'PULL!']]) if (J.state === 'freefall' && agl < h && !skyd.beeps[h]) {skyd.beeps[h] = true;audio.sfx('locked');notice(txt, 1.5);}
+    skyd.canopy.visible = J.state === 'opening' || J.state === 'canopy';
+    {const b = skyd.body.group;b.visible = skyd.chase;b.position.set(J.pos.x, J.pos.y, J.pos.z);b.rotation.set(0, J.yaw, 0);if (J.state === 'freefall') {b.rotateX(-Math.PI / 2);b.translateY(-.9);}skyd.body.pose({stance: 'stand', speed: 0, dt});}
+    if (skyd.canopy.visible) {const k = J.state === 'opening' ? Math.min(1, J.openT / 3) : 1;skyd.canopy.position.set(J.pos.x, J.pos.y + 1.2, J.pos.z);skyd.canopy.rotation.set(0, J.yaw, 0);skyd.canopy.scale.set(.3 + .7 * k, .3 + .7 * k, .3 + .7 * k);}
+    if (ev === 'land') {
+      const msg = {soft: 'Nice soft landing!', hard: 'Hard landing – flare a little earlier next time (S just before the ground).', crash: 'Ouch! You hit the ground hard (no flare).'}[J.landing];
+      audio.sfx(J.landing === 'soft' ? 'thud' : 'hit', {gain: J.landing === 'soft' ? .3 : .7});notice(msg, 5);
+      skyd.canopy.visible = false;skyd.body.group.visible = false;const p = {x: J.pos.x, z: J.pos.z};skyd.jumper = null;player.mode = 'foot';
+      const spn = collision.findSafeSpawn(walkWorld, p, player.eye, {y: groundAt(p.x, p.z), maxDistance: 8});place(spn ? spn.x : p.x, spn ? spn.z : p.z, J.yaw, spn ? spn.y : undefined);setClip(.05, 450);return;
+    }
+    // Camera: your eyes (looking ahead and down in freefall, ahead under the canopy), or behind you (R3 / V).
+    player.lookYaw = Math.max(-2.4, Math.min(2.4, (player.lookYaw || 0) - input.mouse.dx * .0024 * sensitivity.mouse - input.look.x * 2 * sensitivity.pad * dt));
+    player.lookPitch = Math.max(-1.4, Math.min(.8, (player.lookPitch || 0) - input.mouse.dy * .0024 * sensitivity.mouse - input.look.y * 1.5 * sensitivity.pad * dt));
+    const head = new T.Vector3(J.pos.x, J.pos.y + (J.state === 'freefall' ? .3 : 1.6), J.pos.z), base = J.state === 'freefall' ? -.7 : -.15;
+    if (skyd.chase) {
+      const f = {x: -Math.sin(J.yaw), z: -Math.cos(J.yaw)}, want = new T.Vector3(J.pos.x - f.x * 9, J.pos.y + 4, J.pos.z - f.z * 9);
+      const p = skyd.chaseCam ? skyd.chaseCam.lerp(want, .15) : want;skyd.chaseCam = p;camera.position.copy(p);camera.lookAt(J.pos.x, J.pos.y + 1, J.pos.z);
+    } else {camera.position.copy(head);camera.rotation.order = 'YXZ';camera.rotation.set(base + player.lookPitch, J.yaw + player.lookYaw, 0);}
+    if (camera.fov !== 75) {camera.fov = 75;camera.updateProjectionMatrix();}
+    setClip(agl > 800 ? .4 : .12, Math.min(9000, Math.max(1600, agl * 2.5 + 1200)));
+    player.x = J.pos.x;player.z = J.pos.z;player.feet = J.pos.y;player.yaw = J.yaw;
+    const down = Math.max(0, -J.vel.y), sp = $('speedo');sp.hidden = false;sp.classList.add('air');
+    sp.textContent = J.state === 'freefall' ? `FREEFALL · ${Math.round(agl)} m · ${Math.round(down)} m/s down · ${agl > 1100 ? 'pull (✕) at about 1000 m' : '✕ / Space: PULL!'}`
+      : J.state === 'opening' ? `Opening… · ${Math.round(agl)} m` : `CANOPY · ${Math.round(agl)} m · ${down.toFixed(1)} m/s down · ${Math.hypot(J.vel.x, J.vel.z).toFixed(0)} m/s across · A/D steer · S flare`;
+  }
+  // Other players skydiving: belly-down in freefall, upright under their canopy.
+  const remoteCanopies = new Map();
+  function skyPose(r, st, g) {
+    let c = remoteCanopies.get(r.id);
+    if (st.sky === 'f') {g.rotateX(-Math.PI / 2);g.translateY(-.9);}
+    if (st.sky === 'c') {if (!c) {c = SKY.canopy(T, window.GameAvatars.create({T, lib}).SLOT_COLORS[(r.slot || 0) % 12]);remoteCanopies.set(r.id, c);scene.add(c);}c.visible = true;c.position.set(r.pos.x, r.pos.y + 1.2, r.pos.z);c.rotation.set(0, r.yaw, 0);}
+    else if (c) c.visible = false;
+  }
   let gear = null, gearLast = 0;
   function showGear(sel) {const m = $('gearMenu');m.hidden = sel === null;if (sel !== null) m.querySelectorAll('.gm-item').forEach(e => e.classList.toggle('sel', +e.dataset.i === sel));}
   function updatePassenger(dt, input, dl) {
@@ -810,6 +960,9 @@
     if ((player.mode === 'vehicle' || player.mode === 'passenger') && player.vehicle) {s.v = vehicles.indexOf(player.vehicle);s.s = player.mode === 'vehicle' ? 'd' : 'p';}
     if (player.mode === 'sit' && player.sitSpot) {const sp = player.sitSpot;s.sit = sp.id + 1;s.p = [r(sp.x), r(sp.y), r(sp.z)];s.y = r(sp.yaw);}
     if (player.mode === 'drone') {s.st = 'drone';s.dr = [...drone.pos.toArray().map(r), ...drone.q.toArray().map(q)];}
+    // Skydiving: a jump seat in the flown Caravan (a vehicle seat 'j0'..'j11'), in the scheduled flight (ja), or in the air.
+    if (player.mode === 'jumpseat' && skyd.ride) {if (skyd.ride.auto) s.ja = skyd.ride.seat;else {s.v = vehicles.indexOf(caravan);s.s = 'j' + skyd.ride.seat;}}
+    if (player.mode === 'skydive' && skyd.jumper) {const J = skyd.jumper;s.p = [r(J.pos.x), r(J.pos.y), r(J.pos.z)];s.y = r(J.yaw);s.sky = J.state === 'freefall' ? 'f' : 'c';}
     const pb = paintball && paintball.rules.localState();if (pb) s.pb = pb;
     return s;
   }
@@ -877,6 +1030,7 @@
     drivingIndex: () => player.mode === 'vehicle' && player.vehicle ? vehicles.indexOf(player.vehicle) : -1,
     listener: () => ({x: player.x, y: player.feet + 1.5, z: player.z}), applyDoor, onChat: chatLine, onStatus: () => {renderMp();onLobbyChange();},
     onRemoteWood: r => fire.throwLog({x: r.pos.x, y: r.pos.y + 1.3, z: r.pos.z}), holdsMarker: id => !!paintball && paintball.rules.memberPlaying(id),
+    autoAnchor: seat => autoPlane.hipAnchor('j' + seat), skyPose: (r, st, g) => skyPose(r, st, g),
     // In a paintball game you see your team-mates' names, not your opponents' (issue #25).
     showTag: id => !paintball || !paintball.rules.inGame() || !paintball.rules.memberPlaying(id) || paintball.rules.teamOfMember(id) === paintball.rules.myTeam()});
   // A new lobby: vehicles go back to where everybody else has them (the lobby then sends the ones that were moved).
@@ -898,12 +1052,15 @@
     if (r.camera) {camera.position.set(r.camera.x, r.camera.y, r.camera.z);camera.lookAt(r.camera.lookAt);}
     else {camera.position.set(player.x, player.feet + player.eye, player.z);camera.rotation.order = 'YXZ';camera.rotation.set(player.pitch, player.yaw, 0);}
   }
+  let weatherIndoor = false;
   function updateAmbience() {
-    const inApt = inFlat(), tw = towerAt(player.x, player.z, player.feet), indoor = inApt || tw || shops.shopAt(player, player.feet) ? 1 : player.vehicle && player.vehicle.kind === 'car' ? .7 : player.vehicle && player.vehicle.aircraft ? .4 : 0;
-    audio.ambience({indoor, green: world.greenery(player.x, player.z), traffic: world.trafficDistance(player.x, player.z), height: Math.max(0, player.feet - heightAt(player.x, player.z)) + (inApt ? 10 : 0), stair: Boolean(tw), kitchen: inApt && roomAt() === 'kitchen'});
+    const inApt = inFlat(), tw = towerAt(player.x, player.z, player.feet), indoor = inApt || tw || shops.shopAt(player, player.feet) ? 1 : player.mode === 'jumpseat' ? .6 : player.vehicle && player.vehicle.kind === 'car' ? .7 : player.vehicle && player.vehicle.aircraft ? .4 : 0;
+    weatherIndoor = indoor >= 1 && player.mode !== 'drone';
+    const skyAir = player.mode === 'skydive' && skyd.jumper ? Math.hypot(skyd.jumper.vel.x, skyd.jumper.vel.y, skyd.jumper.vel.z) : 0;const ws = weather.state, wet = ws && ['rain', 'sleet', 'snow'].includes(ws.kind) ? ws.intensity : 0;
+    audio.ambience({indoor, rain: ws && ws.kind === 'rain' ? wet : ws && ws.kind === 'sleet' ? wet * .6 : 0, windSpeed: Math.max(ws ? ws.wind : 4, skyAir), green: world.greenery(player.x, player.z), traffic: world.trafficDistance(player.x, player.z), height: Math.max(0, player.feet - heightAt(player.x, player.z)) + (inApt ? 10 : 0), stair: Boolean(tw), kitchen: inApt && roomAt() === 'kitchen'});
     // Stair-tower light follows the player into whichever stairwell they are in.
     if (tw) {const l = tw.t.stair.lampAt({x: tw.l.x, z: tw.l.z}, player.feet - tw.t.matrix.elements[13]);if (l) {const p = new T.Vector3(l.x, l.y, l.z).applyMatrix4(tw.t.matrix);towerLamp.position.copy(p);towerLamp.intensity = 5.5;}} else towerLamp.intensity = 0;
-    if (player.mode !== 'vehicle' && player.mode !== 'passenger') $('speedo').hidden = true;
+    if (!['vehicle', 'passenger', 'jumpseat', 'skydive'].includes(player.mode)) $('speedo').hidden = true;
     const dl = drunkLevel();$('drunk').hidden = !dl;if (dl) $('drunk').textContent = `Drunk · ${Math.ceil(drunk)} s`;
   }
 
@@ -933,7 +1090,7 @@
   }
 
   // ---------- Test / inspection handle ----------
-  window.haarklousGame = {player, vehicles, site, paintball, groundAt, heli, plane, drone, watch, fire, stash, shops, sculpture, wallet, get basket() {return basket;}, payAt, takeProduct, useItem, earn, openBag, takeBoost, get boost() {return boost;}, set boost(b) {boost = b;}, get mp() {return mp;}, sitDown, standUp, tryDrive, tryRide, openChat, startDrone, stopDrone, floorBelow, doors, mini, music, photo, map, world, apt, towers, walkWorld, get caseGame() {return caseGame;}, place, toggleDoor, enterVehicle, exitVehicle, startMinigame, startMission, drink, interact, findPrompt, renderFrame, begin, get fps() {return fpsAvg;}, kick: () => requestAnimationFrame(frame), get drunk() {return drunk;}, set drunk(v) {drunk = v;}, setStance, camera, scene};
+  window.haarklousGame = {player, vehicles, site, paintball, groundAt, heli, plane, drone, watch, fire, stash, shops, sculpture, oksen, weather, caravan, get skyd() {return skyd;}, get autoPlane() {return autoPlane;}, get jumpFlight() {return jumpFlight;}, boardAuto, boardCaravan, jump, applyWeather, wallet, get basket() {return basket;}, payAt, takeProduct, useItem, earn, openBag, takeBoost, get boost() {return boost;}, set boost(b) {boost = b;}, get mp() {return mp;}, sitDown, standUp, tryDrive, tryRide, openChat, startDrone, stopDrone, floorBelow, doors, mini, music, photo, map, world, apt, towers, walkWorld, get caseGame() {return caseGame;}, place, toggleDoor, enterVehicle, exitVehicle, startMinigame, startMission, drink, interact, findPrompt, renderFrame, begin, get fps() {return fpsAvg;}, kick: () => requestAnimationFrame(frame), get drunk() {return drunk;}, set drunk(v) {drunk = v;}, setStance, camera, scene};
   loading.remove();$('start').hidden = false;
   requestAnimationFrame(frame);
 })();
