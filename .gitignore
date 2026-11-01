@@ -3,6 +3,7 @@ dist/
 cloud/public/
 # Local tools and caches
 cloud/.wrangler/
+.wrangler/
 .claude/
 node_modules/
 __pycache__/
