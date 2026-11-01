@@ -2,6 +2,7 @@
  * hostage-rescue start, the disc golf holes and the petanque court, and you (arrow). Vehicles are not shown.
  * Left stick / drag pans, right stick / wheel zooms, ○ / M / Esc closes.
  * GameMap.create({data, toLocal, toWorld, root}) -> {open, toggle(), draw(player), pan(dx, dy), zoom(f)}
+ *   player: {x, z, headingLocal, others: [{x, z, headingLocal, color, name}]} (world x/z; headingLocal 0 = north, clockwise)
  */
 (function (root, factory) {
   root.GameMap = factory();
@@ -9,7 +10,7 @@
   'use strict';
   function create({data, toLocal, toWorld, root, poi}) {
     const el = document.createElement('div');el.id = 'mapOverlay';el.hidden = true;
-    el.innerHTML = '<canvas></canvas><div class="map-legend"><b>Map</b><span><i class="lg home"></i>Your apartment (Haarklous plass 17A)</span><span><i class="lg case"></i>Hostage rescue</span><span><i class="lg disc"></i>Disc golf</span><span><i class="lg petanque"></i>Petanque</span><span><i class="lg you"></i>You</span><small>Left stick / drag: pan · Right stick / wheel: zoom · ○ / M: close</small><small class="attr">© OpenStreetMap contributors</small></div>';
+    el.innerHTML = '<canvas></canvas><div class="map-legend"><b>Map</b><span><i class="lg home"></i>Your apartment (Haarklous plass 17A)</span><span><i class="lg case"></i>Hostage rescue</span><span><i class="lg disc"></i>Disc golf</span><span><i class="lg petanque"></i>Petanque</span><span><i class="lg you"></i>You</span><span><i class="lg others"></i>Other players in your lobby</span><small>Left stick / drag: pan · Right stick / wheel: zoom · ○ / M: close</small><small class="attr">© OpenStreetMap contributors</small></div>';
     root.append(el);
     const canvas = el.querySelector('canvas'), ctx = canvas.getContext('2d');
     const map = {open: false, cx: 0, cs: 0, scale: 2.2};
@@ -38,10 +39,13 @@
       // Points of interest.
       const icon = (x, s, color, label, glyph) => {const [u, v] = P(x, s), r = 11 * devicePixelRatio;ctx.fillStyle = color;ctx.beginPath();ctx.arc(u, v, r, 0, 7);ctx.fill();ctx.strokeStyle = '#fff';ctx.lineWidth = 2 * devicePixelRatio;ctx.stroke();ctx.fillStyle = '#fff';ctx.font = `bold ${12 * devicePixelRatio}px system-ui`;ctx.textBaseline = 'middle';ctx.fillText(glyph, u, v + .5);ctx.textBaseline = 'alphabetic';if (label) {ctx.fillStyle = '#222';ctx.font = `bold ${12 * devicePixelRatio}px system-ui`;ctx.fillText(label, u, v - r - 5 * devicePixelRatio);}};
       for (const p of poi()) icon(p.x, p.s, p.color, p.label, p.glyph);
-      if (player) {
-        const l = toLocal(player.x, player.z), [u, v] = P(l.x, l.s), r = 9 * devicePixelRatio, a = player.headingLocal;
-        ctx.save();ctx.translate(u, v);ctx.rotate(a);ctx.fillStyle = '#1565c0';ctx.beginPath();ctx.moveTo(0, -r * 1.4);ctx.lineTo(r, r);ctx.lineTo(0, r * .45);ctx.lineTo(-r, r);ctx.closePath();ctx.fill();ctx.strokeStyle = '#fff';ctx.lineWidth = 2;ctx.stroke();ctx.restore();
+      // Arrows: the other players in your lobby (their slot colour and name, issue #24), then you on top.
+      const arrow = (x, z, a, color, size) => {const l = toLocal(x, z), [u, v] = P(l.x, l.s), r = size * devicePixelRatio;ctx.save();ctx.translate(u, v);ctx.rotate(a);ctx.fillStyle = color;ctx.beginPath();ctx.moveTo(0, -r * 1.4);ctx.lineTo(r, r);ctx.lineTo(0, r * .45);ctx.lineTo(-r, r);ctx.closePath();ctx.fill();ctx.strokeStyle = '#fff';ctx.lineWidth = 2;ctx.stroke();ctx.restore();return [u, v];};
+      for (const o of (player && player.others) || []) {
+        const [u, v] = arrow(o.x, o.z, o.headingLocal, o.color, 8);
+        if (o.name) {ctx.font = `bold ${12 * devicePixelRatio}px system-ui`;ctx.textAlign = 'center';ctx.lineWidth = 3 * devicePixelRatio;ctx.strokeStyle = '#fff';ctx.strokeText(o.name, u, v - 16 * devicePixelRatio);ctx.fillStyle = '#222';ctx.fillText(o.name, u, v - 16 * devicePixelRatio);}
       }
+      if (player) arrow(player.x, player.z, player.headingLocal, '#1565c0', 9);
       // North arrow and scale bar.
       ctx.fillStyle = '#222';ctx.font = `bold ${14 * devicePixelRatio}px system-ui`;ctx.fillText('N ↑', w - 40 * devicePixelRatio, 30 * devicePixelRatio);
       const bar = 100 * k;ctx.fillRect(20 * devicePixelRatio, h - 30 * devicePixelRatio, bar, 4 * devicePixelRatio);ctx.fillText('100 m', 20 * devicePixelRatio + bar / 2, h - 38 * devicePixelRatio);
