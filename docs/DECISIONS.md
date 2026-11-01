@@ -26,12 +26,10 @@ On `main`:
 - Construction site (140 × 90 m, two gates, in the south-west of Torshovdalen since PR #12) with seven machines: dozer, 30 t excavator, wheel loader, articulated hauler, 8x4 tipper, mobile crane, tower crane; diggable soil that keeps its volume; R3 / V changes the machine view (PR #8).
 - Paintball course on the valley floor between the sculpture and the site (since PR #12): lobby, admin, teams up to 6 v 6, team deathmatch with respawns or in rounds, capture the flag, paint or reball (PR #8).
 - Multiplayer on Cloudflare (lobby codes, up to 12 players), passengers in motorcycle / cars / helicopter / plane, text chat with quick chat, lobby-wide voice chat.
+- Player accounts (optional): create an account or log in with email and password in the pause menu; your account name is your lobby name (PR #34, Better Auth + Supabase).
 - Soundtrack: 2.5-minute open-world loop plus one loop per minigame and the mission; ambient sound by location.
 
-Live site: runs `main` (deployed 1 Nov 2026 after PRs #18, #19 and #27–#33, version 1e8ad84e), so everything above is online.
-
-On branch `feat/accounts`, PR #34 (live since 1 Nov 2026, not merged into `main` yet):
-- Player accounts (optional): create an account or log in with email and password in the pause menu; your account name is your lobby name.
+Live site: runs `main` (Worker version cacad9aa, deployed 1 Nov 2026; PR #34 merged the same evening, and `main` builds byte-for-byte to the live page), so everything above is online.
 
 ## Log
 
@@ -55,7 +53,7 @@ On branch `feat/accounts`, PR #34 (live since 1 Nov 2026, not merged into `main`
   - The first deploy (Worker version a8bb1af2) and the commit "Accounts are live" picked up its unfinished changes.
   - The next commit takes them out of this branch; the skydiving work itself stays untouched on disk.
   - The site was redeployed from a clean copy of the branch (Worker version cacad9aa). The live page is byte-for-byte that clean build.
-- **Status:** branch `feat/accounts`, PR https://github.com/jonatsl/haarklous-online/pull/34, live (Worker version cacad9aa). The live site now runs this branch, which is `main` plus accounts.
+- **Status:** on `main` (PR https://github.com/jonatsl/haarklous-online/pull/34, merged 1 Nov 2026 at the user's request) and live (Worker version cacad9aa).
 
 ### 2026-11-01 · `main` is live (PRs #18, #19, #27–#33)
 - **What:** the nine PRs for issues #16, #17 and #20–#26 are merged into `main` and deployed to https://haarklous-online.server-smoke.workers.dev (Cloudflare Worker version 1e8ad84e).
