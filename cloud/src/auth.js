@@ -13,7 +13,9 @@ const BCRYPT_COST = 10;
 
 export async function handleAuth(request, env, ctx) {
   if (!env.HYPERDRIVE || !env.BETTER_AUTH_SECRET) return Response.json({message: 'Accounts are not set up on this server yet'}, {status: 503});
-  const pool = new pg.Pool({connectionString: env.HYPERDRIVE.connectionString, max: 1});
+  // Two connections: sign-up runs in a transaction that holds one, and the password hash (a query) needs the other.
+  // With one, every sign-up waited for itself forever (the game said "Wait…").
+  const pool = new pg.Pool({connectionString: env.HYPERDRIVE.connectionString, max: 2});
   const origin = new URL(request.url).origin;
   const auth = betterAuth({
     appName: 'Haarklous online',

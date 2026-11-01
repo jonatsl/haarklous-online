@@ -47,3 +47,13 @@ test('log in, wrong password and log out talk to Better Auth and keep the user',
     assert.ok(changes >= 10);assert.equal(acct.busy, false);
   } finally {delete globalThis.location;delete globalThis.fetch;}
 });
+
+test('a server that never answers: the form gives up and says so, instead of "Wait…" for ever', async () => {
+  globalThis.location = {protocol: 'http:', hostname: 'localhost'};
+  globalThis.fetch = (url, opt = {}) => new Promise((res, rej) => opt.signal.addEventListener('abort', () => rej(Object.assign(new Error('aborted'), {name: 'AbortError'}))));
+  try {
+    const acct = A.create({timeoutMs: 50});
+    assert.match(await acct.signUp('Jonathan', 'a@b.no', 'longenough'), /did not answer/);
+    assert.equal(acct.busy, false);assert.equal(acct.user, null);
+  } finally {delete globalThis.location;delete globalThis.fetch;}
+});

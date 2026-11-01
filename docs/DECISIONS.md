@@ -33,6 +33,24 @@ Live site: runs `main` (Worker version cacad9aa, deployed 1 Nov 2026; PR #34 mer
 
 ## Log
 
+### 2026-11-01 · Accounts: sign-up no longer hangs on "Wait…"
+- **What:**
+  - Creating an account works: the Worker now opens two database connections per request instead of one.
+  - The pause menu gives up after 20 s with "The account server did not answer – try again in a moment.", so the button can never stay on "Wait…".
+  - The database ends a transaction a stuck request leaves open after 30 s (`idle_in_transaction_session_timeout` for `haarklous_worker`, in `cloud/sql/accounts.sql`).
+- **Why:**
+  - The user: "i put in my email and password and username but it just says wait".
+  - Better Auth (1.7.15) runs sign-up inside a database transaction, which holds a connection from the pool. Inside it, it asks for the password hash, which is a query too (Postgres bcrypt).
+  - With a pool of one connection, the hash waited for the transaction's connection and the transaction waited for the hash: every sign-up hung.
+  - Log-in has no transaction, which is why the earlier live test (an unknown email) answered.
+  - The other session (accounts) checked Supabase: 0 users, and one `haarklous_worker` connection "idle in transaction", the hung sign-up. It had only looked up the email, so nothing was saved.
+- **Where:** `cloud/src/auth.js` (pool `max: 2`), `game-account.js` (time limit), `cloud/sql/accounts.sql`, `tests/account.test.cjs`.
+- **Checked:**
+  - Node tests 57/57, including a new one: a server that never answers gives the "did not answer" message and the form is ready again.
+  - Better Auth's code (`api/routes/sign-up.mjs` line 144: `runWithTransaction`, line 214: `password.hash`, both inside) confirms the order.
+  - The real sign-up can only be tried on the live site, by the user (Claude does not create accounts there).
+- **Status:** PR #37 (branch `fix/account-signup-hang`), not merged yet. After deploying: apply the SQL change, and end the stuck connection (`pg_terminate_backend` for `haarklous_worker` "idle in transaction"; it rolls back nothing).
+
 ### 2026-11-01 · Skydiving: the game's pilot, jumping out of the plane you fly, and getting off on the ground
 - **What:**
   - **Bug fix:** in a jump seat, □ now gets you off while the plane stands still (the prompt showed, but nothing listened to □ there).
@@ -65,7 +83,7 @@ Live site: runs `main` (Worker version cacad9aa, deployed 1 Nov 2026; PR #34 mer
   - `game-aircraft.js` (the Caravan's view distance and seat facing).
   - `tests/skydive.test.cjs`, `README.md`, `index.html`, `docs/HANDOFF.md`.
 - **Checked:**
-  - Node tests 58/58 after merging `main` (with the account tests). New tests:
+  - Node tests 59/59 after merging `main` (with the account tests). New tests:
     - the ground flight: waits, taxis, holds behind the jump flight, takes off, climbs to 3000 m without jumps;
     - the wheels stay on a sloping strip;
     - the taxi never passes the scheduled flight's boarding place;
