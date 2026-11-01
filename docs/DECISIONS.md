@@ -29,12 +29,19 @@ Live site: runs `main` (deployed 29 Oct 2026 after PRs #8–#14, version fd96bf7
 
 ## Log
 
+### 2026-11-01 · Other players are arrows on your map (issue #24)
+- **What:** on the map (touchpad / M) every other player in your lobby is now an arrow in their player colour, pointing the way they face, with their name above it. Before they were round dots without a direction. Your own arrow stays dark blue and is drawn on top. The map legend has an "Other players in your lobby" entry.
+- **Why:** the user's issue #24: "See other players' arrows on your own map".
+- **Where:** `game-map.js` (`arrow()`, `player.others`, legend), `game-main.js` (the `others` list passed to `map.draw`; the old dots removed from the POI list), `style.css`, `README.md`.
+- **Checked:** two browser tabs in one online lobby (T3NU). The second player stood 25 m away facing yaw 1.2. In the first tab the map drew one arrow, "Player 527", in that player's colour (#4d9de0), at their position, with exactly their heading. Screenshot checked. Node tests 44/44.
+- **Status:** PR (branch `feat/map-other-players`, on top of PR #27), closes #24.
+
 ### 2026-11-01 · The map arrow points the way you face (issue #21)
 - **What:** your arrow on the map (touchpad / M) pointed exactly the opposite way: it was turned 180° too far. It now points where you are facing.
 - **Why:** the user's issue #21: "Make the mini map arrow point in the true direction the player is facing." The heading was `-(yaw - theta) + π`; the `+ π` was wrong.
 - **Where:** `game-main.js` (the `map.draw` call).
 - **Checked:** with the map open, facing four different ways (yaw 0, 1, 2.5, −1.2): the arrow is 0.0° from the true facing (it was 180°). Node tests 44/44.
-- **Status:** PR (branch `fix/map-arrow-direction`, on top of PR #19), closes #21. For the Unreal version: haarklous-ue5 issue (the same `+ PI` is in `HKGameExtras.cpp`).
+- **Status:** PR #27 (branch `fix/map-arrow-direction`, on top of PR #19), closes #21. For the Unreal version: https://github.com/jonatsl/haarklous-ue5/issues/15.
 
 ### 2026-10-29 · Fly with the mouse like in Battlefield; hold Shift to look around (issue #16)
 - **What:**

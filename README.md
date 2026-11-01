@@ -19,7 +19,7 @@ A first-person open-world game set around Haarklous plass 17A, Torshov, Oslo: yo
 | Gear menu: camera or FPV drone | hold △, choose with ←/→ (or the left stick), release | hold F, choose with the arrows or the mouse, release |
 | Check the time on your wristwatch | D-pad ↑ (again to lower it) | ↑ |
 | Bag (what you have bought): open, choose, use, close | D-pad ↓, then ↑↓, ✕, ○ | ↓, then ↑↓, Space, C |
-| Map | touchpad | M |
+| Map (you are the blue arrow; other players in your lobby are arrows in their colour, with their names) | touchpad | M |
 | Pause, settings (sensitivity, music volume, aerial imagery, graphics) | Options (D-pad ←/→ = music volume) | Esc |
 
 **Motorcycle (2005 Honda CBF600S) and cars:** □ to get on/in; R2 throttle, L2 brake (hold when stopped to reverse), left stick steers (the bike leans at speed), right stick looks around. Your gloved hands hold the bars or the wheel, which turn with you. The bike has a six-speed gearbox model and an inline-four engine note. Cars and motorcycles follow real gravity (9.81 m/s²): take a crest or bump faster than gravity can hold you on the ground and you fly until you land – no grip, steering or brakes in the air, a thud and a dip when you touch down.
