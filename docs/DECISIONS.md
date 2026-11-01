@@ -29,9 +29,21 @@ On `main`:
 - Player accounts (optional): create an account or log in with email and password in the pause menu; your account name is your lobby name (PR #34, Better Auth + Supabase).
 - Soundtrack: 2.5-minute open-world loop plus one loop per minigame and the mission; ambient sound by location.
 
-Live site: runs `main` (Worker version cacad9aa, deployed 1 Nov 2026; PR #34 merged the same evening, and `main` builds byte-for-byte to the live page), so everything above is online.
+Live site: runs `main` (Worker version 43457da0, deployed 1 Nov 2026 after PRs #36 and #37; `main` builds byte-for-byte to the live page), so everything above is online.
 
 ## Log
+
+### 2026-11-01 · `main` is live (PRs #36 and #37)
+- **What:** the game's pilot for the Caravan (PR #36) and the sign-up fix (PR #37) are merged into `main` and deployed (Cloudflare Worker version 43457da0).
+  - Deployed from a clean worktree of the merged code (not the shared folder), with `cloud/` packages installed by `npm ci`.
+  - In Supabase: the 30 s idle-transaction limit for `haarklous_worker` is set, and the hung sign-up's connection was ended.
+- **Why:** the user approved merging both, deploying, and the two database steps (1 Nov 2026).
+- **Checked:**
+  - The live page is byte-for-byte the local build.
+  - `/api/auth/get-session` answers 200 in about 0.6 s.
+  - The live game starts, joins a lobby, shows the real weather and the account form, and has the game's pilot. No console errors.
+  - A real sign-up is the user's own (Claude does not create accounts on the live site).
+- **Status:** live.
 
 ### 2026-11-01 · Accounts: sign-up no longer hangs on "Wait…"
 - **What:**
@@ -49,7 +61,7 @@ Live site: runs `main` (Worker version cacad9aa, deployed 1 Nov 2026; PR #34 mer
   - Node tests 57/57, including a new one: a server that never answers gives the "did not answer" message and the form is ready again.
   - Better Auth's code (`api/routes/sign-up.mjs` line 144: `runWithTransaction`, line 214: `password.hash`, both inside) confirms the order.
   - The real sign-up can only be tried on the live site, by the user (Claude does not create accounts there).
-- **Status:** PR #37 (branch `fix/account-signup-hang`), not merged yet. After deploying: apply the SQL change, and end the stuck connection (`pg_terminate_backend` for `haarklous_worker` "idle in transaction"; it rolls back nothing).
+- **Status:** on `main` (PR #37, merged 1 Nov 2026 with the user's OK) and live (Worker version 43457da0). The SQL change is applied (`haarklous_worker` has `idle_in_transaction_session_timeout=30s`), and the stuck connection (pid 12455, idle in a transaction for 522 s after the email lookup) was ended. There were 0 users, so nothing was lost.
 
 ### 2026-11-01 · Skydiving: the game's pilot, jumping out of the plane you fly, and getting off on the ground
 - **What:**
@@ -98,7 +110,7 @@ Live site: runs `main` (Worker version cacad9aa, deployed 1 Nov 2026; PR #34 mer
   - With two players in one lobby:
     - the second player boarded, saw the pilot and the countdown, sat facing the tail, and could jump at 1289 m;
     - when the first player's tab closed at about 1300 m, the second player's computer took over and kept circling.
-- **Status:** PR #36 (branch `fix/caravan-game-pilot`, from `main`), not merged yet. For the Unreal version: https://github.com/jonatsl/haarklous-ue5/issues/21#issuecomment-6564696830.
+- **Status:** on `main` (PR #36, merged 1 Nov 2026 with the user's OK) and live (Worker version 43457da0).
 
 ### 2026-11-01 · Player accounts with email and password (Better Auth + Supabase)
 - **What:** an optional **Account** section in the pause menu: create an account (player name, email, password of at least 8 characters), log in, log out. You stay logged in for 30 days. When logged in, your account name becomes your name in the lobbies. Playing still needs no account, and the offline file shows where accounts work.
