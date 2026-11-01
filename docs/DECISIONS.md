@@ -66,7 +66,7 @@ Live site: runs `main` (deployed 29 Oct 2026 after PRs #8–#14, version fd96bf7
   - The Caravan takes off from the strip (about 110 km/h).
   - With two players online: the other player sits in the right seat in the jump flight, falls belly down, then hangs under a canopy.
   - Haze from 3000 m fixed (the near fog now thins as the view gets longer). No console errors.
-- **Status:** PR (branch `feat/skydiving`, on top of PR #32), closes #22.
+- **Status:** PR #33 (branch `feat/skydiving`, on top of PR #32), closes #22. For the Unreal version: https://github.com/jonatsl/haarklous-ue5/issues/21.
 
 ### 2026-11-01 · Torshovoksen at its real place (issue #20)
 - **What:** Oksefontenen, the fountain with "Torshovoksen" (Asbjørg Borgfelt, unveiled 1929), stands in the middle of Hegermanns plass at OpenStreetMap node 331273417 (local −542.0, 204.3).
