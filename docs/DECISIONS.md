@@ -59,6 +59,7 @@ Live site: runs `main` (Worker version 82250255, deployed 2 Nov 2026 after PR #4
   - `game-main.js`: the patches are decoded, then built; walk and vehicle worlds get one ground floor per patch through `groundAt`; the map gets the district in the same lists as before.
   - The tools take a name and a box, so other places can be added as more patches (the climbing-gym session plans one for Myrens verksted).
 - **Also fixed on the way:** the distant hills ring started 2.6 km from home, which is now inside the world; it now starts 400 m beyond the ground data in each direction, from the apron's own height. The flat land far away now lies 2 m below sea level instead of below Torshov's lowest point, so the fjord does not float above the new sea.
+- **Tool fix from the climbing-gym session (issue #40):** `make-district.py` took its height reference from the old grid's rows at s 600–800, which a patch elsewhere does not reach (its Myrens patch came out 17 m off). A patch now uses those rows only when they are inside its box, else the old grid's points inside its box, else the old data's door height. Gamle Oslo's data is byte-for-byte the same.
 - **Performance:** in the district a frame has 140–210 draw calls and 0.3–1.3 million triangles (home has about 2,800 calls and 1.2–2.3 million). At home the district adds up to 0.35 million triangles when you look toward it. Timing on this PC was too noisy (other sessions share the GPU) for a reliable fps figure.
 - **Checked:**
   - Node tests (`tests/district.test.cjs`, 7 new).

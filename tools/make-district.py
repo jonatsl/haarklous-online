@@ -85,8 +85,12 @@ def dtm_at(arr, x, s_):
     return arr[r0, c0] * (1 - fc) * (1 - fr) + arr[r0, c0 + 1] * fc * (1 - fr) + arr[r0 + 1, c0] * (1 - fc) * fr + arr[r0 + 1, c0 + 1] * fc * fr
 
 
-# The stair-door reference the old grid uses: the median of (DTM - stored value) where both exist.
-H_DOOR = float(np.median([dtm_at(raw, x, s_) - A[(s_ + A_HALF) // 4, (x + A_HALF) // 4] / 10 for x in range(-800, 801, 40) for s_ in (600, 700, 800)]))
+# The stair-door reference the old grid uses: the median of (DTM - stored value) where both exist. Gamle Oslo samples the old
+# grid's rows at s 600-800; a patch elsewhere (Myrens, west of the old grid) samples the old grid's points inside its own box,
+# and a patch that does not reach the old grid keeps the old data's own door height.
+_inbox = lambda x, s_: GX0 <= x <= GX1 and GS0 <= s_ <= GS1
+_both = [(x, s_) for x in range(-800, 801, 40) for s_ in (600, 700, 800) if _inbox(x, s_)] or [(x, s_) for x in range(-800, 801, 40) for s_ in range(-800, 801, 40) if _inbox(x, s_)]
+H_DOOR = float(np.median([dtm_at(raw, x, s_) - A[(s_ + A_HALF) // 4, (x + A_HALF) // 4] / 10 for x, s_ in _both])) if _both else float(ter['doorHeight'])
 in_a = lambda x, s_: abs(x) <= A_HALF and abs(s_) <= A_HALF
 nx, ns = (GX1 - GX0) // STEP + 1, (GS1 - GS0) // STEP + 1
 grid = np.zeros((ns, nx), dtype=np.int32)
