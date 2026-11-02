@@ -46,6 +46,7 @@ Live site: runs `main` (Worker version 43457da0, deployed 1 Nov 2026 after PRs #
     - About 90 m around you on foot; it zooms out with speed and height, up to 300 m. It hides while the photo camera is out.
     - Things that sat in that corner move: the chat moves up; the minigame cards, the mission's health, paintball's team line and the drone's flight data move to the right of it.
   - **Faster big map:** it now draws only what is in view, and keeps the picture while you don't pan or zoom. The Gamle Oslo work (issue #38) will make the map data about ten times bigger.
+  - **Ready for the catacomb (issue #43):** a `map.layer` switch agreed with that work. Underground the minimap shows the catacomb's own map, and the waypoint can't be set, its pin is hidden and it waits for you on the surface.
 - **Why:**
   - The user's issues: #41 "Add waypoint and follow it" (a purple pointer, clear but not too distracting, until you are within 7 m) and #42 "Add optional minimap" (toggled in the menu, round like GTA IV's, in the same corner).
   - The pin is small (20 px, 88 % opacity) and only shows the distance, so it is clear without being in the way.

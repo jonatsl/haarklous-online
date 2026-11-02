@@ -7634,7 +7634,10 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
  * Minimap (issue #42, optional, pause menu): round, in the bottom-left corner like GTA IV, turns with the camera, zooms out
  * with speed and height. The map data is drawn once into 200 m tiles (at most two new tiles a frame) and the tiles are reused.
  * GameMap.create({data, toLocal, toWorld, root, poi}) -> {open, toggle(player), draw(player), pan(dx, dy), zoom(f), markCentre(),
- *   clearWaypoint(), waypoint {x, s} | null, minimap (on/off, saved), guide(state)}
+ *   clearWaypoint(), waypoint {x, s} | null, minimap (on/off, saved), guide(state), layer}
+ *   layer: null on the surface; underground (the catacomb, issue #43) an object whose draw(ctx, {P(x, s) -> [u, v], k px/m, w, h,
+ *   dpr, rotation, player}) paints the whole map instead (the minimap passes its turned P and rotation = -view). Meanwhile no
+ *   waypoint can be set, its on-screen pin is hidden and it is not "reached"; it is still there when you come back up.
  *   player: {x, z, headingLocal, others: [{x, z, headingLocal, color, name}]} (world x/z; headingLocal 0 = north, clockwise)
  *   guide({dt, camera, x, z, you: {x, z}, heading, view, alt, others, ground(x, z), show}) once a frame while you play: x/z = the
  *   minimap's centre, heading = your arrow, view = the camera's heading (the minimap's "up"); returns 'reached' when you got
@@ -7675,7 +7678,7 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
     el.innerHTML = '<canvas></canvas><div class="map-legend"><b>Map</b><span><i class="lg home"></i>Your apartment (Haarklous plass 17A)</span><span><i class="lg case"></i>Hostage rescue</span><span><i class="lg disc"></i>Disc golf</span><span><i class="lg petanque"></i>Petanque</span><span><i class="lg you"></i>You</span><span><i class="lg others"></i>Other players in your lobby</span><span><i class="lg wp"></i>Your waypoint</span><small>Left stick / drag: pan · Right stick / wheel: zoom</small><small>✕ / click: set or remove a waypoint · □ / Delete: remove it · ○ / M: close</small><small class="attr">© OpenStreetMap contributors</small></div>';
     root.append(el);
     const canvas = el.querySelector('canvas'), ctx = canvas.getContext('2d');
-    const map = {open: false, cx: 0, cs: 0, scale: 2.2, waypoint: null};
+    const map = {open: false, cx: 0, cs: 0, scale: 2.2, waypoint: null, layer: null};
     const pairs = flat => {const out = [];for (let i = 0; i < flat.length; i += 2) out.push([flat[i], flat[i + 1]]);return out;};
     const order = ['footway', 'path', 'cycleway', 'steps', 'pedestrian', 'service', 'track', 'living_street', 'unclassified', 'residential', 'tertiary', 'secondary', 'primary', 'trunk_link', 'trunk', 'tram'];
     const PATHS = ['footway', 'path', 'steps', 'cycleway', 'track', 'pedestrian'];
@@ -7757,7 +7760,7 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
     map.zoom = f => {map.scale = Math.max(.5, Math.min(12, map.scale * f));};
     map.draw = draw;
     // Set the waypoint at a map point, or remove it when that point is on it (within 16 screen pixels).
-    function markAt(x, s) {const wp = map.waypoint;map.waypoint = wp && Math.hypot(wp.x - x, wp.s - s) * map.scale < 16 ? null : {x, s};draw();}
+    function markAt(x, s) {if (map.layer) return;const wp = map.waypoint;map.waypoint = wp && Math.hypot(wp.x - x, wp.s - s) * map.scale < 16 ? null : {x, s};draw();}
     map.markCentre = () => markAt(map.cx, map.cs);
     map.clearWaypoint = () => {map.waypoint = null;draw();};
     let drag = null;
@@ -7817,6 +7820,8 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
       const at = (px, ps) => {const dx = (px - l.x) * k, ds = (ps - l.s) * k;return [dx * cv - ds * sv, dx * sv + ds * cv];};// map point -> offset from the centre
       mg.setTransform(1, 0, 0, 1, 0, 0);mg.clearRect(0, 0, W, W);
       mg.save();mg.beginPath();mg.arc(R, R, inner, 0, 7);mg.clip();mg.fillStyle = '#1c2023';mg.fillRect(0, 0, W, W);
+      // Underground (the catacomb, issue #43) its own map draws everything inside the circle, turned like the minimap.
+      if (map.layer) {map.layer.draw(mg, {P: (px, ps) => {const [u, v] = at(px, ps);return [R + u, R + v];}, k, w: W, h: W, dpr: d, rotation: -view, player: {x, z, headingLocal: heading, others: others || []}});mg.restore();rim(R, inner, d, view);return;}
       mg.translate(R, R);mg.rotate(-view);mg.scale(k, k);mg.translate(-l.x, -l.s);
       const reach = range * Math.SQRT2;
       for (let i = Math.floor((l.x - reach) / TILE); i <= Math.floor((l.x + reach) / TILE); i++) for (let j = Math.floor((l.s - reach) / TILE); j <= Math.floor((l.s + reach) / TILE); j++) {
@@ -7834,8 +7839,11 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
       for (const o of others || []) {const l2 = toLocal(o.x, o.z), [u, v] = at(l2.x, l2.s), q = toRim(u, v, inner - 7 * d);if (q.out) {mg.fillStyle = o.color;mg.beginPath();mg.arc(R + q.u, R + q.v, 4 * d, 0, 7);mg.fill();mg.strokeStyle = '#fff';mg.lineWidth = 1.2 * d;mg.stroke();} else arrow(q.u, q.v, o.headingLocal - view, o.color, 5);}
       if (map.waypoint) {const [u, v] = at(map.waypoint.x, map.waypoint.s), q = toRim(u, v, inner - 9 * d);pin(mg, R + q.u, R + q.v + 4 * d, 5 * d);}
       arrow(0, 0, heading - view, '#f4f4f4', 6);
-      mg.restore();
-      // The rim and north on it.
+      mg.restore();rim(R, inner, d, view);
+    }
+    // The rim and north on it.
+    function rim(R, inner, d, view) {
+      mg.textAlign = 'center';mg.textBaseline = 'middle';
       mg.beginPath();mg.arc(R, R, inner + 2.5 * d, 0, 7);mg.strokeStyle = '#0b0d0f';mg.lineWidth = 5 * d;mg.stroke();
       mg.beginPath();mg.arc(R, R, R - .75 * d, 0, 7);mg.strokeStyle = '#ffffff40';mg.lineWidth = 1.5 * d;mg.stroke();
       const nx = R - Math.sin(view) * (inner - 2 * d), ny = R - Math.cos(view) * (inner - 2 * d);
@@ -7857,13 +7865,13 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
     }
     map.guide = ({dt, camera, x, z, you, heading, view, alt, others, ground, show}) => {
       let reached = false;
-      if (map.waypoint && you) {const wp = toWorld(map.waypoint.x, map.waypoint.s);if (Math.hypot(wp.x - you.x, wp.z - you.z) <= REACH) {map.waypoint = null;reached = true;}}
+      if (map.waypoint && you && !map.layer) {const wp = toWorld(map.waypoint.x, map.waypoint.s);if (Math.hypot(wp.x - you.x, wp.z - you.z) <= REACH) {map.waypoint = null;reached = true;}}
       // Zoom out with speed (smoothed; a jump of more than 150 m/s is a teleport, not speed).
       if (last && dt > 0) {const v = Math.hypot(x - last.x, z - last.z) / dt;if (v < 150) speed += (v - speed) * Math.min(1, dt * 2);}last = {x, z};
       range += (minimapRange(speed, alt) - range) * Math.min(1, (dt || 0) * 1.5);
       const miniShown = miniOn && show;mini.hidden = !miniShown;root.classList.toggle('has-minimap', miniShown);
       if (miniShown) drawMini({x, z, heading, view, others});
-      if (map.waypoint && show && camera) drawPointer(camera, you, ground);else ptr.hidden = true;
+      if (map.waypoint && show && camera && !map.layer) drawPointer(camera, you, ground);else ptr.hidden = true;
       return reached ? 'reached' : null;
     };
     return map;
