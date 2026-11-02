@@ -53,7 +53,7 @@ Live site: runs `main` (Worker version ea397923, deployed 3 Nov 2026 after PR #4
   - Node tests 84/84 (13 new): all three runs paddled to Vaterland inside the banks, bed lowering, library paths, the librarian's chase / shush / return, serve order and legal serves, the net, the Rathkes split.
   - In the browser: the library outside and inside, both books (cover; "Call me Ishmael."), the librarian chasing and shushing a runner and walking back, a table-tennis rally with Ola, kayaking from Sagene and Grünerløkka (water, banks, bridges, HUD), the gate opening, the passage and the 1C prompt. No script errors.
 - **Not checked:** a real DualShock 4, a real microphone for the loudness check, two real players online.
-- **Status:** branch `feat/grunerlokka`.
+- **Status:** branch `feat/grunerlokka`, PR #51 (https://github.com/jonatsl/haarklous-online/pull/51).
 
 ### 2026-11-03 · `main` is live (PR #48)
 - **What:** Gamle Oslo, Ensjø and the way there (PR #48) is merged into `main` and deployed (Cloudflare Worker version ea397923).
