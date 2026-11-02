@@ -29,11 +29,12 @@ On `main`:
 - Multiplayer on Cloudflare (lobby codes, up to 12 players), passengers in motorcycle / cars / helicopter / plane, text chat with quick chat, lobby-wide voice chat.
 - Player accounts (optional): create an account or log in with email and password in the pause menu; your account name is your lobby name (PR #34, Better Auth + Supabase).
 - Soundtrack: 2.5-minute open-world loop plus one loop per minigame and the mission; ambient sound by location.
+- Gamle Oslo, Ensjø and the way there: real streets, ground heights and about 7,900 buildings south of the old world (3.4 × 3.4 km, down Trondheimsveien to Bjørvika); churches, MUNCH, the Opera (walkable roof) and tall chimneys modelled; a timed Ensjø → Rathkes gate run (PR #48, issue #38).
+
+Live site: runs `main` (Worker version ea397923, deployed 3 Nov 2026 after PR #48; `main` builds byte-for-byte to the live page), so everything above is online.
 
 On branch `feat/catacomb` ([PR #50](https://github.com/jonatsl/haarklous-online/pull/50), not on `main` yet):
 - A large catacomb under Torshovdalen with three entrances about 100 m apart (marked ☠ on the map): torch-lit bone galleries with real-looking skulls, dark quarry tunnels where you use your torch (□ / L1 / Q), and a map that is wiped underground and fills in with what you see (issue #43).
-
-Live site: runs `main` (Worker version 82250255, deployed 2 Nov 2026 after PR #46; `main` builds byte-for-byte to the live page), so everything above is online.
 
 ## Log
 
@@ -80,6 +81,53 @@ Live site: runs `main` (Worker version 82250255, deployed 2 Nov 2026 after PR #4
   - Underground about 100 draw calls and 0.8 M triangles. On the surface by the mausoleums it is 1.2 k calls and 1.6 M triangles, as before.
   - Not checked: frame rate on the user's PC (the browser pane was hidden), and sound by ear.
 - **Status:** branch `feat/catacomb`, [PR #50](https://github.com/jonatsl/haarklous-online/pull/50) (open); not on `main`, not live.
+
+### 2026-11-03 · `main` is live (PR #48)
+- **What:** Gamle Oslo, Ensjø and the way there (PR #48) is merged into `main` and deployed (Cloudflare Worker version ea397923).
+  - Deployed from this session's own worktree at the PR's last commit. `main` had not moved since PR #46, so the merged `main` builds to the same page.
+  - Before that the live page was checked to be exactly `main` (PR #46), so nothing else went live with it.
+- **Why:** the user asked to merge and deploy "if possible and not colliding with anything else" (3 Nov 2026).
+- **Other open PRs:**
+  - PR #49 (Klatreverket) is built on PR #48, so it now shows only its own changes.
+  - PR #50 (catacomb) and PR #48 both added lines at the same places in `game-main.js`, `index.html`, `README.md` and this log. They are side by side, not overlapping, so #50 needs a routine merge of `main`.
+  - The one link to keep when merging #50: its `cutsGround` check goes into the height of every floor in `groundFloors` (`world.terrainFloors().map(...)`), where #48 had replaced the single `groundFloor`.
+- **Checked:**
+  - The live page is byte-for-byte the build (apart from line endings).
+  - `/weather` and `/api/auth/get-session` answer 200.
+  - The live game starts, goes online with a lobby code, and has the district (7,938 buildings, 9 key buildings) and the run's prompt at Ensjø.
+  - The only console error is the old missing favicon.
+- **Status:** live.
+
+### 2026-11-02 · Gamle Oslo, Ensjø and the way there (issue #38)
+- **What:**
+  - A new "district patch" of the world south of the old ±800 m square: local x −1600…1792, s 560…4000 (3.4 × 3.4 km), walkable to 40 m inside its edges. It runs from Carl Berner down Trondheimsveien to Sofienberg and Schous plass, and through Rodeløkka, Tøyen, Kampen, Vålerenga, Ensjø, the edge of Helsfyr, Grønland, Gamlebyen and Bjørvika to the fjord.
+  - Real ground heights: Kartverket's 2 m terrain model on an 8 m grid. Where it overlaps the old 4 m grid it copies its values exactly, so there is no seam (tested). Real steep places such as Kampen's rock face and the Akerselva ravine are kept.
+  - Real streets, paths, tram and rail lines, parks, grass, woods, water, pitches and parking from OpenStreetMap, painted on the ground (or the Esri aerial photo, which loads when you come within 700 m) and drawn on the map and minimap.
+  - About 7,900 buildings in their real places: OpenStreetMap footprints, heights from their storey counts (about half have them) or a default per building type. Brick blocks get Torshov's facade and hip roofs, other buildings plaster with windows, tall ones glass bands, halls ribbed metal. Shapes are simple, not exact copies, as the user allowed.
+  - Key buildings modelled on their real footprints (`game-landmarks.js`): Sofienberg, Paulus, Kampen, Vålerenga, Grønland, Gamlebyen and Tøyen churches (brick nave with arched windows, steep roof, tower with clocks and spire at the narrow end of the footprint), MUNCH (60 m, the top bends toward the fjord, red sign), the Opera (white roof you can walk up from the plaza to 32 m, glass walls, stage tower) and eight tall chimneys (Freiapipa 50 m, Ringnespipa 40 m …). Oslo Plaza (117 m) and Posthuset (111 m) get their real heights. Sizes and colours are estimates (±20 %).
+  - Parks are real but light: the ~9,700 mapped trees with lighter crowns (26 leaf cards instead of 70); far away only within 1.1 km.
+  - The fjord: a water surface where the terrain model is at sea level, minus every mapped building and land area (the model is older than the newest quays). You stop at the quay.
+  - **Ensjø → Rathkes gate run** (`game-route.js`): green ring outside Ensjø T-bane, □ starts the clock; the chequered ring in Rathkes gate stops it. Any way counts. Best time in the browser (`haarklous-route-v1`), 30 kr per finish, 60 kr for a new best, □ at the finish takes you back to the start.
+  - Photos taken in the district are named after the nearest neighbourhood (Ensjø, Kampen, Vålerenga …).
+- **Why:**
+  - Issue #38: "Make Ensjø part of the game … explore my own part of the city, namely Gamle Oslo … practice the most effective way from Ensjø to Ratkhes".
+  - The user (2 Nov 2026): real streets, topography and buildings in the correct positions but not exact copies; some key buildings modelled; parks real and light; the area in between lighter but with real topography; at least the buildings down Trondheimsveien.
+  - Trondheimsveien does not reach Gamle Oslo itself: from Sinsen it runs through Carl Berner to Schous plass at Grünerløkka. Gamle Oslo and Ensjø lie south of that, so the patch covers both, and every building in between is in (a test checks there is a building within 45 m of every 100 m of Trondheimsveien).
+  - Rathkes gate is on Rodeløkka by Sofienbergparken (not in Torshov), 1.5 km from Ensjø as the crow flies and 55 m lower.
+- **How it fits in:**
+  - `surroundings-data.js` is not changed (1,040 buildings, 1,057 roads), so the seeded parked vehicles and their numbers online stay the same.
+  - New data and code: `tools/fetch-district.py` (OpenStreetMap + Kartverket download into `assets/osm/gamle-oslo-*`), `tools/make-district.py` (writes `gamle-oslo-data.js`, 1.2 MB), `district.js` (decoder, Node-tested), `surroundings.js` (district ground tiles, buildings, trees, sea, imagery, collision, footsteps, traffic sound), `game-landmarks.js`, `game-route.js`.
+  - `game-main.js`: the patches are decoded, then built; walk and vehicle worlds get one ground floor per patch through `groundAt`; the map gets the district in the same lists as before.
+  - The tools take a name and a box, so other places can be added as more patches (the climbing-gym session plans one for Myrens verksted).
+- **Also fixed on the way:** the distant hills ring started 2.6 km from home, which is now inside the world; it now starts 400 m beyond the ground data in each direction, from the apron's own height. The flat land far away now lies 2 m below sea level instead of below Torshov's lowest point, so the fjord does not float above the new sea.
+- **Tool fix from the climbing-gym session (issue #40):** `make-district.py` took its height reference from the old grid's rows at s 600–800, which a patch elsewhere does not reach (its Myrens patch came out 17 m off). A patch now uses those rows only when they are inside its box, else the old grid's points inside its box, else the old data's door height. Gamle Oslo's data is byte-for-byte the same.
+- **Performance:** in the district a frame has 140–210 draw calls and 0.3–1.3 million triangles (home has about 2,800 calls and 1.2–2.3 million). At home the district adds up to 0.35 million triangles when you look toward it. Timing on this PC was too noisy (other sessions share the GPU) for a reliable fps figure.
+- **Checked:**
+  - Node tests (`tests/district.test.cjs`, 7 new).
+  - In a browser: crossing the old edge on foot along Trondheimsveien, buildings block you, the Opera roof climbed 28.7 m, the run started, timed, finished, paid, saved and sent you back to Ensjø, the aerial photo loads in about 5 s, and the map shows the district.
+  - Not checked: a real controller, the frame rate on the user's PC, online play with others in the district.
+- **Where:** `tools/fetch-district.py`, `tools/make-district.py`, `assets/osm/gamle-oslo-*`, `gamle-oslo-data.js`, `district.js`, `surroundings.js`, `game-landmarks.js`, `game-route.js`, `game-main.js`, `index.html`, `README.md`, `tests/district.test.cjs`, `docs/HANDOFF.md`.
+- **Status:** PR #48, merged into `main` and live (Worker version ea397923, 3 Nov 2026).
 
 ### 2026-11-02 · Map waypoint and an optional minimap (issues #41 and #42)
 - **What:**
