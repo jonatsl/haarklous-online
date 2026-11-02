@@ -79,7 +79,7 @@
   })();scene.add(stash.group);
   const shops = window.GameShops.create({T, lib, world, audio});scene.add(shops.group);
   // Klatreverket Torshov (issue #40): the climbing centre in its real building at Myrens verksted 3K, about 980 m west-south-west.
-  const gym = window.GameClimbing.create({T, lib, data: window.KLATREVERKET, toWorld: world.toWorld, avatars: window.GameAvatars.create({T, lib}), audio});scene.add(gym.group, gym.extras);
+  const gym = window.GameClimbing.create({T, lib, data: window.KLATREVERKET, toWorld: world.toWorld, heightAt: world.heightWorld, avatars: window.GameAvatars.create({T, lib}), audio});scene.add(gym.group, gym.extras);
   // HODET N.N., Marianne Heske's 7 m bronze doll's head at the north end of Torshovdalen (OSM node 2965223021, real place
   // local (9.1, 275.5)), facing south, with its stone steps on the east side.
   const SCULPTURE_AT = {x: 9.1, s: 275.5};

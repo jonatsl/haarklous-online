@@ -371,7 +371,7 @@
       if (d && flatten && data) flatten(d, hallPolygon(data), data.floorY - groundY - .05);
     }
   }
-  function create({T, lib, data, toWorld, avatars, audio}) {
+  function create({T, lib, data, toWorld, avatars, audio, heightAt}) {
     const F = data.frame, origin = toWorld(F.origin[0], F.origin[1]), ua = toWorld(F.origin[0] + F.u[0], F.origin[1] + F.u[1]), ux = ua.x - origin.x, uz = ua.z - origin.z;
     const vx = -uz, vz = ux, Y0 = data.floorY;
     const W = (a, b) => ({x: origin.x + ux * a + vx * b, z: origin.z + uz * a + vz * b});// hall frame -> world x, z
@@ -447,8 +447,13 @@
     sign(shell, 3.6, .9, -.04, 3.3, (DOOR[0] + DOOR[1]) / 2, -Math.PI / 2, (c, w, h) => {c.fillStyle = '#ffffff';c.fillRect(0, 0, w, h);c.fillStyle = '#c4161c';c.font = `bold ${h * .52}px Arial Black, Arial, sans-serif`;c.textAlign = 'center';c.textBaseline = 'middle';c.fillText('KLATREVERKET', w / 2 + h * .2, h / 2 + 4);c.beginPath();c.arc(h * .42, h / 2, h * .3, 0, 7);c.fill();c.fillStyle = '#fff';c.fillRect(h * .36, h * .28, h * .12, h * .44);}, .35);
     sign(shell, 1.6, .5, -.04, 2.85, (DOOR[0] + DOOR[1]) / 2, -Math.PI / 2, (c, w, h) => {c.fillStyle = '#20252b';c.fillRect(0, 0, w, h);c.fillStyle = '#fff';c.font = `bold ${h * .32}px Arial, sans-serif`;c.textAlign = 'center';c.fillText('Myrens verksted 3K', w / 2, h * .42);c.font = `${h * .24}px Arial, sans-serif`;c.fillText('Klatreverket · Myrens Treningssenter', w / 2, h * .8);});
     sign(shell, .55, .42, -.03, 1.45, DOOR[1] + .45, -Math.PI / 2, (c, w, h) => {c.fillStyle = '#ffffff';c.fillRect(0, 0, w, h);c.fillStyle = '#16191d';c.textAlign = 'center';c.font = `bold ${h * .13}px Arial, sans-serif`;c.fillText('Klatreverket Torshov', w / 2, h * .17);c.font = `${h * .1}px Arial, sans-serif`;['Man–tor 07–23', 'Fre 07–21', 'Lør–søn 09–20', '', 'post@klatreverket.no', '22 04 06 80'].forEach((t, i) => c.fillText(t, w / 2, h * (.36 + i * .12)));});
-    floors.push({name: 'Klatreverket entrance', points: rectW(-1.8, IN, DOOR[0] - .1, DOOR[1] + .1), y: Y0, ceilingHeight: Infinity, surfaceKind: 'stone'});
-    blk(shell, -1.8, 0, -.4, 0, DOOR[0] - .1, DOOR[1] + .1, M.lobby);
+    // The doorstep, and a gentle ramp down to the street that ends exactly on the ground (walk floors only join within 5 cm).
+    const dm = (DOOR[0] + DOOR[1]) / 2, gAt = a => {if (!heightAt) return Y0;const p = W(a, dm);return heightAt(p.x, p.z);};
+    let rl = 1.8, rise = 0;for (let it = 0; it < 3; it++) {rise = Y0 - gAt(-rl);rl = clamp(Math.abs(rise) / .1, 1.8, 6);}rise = Y0 - gAt(-rl);if (Math.abs(rise) > 1.5) rise = 0;
+    floors.push({name: 'Klatreverket doorstep', points: rectW(0, IN, DOOR[0] - .1, DOOR[1] + .1), y: Y0, ceilingHeight: Infinity, surfaceKind: 'stone'});
+    {const o = W(0, dm), g = rise / rl;floors.push({name: 'Klatreverket entrance', points: rectW(-rl, 0, DOOR[0] - .1, DOOR[1] + .1), y: Y0, slope: {x: ux * g, z: uz * g, origin: o}, ceilingHeight: Infinity, surfaceKind: 'stone'});}
+    {const b0 = DOOR[0] - .1, b1 = DOOR[1] + .1, pos = [0, 0, b0, 0, 0, b1, -rl, -rise, b1, -rl, -rise, b0, 0, -.5, b0, 0, -.5, b1], g = new T.BufferGeometry();
+      g.setAttribute('position', new T.Float32BufferAttribute(pos, 3));g.setIndex([0, 1, 2, 0, 2, 3, 0, 3, 4, 1, 5, 2]);g.computeVertexNormals();const rm = M.lobby.clone();rm.side = T.DoubleSide;const m = new T.Mesh(g, rm);m.receiveShadow = true;shell.add(m);}
     // Outer walls are solid (the doorway between the two door leaves is open).
     solid(-.05, LEN, -.05, IN, -1, eaves);solid(-.05, LEN, WING - .3, WING + .05, -1, eaves);solid(LEN - IN, LEN + .05, 0, WING, -1, eaves);solid(-.05, IN, IN, DOOR[0], -1, eaves);solid(-.05, IN, DOOR[1], WING - .3, -1, eaves);
 
