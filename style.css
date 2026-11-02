@@ -177,3 +177,21 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
 .pb-cross{position:absolute;left:50%;top:50%;width:18px;height:18px;margin:-9px 0 0 -9px;border:1.5px solid #ffffffb3;border-radius:50%}
 .pb-paint{position:absolute;inset:0;background:radial-gradient(circle at 50% 45%,#1a59f2cc 0 14%,#1a59f288 15% 22%,transparent 24%),radial-gradient(circle at 38% 36%,#1a59f2aa 0 5%,transparent 6%),radial-gradient(circle at 63% 55%,#1a59f2aa 0 6%,transparent 7%),radial-gradient(circle at 56% 30%,#1a59f299 0 4%,transparent 5%)}
 .pb-paint[data-team="1"]{background:radial-gradient(circle at 50% 45%,#f24d0dcc 0 14%,#f24d0d88 15% 22%,transparent 24%),radial-gradient(circle at 38% 36%,#f24d0daa 0 5%,transparent 6%),radial-gradient(circle at 63% 55%,#f24d0daa 0 6%,transparent 7%),radial-gradient(circle at 56% 30%,#f24d0d99 0 4%,transparent 5%)}
+/* Minimap (issue #42): round, bottom-left like GTA IV; what sits in that corner moves right of it (the chat moves up). */
+#game{--mm:clamp(140px,24vmin,210px)}
+#minimap{position:absolute;left:22px;bottom:22px;width:var(--mm);height:var(--mm);border-radius:50%;pointer-events:none;opacity:.92;filter:drop-shadow(0 2px 6px #000a)}
+#minimap[hidden]{display:none}
+#game.has-minimap #chat{bottom:calc(var(--mm) + 40px)}
+#game.has-minimap .game-card{left:calc(var(--mm) + 40px);width:min(380px,calc(100% - var(--mm) - 58px))}
+#game.has-minimap .case-health,#game.has-minimap #osd .bl{left:calc(var(--mm) + 40px)}
+#game.has-minimap .pb-ammo .team,#game.has-minimap .pb-ammo .keys,#game.has-minimap .pb-ammo .warn{left:calc(var(--mm) + 44px)}
+/* Waypoint pin on screen (issue #41): tip on the place; at the screen edge with an arrow when the place is off screen. */
+#waypoint{position:absolute;left:0;top:0;width:0;height:0;pointer-events:none;opacity:.88;filter:drop-shadow(0 1px 3px #000c);z-index:1}
+#waypoint[hidden]{display:none}
+#waypoint .wp-pin{position:absolute;left:-10px;top:-27px;width:20px;height:27px}
+#waypoint b{position:absolute;left:0;top:4px;transform:translateX(-50%);font:700 12px/1 system-ui,sans-serif;color:#fff;white-space:nowrap;text-shadow:0 1px 2px #000,0 0 4px #000}
+#waypoint .wp-arrow{display:none;position:absolute;left:0;top:0;width:0;height:0;border-left:11px solid #a83dff;border-top:7px solid transparent;border-bottom:7px solid transparent;transform-origin:0 0}
+#waypoint.edge .wp-pin{top:-10px}
+#waypoint.edge b{top:20px}
+#waypoint.edge .wp-arrow{display:block}
+.lg.wp{background:#a83dff;border-radius:50% 50% 50% 0;transform:rotate(-45deg)}

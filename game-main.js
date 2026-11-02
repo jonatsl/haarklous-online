@@ -579,13 +579,14 @@
   function renderSettings() {
     $('walletLine').textContent = `Money: ${shops.kr(wallet.money)} · empty bottles: ${wallet.pant} (${shops.kr(wallet.pant * shops.PANT)} at the bottle return)`;
     $('sensPad').value = sensitivity.pad;$('sensMouse').value = sensitivity.mouse;$('sensPadOut').textContent = sensitivity.pad.toFixed(2) + '×';$('sensMouseOut').textContent = sensitivity.mouse.toFixed(2) + '×';
-    $('imagery').checked = imageryWanted();$('quality').value = String(quality);
+    $('imagery').checked = imageryWanted();$('quality').value = String(quality);$('minimapOn').checked = map.minimap;
     $('musicVol').value = music.volume;$('musicOut').textContent = music.volume ? Math.round(music.volume * 100) + ' %' : 'off';
     const np = music.position();$('nowPlaying').textContent = np ? `${np.title} (${Math.floor(np.length / 60)}:${String(Math.round(np.length % 60)).padStart(2, '0')} loop)` : '–';
   }
   $('musicVol').oninput = e => {music.setVolume(+e.target.value);renderSettings();};
   function musicTrack() {if (caseGame?.active) return 'mission';if (player.mode === 'minigame') return discCourses.includes(player.minigame) ? 'discgolf' : 'petanque';return 'main';}
   $('sensPad').oninput = e => {setSens('pad', +e.target.value);renderSettings();};$('sensMouse').oninput = e => {setSens('mouse', +e.target.value);renderSettings();};
+  $('minimapOn').onchange = e => {map.minimap = e.target.checked;};
   $('imagery').onchange = e => {try {localStorage.setItem('haarklous-aerial-imagery-v1', e.target.checked ? 'on' : 'off');} catch {}world.setImagery(e.target.checked);};
   let quality = 1;try {quality = +(localStorage.getItem('haarklous-quality') ?? 1);} catch {}
   $('quality').onchange = e => {quality = +e.target.value;try {localStorage.setItem('haarklous-quality', String(quality));} catch {}applyQuality();};
@@ -607,6 +608,7 @@
       else {
         if (input.pressed.has('left') || input.pressed.has('right')) {music.setVolume(music.volume + (input.pressed.has('right') ? .1 : -.1));renderSettings();}
         if (input.pressed.has('triangle')) openCodePad();if (input.pressed.has('square') && mp.net.code !== mp.net.ownCode) {mp.net.home();notice('Back in your own lobby.', 3);}
+        if (input.pressed.has('down')) {map.minimap = !map.minimap;renderSettings();}
       }
       renderFrame(0, t);return;
     }
@@ -624,10 +626,10 @@
     if (input.pressed.has('touchpad') && !caseGame?.active) map.toggle(player);
     if (map.open) {
       if (input.pressed.has('circle')) map.toggle();
+      if (input.pressed.has('cross')) map.markCentre();if (input.pressed.has('square')) map.clearWaypoint();
       map.pan(input.move.x * 400 * dt, input.move.y * 400 * dt);if (input.look.y) map.zoom(Math.exp(-input.look.y * dt * 2));
       // The map's "up" is north (-s); facing (-sin yaw, -cos yaw) in the world is -(yaw - theta) on the map (issue #21: it was 180° off).
-      const others = mp ? [...mp.remotes.values()].filter(r => r.seen).map(r => ({x: r.pos.x, z: r.pos.z, headingLocal: -(r.yaw - theta), color: window.GameAvatars.slotCss(r.slot), name: r.name})) : [];
-      map.draw({x: player.x, z: player.z, headingLocal: -(player.yaw - theta), others});renderFrame(dt, t);return;
+      map.draw({x: player.x, z: player.z, headingLocal: -(player.yaw - theta), others: lobbyArrows()});renderFrame(dt, t);return;
     }
     // △: a tap takes out the photo camera (or puts it away); holding it opens the gear menu: camera or FPV drone.
     if (player.mode === 'foot' && !caseGame?.active && !pbBusy()) {// the paintball lobby and game use △ and the D-pad
@@ -688,7 +690,18 @@
     ambienceTimer -= dt;if (ambienceTimer <= 0) {ambienceTimer = .25;updateAmbience();if (audio.context) music.attach(audio.context);music.play(musicTrack());}
     // Adaptive resolution keeps the frame rate in the 20–30+ fps range on slower PCs.
     if (fpsAvg < 22) {if (++lowFrames > 90 && pixelRatio > .6) {pixelRatio = Math.max(.6, pixelRatio - .1);renderer.setPixelRatio(pixelRatio);resize();lowFrames = 0;}} else lowFrames = 0;
+    updateGuide(dt);
     renderFrame(dt, t);
+  }
+  // The other players' arrows on the map and the minimap (their slot colour and name).
+  const lobbyArrows = () => mp ? [...mp.remotes.values()].filter(r => r.seen).map(r => ({x: r.pos.x, z: r.pos.z, headingLocal: -(r.yaw - theta), color: window.GameAvatars.slotCss(r.slot), name: r.name})) : [];
+  // Minimap (issue #42) and the waypoint pin (issue #41): centred on you (on the drone while you fly it), turned with the camera.
+  const camDir = new T.Vector3();
+  function updateGuide(dt) {
+    camera.getWorldDirection(camDir);const heading = -(player.yaw - theta), at = player.mode === 'drone' ? camera.position : player;
+    const view = Math.hypot(camDir.x, camDir.z) > .05 ? theta - Math.atan2(-camDir.x, -camDir.z) : heading;// looking straight down (skydiving): your heading
+    const alt = player.mode === 'drone' || player.mode === 'skydive' || player.vehicle?.aircraft ? camera.position.y - groundAt(at.x, at.z) : 0;
+    if (map.guide({dt, camera, x: at.x, z: at.z, you: player, heading, view, alt, others: lobbyArrows(), ground: groundAt, show: !photo.active}) === 'reached') notice('Waypoint reached.', 2.5);
   }
   function placeName() {if (inApartment()) return 'Haarklous plass 17A, 4th floor';const tw = towerAt(player.x, player.z, player.feet);if (tw) return tw.t.own ? 'Stairwell, Haarklous plass 17A' : 'Stairwell, Torshov';
     // In a district patch: the nearest mapped neighbourhood (Ensjø, Kampen, Vålerenga, Gamlebyen …).

@@ -20,7 +20,10 @@ A first-person open-world game set around Haarklous plass 17A, Torshov, Oslo: yo
 | Check the time on your wristwatch | D-pad ↑ (again to lower it) | ↑ |
 | Bag (what you have bought): open, choose, use, close | D-pad ↓, then ↑↓, ✕, ○ | ↓, then ↑↓, Space, C |
 | Map (you are the blue arrow; other players in your lobby are arrows in their colour, with their names) | touchpad | M |
-| Pause, settings (sensitivity, music volume, aerial imagery, graphics) | Options (D-pad ←/→ = music volume) | Esc |
+| Waypoint (on the map): set it at the cross in the middle / where you click, remove it (✕ or a click on it again also removes it). Out of the map a purple pin shows the way – at the screen edge with an arrow when it is off screen – until you are within 7 m | ✕, □ | Space or left click, E or Delete |
+| Pause, settings (sensitivity, music volume, minimap, aerial imagery, graphics) | Options (D-pad ←/→ = music volume, D-pad ↓ = minimap on/off) | Esc |
+
+**Minimap** (optional, off at first; tick *Minimap* in the pause menu or press D-pad ↓ there): a round map in the bottom-left corner like GTA IV. It turns with the camera so the way you look is always up (N on the rim shows north), you are the white arrow, places on the map are coloured dots, other players in your lobby are arrows in their colour (on the rim when they are far away), and your waypoint is the purple pin (on the rim when it is out of range). It shows about 90 m around you on foot and zooms out with speed and height (up to 300 m). It hides while the photo camera is out. The setting is saved in the browser.
 
 **Motorcycle (2005 Honda CBF600S) and cars:** □ to get on/in; R2 throttle, L2 brake (hold when stopped to reverse), left stick steers (the bike leans at speed), right stick looks around. Your gloved hands hold the bars or the wheel, which turn with you. The bike has a six-speed gearbox model and an inline-four engine note. Cars and motorcycles follow real gravity (9.81 m/s²): take a crest or bump faster than gravity can hold you on the ground and you fly until you land – no grip, steering or brakes in the air, a thud and a dip when you touch down.
 
