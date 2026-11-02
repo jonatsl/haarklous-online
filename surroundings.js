@@ -6,7 +6,10 @@
  *   near, far, setImagery(on), setSun(dir), setOvercast(0..1), attribution,
  *   heightWorld(x, z) -> y, toLocal(x, z) -> {x, s}, toWorld(x, s) -> {x, z},
  *   terrainFloor() (walk-collision floor), obstacles() (buildings, trees, lamp posts, bushes, hedges, in model coordinates),
- *   surfaceAt(x, z) -> 'grass'|'asphalt'|'gravel'|'sand'|'none', trafficDistance(x, z), greenery(x, z) -> 0..1 }
+ *   surfaceAt(x, z) -> 'grass'|'asphalt'|'gravel'|'sand'|'none', trafficDistance(x, z), greenery(x, z) -> 0..1,
+ *   terrainFloors() (the old square and one floor per district patch), update(cameraWorldPosition), yLocal(x, s), geoNear, geoFar }
+ * districts: decoded district patches (District.decode of window.DISTRICTS, issue #38: Gamle Oslo, Ensjø and the way there),
+ *   each with its own 8 m ground grid, buildings, streets, areas, trees and sea, drawn and walkable like the old square.
  * Coordinates: model (world) metres as in the apartment model; "local" = metres east (x) and south (s) of the address.
  */
 (function (root, factory) {
@@ -18,7 +21,8 @@
   // ±760 m since 29 Oct 2026 (was ±540): the real Muselunden disc golf park, 470–815 m north-east of home, is in reach.
   const PLAY_HALF = 760, NEAR_REACH = PLAY_HALF + 60, CELL = 270;
   // holes: rectangles of the local frame ({x0, s0, x1, s1}) kept free of trees and bushes (the paved paintball yard, the building site).
-  function create({T, lib, data, renderer, onStatus = () => {}, holes = []}) {
+  function create({T, lib, data, renderer, onStatus = () => {}, holes = [], districts = []}) {
+    const DZ = (typeof window === 'undefined' ? globalThis : window).District;
     const near = new T.Group(), far = new T.Group();near.name = 'Surroundings (near)';far.name = 'Surroundings (far)';
     const ground = data.ground, theta = data.geo.theta, cT = Math.cos(theta), sT = Math.sin(theta);
     const geoFrame = parent => {const g = new T.Group();g.rotation.y = theta;g.position.set(data.geo.x, 0, data.geo.z);parent.add(g);return g;};
@@ -31,9 +35,19 @@
     // ---------- Terrain (relative heights in decimetres, 4 m grid, local frame) ----------
     const ter = data.terrain, N = ter.n, half = ter.half, step = ter.step;
     const grid = (() => {const bin = atob(ter.dm), bytes = new Uint8Array(bin.length);for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);const raw = new Int16Array(bytes.buffer), f = new Float32Array(raw.length);for (let i = 0; i < raw.length; i++) f[i] = raw[i] / 10;return f;})();
-    function relLocal(x, s) {
+    function relSquare(x, s) {
       const fi = Math.min(N - 1.001, Math.max(0, (x + half) / step)), fj = Math.min(N - 1.001, Math.max(0, (s + half) / step)), i = Math.floor(fi), j = Math.floor(fj), u = fi - i, v = fj - j;
       return grid[j * N + i] * (1 - u) * (1 - v) + grid[j * N + i + 1] * u * (1 - v) + grid[(j + 1) * N + i] * (1 - u) * v + grid[(j + 1) * N + i + 1] * u * v;
+    }
+    // The old ±800 m grid first (district grids copy its values where they overlap), then the district patches; outside all
+    // data the height of the nearest edge point.
+    function relLocal(x, s) {
+      if (!districts.length || (Math.abs(x) <= half && Math.abs(s) <= half)) return relSquare(x, s);
+      for (const d of districts) if (DZ.covers(d, x, s)) return DZ.height(d, x, s);
+      const cl = (v, a, b) => Math.max(a, Math.min(b, v));
+      let best = relSquare(x, s), bd = Math.hypot(x - cl(x, -half, half), s - cl(s, -half, half));
+      for (const d of districts) {const cx = cl(x, d.x0, d.x1), cs = cl(s, d.s0, d.s1), dd = Math.hypot(x - cx, s - cs);if (dd < bd) {bd = dd;best = DZ.height(d, cx, cs);}}
+      return best;
     }
     const yLocal = (x, s) => ground + relLocal(x, s);
     const heightWorld = (x, z) => {const l = toLocal(x, z);return yLocal(l.x, l.s);};
@@ -82,7 +96,10 @@
     const outerPaint = paint(2048, PLAY_HALF), outerBase = document.createElement('canvas');outerBase.width = outerBase.height = 2048;outerBase.getContext('2d').drawImage(outerPaint, 0, 0);
     const classCanvas = paint(1024, PLAY_HALF, true), classData = classCanvas.getContext('2d').getImageData(0, 0, 1024, 1024).data;
     const surfaceNames = ['grass', 'grass', 'asphalt', 'gravel', 'sand', 'none'];
-    function surfaceAt(x, z) {const l = toLocal(x, z), i = Math.floor((l.x + PLAY_HALF) / (2 * PLAY_HALF) * 1024), j = Math.floor((l.s + PLAY_HALF) / (2 * PLAY_HALF) * 1024);if (i < 0 || j < 0 || i > 1023 || j > 1023) return 'grass';return surfaceNames[classData[(j * 1024 + i) * 4]] || 'grass';}
+    function surfaceAt(x, z) {
+      const l = toLocal(x, z);
+      if (Math.abs(l.x) > PLAY_HALF || Math.abs(l.s) > PLAY_HALF) {const P = patchAt(l.x, l.s);if (P) {const d = P.d, n = P.classSize, i = Math.min(n - 1, Math.floor((l.x - d.x0) / (d.x1 - d.x0) * n)), j = Math.min(n - 1, Math.floor((l.s - d.s0) / (d.s1 - d.s0) * n));return surfaceNames[P.classes[j * n + i]] || 'grass';}}
+      const i = Math.floor((l.x + PLAY_HALF) / (2 * PLAY_HALF) * 1024), j = Math.floor((l.s + PLAY_HALF) / (2 * PLAY_HALF) * 1024);if (i < 0 || j < 0 || i > 1023 || j > 1023) return 'grass';return surfaceNames[classData[(j * 1024 + i) * 4]] || 'grass';}
     const nearTerrain = terrainMesh(geoNear, NEAR_EXT, 4, nearPaint, 'Terrain (near)', 0, 0, holes.filter(h => h.cutGround));
     // Walkable ground from ±300 m out to ±PLAY_HALF: same 4 m grid as the walking surface, so what you see is what you stand on.
     const outerTerrain = terrainMesh(geoNear, PLAY_HALF, 4, outerPaint, 'Terrain (outer)', 0, NEAR_EXT, holes.filter(h => h.cutGround));
@@ -111,21 +128,35 @@
     // (issue #17: it used to sit at the height of one corner, 40–60 m above the low ground south-west of home). An apron
     // joins the terrain's edge to it: it starts at exactly the edge heights and eases down (or up) to that level by 3 km out.
     let lowest = Infinity;for (let i = 0; i < grid.length; i++) lowest = Math.min(lowest, grid[i]);
+    for (const d of districts) for (let i = 0; i < d.h.length; i++) lowest = Math.min(lowest, Math.max(d.h[i], d.seaRel));// a pit below sea level does not count
     const BASE_Y = ground + lowest - 2, APRON = 3000;
+    // Ground data covers the old square (far ground on an 8 m grid) and each district patch (16 m); the apron fills
+    // everything else, starting at exactly the nearest data edge's height and easing to BASE_Y by 3 km out.
+    const regions = [{x0: -FAR_EXT, s0: -FAR_EXT, x1: FAR_EXT, s1: FAR_EXT, step: 8}, ...districts.map(d => ({x0: d.x0, s0: d.s0, x1: d.x1, s1: d.s1, step: 16}))];
+    function apronY(x, z) {
+      const ease = t => t * t * (3 - 2 * t), cl = (v, a, b) => Math.max(a, Math.min(b, v));
+      let out = Infinity, ex = x, ez = z;
+      for (const r of regions) {const cx = cl(x, r.x0, r.x1), cz = cl(z, r.s0, r.s1), d = Math.hypot(x - cx, z - cz);if (d < out) {out = d;ex = cx;ez = cz;}}
+      const edge = yLocal(ex, ez) - .5;// the far terrain's own height at the nearest edge point (it is drawn .5 m low)
+      return out <= 1e-6 ? edge : edge + (BASE_Y - edge) * ease(Math.min(1, out / APRON));
+    }
     {
-      const ticks = [];for (let v = -FAR_EXT; v <= FAR_EXT + 1e-6; v += 8) ticks.push(v);
-      for (const d of [40, 100, 200, 400, 700, 1100, 1600, 2200, APRON]) {ticks.push(FAR_EXT + d);ticks.unshift(-FAR_EXT - d);}
-      const n = ticks.length, pos = new Float32Array(n * n * 3), uv = new Float32Array(n * n * 2), index = [];
-      const ease = t => t * t * (3 - 2 * t), clampD = v => Math.max(-FAR_EXT, Math.min(FAR_EXT, v));
-      for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
-        const x = ticks[i], z = ticks[j], k = j * n + i, out = Math.max(Math.abs(x), Math.abs(z)) - FAR_EXT;
-        const edge = yLocal(clampD(x), clampD(z)) - .5;// the district terrain's own height at the nearest edge point (it is drawn .5 m low)
-        pos[k * 3] = x;pos[k * 3 + 1] = out <= 1e-6 ? edge : edge + (BASE_Y - edge) * ease(Math.min(1, out / APRON));pos[k * 3 + 2] = z;
+      const ticksOf = (k0, k1) => {
+        const set = new Set(), lo = Math.min(...regions.map(r => r[k0])), hi = Math.max(...regions.map(r => r[k1]));
+        for (const r of regions) for (let v = r[k0]; v <= r[k1] + 1e-6; v += r.step) set.add(v);
+        for (const d of [40, 100, 200, 400, 700, 1100, 1600, 2200, APRON]) {set.add(lo - d);set.add(hi + d);}
+        return [...set].sort((a, b) => a - b);
+      };
+      const xt = ticksOf('x0', 'x1'), zt = ticksOf('s0', 's1'), nx = xt.length, nz = zt.length, pos = new Float32Array(nx * nz * 3), uv = new Float32Array(nx * nz * 2), index = [];
+      for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
+        const x = xt[i], z = zt[j], k = j * nx + i;
+        pos[k * 3] = x;pos[k * 3 + 1] = apronY(x, z);pos[k * 3 + 2] = z;
         uv[k * 2] = (x + 9000) / 18000;uv[k * 2 + 1] = 1 - (z + 9000) / 18000;
       }
-      for (let j = 0; j < n - 1; j++) for (let i = 0; i < n - 1; i++) {
-        if (ticks[i] >= -FAR_EXT - 1e-6 && ticks[i + 1] <= FAR_EXT + 1e-6 && ticks[j] >= -FAR_EXT - 1e-6 && ticks[j + 1] <= FAR_EXT + 1e-6) continue;// inside the terrain data
-        const a = j * n + i, b = a + 1, c = a + n, d = c + 1;index.push(a, c, b, b, c, d);
+      const inData = (i, j) => regions.some(r => xt[i] >= r.x0 - 1e-6 && xt[i + 1] <= r.x1 + 1e-6 && zt[j] >= r.s0 - 1e-6 && zt[j + 1] <= r.s1 + 1e-6);
+      for (let j = 0; j < nz - 1; j++) for (let i = 0; i < nx - 1; i++) {
+        if (inData(i, j)) continue;// inside the terrain data
+        const a = j * nx + i, b = a + 1, c = a + nx, d = c + 1;index.push(a, c, b, b, c, d);
       }
       const geo = new T.BufferGeometry();geo.setAttribute('position', new T.BufferAttribute(pos, 3));geo.setAttribute('uv', new T.BufferAttribute(uv, 2));geo.setIndex(index);geo.computeVertexNormals();
       const apron = new T.Mesh(geo, horizonMat);apron.name = 'Terrain (apron)';apron.receiveShadow = true;geoFar.add(apron);
@@ -264,6 +295,7 @@
     function restore(target, base) {const c = target.getContext('2d');c.drawImage(base, 0, 0);}
     async function setImagery(on) {
       const token = ++imageryToken;
+      patchesImagery(on, token);
       if (!on) {restore(nearPaint, nearBase);restore(outerPaint, outerBase);restore(farPaint, farBase);nearTerrain.tex.needsUpdate = outerTerrain.tex.needsUpdate = farTerrain.tex.needsUpdate = true;horizonMat.map = horizonTex;horizonMat.needsUpdate = true;imageryState = 'off';onStatus('Map-based ground (aerial imagery off).');return;}
       if (typeof navigator !== 'undefined' && navigator.onLine === false) {imageryState = 'offline';onStatus('Offline: map-based ground. Aerial imagery loads when online.');return;}
       imageryState = 'loading';onStatus('Loading aerial imagery…');
@@ -299,9 +331,9 @@
     const crownGeo = [crownGeometry(70), crownGeometry(70)], bushGeo = crownGeometry(40, .35), trunkGeo = new T.CylinderGeometry(.11, .17, 1, 8);trunkGeo.translate(0, .5, 0);
     // Far copies use a light crown (fewer, larger leaf cards): they are only seen beyond the near pass.
     const crownGeoFar = [crownGeometry(16, .55, 1.8), crownGeometry(16, .55, 1.8)];
-    function plantTrees(parent, list, castShadow, geos = crownGeo) {
+    function plantTrees(parent, list, castShadow, geos = crownGeo, trunk = trunkGeo) {
       if (!list.length) return;
-      const trunks = new T.InstancedMesh(trunkGeo, barkMat, list.length), crowns = geos.map((g, i) => new T.InstancedMesh(g, leafMats[i], list.length));
+      const trunks = new T.InstancedMesh(trunk, barkMat, list.length), crowns = geos.map((g, i) => new T.InstancedMesh(g, leafMats[i], list.length));
       const counts = [0, 0], m = new T.Matrix4(), q = new T.Quaternion(), s = new T.Vector3(), p = new T.Vector3();
       list.forEach((t, i) => {
         const h = t.h || 9 + ((i * 7919) % 70) / 10, crown = h * .62, trunkH = h * .42, r = h * .3, y = yLocal(t.x, t.s);
@@ -359,6 +391,176 @@
     }
     lib.mergeStatic(geoNear, o => o.isInstancedMesh || o.name.startsWith('Terrain'));
 
+    // ---------- District patches (issue #38: Gamle Oslo, Ensjø and the way there from Torshov) ----------
+    // Each patch has ground tiles on its 8 m grid (near pass, with its own map painting or aerial photo) and a 16 m far ground,
+    // buildings in 400 m tiles (near: Torshov's brick facades plus windows on plaster, glass bands on tall buildings and ribbed
+    // metal on halls; far: one vertex-coloured mesh per 800 m), the mapped trees (near tiles; light far crowns within 1.1 km
+    // of the camera) and the sea. Everything is in tiles that the camera and the shadow pass can skip.
+    // District trees are light (the user's wish for the parks there): 26 leaf cards a crown near (Torshov's have 70), 16 far,
+    // and a five-sided open trunk.
+    const PATCH_TILE = 400, FAR_TREE_REACH = 1100, lightCrowns = [crownGeometry(26, .55, 1.35), crownGeometry(26, .55, 1.35)], lightTrunk = new T.CylinderGeometry(.11, .17, 1, 5, 1, true);lightTrunk.translate(0, .5, 0);
+    const patchColors = {...colors, cemetery: '#56703a', rail: '#7a7266', sand: '#b3a07a', rock: '#8a8780', paved: '#9a968e'};
+    const patchClass = {parking: 'asphalt', paved: 'asphalt', playground: 'sand', sand: 'sand', yard: 'gravel', rail: 'gravel', rock: 'gravel'};
+    const patchRoadOrder = [...roadOrder, 'bridleway', 'primary_link', 'secondary_link', 'tertiary_link', 'motorway_link', 'motorway', 'rail'];
+    function paintPatch(d, size, classes = false) {
+      const c = document.createElement('canvas');c.width = c.height = size;const ctx = c.getContext('2d'), kx = size / (d.x1 - d.x0), ks = size / (d.s1 - d.s0), P = (x, s) => [(x - d.x0) * kx, (s - d.s0) * ks];
+      const col = (kind, normal) => classes ? ({grass: '#010000', asphalt: '#020000', gravel: '#030000', sand: '#040000', none: '#050000'})[kind] : normal;
+      ctx.fillStyle = col('grass', '#6c7559');ctx.fillRect(0, 0, size, size);
+      const ring = (flat, color) => {ctx.fillStyle = color;ctx.beginPath();for (let i = 0; i < flat.length; i += 2) {const [x, y] = P(flat[i], flat[i + 1]);i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);}ctx.closePath();ctx.fill();};
+      for (const a of d.areas) ring(a.o, col(patchClass[a.k] || 'grass', patchColors[a.k] || '#888'));
+      for (const r of d.roads.slice().sort((a, b) => patchRoadOrder.indexOf(a.k) - patchRoadOrder.indexOf(b.k))) {
+        ctx.strokeStyle = col(isPath(r.k) || r.k === 'rail' ? 'gravel' : 'asphalt', r.k === 'tram' || r.k === 'rail' ? '#5a5650' : isPath(r.k) ? '#a7a296' : '#4d4f52');ctx.lineWidth = r.w * kx;ctx.lineCap = ctx.lineJoin = 'round';
+        ctx.beginPath();for (let i = 0; i < r.p.length; i += 2) {const [x, y] = P(r.p[i], r.p[i + 1]);i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);}ctx.stroke();
+      }
+      for (const s of d.sea) ring(s, col('grass', '#3e5d70'));
+      for (const b of d.buildings) ring(b.ring.flat(), col('none', '#5a5652'));
+      for (const l of d.landmarks) ring(l.ring, col('none', '#5a5652'));
+      if (!classes) {const img = ctx.getImageData(0, 0, size, size), px = img.data;for (let i = 0; i < px.length; i += 4) {const n = (lib.rand() - .5) * 26;px[i] += n;px[i + 1] += n;px[i + 2] += n;}ctx.putImageData(img, 0, 0);}
+      return c;
+    }
+    // Ground on a regular grid with normals from the height data itself, so neighbouring tiles light the same at their seams.
+    function patchGround(d, x0, s0, x1, s1, res, material, name, drop, skip) {
+      const ni = Math.round((x1 - x0) / res), nj = Math.round((s1 - s0) / res), count = (ni + 1) * (nj + 1);
+      const pos = new Float32Array(count * 3), nor = new Float32Array(count * 3), uv = new Float32Array(count * 2), index = [];
+      for (let j = 0; j <= nj; j++) for (let i = 0; i <= ni; i++) {
+        const x = x0 + i * res, s = s0 + j * res, k = j * (ni + 1) + i, gx = (yLocal(x + 2, s) - yLocal(x - 2, s)) / 4, gs = (yLocal(x, s + 2) - yLocal(x, s - 2)) / 4, l = Math.hypot(gx, 1, gs);
+        pos[k * 3] = x;pos[k * 3 + 1] = yLocal(x, s) - drop;pos[k * 3 + 2] = s;nor[k * 3] = -gx / l;nor[k * 3 + 1] = 1 / l;nor[k * 3 + 2] = -gs / l;
+        uv[k * 2] = (x - d.x0) / (d.x1 - d.x0);uv[k * 2 + 1] = 1 - (s - d.s0) / (d.s1 - d.s0);
+      }
+      for (let j = 0; j < nj; j++) for (let i = 0; i < ni; i++) {
+        const cx = x0 + i * res, cs = s0 + j * res;
+        if (cx >= -skip - 1e-6 && cx + res <= skip + 1e-6 && cs >= -skip - 1e-6 && cs + res <= skip + 1e-6) continue;// the old square draws this cell
+        const a = j * (ni + 1) + i, b = a + 1, c = a + ni + 1, e = c + 1;index.push(a, c, b, b, c, e);
+      }
+      if (!index.length) return null;
+      const g = new T.BufferGeometry();g.setAttribute('position', new T.BufferAttribute(pos, 3));g.setAttribute('normal', new T.BufferAttribute(nor, 3));g.setAttribute('uv', new T.BufferAttribute(uv, 2));g.setIndex(index);g.computeBoundingSphere();
+      const m = new T.Mesh(g, material);m.receiveShadow = true;m.name = name;m.userData.noMerge = true;return m;
+    }
+    const texFrom = (w, h, draw, mw, mh) => {const c = document.createElement('canvas');c.width = w;c.height = h;draw(c.getContext('2d'), w, h);const t = new T.CanvasTexture(c);t.colorSpace = T.SRGBColorSpace;t.wrapS = t.wrapT = T.RepeatWrapping;t.repeat.set(1 / mw, 1 / mh);t.anisotropy = 8;return t;};
+    // Plaster with four windows per 12 m and storey (3 m); glass bands with mullions every 1.5 m (3.6 m storeys); ribbed metal.
+    const winTex = texFrom(512, 128, (x, w, h) => {x.fillStyle = '#ece7dc';x.fillRect(0, 0, w, h);for (let i = 0; i < 4; i++) {const bx = i * 128;x.fillStyle = '#f7f4ee';x.fillRect(bx + 36, 18, 56, 80);x.fillStyle = '#34404a';x.fillRect(bx + 40, 22, 48, 72);x.fillStyle = '#5d6a74';x.fillRect(bx + 63, 22, 2, 72);x.fillRect(bx + 40, 50, 48, 2);x.fillStyle = '#d9d3c6';x.fillRect(bx + 34, 98, 60, 5);}}, 12, 3);
+    const modernTex = texFrom(256, 128, (x, w, h) => {const g = x.createLinearGradient(0, 30, 0, h);g.addColorStop(0, '#7d93a5');g.addColorStop(1, '#465a6c');x.fillStyle = '#d4d8dc';x.fillRect(0, 0, w, h);x.fillStyle = g;x.fillRect(0, 30, w, h - 30);x.fillStyle = '#2b333b';for (let i = 0; i < w; i += 64) x.fillRect(i, 30, 3, h - 30);x.fillRect(0, 30, w, 2);}, 6, 3.6);
+    const ribTex = texFrom(128, 128, (x, w, h) => {for (let i = 0; i < w; i += 8) {x.fillStyle = i % 16 ? '#c4c8ca' : '#e4e7e8';x.fillRect(i, 0, 8, h);}x.fillStyle = 'rgba(0,0,0,.25)';x.fillRect(0, 0, w, 3);}, 2, 3);
+    const patchMats = {plaster: new T.MeshStandardMaterial({map: winTex, vertexColors: true, roughness: .9, metalness: 0}), modern: new T.MeshStandardMaterial({map: modernTex, vertexColors: true, roughness: .35, metalness: .35}),
+      industrial: new T.MeshStandardMaterial({map: ribTex, vertexColors: true, roughness: .6, metalness: .3}), far: new T.MeshStandardMaterial({vertexColors: true, roughness: .9, metalness: 0}),
+      water: new T.MeshStandardMaterial({color: 0x3e5d70, roughness: .15, metalness: .2, side: T.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2})};// always in front of the sea-level ground under it
+    const groundOf = canvas => {const tex = new T.CanvasTexture(canvas);tex.colorSpace = T.SRGBColorSpace;tex.anisotropy = 8;return {tex, mat: new T.MeshStandardMaterial({map: tex, color: 0xa6a6a6, roughness: .97, metalness: 0, envMapIntensity: .35})};};
+    const tint = {brick: [0x9a6a55, 0x8f5d4b, 0xa47462, 0x87604f], plaster: [0xe3dccb, 0xd8cfbd, 0xcdd2cb, 0xe6e0d4, 0xd9c7a8, 0xdcc292, 0xcfae95, 0xe4d6a8], shed: [0x8d7f6d],
+      modern: [0xffffff, 0xdfe6ee, 0xcfd6dc, 0xe8e2d8], industrial: [0xd8dcde, 0xbfc5c9, 0xc4b9a8, 0xaab4b8]};
+    const pick = (list, i) => new T.Color(list[i % list.length]), farRoof = new T.Color(0x5f6466);
+    const patches = districts.map(d => {
+      const P = {d, farTrees: [], nearImagery: 'none'}, W = d.x1 - d.x0, H = d.s1 - d.s0;
+      P.nearSize = Math.min(4096, 2 ** Math.ceil(Math.log2(Math.max(W, H) / .8)));P.farSize = Math.min(2048, P.nearSize / 2);
+      P.near = groundOf(paintPatch(d, P.nearSize));P.far = groundOf(paintPatch(d, P.farSize));
+      for (let tx = d.x0; tx < d.x1 - 1e-6; tx += PATCH_TILE) for (let ts = d.s0; ts < d.s1 - 1e-6; ts += PATCH_TILE) {
+        const m = patchGround(d, tx, ts, Math.min(d.x1, tx + PATCH_TILE), Math.min(d.s1, ts + PATCH_TILE), d.step, P.near.mat, 'Terrain (district near)', 0, PLAY_HALF);if (m) geoNear.add(m);
+      }
+      const fm = patchGround(d, d.x0, d.s0, d.x1, d.s1, 16, P.far.mat, 'Terrain (district far)', .5, FAR_EXT);if (fm) geoFar.add(fm);
+      const classSize = Math.min(2048, P.nearSize / 2), cls = paintPatch(d, classSize, true).getContext('2d').getImageData(0, 0, classSize, classSize).data;
+      P.classSize = classSize;P.classes = new Uint8Array(classSize * classSize);for (let i = 0; i < P.classes.length; i++) P.classes[i] = cls[i * 4];
+      // Buildings.
+      const nearTiles = new Map(), farTiles = new Map(), tilesX = d.raw.tiles.nx;
+      const nearSet = t => {if (!nearTiles.has(t)) nearTiles.set(t, {facade: builder(), plinth: builder(), roof: builder(), plaster: builder(), shed: builder(), modern: builder(), industrial: builder()});return nearTiles.get(t);};
+      const farSet = t => {const k = `${Math.floor((t % tilesX) / 2)},${Math.floor(Math.floor(t / tilesX) / 2)}`;if (!farTiles.has(k)) farTiles.set(k, builder());return farTiles.get(k);};
+      d.buildings.forEach((b, i) => {
+        const ring = b.ring;if (ring.length < 3) return;
+        let cx = 0, cs = 0, gm = Infinity;for (const p of ring) {cx += p[0];cs += p[1];gm = Math.min(gm, relLocal(p[0], p[1]));}cx /= ring.length;cs /= ring.length;
+        const g0 = ground + relLocal(cx, cs), bottom = ground + gm - .6, top = g0 + b.h, set = nearSet(b.tile), f = farSet(b.tile);
+        Object.assign(b, {cx, cs, base: g0, bottom, top});
+        if (b.style === 'brick') {
+          walls(set.plinth, ring, bottom, Math.min(g0 + data.plinth, top), g0);if (top > g0 + data.plinth) walls(set.facade, ring, g0 + data.plinth, top, g0 + data.plinth);
+          if (b.hip) hipRoof(set.roof, b.hip, top);else cap(set.roof, ring, null, top);
+        } else {walls(set[b.style], ring, bottom, top, g0, pick(tint[b.style], i));cap(set.roof, ring, null, top);}
+        walls(f, ring, bottom, top, g0, pick(tint[b.style], i));cap(f, ring, null, top, farRoof);
+      });
+      const mats = {facade: facadeMat, plinth: plinthMat, roof: roofMat, plaster: patchMats.plaster, shed: shedMat, modern: patchMats.modern, industrial: patchMats.industrial};
+      for (const set of nearTiles.values()) for (const k of Object.keys(mats)) {const m = add(geoNear, finish(set[k]), mats[k]);if (m) {m.name = 'Buildings (district tile)';m.userData.noMerge = true;}}
+      for (const set of farTiles.values()) {const m = add(geoFar, finish(set), patchMats.far, false);if (m) m.name = 'Buildings (district far)';}
+      // Trees: near tiles with full crowns; far tiles with light crowns, shown only within FAR_TREE_REACH of the camera.
+      const treeTiles = new Map(), farTreeTiles = new Map(), tileOf = (x, s) => Math.floor((x - d.x0) / PATCH_TILE) + Math.floor((s - d.s0) / PATCH_TILE) * 1000;
+      for (const t of d.trees) {
+        const k = tileOf(t.x, t.s), fk = `${Math.floor((t.x - d.x0) / (2 * PATCH_TILE))},${Math.floor((t.s - d.s0) / (2 * PATCH_TILE))}`;
+        if (!treeTiles.has(k)) treeTiles.set(k, []);treeTiles.get(k).push(t);if (!farTreeTiles.has(fk)) farTreeTiles.set(fk, []);farTreeTiles.get(fk).push(t);
+      }
+      for (const list of treeTiles.values()) plantTrees(geoNear, list, true, lightCrowns, lightTrunk);
+      for (const [k, list] of farTreeTiles) {
+        const g = new T.Group(), [i, j] = k.split(',').map(Number);g.name = 'Trees (district far)';geoFar.add(g);plantTrees(g, list, false, crownGeoFar, lightTrunk);
+        P.farTrees.push({group: g, x: d.x0 + (i + .5) * 2 * PATCH_TILE, s: d.s0 + (j + .5) * 2 * PATCH_TILE});
+      }
+      // Sea: a water surface 25 cm above sea level where the terrain model is at sea level (Bjørvika).
+      for (const flatRing of d.sea) {
+        const shape = new T.Shape(pairs(flatRing).map(([x, s]) => new T.Vector2(x, -s))), geo = new T.ShapeGeometry(shape);geo.rotateX(-Math.PI / 2);
+        for (const [parent, nm] of [[geoNear, 'Sea (near)'], [geoFar, 'Sea (far)']]) {const m = new T.Mesh(geo, patchMats.water);m.position.y = ground + d.seaRel + .25;m.receiveShadow = parent === geoNear;m.name = nm;m.userData.noMerge = true;parent.add(m);}
+      }
+      // Footsteps, traffic sound and greenery look-ups.
+      P.traffic = new Map();
+      for (const r of d.roads) {
+        const w = {residential: .35, tertiary: .7, secondary: 1, primary: 1.4, trunk: 2, trunk_link: 1.2, motorway: 2.2, primary_link: 1, secondary_link: .8}[r.k];if (!w) continue;
+        for (let i = 2; i < r.p.length; i += 2) {const a = [r.p[i - 2], r.p[i - 1]], b = [r.p[i], r.p[i + 1]], k = `${Math.floor((a[0] + b[0]) / 200)},${Math.floor((a[1] + b[1]) / 200)}`;if (!P.traffic.has(k)) P.traffic.set(k, []);P.traffic.get(k).push({a, b, w});}
+      }
+      P.green = new Map();for (const t of d.trees) {const k = `${Math.floor(t.x / 40)},${Math.floor(t.s / 40)}`;P.green.set(k, (P.green.get(k) || 0) + 1);}
+      return P;
+    });
+    const patchAt = (x, s) => patches.find(P => DZ.covers(P.d, x, s));
+    // Aerial imagery for a patch: tiles are drawn straight into its ground canvas (a mosaic of a whole patch would be too big).
+    function patchImagery(P, which, zoom, token) {
+      const d = P.d, target = P[which].tex.image, ctx = target.getContext('2d'), kx = target.width / (d.x1 - d.x0), ks = target.height / (d.s1 - d.s0);
+      const lat0 = data.origin.lat, lon0 = data.origin.lon, lonOf = x => lon0 + x / KX, latOf = s => lat0 - s / 111320;
+      const x0 = Math.floor(lonToX(lonOf(d.x0), zoom)), x1 = Math.floor(lonToX(lonOf(d.x1), zoom)), y0 = Math.floor(latToY(latOf(d.s0), zoom)), y1 = Math.floor(latToY(latOf(d.s1), zoom));
+      const tmp = document.createElement('canvas');tmp.width = tmp.height = 256;const t = tmp.getContext('2d', {willReadFrequently: true}), lut = new Uint8ClampedArray(256);for (let i = 0; i < 256; i++) lut[i] = 255 * Math.pow(i / 255, .58);
+      const queue = [];for (let i = x0; i <= x1; i++) for (let j = y0; j <= y1; j++) queue.push([i, j]);
+      let pending = queue.length, active = 0, loaded = 0, failed = 0;
+      return new Promise(resolve => {
+        const done = ok => {ok ? loaded++ : failed++;active--;if (--pending === 0) resolve({loaded, failed});else next();};
+        const next = () => {
+          while (active < 8 && queue.length) {
+            const [i, j] = queue.shift(), img = new Image();active++;img.crossOrigin = 'anonymous';img.referrerPolicy = 'no-referrer';
+            img.onload = () => {
+              if (token !== imageryToken) return done(false);
+              t.drawImage(img, 0, 0);const px = t.getImageData(0, 0, 256, 256), v = px.data;for (let q = 0; q < v.length; q += 4) {v[q] = lut[v[q]];v[q + 1] = lut[v[q + 1]];v[q + 2] = lut[v[q + 2]];}t.putImageData(px, 0, 0);
+              const wx = (xToLon(i, zoom) - lon0) * KX, ex = (xToLon(i + 1, zoom) - lon0) * KX, ns = -(yToLat(j, zoom) - lat0) * 111320, ss = -(yToLat(j + 1, zoom) - lat0) * 111320;
+              ctx.drawImage(tmp, (wx - d.x0) * kx - .5, (ns - d.s0) * ks - .5, (ex - wx) * kx + 1, (ss - ns) * ks + 1);done(true);
+            };
+            img.onerror = () => done(false);img.src = tileUrl(zoom, i, j);
+          }
+        };
+        if (!pending) resolve({loaded, failed});else next();
+      });
+    }
+    // Roofs lean in the photo: cover the lean zones with the map painting (as maskLean does for the old square).
+    function patchLean(P, which, base) {
+      const d = P.d, target = P[which].tex.image, size = target.width, kx = size / (d.x1 - d.x0), ks = size / (d.s1 - d.s0), lean = data.imageryLean || [0, 0];
+      const mask = document.createElement('canvas');mask.width = mask.height = size;const m = mask.getContext('2d');m.fillStyle = '#000';
+      const poly = pts => {m.beginPath();pts.forEach((p, i) => {const u = (p[0] - d.x0) * kx, v = (p[1] - d.s0) * ks;i ? m.lineTo(u, v) : m.moveTo(u, v);});m.closePath();m.fill();};
+      const sweep = (ring, h) => {const dx = lean[0] * h, dz = lean[1] * h;poly(ring);poly(ring.map(p => [p[0] + dx, p[1] + dz]));ring.forEach((a, i) => {const b = ring[(i + 1) % ring.length];poly([a, b, [b[0] + dx, b[1] + dz], [a[0] + dx, a[1] + dz]]);});};
+      for (const b of d.buildings) sweep(b.ring, b.h + 1.5);
+      for (const l of d.landmarks) sweep(pairs(l.ring), (l.top || l.fly || 20) * .7);
+      const fill = document.createElement('canvas');fill.width = fill.height = size;const f = fill.getContext('2d');f.drawImage(base, 0, 0);f.globalCompositeOperation = 'destination-in';f.filter = 'blur(2px)';f.drawImage(mask, 0, 0);
+      target.getContext('2d').drawImage(fill, 0, 0);
+    }
+    async function loadPatchImagery(P, which, token) {
+      const zoom = which === 'near' ? 17 : 15, r = await patchImagery(P, which, zoom, token);
+      if (token !== imageryToken || r.loaded <= r.failed) return false;
+      const base = paintPatch(P.d, P[which].tex.image.width);fillShadows(P[which].tex.image, base);if (which === 'near') patchLean(P, which, base);
+      P[which].tex.needsUpdate = true;return true;
+    }
+    function patchesImagery(on, token) {
+      for (const P of patches) {
+        if (!on) {for (const w of ['near', 'far']) {P[w].tex.image.getContext('2d').drawImage(paintPatch(P.d, P[w].tex.image.width), 0, 0);P[w].tex.needsUpdate = true;}P.nearImagery = 'none';continue;}
+        P.nearImagery = 'wanted';loadPatchImagery(P, 'far', token);
+      }
+    }
+    // Near imagery for a patch loads when the camera first comes within 700 m of it (a few hundred tiles at zoom 17).
+    function update(camera) {
+      if (!patches.length) return;
+      const l = toLocal(camera.x, camera.z);
+      for (const P of patches) {
+        const d = P.d, dist = Math.hypot(l.x - Math.max(d.x0, Math.min(d.x1, l.x)), l.s - Math.max(d.s0, Math.min(d.s1, l.s)));
+        if (P.nearImagery === 'wanted' && imageryState === 'on' && dist < 700) {P.nearImagery = 'loading';const token = imageryToken;loadPatchImagery(P, 'near', token).then(ok => {if (token === imageryToken) P.nearImagery = ok ? 'on' : 'failed';});}
+        for (const t of P.farTrees) t.group.visible = Math.hypot(l.x - t.x, l.s - t.s) < FAR_TREE_REACH;
+      }
+    }
+
     // ---------- Sky and hills ----------
     const sunDirection = new T.Vector3(0, 1, 0);
     const sky = new T.Mesh(new T.SphereGeometry(20000, 48, 24), new T.ShaderMaterial({
@@ -383,9 +585,13 @@
     {
       const segments = 360, rows = 6, pos = [], index = [];
       for (let j = 0; j <= rows; j++) for (let i = 0; i <= segments; i++) {
-        const bearing = i / segments * 360, t = j / rows;let height = 18 + 40 * Math.sin(bearing * .07) * Math.sin(bearing * .19);const distance = 2600 + t * 9000;
+        const bearing = i / segments * 360, t = j / rows, r = bearing * Math.PI / 180, dx = Math.sin(r), dz = -Math.cos(r);let height = 18 + 40 * Math.sin(bearing * .07) * Math.sin(bearing * .19);
+        // The ring starts at least 400 m beyond the ground data in that direction (the district patches reach 4 km south),
+        // rising from the apron's own height there.
+        let reach = 0;while (reach < 9000 && regions.some(g => dx * reach >= g.x0 && dx * reach <= g.x1 && dz * reach >= g.s0 && dz * reach <= g.s1)) reach += 25;
+        const start = Math.max(2600, reach + 400), distance = start + t * 9000, rise = Math.min(1, t * 2.4), base = apronY(dx * start, dz * start) - 1;
         for (const [b, dist, hgt, wid] of hills) {const d = Math.min(Math.abs(bearing - b), 360 - Math.abs(bearing - b)), w = Math.exp(-(d * d) / (2 * wid * wid));height += hgt * w * Math.max(0, 1 - Math.abs(distance - dist) / (dist * .9));}
-        height *= Math.min(1, t * 2.4);const r = bearing * Math.PI / 180;pos.push(Math.sin(r) * distance, ground - 8 + height, -Math.cos(r) * distance);
+        height *= rise;pos.push(dx * distance, base + (ground - 8 - base) * rise + height, dz * distance);
       }
       for (let j = 0; j < rows; j++) for (let i = 0; i < segments; i++) {const a = j * (segments + 1) + i, b = a + segments + 1;index.push(a, b, a + 1, a + 1, b, b + 1);}
       const g = new T.BufferGeometry();g.setAttribute('position', new T.Float32BufferAttribute(pos, 3));g.setIndex(index);g.computeVertexNormals();
@@ -412,20 +618,41 @@
       lamps.forEach(l => {if (walkable(l.x, l.s)) square(l.x, l.s, .1, 5.2, 'lamp');});
       bushes.forEach(b => square(b.x, b.s, .45 * b.r, 1.2, 'bush'));
       hedgeObstacles.forEach(h => {const dx = h.b[0] - h.a[0], dz = h.b[1] - h.a[1], L = Math.hypot(dx, dz), nx = -dz / L * h.w / 2, nz = dx / L * h.w / 2;const pts = [[h.a[0] + nx, h.a[1] + nz], [h.b[0] + nx, h.b[1] + nz], [h.b[0] - nx, h.b[1] - nz], [h.a[0] - nx, h.a[1] - nz]].map(([a, b]) => toWorld(a, b)), y = yLocal(h.a[0], h.a[1]);list.push({points: pts, minY: y - .5, maxY: y + 1, kind: 'hedge'});});
+      // District patches: their buildings (also those in the old square's outer band) and trees; the sea stops you at the quay
+      // (quays stand 1.5 m or more above the water, so the block only reaches 0.8 m above it).
+      for (const P of patches) {
+        const d = P.d, pl = d.play, near = (x, s, m) => (x > pl.x0 - m && x < pl.x1 + m && s > pl.s0 - m && s < pl.s1 + m) || (Math.abs(x) < PLAY_HALF + m && Math.abs(s) < PLAY_HALF + m);
+        for (const b of d.buildings) if (b.top !== undefined && near(b.cx, b.cs, 40)) list.push({points: b.ring.map(([x, s]) => toWorld(x, s)), minY: b.bottom - .5, maxY: b.top + 4, kind: 'building'});
+        for (const t of d.trees) if (near(t.x, t.s, 0)) square(t.x, t.s, .28, 6, 'tree');
+        for (const r of d.sea) list.push({points: ringWorld(r), minY: ground + d.seaRel - 3, maxY: ground + d.seaRel + .8, kind: 'water'});
+      }
       return list;
     }
     function terrainFloor() {
       return {name: 'Neighbourhood', points: [[-PLAY_HALF, -PLAY_HALF], [PLAY_HALF, -PLAY_HALF], [PLAY_HALF, PLAY_HALF], [-PLAY_HALF, PLAY_HALF]].map(([x, s]) => toWorld(x, s)), height: p => heightWorld(p.x, p.z), ceilingHeight: Infinity, surfaceKind: 'terrain'};
     }
+    // The old square plus one walkable floor per district patch (same ground everywhere, so where they overlap they join).
+    function terrainFloors() {
+      return [terrainFloor(), ...patches.map(({d}) => ({name: `District ${d.name}`, points: [[d.play.x0, d.play.s0], [d.play.x1, d.play.s0], [d.play.x1, d.play.s1], [d.play.x0, d.play.s1]].map(([x, s]) => toWorld(x, s)),
+        height: p => heightWorld(p.x, p.z), ceilingHeight: Infinity, surfaceKind: 'terrain'}))];
+    }
     const traffic = data.roads.filter(r => ['residential', 'tertiary', 'secondary', 'primary', 'trunk', 'trunk_link'].includes(r.k)).flatMap(r => {const p = pairs(r.p), w = {residential: .35, tertiary: .7, secondary: 1, primary: 1.4, trunk: 2, trunk_link: 1.2}[r.k];return p.slice(1).map((b, i) => ({a: p[i], b, w}));});
     function trafficDistance(x, z) {
       const l = toLocal(x, z);let best = 999;
-      for (const sgm of traffic) {const dx = sgm.b[0] - sgm.a[0], dz = sgm.b[1] - sgm.a[1], L2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((l.x - sgm.a[0]) * dx + (l.s - sgm.a[1]) * dz) / L2));const d = Math.hypot(l.x - sgm.a[0] - t * dx, l.s - sgm.a[1] - t * dz) / sgm.w;if (d < best) best = d;}
+      const check = sgm => {const dx = sgm.b[0] - sgm.a[0], dz = sgm.b[1] - sgm.a[1], L2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((l.x - sgm.a[0]) * dx + (l.s - sgm.a[1]) * dz) / L2));const d = Math.hypot(l.x - sgm.a[0] - t * dx, l.s - sgm.a[1] - t * dz) / sgm.w;if (d < best) best = d;};
+      for (const sgm of traffic) check(sgm);
+      const P = patchAt(l.x, l.s);
+      if (P) {const i = Math.floor(l.x / 100), j = Math.floor(l.s / 100);for (let a = -2; a <= 2; a++) for (let b = -2; b <= 2; b++) for (const sgm of P.traffic.get(`${i + a},${j + b}`) || []) check(sgm);}
       return best;
     }
-    function greenery(x, z) {const l = toLocal(x, z);let n = 0;for (const t of allTrees) if (Math.abs(t.x - l.x) < 40 && Math.abs(t.s - l.s) < 40) n++;for (const b of bushes) if (Math.abs(b.x - l.x) < 25 && Math.abs(b.s - l.s) < 25) n += .3;return Math.min(1, n / 18);}
+    function greenery(x, z) {
+      const l = toLocal(x, z);let n = 0;for (const t of allTrees) if (Math.abs(t.x - l.x) < 40 && Math.abs(t.s - l.s) < 40) n++;for (const b of bushes) if (Math.abs(b.x - l.x) < 25 && Math.abs(b.s - l.s) < 25) n += .3;
+      const P = patchAt(l.x, l.s);if (P) {const i = Math.floor(l.x / 40), j = Math.floor(l.s / 40);let m = 0;for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) m += P.green.get(`${i + a},${j + b}`) || 0;n += m * .44;}// 120 m of cells ~ the 80 m box
+      return Math.min(1, n / 18);
+    }
 
-    return {near, far, setImagery, setSun, setOvercast, get imageryState() {return imageryState;}, attribution: data.attribution, ground, heightWorld, toLocal, toWorld, terrainFloor, obstacles, surfaceAt, trafficDistance, greenery, data, playHalf: PLAY_HALF, trees: allTrees};
+    return {near, far, setImagery, setSun, setOvercast, get imageryState() {return imageryState;}, attribution: data.attribution, ground, heightWorld, toLocal, toWorld, terrainFloor, terrainFloors, obstacles, surfaceAt, trafficDistance, greenery, data, playHalf: PLAY_HALF, trees: allTrees,
+      districts: patches.map(P => P.d), get districtImagery() {return patches.map(P => P.nearImagery);}, update, yLocal, geoNear, geoFar};
   }
   return {create};
 });
