@@ -40,8 +40,11 @@
     // The yard's own floor and retaining walls replace the ground there: without this cut the hillside was drawn through the
     // yard, up to 4.6 m above the floor, and players on it looked as if they were under the ground (issue #26).
     PB_DATA && {x0: PB_DATA.rect.x0, s0: PB_DATA.rect.s0, x1: PB_DATA.rect.x0 + PB_DATA.rect.w, s1: PB_DATA.rect.s0 + PB_DATA.rect.d, cutGround: true}].filter(Boolean);
-  const world = window.Surroundings.create({T, lib, data: D, renderer, holes, onStatus: t => {const el = $('imageryStatus');if (el) el.textContent = t;}});
+  // District patches beyond the old square (issue #38): Gamle Oslo, Ensjø and the way there, with its key buildings.
+  const DISTRICTS = window.District ? (window.DISTRICTS || []).map(d => window.District.decode(d)) : [];
+  const world = window.Surroundings.create({T, lib, data: D, renderer, holes, districts: DISTRICTS, onStatus: t => {const el = $('imageryStatus');if (el) el.textContent = t;}});
   scene.add(world.near);farScene.add(world.far);world.setSun(sunDir);
+  const landmarks = window.GameLandmarks ? window.GameLandmarks.create({T, lib, world}) : {obstacles: [], vehicleObstacles: [], floors: [], poi: []};
   const apt = window.GameApartment.build({T, lib, data: window.APARTMENT});scene.add(apt.group);
   // Stair towers: ours (model coordinates) and one in each enterable neighbouring building.
   const towers = [];
@@ -112,17 +115,17 @@
     if (pbRules) {const y = pbRules.ground(x, z);if (y !== null) return y;}
     return world.heightWorld(x, z);
   }
-  const groundFloor = {...world.terrainFloor(), height: p => groundAt(p.x, p.z)};
+  const groundFloors = world.terrainFloors().map(f => ({...f, height: p => groundAt(p.x, p.z)}));
   const extraObstacles = [...(siteField ? window.GameSite.fenceObstacles(siteField, groundAt) : []), ...(pbRules ? pbRules.obstacles : [])];
-  const staticObstacles = [...apt.obstacles, ...towers.flatMap(towerObstacles), ...world.obstacles(), ...fire.obstacles, ...stash.obstacles, ...shops.obstacles, ...sculpture.obstacles, ...oksen.obstacles, ...extraObstacles];
-  const walkFloors = [...apt.floors, ...towers.flatMap(towerFloors), ...shops.floors, ...sculpture.floors, ...oksen.floors, groundFloor];
+  const staticObstacles = [...apt.obstacles, ...towers.flatMap(towerObstacles), ...world.obstacles(), ...fire.obstacles, ...stash.obstacles, ...shops.obstacles, ...sculpture.obstacles, ...oksen.obstacles, ...extraObstacles, ...landmarks.obstacles];
+  const walkFloors = [...apt.floors, ...towers.flatMap(towerFloors), ...shops.floors, ...sculpture.floors, ...oksen.floors, ...landmarks.floors, ...groundFloors];
   const walkWorld = collision.createWorld({floors: walkFloors, obstacles: staticObstacles, radius: .18, clearance: .08});
   const vehicleWorlds = new Map();
   let vehicleBlockers = null;// the other vehicles' footprints from the last updateDynamic()
   function worldFor(r) {
     const key = r.toFixed(2);
     if (!vehicleWorlds.has(key)) {
-      const w = collision.createWorld({floors: [groundFloor], obstacles: [...world.obstacles(), ...towers.flatMap(towerObstacles), ...fire.obstacles, ...shops.obstacles, ...sculpture.obstacles, ...oksen.obstacles, ...extraObstacles], radius: r, clearance: .08});
+      const w = collision.createWorld({floors: groundFloors, obstacles: [...landmarks.obstacles, ...landmarks.vehicleObstacles, ...world.obstacles(), ...towers.flatMap(towerObstacles), ...fire.obstacles, ...shops.obstacles, ...sculpture.obstacles, ...oksen.obstacles, ...extraObstacles], radius: r, clearance: .08});
       // A world made during play (e.g. the bike's on its first ride) gets the other vehicles at once, not one update later.
       if (vehicleBlockers) collision.setDynamic(w, vehicleBlockers);
       vehicleWorlds.set(key, w);
@@ -293,7 +296,20 @@
   const ovSun = new T.DirectionalLight(0xffffff, 1.8);ovSun.position.set(.6, 1, .5);overlayScene.add(ovSun);overlayScene.environment = lib.environment();
   overlayScene.add(photo.model);photo.model.position.set(.08, -.13, -.32);photo.model.rotation.set(.1, -.15, 0);
   const homeLocal = world.toLocal(2.8, 5), caseLocal = D.vehicles.missionStart;let mp = null;
-  const map = window.GameMap.create({data: D, toLocal: world.toLocal, toWorld, root: view, poi: () => [
+  // The Ensjø -> Rathkes gate run (issue #38): any way you like; best time kept in this browser.
+  const routeData = DISTRICTS.map(d => d.route).find(Boolean);
+  const route = routeData && window.GameRoute ? window.GameRoute.create({T, lib, route: routeData, toWorld, heightAt, root: view, sound: n => audio.sfx(n),
+    teleport: at => {const yaw = Math.atan2(-(at.x - player.x), -(at.z - player.z));place(at.x, at.z, yaw);notice('Back at Ensjø T-bane. Stand in the green ring and press □ to start.', 4);},
+    onFinish: (t, best, isBest) => {const f = window.GameRoute.format;earn(isBest ? 60 : 30, isBest ? `Rathkes gate in ${f(t)} – a new best time!` : `Rathkes gate in ${f(t)} (best ${f(best)})`);}}) : null;
+  if (route) scene.add(route.group);
+  // The map shows the district patches as part of the neighbourhood: the same lists in the same formats (the parked cars and
+  // the minigames keep reading the unchanged D).
+  const mapKind = {cemetery: 'grass', rail: 'yard', sand: 'playground', rock: 'yard', paved: 'parking'};
+  const mapData = !DISTRICTS.length ? D : {...D,
+    areas: [...D.areas, ...DISTRICTS.flatMap(d => [...d.areas.map(a => ({k: mapKind[a.k] || a.k, o: a.o})), ...d.sea.map(o => ({k: 'water', o}))])],
+    roads: [...D.roads, ...DISTRICTS.flatMap(d => d.roads.map(r => ({...r, k: r.k === 'rail' ? 'tram' : r.k})))],
+    buildings: [...D.buildings, ...DISTRICTS.flatMap(d => [...d.buildings.map(b => ({r: {o: b.ring.flat()}, s: b.style})), ...d.landmarks.map(l => ({r: {o: l.ring}, s: 'brick'}))])]};
+  const map = window.GameMap.create({data: mapData, toLocal: world.toLocal, toWorld, root: view, poi: () => [
     {x: homeLocal.x, s: homeLocal.s, color: '#e0703c', label: 'Home · 4th floor', glyph: '⌂'},
     {...world.toLocal(4.8, 14.2), color: '#b71c1c', label: 'Hostage rescue', glyph: '◎'},
     ...(D.discgolf || []).map((h, i) => ({x: h.tee[0], s: h.tee[1], color: '#6a1b9a', label: `Disc golf ${i + 1}`, glyph: '◉'})),
@@ -310,6 +326,8 @@
     {x: SCULPTURE_AT.x, s: SCULPTURE_AT.s, color: '#7a5c3e', label: 'HODET N.N.', glyph: '◉'},
     {x: OKSEN_AT.x, s: OKSEN_AT.s, color: '#3a4436', label: 'Torshovoksen', glyph: '◉'},
     {...world.toLocal(AIR.jump.x, AIR.jump.z), color: '#c8322c', label: 'Skydiving (jump plane)', glyph: '🪂'},
+    ...landmarks.poi, ...(route ? route.poi() : []),
+    ...DISTRICTS.flatMap(d => d.stations).map(st => ({x: st.x, s: st.s, color: '#e65100', label: `${st.name} T`, glyph: 'T'})),
   ]});
   // Wristwatch (D-pad ↑) shares the first-person overlay with the photo camera.
   const watch = window.GameWatch.create({T, lib});overlayScene.add(watch.model);
@@ -355,6 +373,7 @@
     // Doors first (the street door of 17A opens normally), then the mission marker beside the entrance.
     {const o = lookTarget();if (o?.userData.doorId) {const d = doors.find(d => d.id === o.userData.doorId);if (d) return {text: `□ ${d.open ? 'Close' : 'Open'} ${d.name.toLowerCase()}`, act: () => toggleDoor(d)};}}
     if (Math.hypot(player.x - MISSION_MARK.x, player.z - MISSION_MARK.z) < 1.6 && Math.abs(player.feet - world.heightWorld(MISSION_MARK.x, MISSION_MARK.z)) < 2) return {text: '□ Start mission: rescue the hostage (4th floor)', act: () => startMission()};
+    {const rp = route && route.prompt(player);if (rp) return rp;}
     const shp = shopPrompt();if (shp) return shp;
     const fp = firePrompt();if (fp) return fp;
     const sp = stashPrompt();if (sp) return sp;
@@ -640,7 +659,7 @@
     // Drunk effect: decays in real time.
     drunk = Math.max(0, drunk - dt);const dl = drunkLevel();
     if (boost && (boost.t -= dt) <= 0) {boost = null;audio.muffle(false);notice('The boost wears off.', 2);}
-    const wdt = dt * worldScale();stash.update(dt);shopsTick(dt);
+    const wdt = dt * worldScale();stash.update(dt);shopsTick(dt);if (route) route.tick(player, dt);world.update(camera.position);
     // The jump planes move first, so a jumper's seat (and camera) is where the plane is this frame.
     updateJumpFlight(dt);updateGamePilot(dt);
     if (player.mode === 'vehicle') updateVehicle(dt, input, dl);
@@ -684,7 +703,10 @@
     const alt = player.mode === 'drone' || player.mode === 'skydive' || player.vehicle?.aircraft ? camera.position.y - groundAt(at.x, at.z) : 0;
     if (map.guide({dt, camera, x: at.x, z: at.z, you: player, heading, view, alt, others: lobbyArrows(), ground: groundAt, show: !photo.active}) === 'reached') notice('Waypoint reached.', 2.5);
   }
-  function placeName() {if (inApartment()) return 'Haarklous plass 17A, 4th floor';const tw = towerAt(player.x, player.z, player.feet);if (tw) return tw.t.own ? 'Stairwell, Haarklous plass 17A' : 'Stairwell, Torshov';return 'Torshov, Oslo';}
+  function placeName() {if (inApartment()) return 'Haarklous plass 17A, 4th floor';const tw = towerAt(player.x, player.z, player.feet);if (tw) return tw.t.own ? 'Stairwell, Haarklous plass 17A' : 'Stairwell, Torshov';
+    // In a district patch: the nearest mapped neighbourhood (Ensjø, Kampen, Vålerenga, Gamlebyen …).
+    const l = world.toLocal(player.x, player.z);if (Math.abs(l.x) > world.playHalf || Math.abs(l.s) > world.playHalf) {const near = DISTRICTS.flatMap(d => d.places).sort((a, b) => Math.hypot(a.x - l.x, a.s - l.s) - Math.hypot(b.x - l.x, b.s - l.s))[0];if (near) return `${near.name}, Oslo`;}
+    return 'Torshov, Oslo';}
 
   function updateFoot(dt, input, dl) {
     // Look.
@@ -1235,7 +1257,7 @@
   }
 
   // ---------- Test / inspection handle ----------
-  window.haarklousGame = {player, vehicles, site, paintball, groundAt, heli, plane, drone, watch, fire, stash, shops, sculpture, oksen, weather, caravan, get skyd() {return skyd;}, get autoPlane() {return autoPlane;}, get jumpFlight() {return jumpFlight;}, boardAuto, boardCaravan, jump, get gp() {return gp;}, callGamePilot, handOver, CARAVAN_HOLD, applyWeather, wallet, get basket() {return basket;}, payAt, takeProduct, useItem, earn, openBag, takeBoost, get boost() {return boost;}, set boost(b) {boost = b;}, get mp() {return mp;}, sitDown, standUp, tryDrive, tryRide, openChat, startDrone, stopDrone, floorBelow, doors, mini, music, photo, map, world, apt, towers, walkWorld, get caseGame() {return caseGame;}, place, toggleDoor, enterVehicle, exitVehicle, startMinigame, startMission, drink, interact, findPrompt, renderFrame, begin, get fps() {return fpsAvg;}, kick: () => requestAnimationFrame(frame), get drunk() {return drunk;}, set drunk(v) {drunk = v;}, setStance, camera, scene};
+  window.haarklousGame = {player, vehicles, site, paintball, groundAt, heli, plane, drone, watch, fire, stash, shops, sculpture, oksen, weather, caravan, get skyd() {return skyd;}, get autoPlane() {return autoPlane;}, get jumpFlight() {return jumpFlight;}, boardAuto, boardCaravan, jump, get gp() {return gp;}, callGamePilot, handOver, CARAVAN_HOLD, applyWeather, wallet, get basket() {return basket;}, payAt, takeProduct, useItem, earn, openBag, takeBoost, get boost() {return boost;}, set boost(b) {boost = b;}, get mp() {return mp;}, sitDown, standUp, tryDrive, tryRide, openChat, startDrone, stopDrone, floorBelow, doors, mini, music, photo, map, world, apt, towers, walkWorld, route, landmarks, districts: DISTRICTS, get caseGame() {return caseGame;}, place, toggleDoor, enterVehicle, exitVehicle, startMinigame, startMission, drink, interact, findPrompt, renderFrame, begin, get fps() {return fpsAvg;}, kick: () => requestAnimationFrame(frame), get drunk() {return drunk;}, set drunk(v) {drunk = v;}, setStance, camera, scene};
   loading.remove();$('start').hidden = false;
   requestAnimationFrame(frame);
 })();
