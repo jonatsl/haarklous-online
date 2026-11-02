@@ -4,7 +4,7 @@
  * Interaction sounds: footsteps per surface, doors, drinks, camera shutter, disc golf chains, boules, excavator.
  * Engines: inline-four motorcycle (CBF600), four-cylinder car, diesel excavator with hydraulics, helicopter (rotor slap
  * and turbine), light-aircraft piston engine and propeller, FPV drone motors.
- * GameAudio.create() -> {resume(), ambience(state), footstep(surface, inStair), sfx(name, opts), engine(kind), hydraulics()}
+ * GameAudio.create() -> {resume(), ambience(state), footstep(surface, inStair), sfx(name, opts), engine(kind), hydraulics(), water(level)}
  */
 (function (root, factory) {
   root.GameAudio = factory();
@@ -94,6 +94,14 @@
       n.connect(f).connect(g).connect(pan);out(pan);n.start(t);n.stop(t + 3.6);
     }
 
+    // Rushing water (Akerselva): a hiss that rises with the current; water(level 0..1), 0 = silent.
+    let waterNode = null;
+    function water(level) {
+      if (!ctx || ctx.state !== 'running') return;
+      if (!waterNode) {const n = noise(), bp = ctx.createBiquadFilter(), lp = ctx.createBiquadFilter(), g = ctx.createGain();bp.type = 'highpass';bp.frequency.value = 300;lp.type = 'lowpass';lp.frequency.value = 1200;g.gain.value = 0;n.connect(bp).connect(lp).connect(g);out(g);n.start();waterNode = {g, lp};}
+      const t = now();waterNode.g.gain.setTargetAtTime(.07 * level, t, .3);waterNode.lp.frequency.setTargetAtTime(900 + level * 2600, t, .3);
+    }
+
     // ---------- Footsteps ----------
     const steps = {grass: [700, 1.5, .05, .1], gravel: [3800, 1.2, .1, .07], sand: [1600, 1, .06, .08], asphalt: [2200, 2, .07, .04], wood: [900, 2.5, .09, .05], tile: [3200, 4, .07, .03], stone: [2600, 3.5, .1, .04], metal: [1100, 8, .08, .09], terrain: [900, 1.2, .05, .08]};
     function footstep(surface, inStair = false, softness = 1) {
@@ -145,6 +153,13 @@
         case 'pbBounce': burst(1800, 3, .15, .001, .03);break;
         case 'whistle': tone(2900, 3000, .12, .02, .5, 'sine');tone(3150, 3100, .06, .02, .5, 'sine');break;
         case 'pistolClick': burst(3000, 5, .15, .001, .02);break;
+        // Grünerløkka (issues #44, #45, #47): the librarian's shush, a page, table tennis, the kayak.
+        case 'shush': burst(3400, 1.3, .55, .06, 1.1);burst(6200, 1, .18, .08, .9);break;
+        case 'pageTurn': burst(2600, .7, .12, .03, .22);burst(5200, 1, .05, .01, .12, 'bandpass', t + .12);break;
+        case 'pingHit': tone(1400, 900, .16, .001, .05, 'triangle');burst(2800, 4, .25, .001, .025);break;
+        case 'pingBounce': tone(1900, 1500, .14, .001, .04, 'triangle');burst(4200, 5, .12, .001, .015);break;
+        case 'splash': burst(500, .6, .55, .01, .7, 'lowpass');for (let i = 0; i < 8; i++) burst(rand(1500, 5000), 1.5, .18, .002, rand(.05, .2), 'bandpass', t + .03 + i * rand(.02, .07));break;
+        case 'paddle': burst(900, .8, .12, .04, .28);burst(2600, 1.2, .05, .02, .15, 'bandpass', t + .05);break;
       }
     }
 
@@ -217,7 +232,7 @@
       if (!init()) return;if (!muffleF) {muffleF = ctx.createBiquadFilter();muffleF.type = 'lowpass';muffleF.frequency.value = 20000;master.disconnect();master.connect(muffleF).connect(ctx.destination);}
       muffleF.frequency.setTargetAtTime(on ? 700 : 20000, now(), .25);
     }
-    return {resume, ambience, footstep, sfx, engine, fire, muffle, get context() {return ctx;}};
+    return {resume, ambience, footstep, sfx, engine, fire, water, muffle, get context() {return ctx;}};
   }
   return {create};
 });
