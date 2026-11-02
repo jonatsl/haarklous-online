@@ -29,17 +29,31 @@ On `main`:
 - Multiplayer on Cloudflare (lobby codes, up to 12 players), passengers in motorcycle / cars / helicopter / plane, text chat with quick chat, lobby-wide voice chat.
 - Player accounts (optional): create an account or log in with email and password in the pause menu; your account name is your lobby name (PR #34, Better Auth + Supabase).
 - Soundtrack: 2.5-minute open-world loop plus one loop per minigame and the mission; ambient sound by location.
+- Gamle Oslo, Ensjø and the way there: real streets, ground heights and about 7,900 buildings south of the old world (3.4 × 3.4 km, down Trondheimsveien to Bjørvika); churches, MUNCH, the Opera (walkable roof) and tall chimneys modelled; a timed Ensjø → Rathkes gate run (PR #48, issue #38).
 
-On branch `feat/gamle-oslo-ensjo` (issue #38, PR #48, not merged yet):
-- Gamle Oslo, Ensjø and the way there: real streets, ground heights and about 7,900 buildings south of the old world (3.4 × 3.4 km, down Trondheimsveien to Bjørvika); churches, MUNCH, the Opera (walkable roof) and tall chimneys modelled; a timed Ensjø → Rathkes gate run.
-
-On branch `feat/klatreverket-torshov` (issue #40, PR #49, builds on PR #48, not merged yet):
+On branch `feat/klatreverket-torshov` (issue #40, PR #49, not merged yet):
 - Klatreverket Torshov at its real place (Myrens verksted 3K) in its real building: 14 m hall, 7 m overhanging competition wall, Galleriet, autobelay tower, bouldering on three floors, the training room with the Moonwall; reception with the real prices and rental; climb with L2 / R2 (bouldering, top rope with Siri belaying, lead with clips, autobelay), pump, falls on the rope, the brattkort test and belaying Siri.
 - The ground round Myrens verksted and Akerselva (district patch 'myrens').
 
-Live site: runs `main` (Worker version 82250255, deployed 2 Nov 2026 after PR #46; `main` builds byte-for-byte to the live page), so everything above is online.
+Live site: runs `main` (Worker version ea397923, deployed 3 Nov 2026 after PR #48; `main` builds byte-for-byte to the live page), so everything above is online.
 
 ## Log
+
+### 2026-11-03 · `main` is live (PR #48)
+- **What:** Gamle Oslo, Ensjø and the way there (PR #48) is merged into `main` and deployed (Cloudflare Worker version ea397923).
+  - Deployed from this session's own worktree at the PR's last commit. `main` had not moved since PR #46, so the merged `main` builds to the same page.
+  - Before that the live page was checked to be exactly `main` (PR #46), so nothing else went live with it.
+- **Why:** the user asked to merge and deploy "if possible and not colliding with anything else" (3 Nov 2026).
+- **Other open PRs:**
+  - PR #49 (Klatreverket) is built on PR #48, so it now shows only its own changes.
+  - PR #50 (catacomb) and PR #48 both added lines at the same places in `game-main.js`, `index.html`, `README.md` and this log. They are side by side, not overlapping, so #50 needs a routine merge of `main`.
+  - The one link to keep when merging #50: its `cutsGround` check goes into the height of every floor in `groundFloors` (`world.terrainFloors().map(...)`), where #48 had replaced the single `groundFloor`.
+- **Checked:**
+  - The live page is byte-for-byte the build (apart from line endings).
+  - `/weather` and `/api/auth/get-session` answer 200.
+  - The live game starts, goes online with a lobby code, and has the district (7,938 buildings, 9 key buildings) and the run's prompt at Ensjø.
+  - The only console error is the old missing favicon.
+- **Status:** live.
 
 ### 2026-11-03 · Klatreverket Torshov: bouldering and rope climbing at the real climbing centre (issue #40)
 - **What:**
@@ -100,7 +114,7 @@ Live site: runs `main` (Worker version 82250255, deployed 2 Nov 2026 after PR #4
     - the brattkort test passed;
     - walked from the old world over the seam at x -760 into the Myrens patch, and from the street up the ramp into the lobby.
   - Not checked: a real DualShock 4, real frame rate on the user's PC, two real players climbing together online.
-- **Status:** PR https://github.com/jonatsl/haarklous-online/pull/49 (branch `feat/klatreverket-torshov`, not merged). It contains PR #48 (Gamle Oslo, not merged yet), so merge PR #48 first. Not live.
+- **Status:** PR https://github.com/jonatsl/haarklous-online/pull/49 (branch `feat/klatreverket-torshov`, not merged). It was built on PR #48, which is now merged; `main` is merged into the branch. Not live.
 
 ### 2026-11-02 · Gamle Oslo, Ensjø and the way there (issue #38)
 - **What:**
@@ -124,13 +138,14 @@ Live site: runs `main` (Worker version 82250255, deployed 2 Nov 2026 after PR #4
   - `game-main.js`: the patches are decoded, then built; walk and vehicle worlds get one ground floor per patch through `groundAt`; the map gets the district in the same lists as before.
   - The tools take a name and a box, so other places can be added as more patches (the climbing-gym session plans one for Myrens verksted).
 - **Also fixed on the way:** the distant hills ring started 2.6 km from home, which is now inside the world; it now starts 400 m beyond the ground data in each direction, from the apron's own height. The flat land far away now lies 2 m below sea level instead of below Torshov's lowest point, so the fjord does not float above the new sea.
+- **Tool fix from the climbing-gym session (issue #40):** `make-district.py` took its height reference from the old grid's rows at s 600–800, which a patch elsewhere does not reach (its Myrens patch came out 17 m off). A patch now uses those rows only when they are inside its box, else the old grid's points inside its box, else the old data's door height. Gamle Oslo's data is byte-for-byte the same.
 - **Performance:** in the district a frame has 140–210 draw calls and 0.3–1.3 million triangles (home has about 2,800 calls and 1.2–2.3 million). At home the district adds up to 0.35 million triangles when you look toward it. Timing on this PC was too noisy (other sessions share the GPU) for a reliable fps figure.
 - **Checked:**
   - Node tests (`tests/district.test.cjs`, 7 new).
   - In a browser: crossing the old edge on foot along Trondheimsveien, buildings block you, the Opera roof climbed 28.7 m, the run started, timed, finished, paid, saved and sent you back to Ensjø, the aerial photo loads in about 5 s, and the map shows the district.
   - Not checked: a real controller, the frame rate on the user's PC, online play with others in the district.
 - **Where:** `tools/fetch-district.py`, `tools/make-district.py`, `assets/osm/gamle-oslo-*`, `gamle-oslo-data.js`, `district.js`, `surroundings.js`, `game-landmarks.js`, `game-route.js`, `game-main.js`, `index.html`, `README.md`, `tests/district.test.cjs`, `docs/HANDOFF.md`.
-- **Status:** branch `feat/gamle-oslo-ensjo`, PR #48, not merged, not live.
+- **Status:** PR #48, merged into `main` and live (Worker version ea397923, 3 Nov 2026).
 
 ### 2026-11-02 · Map waypoint and an optional minimap (issues #41 and #42)
 - **What:**
