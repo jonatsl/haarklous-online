@@ -15,6 +15,7 @@ On `main`:
 - Vehicles: Honda CBF600S motorcycle and 7 more motorcycles, 30 cars, excavator, helicopter, two-seat plane, Caravan jump plane; hands on bars / wheel / sticks.
 - Cars and motorcycles follow gravity (9.81 m/s²) and fly over crests and bumps taken fast (PR #5).
 - FPV drone (hold △), photo camera with gallery (tap △), wristwatch (D-pad ↑), map (touchpad).
+- A waypoint you set on the map (✕ or a click) and a purple pin on screen that leads you there until you are within 7 m (issue #41); an optional round minimap in the bottom-left corner like GTA IV's, turned on in the pause menu (issue #42).
 - Minigames: the real Muselunden DiscGolfPark (12 holes, PR #13) and two disc golf holes in Torshovdalen, petanque against Arne; hostage-rescue mission (start at the red ring by the entrance); stay home after the mission.
 - Firepit with benches, beer crate and woodpile (fire size shared online); beer and aquavit in the apartment (30 s drunk each).
 - Joker and Kiwi shops at their real places with a cashier; money in kroner (start 500 kr, earned from the mission, minigames and bottle deposit), Norwegian beer hours, a bag of bought items (PR #6).
@@ -29,9 +30,74 @@ On `main`:
 - Player accounts (optional): create an account or log in with email and password in the pause menu; your account name is your lobby name (PR #34, Better Auth + Supabase).
 - Soundtrack: 2.5-minute open-world loop plus one loop per minigame and the mission; ambient sound by location.
 
-Live site: runs `main` (Worker version 43457da0, deployed 1 Nov 2026 after PRs #36 and #37; `main` builds byte-for-byte to the live page), so everything above is online.
+On branch `feat/gamle-oslo-ensjo` (issue #38, PR #48, not merged yet):
+- Gamle Oslo, Ensjø and the way there: real streets, ground heights and about 7,900 buildings south of the old world (3.4 × 3.4 km, down Trondheimsveien to Bjørvika); churches, MUNCH, the Opera (walkable roof) and tall chimneys modelled; a timed Ensjø → Rathkes gate run.
+
+Live site: runs `main` (Worker version 82250255, deployed 2 Nov 2026 after PR #46; `main` builds byte-for-byte to the live page), so everything above is online.
 
 ## Log
+
+### 2026-11-02 · Gamle Oslo, Ensjø and the way there (issue #38)
+- **What:**
+  - A new "district patch" of the world south of the old ±800 m square: local x −1600…1792, s 560…4000 (3.4 × 3.4 km), walkable to 40 m inside its edges. It runs from Carl Berner down Trondheimsveien to Sofienberg and Schous plass, and through Rodeløkka, Tøyen, Kampen, Vålerenga, Ensjø, the edge of Helsfyr, Grønland, Gamlebyen and Bjørvika to the fjord.
+  - Real ground heights: Kartverket's 2 m terrain model on an 8 m grid. Where it overlaps the old 4 m grid it copies its values exactly, so there is no seam (tested). Real steep places such as Kampen's rock face and the Akerselva ravine are kept.
+  - Real streets, paths, tram and rail lines, parks, grass, woods, water, pitches and parking from OpenStreetMap, painted on the ground (or the Esri aerial photo, which loads when you come within 700 m) and drawn on the map and minimap.
+  - About 7,900 buildings in their real places: OpenStreetMap footprints, heights from their storey counts (about half have them) or a default per building type. Brick blocks get Torshov's facade and hip roofs, other buildings plaster with windows, tall ones glass bands, halls ribbed metal. Shapes are simple, not exact copies, as the user allowed.
+  - Key buildings modelled on their real footprints (`game-landmarks.js`): Sofienberg, Paulus, Kampen, Vålerenga, Grønland, Gamlebyen and Tøyen churches (brick nave with arched windows, steep roof, tower with clocks and spire at the narrow end of the footprint), MUNCH (60 m, the top bends toward the fjord, red sign), the Opera (white roof you can walk up from the plaza to 32 m, glass walls, stage tower) and eight tall chimneys (Freiapipa 50 m, Ringnespipa 40 m …). Oslo Plaza (117 m) and Posthuset (111 m) get their real heights. Sizes and colours are estimates (±20 %).
+  - Parks are real but light: the ~9,700 mapped trees with lighter crowns (26 leaf cards instead of 70); far away only within 1.1 km.
+  - The fjord: a water surface where the terrain model is at sea level, minus every mapped building and land area (the model is older than the newest quays). You stop at the quay.
+  - **Ensjø → Rathkes gate run** (`game-route.js`): green ring outside Ensjø T-bane, □ starts the clock; the chequered ring in Rathkes gate stops it. Any way counts. Best time in the browser (`haarklous-route-v1`), 30 kr per finish, 60 kr for a new best, □ at the finish takes you back to the start.
+  - Photos taken in the district are named after the nearest neighbourhood (Ensjø, Kampen, Vålerenga …).
+- **Why:**
+  - Issue #38: "Make Ensjø part of the game … explore my own part of the city, namely Gamle Oslo … practice the most effective way from Ensjø to Ratkhes".
+  - The user (2 Nov 2026): real streets, topography and buildings in the correct positions but not exact copies; some key buildings modelled; parks real and light; the area in between lighter but with real topography; at least the buildings down Trondheimsveien.
+  - Trondheimsveien does not reach Gamle Oslo itself: from Sinsen it runs through Carl Berner to Schous plass at Grünerløkka. Gamle Oslo and Ensjø lie south of that, so the patch covers both, and every building in between is in (a test checks there is a building within 45 m of every 100 m of Trondheimsveien).
+  - Rathkes gate is on Rodeløkka by Sofienbergparken (not in Torshov), 1.5 km from Ensjø as the crow flies and 55 m lower.
+- **How it fits in:**
+  - `surroundings-data.js` is not changed (1,040 buildings, 1,057 roads), so the seeded parked vehicles and their numbers online stay the same.
+  - New data and code: `tools/fetch-district.py` (OpenStreetMap + Kartverket download into `assets/osm/gamle-oslo-*`), `tools/make-district.py` (writes `gamle-oslo-data.js`, 1.2 MB), `district.js` (decoder, Node-tested), `surroundings.js` (district ground tiles, buildings, trees, sea, imagery, collision, footsteps, traffic sound), `game-landmarks.js`, `game-route.js`.
+  - `game-main.js`: the patches are decoded, then built; walk and vehicle worlds get one ground floor per patch through `groundAt`; the map gets the district in the same lists as before.
+  - The tools take a name and a box, so other places can be added as more patches (the climbing-gym session plans one for Myrens verksted).
+- **Also fixed on the way:** the distant hills ring started 2.6 km from home, which is now inside the world; it now starts 400 m beyond the ground data in each direction, from the apron's own height. The flat land far away now lies 2 m below sea level instead of below Torshov's lowest point, so the fjord does not float above the new sea.
+- **Performance:** in the district a frame has 140–210 draw calls and 0.3–1.3 million triangles (home has about 2,800 calls and 1.2–2.3 million). At home the district adds up to 0.35 million triangles when you look toward it. Timing on this PC was too noisy (other sessions share the GPU) for a reliable fps figure.
+- **Checked:**
+  - Node tests (`tests/district.test.cjs`, 7 new).
+  - In a browser: crossing the old edge on foot along Trondheimsveien, buildings block you, the Opera roof climbed 28.7 m, the run started, timed, finished, paid, saved and sent you back to Ensjø, the aerial photo loads in about 5 s, and the map shows the district.
+  - Not checked: a real controller, the frame rate on the user's PC, online play with others in the district.
+- **Where:** `tools/fetch-district.py`, `tools/make-district.py`, `assets/osm/gamle-oslo-*`, `gamle-oslo-data.js`, `district.js`, `surroundings.js`, `game-landmarks.js`, `game-route.js`, `game-main.js`, `index.html`, `README.md`, `tests/district.test.cjs`, `docs/HANDOFF.md`.
+- **Status:** branch `feat/gamle-oslo-ensjo`, PR #48, not merged, not live.
+
+### 2026-11-02 · Map waypoint and an optional minimap (issues #41 and #42)
+- **What:**
+  - **Waypoint (#41):** on the map, ✕ / Space sets a waypoint at the cross in the middle, and a left click sets it where you click. ✕ or a click on it again, □ / E or Delete removes it.
+    - The map shows it as a purple pin, with a dashed line from you and the distance.
+    - Back in the game a purple pin with the distance stays on the place. When the place is off screen or behind you, the pin waits at the screen edge with a small arrow toward it.
+    - Within 7 m it goes away and "Waypoint reached." shows.
+  - **Minimap (#42):** pause menu → *Minimap* (or D-pad ↓ in the pause menu). Off at first; the choice is saved in the browser.
+    - Round, in the bottom-left corner, dark like GTA IV's: grey roads (big roads lighter), dim buildings, your own building orange, parks dark green, water dark blue.
+    - It turns with the camera: the way you look is up, and N on the rim shows north. You are the white arrow, places from the map are coloured dots, players in your lobby are arrows in their colour (on the rim when far away), the waypoint is the purple pin (on the rim when out of range).
+    - About 90 m around you on foot; it zooms out with speed and height, up to 300 m. It hides while the photo camera is out.
+    - Things that sat in that corner move: the chat moves up; the minigame cards, the mission's health, paintball's team line and the drone's flight data move to the right of it.
+  - **Faster big map:** it now draws only what is in view, and keeps the picture while you don't pan or zoom. The Gamle Oslo work (issue #38) will make the map data about ten times bigger.
+  - **Ready for the catacomb (issue #43):** a `map.layer` switch agreed with that work. Underground the minimap shows the catacomb's own map, and the waypoint can't be set, its pin is hidden and it waits for you on the surface.
+- **Why:**
+  - The user's issues: #41 "Add waypoint and follow it" (a purple pointer, clear but not too distracting, until you are within 7 m) and #42 "Add optional minimap" (toggled in the menu, round like GTA IV's, in the same corner).
+  - The pin is small (20 px, 88 % opacity) and only shows the distance, so it is clear without being in the way.
+  - The minimap draws the map data once into 200 m tiles (at most two new tiles a frame, the 64 last used are kept) and only turns the tiles. Measured: about 0.1 ms a frame.
+  - Opening the map now frees the mouse pointer so you can click on the map; closing it takes the pointer back.
+- **Where:** `game-map.js` (waypoint, on-screen pin, minimap, faster big map), `game-main.js` (✕ / □ on the map, D-pad ↓ in the pause menu, `updateGuide()` once a frame), `index.html` (pause-menu checkbox, start-screen controls), `style.css`, `tests/map.test.cjs`, `README.md`, `docs/HANDOFF.md`.
+- **Checked:**
+  - Node tests 64/64, 5 of them new (pin on the screen edge, "behind you" points down, the rim, distance text, minimap range).
+  - In the browser with a simulated controller and real mouse clicks:
+    - ✕ sets the waypoint at the cross; a click sets it where you click; a click on the pin, ✕ again, □ and Delete remove it.
+    - Looking at it, the pin sits on the place (76 m); with the place to your left, the pin is at the left edge with an arrow.
+    - Walking up to it removed it at 6.7 m and showed "Waypoint reached."
+    - Minimap: on and off with D-pad ↓ and with the checkbox (saved), turns with the camera, zooms out in a car, hides with the photo camera, follows the drone. The chat, the disc golf card and the drone's flight data no longer overlap it.
+    - Big map: 0.14 ms a frame when still, 2.7 ms while panning. No script errors.
+  - Not checked: a real DualShock 4, and a real mouse with pointer lock (the browser pane cannot lock the pointer).
+- **Status:** on `main` (PR #46, merged 2 Nov 2026 with the user's OK) and live (Cloudflare Worker version 82250255).
+  - Deployed from this branch's clean worktree (the same code as the merge; `main` had not changed since the branch started), with `cloud/` packages installed by `npm ci`.
+  - The live page is byte-for-byte the local build. On the live site the game joined a lobby, loaded the real weather, and showed the minimap and the waypoint pin (63 m, at the screen edge), with no console errors.
 
 ### 2026-11-01 · `main` is live (PRs #36 and #37)
 - **What:** the game's pilot for the Caravan (PR #36) and the sign-up fix (PR #37) are merged into `main` and deployed (Cloudflare Worker version 43457da0).
