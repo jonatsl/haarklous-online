@@ -61,7 +61,7 @@ Live site: runs `main` (Worker version 43457da0, deployed 1 Nov 2026 after PRs #
     - Minimap: on and off with D-pad ↓ and with the checkbox (saved), turns with the camera, zooms out in a car, hides with the photo camera, follows the drone. The chat, the disc golf card and the drone's flight data no longer overlap it.
     - Big map: 0.14 ms a frame when still, 2.7 ms while panning. No script errors.
   - Not checked: a real DualShock 4, and a real mouse with pointer lock (the browser pane cannot lock the pointer).
-- **Status:** PR (branch `feat/waypoint-minimap`), not merged yet. Not live.
+- **Status:** PR #46 (branch `feat/waypoint-minimap`), not merged yet. Not live.
 
 ### 2026-11-01 · `main` is live (PRs #36 and #37)
 - **What:** the game's pilot for the Caravan (PR #36) and the sign-up fix (PR #37) are merged into `main` and deployed (Cloudflare Worker version 43457da0).
