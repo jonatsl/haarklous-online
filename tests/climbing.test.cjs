@@ -139,3 +139,16 @@ test('the gym replaces its building in the district patch and lowers the ground 
   assert.deepEqual(d.buildings.map(b => b.id), ['w1031708991']);
   assert.equal(calls.length, 1);assert.equal(calls[0].poly.length, 4);assert.ok(Math.abs(calls[0].rel - (K.floorY + 9.975 - .05)) < 1e-9);
 });
+
+test('belaying for the brattkort: take in, hold the brake on a fall, lower – and what fails', () => {
+  const run = (policy, seed = 3) => {const b = new G.Belay(7.8, seed);for (let t = 0; t < 90 && !['passed', 'done', 'failed'].includes(b.state); t += .05) b.update(.05, policy(b));return b;};
+  const good = run(b => ({takeIn: b.slack > .5 ? 1 : 0, brake: b.state === 'fall', lower: b.state === 'top' || b.state === 'lower'}));
+  assert.equal(good.state, 'passed');assert.deepEqual(good.mistakes, []);
+  const lazy = run(() => ({takeIn: 0, brake: false}));
+  assert.equal(lazy.state, 'failed', 'never taking in: she hits the ground');
+  const noBrake = run(b => ({takeIn: b.slack > .5 ? 1 : 0, brake: false}));
+  assert.equal(noBrake.state, 'failed');assert.match(noBrake.msg, /brake/);
+  const tight = run(b => ({takeIn: 1, brake: b.state === 'fall', lower: b.state === 'top' || b.state === 'lower'}));
+  assert.ok(tight.mistakes.some(m => /tight/.test(m)), 'pulling all the time is a mistake');
+  for (const q of G.QUIZ) assert.ok(q.ok >= 0 && q.ok < q.a.length);
+});

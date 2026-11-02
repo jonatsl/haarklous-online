@@ -361,6 +361,46 @@
     });
   }
 
+  // ---------- Belaying (the brattkort test, and belaying Siri once you have one) ----------
+  // Siri climbs a top-rope route while you belay: take in the rope as she climbs (the slack should stay between about 0.2 and
+  // 1.2 m), hold the brake when she falls (within 0.8 s), and lower her when she is at the top. Two falls, one with a warning.
+  const QUIZ = [
+    {q: 'Which knot do you tie in with?', a: ['Double figure-eight (dobbel åttetallsknute)', 'Two half hitches (halvstikk)', 'Single bowline (pålestikk)'], ok: 0},
+    {q: 'Partner check: what do you check before every climb?', a: ['That the rope is long enough – nothing else', 'Knot, harness buckles, carabiner locked, belay device threaded right', 'Nothing – the staff checks it'], ok: 1},
+    {q: 'What does your brake hand do?', a: ['Lets go of the rope to take in faster', 'Holds the climber\'s side of the rope', 'Never lets go of the brake rope'], ok: 2}
+  ];
+  class Belay {
+    constructor(height, seed = 1) {
+      const r = rng(seed);this.H = height;this.y = 0;this.slack = .3;this.state = 'climb';this.t = 0;this.mistakes = [];this.msg = 'Siri climbs – take in the rope (R2) as she goes';this.rest = 0;
+      this.falls = [{y: height * (.3 + r() * .12), warn: true}, {y: height * (.62 + r() * .15), warn: false}];this.tightT = 0;this.slackWarned = false;
+    }
+    mistake(why) {if (!this.mistakes.includes(why)) this.mistakes.push(why);this.msg = why;}
+    // inp: {takeIn 0..1, brake bool, lower bool}
+    update(dt, inp) {
+      this.t += dt;const ev = [];
+      if (this.state === 'climb') {
+        if (this.rest > 0) this.rest -= dt;
+        else {const dy = (this.tightT > .8 ? 0 : .38) * dt;this.y += dy;this.slack += dy;if (this.y % 2.6 < dy) this.rest = 1.2;}
+        this.slack -= 1.5 * (inp.takeIn || 0) * dt;
+        if (this.slack < 0) {this.slack = 0;this.tightT += dt;if (this.tightT > .8) this.msg = 'Siri: "Slakk litt!" – too tight, you are pulling her off';if (this.tightT > 2.5) this.mistake('You kept the rope too tight');} else this.tightT = 0;
+        if (this.slack > 1.6 && !this.slackWarned) {this.slackWarned = true;this.mistake('Too much slack – she would fall far');}
+        const f = this.falls[0];
+        if (f && f.warn && this.y > f.y - 1 && !f.said) {f.said = true;this.msg = 'Siri: "Ta inn!" – take in and get ready to hold her';ev.push('call');}
+        if (f && this.y >= f.y) {this.falls.shift();this.state = 'fall';this.fallT = 0;this.fallFrom = this.y;this.drop = this.slack + .3;ev.push('fall');this.msg = 'She falls – BRAKE (L2)!';}
+        if (this.y >= this.H) {this.y = this.H;this.state = 'top';this.msg = 'Siri: "Klar til å fires ned!" – hold ✕ / Space to lower her';ev.push('top');}
+      } else if (this.state === 'fall') {
+        this.fallT += dt;const k = Math.min(1, this.fallT / .5);this.y = this.fallFrom - this.drop * k;
+        if (inp.brake && this.fallT <= .8) {this.state = 'hang';this.hangT = 0;this.y = this.fallFrom - this.drop;ev.push('catch');this.msg = this.drop > 1.9 ? 'Caught – but she fell far, keep less slack' : 'Caught! She hangs on the rope';if (this.drop > 1.9) this.mistake('A long fall because of the slack');}
+        else if (this.fallT > .8 || this.fallFrom - this.drop < .4) {this.state = 'failed';this.y = 0;ev.push('drop');this.msg = this.fallFrom - this.drop < .4 ? 'She hit the ground – too much slack low down' : 'You did not hold the brake – the rope ran through';}
+      } else if (this.state === 'hang') {
+        this.hangT += dt;if (this.hangT > 1.6) {this.state = 'climb';this.slack = .25;this.msg = 'She climbs on – keep taking in';}
+      } else if (this.state === 'top' || this.state === 'lower') {
+        if (inp.lower) {this.state = 'lower';this.y = Math.max(0, this.y - 1.1 * dt);this.slack = .2;if (this.y <= 0) {this.state = this.mistakes.length <= 1 ? 'passed' : 'done';ev.push('down');this.msg = 'She is down';}}
+      }
+      return ev;
+    }
+  }
+
   // ---------- The building, the interior and everything in it (browser only) ----------
   // Before the world is built: this module draws OSM way 1031709261 itself, and the patch's ground under the hall is lowered
   // to just below the hall floor (Kartverket's DTM rises up to 0.9 m through the building toward the slope behind it).
@@ -736,6 +776,19 @@
       pts.push(harness);drawRope(pts.length > 1 && climber.style !== 'boulder' && climber.style !== 'moon' && climber.style !== 'campus' ? pts : []);
     }
 
+    // ---------- Belaying Siri: she climbs a top-rope route, you stand at its foot ----------
+    let belayRoute = null;
+    const belaySpot = route => {const f = faces.get(route.face), x = (route.lane[0] + route.lane[1]) / 2, p = W(f.p0[0] + f.dir.a * x + f.n.a * 1.7, f.p0[1] + f.dir.b * x + f.n.b * 1.7), n = wdir({a: f.n.a, b: f.n.b, y: 0});return {x: p.x, z: p.z, yaw: Math.atan2(n.x, n.z)};};
+    function startBelay(route) {belayRoute = route;if (siri) siri.ghost = true;const f = faces.get(route.face);return new Belay(f.H - 2.2, route.id + 7);}
+    function showBelay(b, dt, hand) {
+      if (!belayRoute || !siri) return;const f = faces.get(belayRoute.face), x = (belayRoute.lane[0] + belayRoute.lane[1]) / 2, at = faceAt(f, x + Math.sin(b.t * .9) * .12, b.y + 1.0);
+      siri.group.position.set(at.p.a + at.nrm.a * .42, f.y0 + b.y, at.p.b + at.nrm.b * .42);siri.group.rotation.y = Math.atan2(f.n.a, f.n.b);
+      siri.pose({stance: b.state === 'climb' && b.y > .2 ? 'climb' : b.state === 'climb' ? 'stand' : 'hang', speed: b.state === 'climb' && !(b.rest > 0) ? .7 : 0, dt});
+      const gear = routeGear.get(belayRoute.id), harness = siri.group.localToWorld(new T.Vector3(0, .95, -.1));
+      drawRope(gear && gear.anchor ? [hand, gear.anchor, {x: harness.x, y: harness.y, z: harness.z}] : []);
+    }
+    function endBelay() {belayRoute = null;if (siri) {siri.ghost = false;siri.group.position.set(siriHome.a, 0, siriHome.b);siri.group.rotation.y = siriHome.yaw;}drawRope([]);}
+
     // ---------- The Moonwall: choose a problem, its LEDs light up ----------
     const moonRoutes = routes.filter(r => r.moon);let moonSel = -1;
     function lightMoon(i) {
@@ -759,7 +812,7 @@
       // The receptionist and Siri turn toward you when you are near (an avatar faces -z at yaw 0).
       const face = (av, a, b, rest, r) => {const t = Math.hypot(pl.a - a, pl.b - b) < r && Math.abs(player.feet - Y0) < 2 ? Math.atan2(-(pl.a - a), -(pl.b - b)) : rest;let d = t - av.group.rotation.y;d = Math.atan2(Math.sin(d), Math.cos(d));av.group.rotation.y += d * Math.min(1, dt * 2.5);};
       if (staff) face(staff, 4.0, 7.3, 0, 8);
-      if (siri) {siri.belaying = !!(session && session.belay);siriHit.position.copy(siri.group.position).add(new T.Vector3(0, .9, 0));if (!session) face(siri, siriHome.a, siriHome.b, siriHome.yaw, 6);}
+      if (siri) {siri.belaying = !!(session && session.belay);siriHit.position.copy(siri.group.position).add(new T.Vector3(0, .9, 0));if (!session && !belayRoute) face(siri, siriHome.a, siriHome.b, siriHome.yaw, 6);}
       for (const g of ghosts) {
         g.t += dt;const T0 = 70, T1 = 12, k = g.t % (T0 + T1), up = k < T0 ? k / T0 : 1 - (k - T0) / T1, at = faceAt(g.f, g.x + Math.sin(g.t * .7) * .15, .4 + up * (g.f.L - 2.2));
         g.climber.group.position.set(at.p.a + at.nrm.a * .4, at.p.y - .9, at.p.b + at.nrm.b * .4);g.climber.group.rotation.y = Math.atan2(g.f.n.a, g.f.n.b);g.climber.pose({stance: k < T0 ? 'climb' : 'hang', speed: k < T0 ? .6 : 0, dt});
@@ -781,7 +834,7 @@
     function ground(x, z) {const f = toFrame(x, z);return f.a > -.05 && f.a < LEN + .05 && f.b > -.05 && f.b < WING + .05 ? Y0 : null;}
     const local = {x: data.gym[0], s: data.gym[1]};
     return {group, extras, floors, obstacles, hitboxes, routes, holds: holdsWorld, faces, climber, begin, end, tick, showClimb, aimAt, aimPoint, routeAt, classify: (s, h) => classify(climber, s, h), update, zoneAt, ZONE_NAME, ground, visit, save, get state() {return st;},
-      lightMoon, get moonSel() {return moonSel;}, moonRoutes, siri, staff, door: W(-1.2, (DOOR[0] + DOOR[1]) / 2), doorYaw: Math.atan2(ux, uz), local, floorY: Y0, toFrame, W, routeGear, session: () => session, LEVELS, priceAt, brattkortPriceAt, staffedAt, openAt, HOURS, PRICES, STYLE};
+      lightMoon, get moonSel() {return moonSel;}, moonRoutes, startBelay, showBelay, endBelay, belaySpot, QUIZ, siri, staff, door: W(-1.2, (DOOR[0] + DOOR[1]) / 2), doorYaw: Math.atan2(ux, uz), local, floorY: Y0, toFrame, W, routeGear, session: () => session, LEVELS, priceAt, brattkortPriceAt, staffedAt, openAt, HOURS, PRICES, STYLE};
   }
-  return {PRICES, HOURS, priceAt, brattkortPriceAt, staffedAt, openAt, gradeName, ROPE_GRADES, BOULDER_GRADES, WALLS, LEVELS, HOLDS, COLOURS, STYLE, faceInfo, faceAt, makeRoutes, classify, leadCatch, steepness, Climber, worldHolds, prepare, hallPolygon, create, REACH, DYNO};
+  return {PRICES, HOURS, priceAt, brattkortPriceAt, staffedAt, openAt, gradeName, ROPE_GRADES, BOULDER_GRADES, WALLS, LEVELS, HOLDS, COLOURS, STYLE, faceInfo, faceAt, makeRoutes, classify, leadCatch, steepness, Climber, Belay, QUIZ, worldHolds, prepare, hallPolygon, create, REACH, DYNO};
 });

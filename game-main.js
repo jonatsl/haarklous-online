@@ -374,7 +374,7 @@
     if (player.mode === 'vehicle') {const v = player.vehicle;return (v.aircraft ? v.grounded && v.speed < 3 : Math.abs(v.speed) < 3) ? {text: `□ ${v.kind === 'motorcycle' ? 'Get off' : 'Get out'}`, act: () => exitVehicle()} : null;}
     if (player.mode === 'passenger') {const v = player.vehicle;return (v.aircraft ? v.grounded && v.speed < 3 : Math.abs(v.speed) < 3) ? {text: `□ ${v.kind === 'motorcycle' ? 'Get off' : 'Get out'}`, act: () => exitPassenger()} : null;}
     if (player.mode === 'sit') return {text: '□ Stand up · R2 have a beer', act: () => standUp()};
-    if (player.mode === 'climb' || player.mode === 'hang') return null;
+    if (player.mode === 'climb' || player.mode === 'hang' || player.mode === 'belay') return null;
     // During the mission only doors can be used (□ otherwise reloads).
     if (caseGame?.active) {const o = lookTarget();if (o?.userData.doorId) {const d = doors.find(d => d.id === o.userData.doorId);if (d) return {text: `□ ${d.open ? 'Close' : 'Open'} ${d.name.toLowerCase()}`, act: () => toggleDoor(d)};}if (o?.userData.lockedDoor) return {text: '□ Try the door', act: () => {audio.sfx('locked');notice('Locked.');}};return null;}
     // Doors first (the street door of 17A opens normally), then the mission marker beside the entrance.
@@ -522,7 +522,7 @@
     if (!gym.zoneAt(player, player.feet)) return null;
     const o = lookTarget(), u = (o && o.userData) || {};
     if (u.gymDesk) return {text: '□ Reception: day ticket, rental, autobelay introduction', act: () => openGymMenu()};
-    if (u.gymPartner) return {text: '□ Talk to Siri (your climbing partner)', act: () => siriTalk()};
+    if (u.gymPartner) {const v = gym.visit();return gym.state.brattkort && v.paid && v.harness && player.mode === 'foot' ? {text: '□ Belay Siri – she climbs a top-rope route in Galleriet (you have a brattkort)', act: () => startBelay(false)} : {text: '□ Talk to Siri (your climbing partner)', act: () => siriTalk()};}
     if (u.gymHang) return {text: '□ Hang on the hangboard (hold L2 + R2)', act: () => startHang()};
     if (u.gymMoon) {const n = gym.moonRoutes.length, next = gym.moonSel + 1 >= n ? -1 : gym.moonSel + 1;return {text: next < 0 ? '□ Moonwall: switch the LEDs off' : `□ Moonwall: light up ${gym.moonRoutes[next].name}`, act: () => {const r = gym.lightMoon(next);audio.sfx('beep');notice(r ? `${r.name}: start on the green hold, blue are the hands, finish on the red one.` : 'Moonwall LEDs off.', 4);}};}
     const dir = camera.getWorldDirection(new T.Vector3()), h = gym.aimAt(camera.position, dir, false);
@@ -598,6 +598,33 @@
     camera.position.set(player.x, player.feet + (both ? 1.9 : player.eye), player.z);camera.rotation.order = 'YXZ';camera.rotation.set(player.pitch, player.yaw, 0);
     const el = $('climbHud');el.hidden = false;el.innerHTML = `<b>Hangboard · 20 mm edge</b><span>${both ? `Hanging ${hangT.toFixed(1)} s` : 'Hold L2 + R2 to hang'}</span><i class="meter pump"><u style="width:${Math.round(hangPump * 100)}%;background:${hangPump > .8 ? '#ff5252' : '#66d17a'}"></u></i><small>Best ${(gym.state.bestHang || 0).toFixed(1)} s · ○ / C / move to step away</small>`;
   }
+  // Belaying Siri (the brattkort test, or for fun once you have a brattkort).
+  let belay = null;
+  function startBelay(test) {
+    const route = gym.routes.filter(r => r.zone === 'Galleriet' && r.toprope)[test ? 1 : Math.floor(Math.random() * 6)];
+    const b = gym.startBelay(route), spot = gym.belaySpot(route);belay = {b, route, test};
+    place(spot.x, spot.z, spot.yaw, gym.floorY);player.mode = 'belay';player.pitch = .55;watch.hide();if (photo.active) photo.toggle();
+    notice(`${test ? 'Brattkort test: ' : ''}You belay Siri on ${route.name} · R2 / left mouse takes in the rope as she climbs (keep the slack in the green) · L2 / right mouse is your brake hand – hold it the moment she falls · at the top hold ✕ / Space to lower her · ○ stop`, 10);
+  }
+  function updateBelay(dt, input) {
+    const curve = v => Math.sign(v) * v * v, b = belay.b;
+    player.yaw -= input.mouse.dx * .0024 * sensitivity.mouse + curve(input.look.x) * 2.2 * sensitivity.pad * dt;player.pitch = Math.max(-1.2, Math.min(1.45, player.pitch - input.mouse.dy * .0024 * sensitivity.mouse - curve(input.look.y) * 1.7 * sensitivity.pad * dt));
+    camera.position.set(player.x, player.feet + player.eye, player.z);camera.rotation.order = 'YXZ';camera.rotation.set(player.pitch, player.yaw, 0);
+    const ev = b.update(dt, {takeIn: input.r2 > .1 ? input.r2 : 0, brake: input.l2 > .5, lower: !!input.held.cross});
+    for (const e of ev) {if (e === 'call' || e === 'fall') gym.siri && gym.siri.say(e === 'call' ? 'Ta inn!' : 'Faller!');if (e === 'catch') audio.sfx('thud', {gain: .5});if (e === 'drop') audio.sfx('thud', {gain: 1});if (e === 'top') gym.siri && gym.siri.say('Klar til å fires ned!');}
+    const hand = {x: player.x - Math.sin(player.yaw) * .35, y: player.feet + 1.1, z: player.z - Math.cos(player.yaw) * .35};gym.showBelay(b, dt, hand);
+    const zone = b.slack < .15 ? '#ffb02e' : b.slack > 1.3 ? '#ff5252' : '#66d17a', el = $('climbHud');el.hidden = false;
+    el.innerHTML = `<b>${belay.test ? 'Brattkort test · ' : ''}Belaying Siri · ${belay.route.name}</b><span>Slack ${b.slack.toFixed(1)} m · Siri at ${b.y.toFixed(1)} m${b.mistakes.length ? ` · mistakes ${b.mistakes.length}` : ''}</span><i class="meter pump"><u style="width:${Math.round(Math.min(1, b.slack / 2) * 100)}%;background:${zone}"></u></i><small class="msg">${b.msg}</small><small>R2 / left mouse take in · L2 / right mouse brake · ✕ / Space lower · ○ stop</small>`;
+    const over = ['passed', 'done', 'failed'].includes(b.state);
+    if (over || (input.pressed.has('circle') && b.state !== 'fall')) {
+      const passed = b.state === 'passed';gym.endBelay();player.mode = 'foot';$('climbHud').hidden = true;
+      if (belay.test) {
+        if (passed) {const d = new Date();gym.state.brattkort = `${d.getDate()}.${d.getMonth() + 1}.${d.getFullYear()}`;gym.save();audio.sfx('cheer', {gain: .5});notice('Brattkort (top rope) – passed! You may now belay on top rope.', 6);gym.staff && gym.staff.say('Gratulerer med brattkortet!');}
+        else notice(b.state === 'failed' ? `Not passed: ${b.msg}. Try again another day.` : over ? `Not passed: ${b.mistakes.join('; ')}.` : 'The test stopped.', 6);
+      } else notice(b.state === 'failed' ? b.msg : over ? 'Siri is down. Takk for sikringa!' : 'You stop belaying.', 4);
+      belay = null;
+    }
+  }
   function siriTalk() {
     const v = gym.visit(), sends = Object.keys(gym.state.ticks).length;
     const lines = !v.paid ? ['Hei! Betal i resepsjonen, så klatrer vi. (Pay at the reception and we can climb.)'] : !v.shoes ? ['Husk klatresko – du får leid i resepsjonen.'] : !v.harness ? ['Skal vi ta tau? Lei en sele i resepsjonen, så sikrer jeg deg. (Rent a harness and I will belay you.)'] :
@@ -616,18 +643,34 @@
       {label: v.harness ? '✓ Harness' : 'Harness – 50 kr', note: 'for rope climbing and the autobelays', done: v.harness, act: pay(P.harness, 'Harness on.', () => {v.harness = true;})},
       {label: v.chalk ? '✓ Chalk bag' : 'Chalk bag – 20 kr', note: 'chalk up with □ / E or ↓ when you have a free hand', done: v.chalk, act: pay(P.chalk, 'Chalk bag on your belt.', () => {v.chalk = true;})},
       {label: gym.state.autoIntro ? '✓ Autobelay introduction' : 'Autobelay introduction – free', note: 'clip the carabiner to your harness belay loop, check the gate, climb; let go and it lowers you', done: gym.state.autoIntro, act: () => {gym.state.autoIntro = true;gym.save();gym.staff && gym.staff.say('Klipp i selen, sjekk at porten er lukket – så er du klar!');notice('Autobelay introduction done: you may use the six autobelay lines in the hall.', 4);}},
-      {label: `Brattkort test (top rope) – ${bk} kr`, note: staffed ? 'Siri belays you on top rope (she has one); the test is for belaying others' : 'only when the climbing staff is on duty: after 17 on weekdays, after 11 at weekends', done: !!gym.state.brattkort,
-        act: () => {if (!staffed) {notice('The brattkort test can be taken when the climbing staff is on duty: after 17 on weekdays, after 11 at weekends.', 4);return;}notice('The brattkort test (belaying) is not in the game yet – Siri has a brattkort and belays you.', 4);}},
+      {label: gym.state.brattkort ? `✓ Brattkort (top rope) – passed ${gym.state.brattkort}` : `Brattkort test (top rope) – ${bk} kr`, note: gym.state.brattkort ? 'you may belay Siri: □ when you look at her' : staffed ? 'three questions, then you belay Siri on a top-rope route while the staff watches' : 'only when the climbing staff is on duty: after 17 on weekdays, after 11 at weekends', done: !!gym.state.brattkort,
+        act: () => {
+          if (!staffed) {notice('The brattkort test can be taken when the climbing staff is on duty: after 17 on weekdays, after 11 at weekends.', 4);return;}
+          if (!v.paid || !v.harness) {notice('Pay entry and rent a harness first – the test is done on the rope.', 4);return;}
+          if (!wallet.pay(bk)) {notice(`Not enough money: ${KR(bk)} needed.`, 3);return;}audio.sfx('register');walletT = 5;gymMenu = {quiz: 0, sel: 0, wrong: 0};gym.staff && gym.staff.say('Først noen spørsmål, så sikrer du Siri.');}},
       {label: 'Your climbing log', note: `${Object.keys(gym.state.ticks).length} routes and problems sent · hangboard best ${(gym.state.bestHang || 0).toFixed(1)} s`, act: () => {const t = Object.entries(gym.state.ticks).slice(-6).map(([id, how]) => `${gym.routes[id].name} (${how})`).join(', ');notice(t ? `Latest: ${t}` : 'Nothing sent yet.', 6);}}
     ];
     return items;
   }
   function openGymMenu() {gymMenu = {sel: 0, stick: false};watch.hide();if (gym.staff) gym.staff.say(gym.visit().paid ? 'Hei igjen! Trenger du noe mer?' : 'Hei! Velkommen til Klatreverket.');renderGymMenu();}
   function renderGymMenu() {
-    const el = $('gymMenu');el.hidden = !gymMenu;if (!gymMenu) return;const items = gymItems();gymMenu.sel = Math.max(0, Math.min(gymMenu.sel, items.length - 1));
+    const el = $('gymMenu');el.hidden = !gymMenu;if (!gymMenu) return;
+    if (gymMenu.quiz != null) {const q = GC.QUIZ[gymMenu.quiz];el.innerHTML = `<b>Brattkort test · question ${gymMenu.quiz + 1} of ${GC.QUIZ.length}</b><small>${q.q}</small>` + q.a.map((a, i) => `<div class="${i === gymMenu.sel ? 'sel' : ''}">${a}</div>`).join('') + '<small>↑↓ choose · ✕ / Space answer</small>';return;}
+    const items = gymItems();gymMenu.sel = Math.max(0, Math.min(gymMenu.sel, items.length - 1));
     el.innerHTML = `<b>Klatreverket Torshov · ${KR(wallet.money)}</b><small>Open ${GC.HOURS}</small>` + items.map((e, i) => `<div class="${i === gymMenu.sel ? 'sel' : ''}${e.done ? ' done' : ''}">${e.label}<small>${e.note}</small></div>`).join('') + '<small>↑↓ choose · ✕ / Space take it · ○ / C close</small>';
   }
   function gymMenuInput(input) {
+    if (gymMenu.quiz != null) {
+      const q = GC.QUIZ[gymMenu.quiz], y = input.move.y;
+      if (input.pressed.has('up') || (y < -.5 && !gymMenu.stick)) gymMenu.sel = Math.max(0, gymMenu.sel - 1);
+      if (input.pressed.has('down') || (y > .5 && !gymMenu.stick)) gymMenu.sel = Math.min(q.a.length - 1, gymMenu.sel + 1);gymMenu.stick = Math.abs(y) > .5;
+      if (input.pressed.has('cross')) {
+        if (gymMenu.sel !== q.ok) {gymMenu.wrong++;notice(`Not right: ${q.a[q.ok]}.`, 4);}
+        gymMenu.quiz++;gymMenu.sel = 0;
+        if (gymMenu.quiz >= GC.QUIZ.length) {const wrong = gymMenu.wrong;gymMenu = null;if (wrong) notice('The staff: "Les deg opp og prøv igjen." – the test stops here (one wrong answer is enough).', 5);else startBelay(true);}
+      }
+      renderGymMenu();input.move.x = input.move.y = 0;['cross', 'circle', 'up', 'down', 'square', 'triangle'].forEach(b => input.pressed.delete(b));return;
+    }
     const y = input.move.y, items = gymItems();
     if (input.pressed.has('up') || (y < -.5 && !gymMenu.stick)) gymMenu.sel = Math.max(0, gymMenu.sel - 1);
     if (input.pressed.has('down') || (y > .5 && !gymMenu.stick)) gymMenu.sel = Math.min(items.length - 1, gymMenu.sel + 1);
@@ -801,6 +844,7 @@
     else if (player.mode === 'minigame') updateMinigame(dt, input, dl);
     else if (player.mode === 'climb') updateClimb(dt, input, dl);
     else if (player.mode === 'hang') updateHang(dt, input, dl);
+    else if (player.mode === 'belay') updateBelay(dt, input, dl);
     else updateFoot(dt, input, dl);
     // Other vehicles: parked ones idle (far ones are hidden and skipped), ones driven by other players are posed by the lobby.
     cullT -= dt;if (cullT <= 0) {cullT = .4;for (const v of vehicles) {const near = Math.hypot(v.x - camera.position.x, v.z - camera.position.z) < (v.cullDistance || 170);v.group.visible = near || v === player.vehicle;}if (vehicles.some((v, i) => mp.remoteDriven(i))) updateDynamic();}
@@ -1391,7 +1435,7 @@
   }
 
   // ---------- Test / inspection handle ----------
-  window.haarklousGame = {player, vehicles, site, paintball, groundAt, heli, plane, drone, watch, fire, stash, shops, gym, startClimb, openGymMenu, sculpture, oksen, weather, caravan, get skyd() {return skyd;}, get autoPlane() {return autoPlane;}, get jumpFlight() {return jumpFlight;}, boardAuto, boardCaravan, jump, get gp() {return gp;}, callGamePilot, handOver, CARAVAN_HOLD, applyWeather, wallet, get basket() {return basket;}, payAt, takeProduct, useItem, earn, openBag, takeBoost, get boost() {return boost;}, set boost(b) {boost = b;}, get mp() {return mp;}, sitDown, standUp, tryDrive, tryRide, openChat, startDrone, stopDrone, floorBelow, doors, mini, music, photo, map, world, apt, towers, walkWorld, route, landmarks, districts: DISTRICTS, get caseGame() {return caseGame;}, place, toggleDoor, enterVehicle, exitVehicle, startMinigame, startMission, drink, interact, findPrompt, renderFrame, begin, get fps() {return fpsAvg;}, kick: () => requestAnimationFrame(frame), get drunk() {return drunk;}, set drunk(v) {drunk = v;}, setStance, camera, scene};
+  window.haarklousGame = {player, vehicles, site, paintball, groundAt, heli, plane, drone, watch, fire, stash, shops, gym, startClimb, openGymMenu, startBelay, get belay() {return belay;}, sculpture, oksen, weather, caravan, get skyd() {return skyd;}, get autoPlane() {return autoPlane;}, get jumpFlight() {return jumpFlight;}, boardAuto, boardCaravan, jump, get gp() {return gp;}, callGamePilot, handOver, CARAVAN_HOLD, applyWeather, wallet, get basket() {return basket;}, payAt, takeProduct, useItem, earn, openBag, takeBoost, get boost() {return boost;}, set boost(b) {boost = b;}, get mp() {return mp;}, sitDown, standUp, tryDrive, tryRide, openChat, startDrone, stopDrone, floorBelow, doors, mini, music, photo, map, world, apt, towers, walkWorld, route, landmarks, districts: DISTRICTS, get caseGame() {return caseGame;}, place, toggleDoor, enterVehicle, exitVehicle, startMinigame, startMission, drink, interact, findPrompt, renderFrame, begin, get fps() {return fpsAvg;}, kick: () => requestAnimationFrame(frame), get drunk() {return drunk;}, set drunk(v) {drunk = v;}, setStance, camera, scene};
   loading.remove();$('start').hidden = false;
   requestAnimationFrame(frame);
 })();

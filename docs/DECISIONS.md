@@ -33,9 +33,74 @@ On `main`:
 On branch `feat/gamle-oslo-ensjo` (issue #38, PR #48, not merged yet):
 - Gamle Oslo, Ensjø and the way there: real streets, ground heights and about 7,900 buildings south of the old world (3.4 × 3.4 km, down Trondheimsveien to Bjørvika); churches, MUNCH, the Opera (walkable roof) and tall chimneys modelled; a timed Ensjø → Rathkes gate run.
 
+On branch `feat/klatreverket-torshov` (issue #40, builds on PR #48, not merged yet):
+- Klatreverket Torshov at its real place (Myrens verksted 3K) in its real building: 14 m hall, 7 m overhanging competition wall, Galleriet, autobelay tower, bouldering on three floors, the training room with the Moonwall; reception with the real prices and rental; climb with L2 / R2 (bouldering, top rope with Siri belaying, lead with clips, autobelay), pump, falls on the rope, the brattkort test and belaying Siri.
+- The ground round Myrens verksted and Akerselva (district patch 'myrens').
+
 Live site: runs `main` (Worker version 82250255, deployed 2 Nov 2026 after PR #46; `main` builds byte-for-byte to the live page), so everything above is online.
 
 ## Log
+
+### 2026-11-03 · Klatreverket Torshov: bouldering and rope climbing at the real climbing centre (issue #40)
+- **What:**
+  - Klatreverket Torshov at its real place, Myrens verksted 3K: OSM way 1031709261 (Kartverket building 80554273), shared in real life with Myrens Treningssenter. The OSM node of the gym is inside it.
+  - The building's roof heights are Kartverket's surface model (DOM). The hall wing is 60.2 × 19.8 m, with the eaves 14.5 m above the floor (the floor is at street level by the entrance), so the walls are 14 m like the real ones.
+  - Inside, after klatreverket.no:
+    - Hallen: 14 m walls with different steepness and top-ropes on about half the routes.
+    - Konkurranseveggen: 14 m high, 7 m overhanging, lead only.
+    - Galleriet and Kursrommet: 10 m walls with a top-rope on every route.
+    - The 2026 autobelay tower: six 14 m lines.
+    - Bouldering on three floors: Hula (a roof cave, easier grades), Discorommet (3.5 m walls) with the slab corner, the inner room (harder problems).
+    - The training room on the 4th floor: Moonwall 40° with LED problems, Vippevegg, system wall, technique corner, campus ladder, hangboard.
+    - Reception with Klatresjappa, the price board, the receptionist, and Siri, your climbing partner.
+    - 112 routes and problems, 2,406 holds, set by a seeded generator so every computer in a lobby has the same walls.
+  - Real rules and prices:
+    - Entry 155 kr before 16 on weekdays, 175 kr after 16 and at weekends.
+    - Rent shoes 50, harness 50, chalk 20, all three 100 kr.
+    - The autobelay introduction is free and needed before the autobelays.
+    - You need climbing shoes on the walls and a harness on the ropes.
+    - The brattkort test can only be taken when the climbing staff is on duty: after 17 on weekdays, after 11 at weekends.
+    - Norwegian grades for routes, Font grades for boulders.
+  - Climbing that you do with your hands:
+    - Hold L2 / R2 (the mouse buttons) to grip; let go with one hand, look at the next hold and grip again.
+    - Feet find footholds by themselves.
+    - Reach depends on the other hand, your feet and how steep the wall is.
+    - A pump meter (wall angle, hold size, one hand, feet); shaking out, chalk, jumps for far holds.
+    - Off-route holds are noted.
+    - Bouldering drops you on the mats.
+    - Top rope with Siri belaying; lead with clipping every quickdraw and the anchor (falls twice the distance above the last clip, a ground fall when nothing is clipped); the autobelay lowers you.
+    - Ticks (flash / sent / top rope / autobelay) and your best hangboard time are saved in the browser.
+  - The brattkort test: three questions, then you belay Siri (take in the rope, brake when she falls, lower her). Passed, you can belay Siri whenever you like.
+  - Multiplayer: others see you climbing and hanging on the rope (stances `climb`, `hang`, `belay`).
+  - The ground round Myrens: a district patch 'myrens' (x -1200..-688, s -176..560) in the format of PR #48. It also closes the gap along Akerselva between the old world and Gamle Oslo, for the kayak work (issue #45). Klatreverket's prepare step drops its building from the patch and lowers the patch's ground under the hall.
+  - A ramp from the street to the door (the doorstep is 16 cm up; walk floors only join within 5 cm).
+- **Why:** the user's issue #40 ("Implement the climbing center at torshov and make it possible to go bouldering and normal indoor climbing there. It must be proper interactive.") and goal (2 Nov 2026): "it must be like it is in real life and at its real location."
+  - The gym is about 980 m from the address, outside the old ±760 m world, so it needed the district patch format of PR #48 (agreed with the Gamle Oslo session: it made the format, this branch adds the Myrens patch).
+  - The routes are not the real gym's routes (those change every Tuesday and Thursday); the rooms, heights, rules and prices are the real ones.
+- **Fixed on the way:** `tools/make-district.py` set the height reference from rows outside a patch west of the old grid. The Myrens ground came out 17 m wrong; it now uses the old grid inside the patch's box. Gamle Oslo is unchanged, and the fix is on PR #48 too.
+- **Where:** `game-climbing.js` (new), `climbing-data.js` and `tools/make-climbing.py` (new), `myrens-data.js` and `assets/osm/myrens-*` (new, from `tools/fetch-district.py` / `tools/make-district.py`), `game-main.js`, `game-avatars.js`, `game-multiplayer.js`, `index.html`, `style.css`, `tools/make-district.py`, `tests/climbing.test.cjs` (new), `README.md`, `docs/HANDOFF.md`.
+- **Checked:**
+  - `node --test tests/*.cjs`: 80 pass. New tests:
+    - the real building, heights and floor;
+    - prices, the staff hours and the opening hours;
+    - wall heights and that every wall fits in the building;
+    - the same routes on every computer;
+    - a climbing robot using the game's own climber reaches the top of all 112 lines, clipping every bolt on lead;
+    - top-rope, lead, autobelay and boulder falls; lowering;
+    - the prepare step;
+    - the belay test passes a careful belayer and fails a careless one.
+  - In the browser (simulated controller, offline, about 70 fps in the hall):
+    - paid and rented at the reception (255 kr);
+    - a Hula boulder sent with L2 / R2 and dropped onto the mat;
+    - a Galleriet top-rope sent, taken and lowered;
+    - Konkurranseveggen led with 11 / 11 clips and the anchor;
+    - a lead fall 1.75 m above the last clip caught after 5.5 m, then climbed on from the rope;
+    - autobelay;
+    - a Moonwall problem lit and sent;
+    - the brattkort test passed;
+    - walked from the old world over the seam at x -760 into the Myrens patch, and from the street up the ramp into the lobby.
+  - Not checked: a real DualShock 4, real frame rate on the user's PC, two real players climbing together online.
+- **Status:** branch `feat/klatreverket-torshov`. It contains PR #48 (Gamle Oslo, not merged yet), so merge PR #48 first. Not live.
 
 ### 2026-11-02 · Gamle Oslo, Ensjø and the way there (issue #38)
 - **What:**
