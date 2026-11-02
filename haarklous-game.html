@@ -8231,11 +8231,13 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
  *   femur({lod}) indexed BufferGeometry, same attributes, 0.45 m along +x, bounding box centred on the origin
  *     (head and trochanter at -x, condyles at +x, head toward +z, knee front toward +y). high <= 1200, low <= 200, far 40.
  *   boneWall({size = 1024}) {map, normal, tile: [1, 0.625]}: canvas textures (browser only) of a stacked-bone ossuary
- *     wall, tileable both ways, repeat = 1 / tile.
+ *     wall (size px per metre), tileable both ways, repeat = 1 / tile. Map is sRGB, normal map linear (OpenGL style).
  *   boneColor  material colour for vertexColors: true (tint and occlusion are already in the vertex colours).
- * Shapes are signed-distance fields in millimetres, projected along rays from a centre point (skull: a geodesic sphere
- * warped to be denser over the face; femur: a capsule), so meshes are crack-free with exact budgets. Occlusion and
- * hole darkness are sampled from the same fields. Results are memoised and deterministic (no Math.random).
+ * Shapes are signed-distance fields in millimetres, projected along rays (skull: from one centre, a geodesic sphere
+ * denser over the face; femur: from its axis), then refined edge by edge where shape or shading changes most until
+ * the triangle budget is used, so meshes are closed and crack-free. Orbits and nose stop on a black floor 7 mm behind
+ * the opening, so they read as holes. Occlusion is sampled from the same fields. uv: skull spherical (seam at the
+ * back), femur (along, around). Results are memoised and deterministic (no Math.random).
  */
 (function (root, factory) {
   const api = factory();
@@ -8464,13 +8466,13 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
     let prev = t;
     for (let n = 0; n < 200 && t > 0; n++) {
       const d = field(cx + dx * t, cy + dy * t, cz + dz * t);
-      if (d < .02) {
-        if (d > -.05) return t;
+      if (d < .1) {
+        if (d > -.1) return t;
         let a = t, b = prev;                       // overshot: bisect between inside (a) and outside (b)
         for (let k = 0; k < 10; k++) {const m = (a + b) / 2;if (field(cx + dx * m, cy + dy * m, cz + dz * m) < 0) a = m;else b = m;}
         return (a + b) / 2;
       }
-      prev = t;t -= max(d * .8, .04);
+      prev = t;t -= d > 3 ? d : max(d * .9, .04);
     }
     return max(t, 0);
   }
@@ -8512,41 +8514,44 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
     this.faceNormals(v0, i0);
     return v0;
   };
-  // Projects a star-shaped field along rays from a centre; the colour callback gets position and normal.
-  // floor(x, y, z, cx, cy, cz, dx, dy, dz, t) may return a smaller depth for rays that fall deep into a hole: the
+  // Projects a field along rays: each vertex is the first surface met walking in from outside. rays = {dirs, tris} from a
+  // shared centre (skull), or with per-ray origins (femur). The colour callback gets position and normal.
+  // floor(x, y, z, ox, oy, oz, dx, dy, dz, t) may return a smaller depth for rays that fall deep into a hole: the
   // vertex then becomes a black floor (normal toward the opening), which keeps triangles from stretching down the walls.
-  // Then, while under `budget` triangles, the edge with the highest score (length x (bend + colour contrast)) is split
+  // Then, while under `budget` triangles, the edge with the highest score (length x (bend + shade contrast)) is split
   // at the mid ray; both triangles on it are halved, so the mesh stays closed and detail goes to rims and ridges.
   // probe > 0 (small budgets) also traces each edge's mid ray and adds how far that point (distance and shade) is from
   // the straight edge, so a bright nose bridge between two dark orbits or the tip of the chin is not skipped.
-  function star(mesh, field, centre, sphere, tMax, colourOf, floor, budget = 0, probe = 0) {
-    const [cx, cy, cz] = centre, base = mesh.p.length / 3, D = [], SH = [], TT = [], P = mesh.p, N = mesh.n, probes = new Map();
-    const sample = (dx, dy, dz, from = tMax) => {
+  function star(mesh, field, rays, {centre = [0, 0, 0], tMax, colourOf, floor = null, budget = 0, probe = 0, uvOf = null}) {
+    const base = mesh.p.length / 3, D = [], O = [], SH = [], TT = [], P = mesh.p, N = mesh.n, probes = new Map(), shared = !rays.origins;
+    const sample = (ox, oy, oz, dx, dy, dz, from = tMax) => {
       const l = sqrt(dx * dx + dy * dy + dz * dz), g = [0, 0, 0];dx /= l;dy /= l;dz /= l;
-      if (from < tMax && field(cx + dx * from, cy + dy * from, cz + dz * from) < 1) from = tMax;   // started inside: from the top
-      const t0 = trace(field, cx, cy, cz, dx, dy, dz, from), t = floor ? floor(cx + dx * t0, cy + dy * t0, cz + dz * t0, cx, cy, cz, dx, dy, dz, t0) : t0, x = cx + dx * t, y = cy + dy * t, z = cz + dz * t;
+      if (from < tMax && field(ox + dx * from, oy + dy * from, oz + dz * from) < 1) from = tMax;   // started inside: from the top
+      const t0 = trace(field, ox, oy, oz, dx, dy, dz, from), t = floor ? floor(ox + dx * t0, oy + dy * t0, oz + dz * t0, ox, oy, oz, dx, dy, dz, t0) : t0, x = ox + dx * t, y = oy + dy * t, z = oz + dz * t;
       let c;
       if (t > t0 + .01) {g[0] = -dx;g[1] = -dy;g[2] = -dz;c = colourOf(x, y, z, g[0], g[1], g[2]).map(v => v * .5);c.shade = 0;}
       else {gradient(field, x, y, z, .3, g);c = colourOf(x, y, z, g[0], g[1], g[2]);}
-      return {dx, dy, dz, t, x, y, z, g, c, shade: c.shade ?? (c[0] + c[1] + c[2]) / 3};
+      return {ox, oy, oz, dx, dy, dz, t, x, y, z, g, c, shade: c.shade ?? (c[0] + c[1] + c[2]) / 3};
     };
-    const add = (dx, dy, dz, s = sample(dx, dy, dz)) => {
-      D.push(s.dx, s.dy, s.dz);SH.push(s.shade);TT.push(s.t);
-      return mesh.vert(s.x, s.y, s.z, s.g[0], s.g[1], s.g[2], s.c, .5 + atan2(s.dx, s.dz) / (2 * PI), 1 - acos(clamp(s.dy, -1, 1)) / PI) - base;
+    const add = s => {
+      D.push(s.dx, s.dy, s.dz);O.push(s.ox, s.oy, s.oz);SH.push(s.shade);TT.push(s.t);
+      const uv = uvOf ? uvOf(s.x, s.y, s.z, s.dx, s.dy, s.dz) : [.5 + atan2(s.dx, s.dz) / (2 * PI), 1 - acos(clamp(s.dy, -1, 1)) / PI];
+      return mesh.vert(s.x, s.y, s.z, s.g[0], s.g[1], s.g[2], s.c, uv[0], uv[1]) - base;
     };
-    for (let i = 0; i < sphere.dirs.length; i += 3) add(sphere.dirs[i], sphere.dirs[i + 1], sphere.dirs[i + 2]);
-    const tris = sphere.tris.slice();
+    const mid = (a, b, from) => sample((O[a * 3] + O[b * 3]) / 2, (O[a * 3 + 1] + O[b * 3 + 1]) / 2, (O[a * 3 + 2] + O[b * 3 + 2]) / 2, D[a * 3] + D[b * 3], D[a * 3 + 1] + D[b * 3 + 1], D[a * 3 + 2] + D[b * 3 + 2], from);
+    for (let i = 0; i < rays.dirs.length; i += 3) {const o = shared ? centre : rays.origins.slice(i, i + 3);add(sample(o[0], o[1], o[2], rays.dirs[i], rays.dirs[i + 1], rays.dirs[i + 2]));}
+    const tris = rays.tris.slice();
     if (budget > tris.length / 3) {
       const edges = new Map(), hs = [], ha = [], hb = [], key = (a, b) => a < b ? a * 1048576 + b : b * 1048576 + a;
       const link = (a, b, t) => {const k = key(a, b), e = edges.get(k);if (e) e.push(t);else edges.set(k, [t]);};
       const score = (a, b) => {
         // Edge size across the rays (gap between the rays x distance), so depth jumps at hole rims do not count.
-        const A = (base + a) * 3, B = (base + b) * 3, ra = TT[a], rb = TT[b], r = (ra + rb) / 2, ex = D[a * 3] - D[b * 3], ey = D[a * 3 + 1] - D[b * 3 + 1], ez = D[a * 3 + 2] - D[b * 3 + 2];
-        const len = r * sqrt(ex * ex + ey * ey + ez * ez);
+        const A = (base + a) * 3, B = (base + b) * 3, ra = TT[a], rb = TT[b], r = (ra + rb) / 2, ex = shared ? D[a * 3] - D[b * 3] : P[A] - P[B], ey = shared ? D[a * 3 + 1] - D[b * 3 + 1] : P[A + 1] - P[B + 1], ez = shared ? D[a * 3 + 2] - D[b * 3 + 2] : P[A + 2] - P[B + 2];
+        const len = (shared ? r : 1) * sqrt(ex * ex + ey * ey + ez * ez);
         if (len < .9) return 0;
         const bend = 1 - (N[A] * N[B] + N[A + 1] * N[B + 1] + N[A + 2] * N[B + 2]), shade = abs(SH[a] - SH[b]);
         let err = 0;
-        if (probe) {const m = sample(D[a * 3] + D[b * 3], D[a * 3 + 1] + D[b * 3 + 1], D[a * 3 + 2] + D[b * 3 + 2], max(ra, rb) + 4);probes.set(key(a, b), m);err = probe * (abs(m.t - r) + 20 * abs(m.shade - (SH[a] + SH[b]) / 2));}
+        if (probe) {const m = mid(a, b, max(ra, rb) + 4);probes.set(key(a, b), m);err = probe * (abs(m.t - r) + 20 * abs(m.shade - (SH[a] + SH[b]) / 2));}
         return len * (bend * 3 + shade * 2 + .02) + err;
       };
       const push = (a, b) => {   // binary max-heap on parallel arrays
@@ -8568,7 +8573,7 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
         const ts = edges.get(key(a, b));
         if (!ts) continue;
         edges.delete(key(a, b));
-        const m = add(D[a * 3] + D[b * 3], D[a * 3 + 1] + D[b * 3 + 1], D[a * 3 + 2] + D[b * 3 + 2], probes.get(key(a, b)) || sample(D[a * 3] + D[b * 3], D[a * 3 + 1] + D[b * 3 + 1], D[a * 3 + 2] + D[b * 3 + 2], min(tMax, max(TT[a], TT[b]) + 4)));
+        const m = add(probes.get(key(a, b)) || mid(a, b, min(tMax, max(TT[a], TT[b]) + 4)));
         push(a, m);push(m, b);
         for (const t of ts) {
           let k = 0;while (!((tris[t * 3 + k] === a && tris[t * 3 + (k + 1) % 3] === b) || (tris[t * 3 + k] === b && tris[t * 3 + (k + 1) % 3] === a))) k++;
@@ -8607,7 +8612,7 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
   function boneColour(x, y, z, ao, depth, extra = 1) {
     const p = fbm(x / 26, y / 26, z / 26, 3), q = noise(x / 3.5, y / 3.5, z / 3.5, 7), stain = ss(.4, .72, p) * .8, soot = ss(.55, .8, noise(x / 40 + 3, y / 40, z / 40, 5)) * .35;
     let r = lerp(.84, .68, stain), g = lerp(.78, .56, stain), b = lerp(.64, .4, stain);
-    const shade = (.14 + .86 * Math.pow(ao, 1.4)) * (1 - .975 * ss(1, 8, depth)), k = (.9 + .16 * q) * (1 - soot) * shade * extra, out = [lin(r) * k, lin(g) * k, lin(b) * k];
+    const shade = (.14 + .86 * Math.pow(ao, 1.4)) * (1 - .975 * ss(.5, 4.5, depth)), k = (.9 + .16 * q) * (1 - soot) * shade * extra, out = [lin(r) * k, lin(g) * k, lin(b) * k];
     out.shade = shade;   // light and shadow only (no stains): steers mesh refinement
     return out;
   }
@@ -8647,7 +8652,7 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
       };
       // Cranium: face-weighted sphere, refined up to its share of the budget (teeth 30 and arches 60 triangles each).
       const f = high ? (jaw ? 10 : 12) : level === 1 ? 4 : 2, budget = high ? (jaw ? 3540 : 5440) : level === 1 ? 690 : 160;
-      star(mesh, shape, C, sphere(f, 0, -.35, .94, level === 2 ? .6 : .5), jaw && !high ? 150 : 135, skullColour, holeFloor, budget, level === 2 ? 1.2 : 0);
+      star(mesh, shape, sphere(f, 0, -.35, .94, level === 2 ? .6 : .5), {centre: C, tMax: jaw && !high ? 150 : 135, colourOf: skullColour, floor: holeFloor, budget, probe: level === 2 ? 1.2 : 0});
       if (!high) return mesh;
       // Zygomatic arches as real bars, so the temple hollow shows behind them.
       for (const side of [1, -1]) {
@@ -8683,10 +8688,10 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
       // Lower jaw: its own star projection from inside the mouth floor.
       if (jaw) {
         const v0 = mesh.p.length / 3, M = [0, -62, 36], shape = (x, y, z) => mandible(x, y, z, 1);
-        star(mesh, shape, M, sphere(6, 0, -.45, .9, .3), 110, (x, y, z, nx, ny, nz) => {
+        star(mesh, shape, sphere(6, 0, -.45, .9, .3), {centre: M, tMax: 110, budget: 1500, colourOf: (x, y, z, nx, ny, nz) => {
           const inside = max(0, mandible(x, y, z, 0));     // the mouth-floor filler is not bone: keep it dark
           return boneColour(x, y, z, occlusion(full, x, y, z, nx, ny, nz), inside * 3);
-        }, null, 1500);
+        }});
         for (let v = v0; v < mesh.p.length / 3; v++) {const uv = uvOf([mesh.p[v * 3], mesh.p[v * 3 + 1], mesh.p[v * 3 + 2]]);mesh.u[v * 2] = uv[0];mesh.u[v * 2 + 1] = uv[1];}
       }
       return mesh;
@@ -8697,30 +8702,26 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
       return memo(`skull:${l}:${!!jaw}`, () => toGeometry(T, buildSkull(l, !!jaw), 'base'));
     }
 
-    // Femur: rings around the shaft axis plus hemispherical caps at both ends.
+    // Femur: rays out from the shaft axis (rings) and from its two end points (caps), refined to the budget.
     function femur({lod = 'high'} = {}) {
       const l = level(lod);
       return memo(`femur:${l}`, () => {
-        const mesh = new Mesh(), S = [20, 9, 5][l], A = -178, B = 180, g = [0, 0, 0];
-        const capA = [[15, 30, 45, 60, 75], [35, 70], [55]][l], capB = capA.slice().reverse();
-        const cyl = [[-178, -168, -158, -148, -136, -118, -85, -40, 0, 40, 85, 118, 136, 150, 162, 172, 180], [-170, -140, -60, 60, 140, 170], [-165, 165]][l];
-        const stations = [...capA.map(a => [A, -a * PI / 180]), ...cyl.map(x => [x, null]), ...capB.map(a => [B, a * PI / 180])];
+        const mesh = new Mesh(), S = [12, 6, 5][l], A = -178, B = 180, budget = [1200, 200, 40][l];
+        const capA = [[30, 60], [25, 60], [22]][l], capB = capA.slice().reverse(), cyl = [[-178, -165, -150, -130, -90, -30, 30, 90, 130, 150, 165, 180], [-170, -120, 0, 120, 170], [-165, 165]][l];
+        const rings = [...capA.map(a => [A, -a]), ...cyl.map(x => [x, 0]), ...capB.map(a => [B, a])], dirs = [-1, 0, 0], origins = [A, 0, 0], tris = [];
+        for (const [x0, a] of rings) for (let j = 0; j < S; j++) {
+          const ph = j / S * 2 * PI, r = abs(a) * PI / 180, s = a ? sin(r) : 1, ax = a < 0 ? -cos(r) : a > 0 ? cos(r) : 0;
+          dirs.push(ax, s * cos(ph), s * sin(ph));origins.push(x0, 0, 0);
+        }
+        dirs.push(1, 0, 0);origins.push(B, 0, 0);
+        const R = rings.length, ring = r => 1 + r * S, pb = 1 + R * S;
+        for (let j = 0; j < S; j++) {const j1 = (j + 1) % S;tris.push(0, ring(0) + j1, ring(0) + j, pb, ring(R - 1) + j, ring(R - 1) + j1);}
+        for (let r = 0; r < R - 1; r++) for (let j = 0; j < S; j++) {const j1 = (j + 1) % S, a = ring(r) + j, b = ring(r + 1) + j, c = ring(r + 1) + j1, d = ring(r) + j1;tris.push(a, d, b, b, d, c);}
         const colourOf = (x, y, z, nx, ny, nz) => {
           const ao = occlusion(femurField, x, y, z, nx, ny, nz), joint = ss(190, 215, abs(x)) * .08, dirt = ss(.5, .8, fbm(x / 60, y / 30, z / 30, 21)) * .25;
           return boneColour(x * 1.7, y, z, ao, 0, (1 + joint) * (1 - dirt));
         };
-        const ray = (ox, dx, dy, dz) => {
-          const t = trace(femurField, ox, 0, 0, dx, dy, dz, 95), x = ox + dx * t, y = dy * t, z = dz * t;gradient(femurField, x, y, z, .3, g);
-          return mesh.vert(x, y, z, g[0], g[1], g[2], colourOf(x, y, z, g[0], g[1], g[2]), (x + 230) / 460, 0);
-        };
-        const poleA = ray(A, -1, 0, 0), ringStart = mesh.p.length / 3;
-        for (const [x0, a] of stations) for (let j = 0; j < S; j++) {
-          const ph = j / S * 2 * PI, cy = cos(ph), cz = sin(ph), v = a === null ? ray(x0, 0, cy, cz) : ray(x0, a < 0 ? -cos(-a) : cos(a), sin(abs(a)) * cy, sin(abs(a)) * cz);
-          mesh.u[v * 2 + 1] = j / S;
-        }
-        const poleB = ray(B, 1, 0, 0), R = stations.length;
-        for (let j = 0; j < S; j++) {const j1 = (j + 1) % S;mesh.i.push(poleA, ringStart + j1, ringStart + j);mesh.i.push(poleB, ringStart + (R - 1) * S + j, ringStart + (R - 1) * S + j1);}
-        for (let r = 0; r < R - 1; r++) for (let j = 0; j < S; j++) {const j1 = (j + 1) % S, a = ringStart + r * S + j, b = ringStart + (r + 1) * S + j, c = ringStart + (r + 1) * S + j1, d = ringStart + r * S + j1;mesh.i.push(a, d, b, b, d, c);}
+        star(mesh, femurField, {dirs, origins, tris}, {tMax: 95, colourOf, budget, uvOf: (x, y, z) => [(x + 230) / 460, .5 + atan2(z, y) / (2 * PI)]});
         return toGeometry(T, mesh, 'centre');
       });
     }
@@ -8745,7 +8746,7 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
           return {v, i0, i1, u, j0, j1, t};
         };
         const at = (L, x, y) => {const a = L.v[L.j0[y] + L.i0[x]], b = L.v[L.j0[y] + L.i1[x]], c = L.v[L.j1[y] + L.i0[x]], d = L.v[L.j1[y] + L.i1[x]], u = L.u[x];return a + (b - a) * u + (c - a + (a - b - c + d) * u) * L.t[y];};
-        const mottle = lattice(110), grime = lattice(7), stain = lattice(28);
+        const mottle = lattice(110), grime = lattice(7);
         const PALETTE = [[.84, .78, .66], [.78, .71, .56], [.7, .61, .45], [.64, .57, .47], [.56, .49, .39], [.47, .41, .33], [.36, .31, .26], [.27, .24, .21], [.8, .77, .7]];
         const pick = (f = 1) => {const c = PALETTE[floor(rand() * PALETTE.length)], k = (.88 + rand() * .22) * f;return [c[0] * k, c[1] * k, c[2] * k];};
         // One dome: centre (x, y), radii and rotation in px, base height z0, peak height amp; hole = marrow cavity
@@ -8753,10 +8754,13 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
         function dome(x, y, rx, ry, a, z0, amp, c, hole, crack) {
           const ca = cos(a), sa = sin(a), r = max(rx, ry), irx = 1 / rx, iry = 1 / ry, h2 = hole * hole, ih2 = hole ? 1 / h2 : 0, cav = 7 * px, rimZ = z0 + amp * sqrt(1 - h2);
           const ct = rand() * PI, cc = cos(ct), cs = sin(ct), co = (rand() - .5) * .8, cw = .7 / r, cr = c[0], cg = c[1], cb = c[2];
-          const x0 = floor(x - r) | 0, x1 = Math.ceil(x + r) | 0, y0 = floor(y - r) | 0, y1 = Math.ceil(y + r) | 0;
+          // Per row, the ellipse spans the roots of qa dx^2 + qb dx + qc = 1 (no pixels outside it are visited).
+          const qa = (ca * irx) ** 2 + (sa * iry) ** 2, qk = 2 * ca * sa * (irx * irx - iry * iry), qy = (sa * irx) ** 2 + (ca * iry) ** 2, y0 = floor(y - r) | 0, y1 = Math.ceil(y + r) | 0;
           let row = ((y0 % H) + H) % H;
-          for (let yy = y0; yy <= y1; yy++) {
-            const base = row * W, dy = yy - y, dys = dy * sa, dyc = dy * ca;
+          for (let yy = y0; yy <= y1; yy++, row = row + 1 === H ? 0 : row + 1) {
+            const base = row * W, dy = yy - y, dys = dy * sa, dyc = dy * ca, qb = qk * dy, disc = qb * qb - 4 * qa * (qy * dy * dy - 1);
+            if (disc <= 0) continue;
+            const sq = sqrt(disc), x0 = Math.ceil(x + (-qb - sq) / (2 * qa)) | 0, x1 = floor(x + (-qb + sq) / (2 * qa)) | 0;
             for (let xx = x0; xx <= x1; xx++) {
               const dx = xx - x, u = (dx * ca + dys) * irx, v = (dyc - dx * sa) * iry, q = u * u + v * v;
               if (q >= 1) continue;
@@ -8766,7 +8770,6 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
               const i = base + WX[xx + W];
               if (z > Z[i]) {Z[i] = z;R[i] = cr * k;G[i] = cg * k;B[i] = cb * k;}
             }
-            if (++row === H) row = 0;
           }
         }
         // A bone lying along the row: a cylinder of half length L and radius rr, tilted by a, with knobs at both ends.
@@ -8829,19 +8832,20 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
         const rad = Math.max(2, Math.round(5 * px)), soft = blur(Z, rad + 1), floorZ = -20 * px, zc = new Float32Array(N);
         for (let i = 0; i < N; i++) zc[i] = Z[i] > floorZ ? Z[i] : floorZ;
         const canvas = () => {const c = document.createElement('canvas');c.width = W;c.height = H;return c;};
-        const col = canvas(), nrm = canvas(), cx2 = col.getContext('2d'), nx2 = nrm.getContext('2d'), ci = cx2.createImageData(W, H), ni = nx2.createImageData(W, H), cd = ci.data, nd = ni.data, boneZ = -30 * px, ipx = 1 / px;
+        const col = canvas(), nrm = canvas(), cx2 = col.getContext('2d'), nx2 = nrm.getContext('2d'), ci = cx2.createImageData(W, H), ni = nx2.createImageData(W, H), boneZ = -30 * px, ipx = 1 / px;
+        const cd = new Uint32Array(ci.data.buffer), nd = new Uint32Array(ni.data.buffer), u8 = v => v < 0 ? 0 : v > 255 ? 255 : v | 0;   // RGBA bytes, little-endian
         for (let yy = 0; yy < H; yy++) {
           const up = ((yy + H - 1) % H) * W, mid = yy * W, dn = ((yy + 1) % H) * W;
           for (let xx = 0; xx < W; xx++) {
-            const i = mid + xx, l = WX[xx - 1 + W], r = WX[xx + 1 + W], o = i * 4;
+            const i = mid + xx, l = WX[xx - 1 + W], r = WX[xx + 1 + W];
             // Normal (Sobel on the height, clamped in the deep gaps); same convention as materials.js normalFrom.
             const dx = (zc[up + r] + 2 * zc[mid + r] + zc[dn + r] - zc[up + l] - 2 * zc[mid + l] - zc[dn + l]) * .125, dy = (zc[dn + l] + 2 * zc[dn + xx] + zc[dn + r] - zc[up + l] - 2 * zc[up + xx] - zc[up + r]) * .125, len = 127.5 / sqrt(dx * dx + dy * dy + 1);
-            nd[o] = 127.5 - dx * len;nd[o + 1] = 127.5 + dy * len;nd[o + 2] = 127.5 + len;nd[o + 3] = 255;
-            // Colour: occlusion from the blurred height, soot, stains, grain and pores.
-            const bone = Z[i] > boneZ, cavity = soft[i] - Z[i], ao = cavity > 0 ? 1 / (1 + cavity * ipx * .045) : 1, sv = bone ? clamp((at(stain, xx, yy) - .55) * 4) : 0, st = sv * sv * (3 - 2 * sv) * .25;
-            let k = 255 * ao * (.7 + .4 * at(grime, xx, yy)) * (.86 + .24 * at(mottle, xx, yy)) * (.92 + .16 * grain());
-            if (bone && grain() < .012) k *= .5;
-            cd[o] = R[i] * k * (1 - st * .1);cd[o + 1] = G[i] * k * (1 - st * .3);cd[o + 2] = B[i] * k * (1 - st * .55);cd[o + 3] = 255;
+            nd[i] = 0xff000000 | u8(127.5 + len) << 16 | u8(127.5 + dy * len) << 8 | u8(127.5 - dx * len);
+            // Colour: occlusion from the blurred height, soot, grain and pores.
+            const cavity = soft[i] - Z[i], ao = cavity > 0 ? 1 / (1 + cavity * ipx * .045) : 1, gr = grain(), gm = at(grime, xx, yy);
+            let k = 255 * ao * (.7 + .4 * gm) * (.86 + .24 * at(mottle, xx, yy)) * (.92 + .16 * gr);
+            if (gr < .012 && Z[i] > boneZ) k *= .5;                                                  // pores
+            cd[i] = 0xff000000 | u8(B[i] * k * (.8 + .2 * gm)) << 16 | u8(G[i] * k * (.9 + .1 * gm)) << 8 | u8(R[i] * k);   // soot is a little browner
           }
         }
         cx2.putImageData(ci, 0, 0);nx2.putImageData(ni, 0, 0);
@@ -8963,7 +8967,7 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
       const t = new T.CanvasTexture(c);t.colorSpace = T.SRGBColorSpace;t.anisotropy = 8;return t;
     }
     const TX = {masonry: masonry(), rock: rock(false), quarry: rock(true), earth: earth(), flags: flags(), cobweb: cobweb()};
-    TX.bones = models ? models.boneWall() : null;
+    TX.bones = models ? models.boneWall({size: 768}) : null;
 
     // ---------- Materials: baked torch light, outdoor-light mask, your torch ----------
     const U = {uFlick: {value: new T.Vector4(1, 1, 1, 1)}, uLamp: {value: new T.Vector4(1, .93, .82, 0)}, uLampPos: {value: new T.Vector3(.17, -.2, .05)}, uLampDir: {value: new T.Vector3(-.03, .05, -1).normalize()}, uLampCos: {value: new T.Vector2(Math.cos(.52), Math.cos(.22))}, uDark: {value: .014}};
@@ -9403,7 +9407,8 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
 
     // ---------- Light level per cell (is it dark here?) ----------
     const cellLight = new Float32Array(NX * NS);for (let c = 0; c < NX * NS; c++) if (L.walkable(c)) {const p = L.centre(c % NX, Math.floor(c / NX)), l = lightAt(p.x, p.s, L.floorAt(c, p.x, p.s) + 1.2, null, 0, 0, c);cellLight[c] = l[0] + l[1] + l[2] + skyAt(c, p.x, p.s) * 6;}
-    const DARK_BELOW = .55;
+    // Torch-lit cells are mostly above 0.45, the dark tunnels below 0.04.
+    const DARK_BELOW = .15;
 
     // ---------- Discovery (the map underground) ----------
     let saved = null;try {saved = localStorage.getItem(SAVE_KEY);} catch {}
@@ -9463,7 +9468,7 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
         for (const ch of chunkGroups) {
           const dx = Math.max(ch.min[0] - cl.x, 0, cl.x - ch.max[0]), dy = Math.max(ch.min[1] - cy, 0, cy - ch.max[1]), ds = Math.max(ch.min[2] - cl.s, 0, cl.s - ch.max[2]), d = Math.hypot(dx, dy, ds);
           ch.group.visible = ch.entrance ? d < 70 : under && d < 38;
-          if (ch.group.visible) for (const s of ch.skullSets) {const near = d < 14;s.lo.visible = s.hi.visible = near;s.far.visible = !near;promote(s, d < 5 ? cl : null, cy);}
+          if (ch.group.visible) for (const s of ch.skullSets) {const near = d < 8;s.lo.visible = s.hi.visible = near;s.far.visible = !near;promote(s, d < 5 ? cl : null, cy);}
         }
       }
       // Deep down the world above is not drawn: daylight in the far-off doorways is a bright quad instead.

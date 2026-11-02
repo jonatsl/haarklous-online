@@ -35,7 +35,7 @@ Optional email + password login in the pause menu (`game-account.js`, wired in `
     - The materials (`bakeMaterial`, onBeforeCompile) multiply three.js's own lighting by `bakeX.x`, so the sun, sky and environment reach only the mausoleum and the top of the stairs.
     - They add the bake with normal-map relief and four flicker groups (`uFlick`), plus your torch: a spot in view space (`uLamp*`) through `RE_Direct`.
     - No three.js lights are added (the light count, and so every other shader, stays the same).
-  - Skulls and femurs: per chunk an instanced light set (all), a far set (chunks beyond 14 m) and a detailed set holding the 32 nearest within 3.5 m (`promote`, which also zeroes them in the light set). Instance attributes `ibake…` carry the light.
+  - Skulls and femurs: per chunk an instanced light set (all), a far set (chunks beyond 8 m) and a detailed set holding the 32 nearest within 3.5 m (`promote`, which also zeroes them in the light set). Instance attributes `ibake…` carry the light.
   - Flames: one instanced billboard quad per torch or candle (procedural shader, additive, fades 22–36 m).
   - Mausoleums: lib materials, merged; door glow quads show daylight in the doorways when the world above is not drawn.
   - `update`:

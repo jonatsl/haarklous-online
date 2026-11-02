@@ -108,7 +108,7 @@
       const t = new T.CanvasTexture(c);t.colorSpace = T.SRGBColorSpace;t.anisotropy = 8;return t;
     }
     const TX = {masonry: masonry(), rock: rock(false), quarry: rock(true), earth: earth(), flags: flags(), cobweb: cobweb()};
-    TX.bones = models ? models.boneWall() : null;
+    TX.bones = models ? models.boneWall({size: 768}) : null;
 
     // ---------- Materials: baked torch light, outdoor-light mask, your torch ----------
     const U = {uFlick: {value: new T.Vector4(1, 1, 1, 1)}, uLamp: {value: new T.Vector4(1, .93, .82, 0)}, uLampPos: {value: new T.Vector3(.17, -.2, .05)}, uLampDir: {value: new T.Vector3(-.03, .05, -1).normalize()}, uLampCos: {value: new T.Vector2(Math.cos(.52), Math.cos(.22))}, uDark: {value: .014}};
@@ -548,7 +548,8 @@
 
     // ---------- Light level per cell (is it dark here?) ----------
     const cellLight = new Float32Array(NX * NS);for (let c = 0; c < NX * NS; c++) if (L.walkable(c)) {const p = L.centre(c % NX, Math.floor(c / NX)), l = lightAt(p.x, p.s, L.floorAt(c, p.x, p.s) + 1.2, null, 0, 0, c);cellLight[c] = l[0] + l[1] + l[2] + skyAt(c, p.x, p.s) * 6;}
-    const DARK_BELOW = .55;
+    // Torch-lit cells are mostly above 0.45, the dark tunnels below 0.04.
+    const DARK_BELOW = .15;
 
     // ---------- Discovery (the map underground) ----------
     let saved = null;try {saved = localStorage.getItem(SAVE_KEY);} catch {}
@@ -608,7 +609,7 @@
         for (const ch of chunkGroups) {
           const dx = Math.max(ch.min[0] - cl.x, 0, cl.x - ch.max[0]), dy = Math.max(ch.min[1] - cy, 0, cy - ch.max[1]), ds = Math.max(ch.min[2] - cl.s, 0, cl.s - ch.max[2]), d = Math.hypot(dx, dy, ds);
           ch.group.visible = ch.entrance ? d < 70 : under && d < 38;
-          if (ch.group.visible) for (const s of ch.skullSets) {const near = d < 14;s.lo.visible = s.hi.visible = near;s.far.visible = !near;promote(s, d < 5 ? cl : null, cy);}
+          if (ch.group.visible) for (const s of ch.skullSets) {const near = d < 8;s.lo.visible = s.hi.visible = near;s.far.visible = !near;promote(s, d < 5 ? cl : null, cy);}
         }
       }
       // Deep down the world above is not drawn: daylight in the far-off doorways is a bright quad instead.
