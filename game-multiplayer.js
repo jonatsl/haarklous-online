@@ -113,7 +113,7 @@
           if (ctx.skyPose) ctx.skyPose(r, st, g);// skydiving: belly-down in freefall, a canopy over them (game-main)
           if (st.sit) stance = 'sit';
         }
-        r.seen = true;r.av.pose({stance, speed: stance === 'stand' || stance === 'crouch' || stance === 'prone' ? r.speed : 0, dt, beer: !!st.b, marker: ctx.holdsMarker ? ctx.holdsMarker(r.id) : false});r.av.update(dt, cam, ctx.showTag ? ctx.showTag(r.id) : true);
+        r.seen = true;r.av.pose({stance, speed: stance === 'stand' || stance === 'crouch' || stance === 'prone' || stance === 'climb' ? r.speed : 0, dt, beer: !!st.b, marker: ctx.holdsMarker ? ctx.holdsMarker(r.id) : false});r.av.update(dt, cam, ctx.showTag ? ctx.showTag(r.id) : true);
         // Their drone.
         if (st.dr) {if (!r.drone) {r.drone = avatars.drone();scene.add(r.drone);}r.drone.visible = true;r.drone.position.set(st.dr[0], st.dr[1], st.dr[2]);r.drone.quaternion.set(st.dr[3], st.dr[4], st.dr[5], st.dr[6]);}
         else if (r.drone) r.drone.visible = false;

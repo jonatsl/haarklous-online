@@ -156,10 +156,11 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
 #basket{position:absolute;right:20px;top:56px;min-width:230px;padding:10px 14px;border-radius:12px;background:#0b0f14d9;border:1px solid #ffffff22;pointer-events:none;font-size:14px}
 #basket div{display:flex;justify-content:space-between;gap:16px}#basket .total{border-top:1px solid #ffffff33;margin-top:4px;padding-top:4px;font-weight:700}
 #basket small{opacity:.7}
-#bag{position:absolute;left:18px;top:50%;transform:translateY(-50%);min-width:280px;max-width:min(420px,80%);max-height:calc(100% - 140px);overflow-y:auto;scrollbar-width:none;padding:12px;border-radius:12px;background:#0b0f14e6;border:1px solid #ffffff2a;pointer-events:none;display:flex;flex-direction:column;gap:3px}
-#bag div{padding:5px 10px;border-radius:7px;display:flex;flex-direction:column}#bag div small{opacity:.75}
-#bag div.sel{background:#ffd166;color:#111;font-weight:700}#bag > small{color:#ffffffb3;margin-top:4px}
+#bag,#gymMenu{position:absolute;left:18px;top:50%;transform:translateY(-50%);min-width:280px;max-width:min(420px,80%);max-height:calc(100% - 140px);overflow-y:auto;scrollbar-width:none;padding:12px;border-radius:12px;background:#0b0f14e6;border:1px solid #ffffff2a;pointer-events:none;display:flex;flex-direction:column;gap:3px}
+#bag div,#gymMenu div{padding:5px 10px;border-radius:7px;display:flex;flex-direction:column}#bag div small,#gymMenu div small{opacity:.75}#gymMenu div.done{opacity:.6}
+#bag div.sel,#gymMenu div.sel{background:#ffd166;color:#111;font-weight:700}#bag > small,#gymMenu > small{color:#ffffffb3;margin-top:4px}
 #bag > b,#bag > small{position:sticky;background:#0b0f14;z-index:1;padding:3px 0}#bag > b{top:-12px}#bag > small{bottom:-12px}
+#climbHud .dot{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:7px;vertical-align:-1px;border:1px solid #fff8}#climbHud .warn{color:#ffb02e}#climbHud .msg{opacity:1;color:#ffd166;font-size:14px}#climbHud .meter.pump u{transition:width .15s}
 /* Paintball (ported from the Unreal version): scores and clock, countdown / result, lobby panel, feed, ammo, crosshair, paint on the goggles. */
 #pbHud{position:absolute;inset:0;pointer-events:none}
 #pbHud [hidden]{display:none!important}

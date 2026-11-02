@@ -73,6 +73,8 @@
     return window.GameStash.create({T, lib, places: [{name: 'stairwell', x: top.x, y: top.y, z: top.z, yaw: Math.atan2(e[8], e[0])}, at('courtyard', -2.8, -41.7, .4), at('park', 104.5, 162.2, 1.2)]});
   })();scene.add(stash.group);
   const shops = window.GameShops.create({T, lib, world, audio});scene.add(shops.group);
+  // Klatreverket Torshov (issue #40): the climbing centre in its real building at Myrens verksted 3K, about 980 m west-south-west.
+  const gym = window.GameClimbing.create({T, lib, data: window.KLATREVERKET, toWorld: world.toWorld, avatars: window.GameAvatars.create({T, lib}), audio});scene.add(gym.group, gym.extras);
   // HODET N.N., Marianne Heske's 7 m bronze doll's head at the north end of Torshovdalen (OSM node 2965223021, real place
   // local (9.1, 275.5)), facing south, with its stone steps on the east side.
   const SCULPTURE_AT = {x: 9.1, s: 275.5};
@@ -110,19 +112,20 @@
   function groundAt(x, z) {
     if (siteField) {const y = siteField.surface(x, z);if (y !== null) return y;}
     if (pbRules) {const y = pbRules.ground(x, z);if (y !== null) return y;}
+    {const y = gym.ground(x, z);if (y !== null) return y;}// the climbing hall's floor (the terrain model rises through the building)
     return world.heightWorld(x, z);
   }
   const groundFloor = {...world.terrainFloor(), height: p => groundAt(p.x, p.z)};
   const extraObstacles = [...(siteField ? window.GameSite.fenceObstacles(siteField, groundAt) : []), ...(pbRules ? pbRules.obstacles : [])];
-  const staticObstacles = [...apt.obstacles, ...towers.flatMap(towerObstacles), ...world.obstacles(), ...fire.obstacles, ...stash.obstacles, ...shops.obstacles, ...sculpture.obstacles, ...oksen.obstacles, ...extraObstacles];
-  const walkFloors = [...apt.floors, ...towers.flatMap(towerFloors), ...shops.floors, ...sculpture.floors, ...oksen.floors, groundFloor];
+  const staticObstacles = [...apt.obstacles, ...towers.flatMap(towerObstacles), ...world.obstacles(), ...fire.obstacles, ...stash.obstacles, ...shops.obstacles, ...sculpture.obstacles, ...oksen.obstacles, ...gym.obstacles, ...extraObstacles];
+  const walkFloors = [...apt.floors, ...towers.flatMap(towerFloors), ...shops.floors, ...sculpture.floors, ...oksen.floors, ...gym.floors, groundFloor];
   const walkWorld = collision.createWorld({floors: walkFloors, obstacles: staticObstacles, radius: .18, clearance: .08});
   const vehicleWorlds = new Map();
   let vehicleBlockers = null;// the other vehicles' footprints from the last updateDynamic()
   function worldFor(r) {
     const key = r.toFixed(2);
     if (!vehicleWorlds.has(key)) {
-      const w = collision.createWorld({floors: [groundFloor], obstacles: [...world.obstacles(), ...towers.flatMap(towerObstacles), ...fire.obstacles, ...shops.obstacles, ...sculpture.obstacles, ...oksen.obstacles, ...extraObstacles], radius: r, clearance: .08});
+      const w = collision.createWorld({floors: [groundFloor], obstacles: [...world.obstacles(), ...towers.flatMap(towerObstacles), ...fire.obstacles, ...shops.obstacles, ...sculpture.obstacles, ...oksen.obstacles, ...gym.obstacles, ...extraObstacles], radius: r, clearance: .08});
       // A world made during play (e.g. the bike's on its first ride) gets the other vehicles at once, not one update later.
       if (vehicleBlockers) collision.setDynamic(w, vehicleBlockers);
       vehicleWorlds.set(key, w);
@@ -133,7 +136,7 @@
   const shootTargets = [];[apt.group, ownStair.group].forEach(g => g.traverse(o => {if (o.isMesh && !(o.material.transparent) && o.visible) shootTargets.push(o);}));
   const interactables = [];[apt.group, ...towers.map(t => t.stair.group)].forEach(g => g.traverse(o => {if (o.isMesh && (o.userData.doorId || o.userData.lockedDoor)) interactables.push(o);}));
   apt.drinks.forEach(d => d.object.traverse(o => {if (o.isMesh) {o.userData.drink = d;interactables.push(o);}}));
-  interactables.push(...stash.hitboxes, ...shops.hitboxes);
+  interactables.push(...stash.hitboxes, ...shops.hitboxes, ...gym.hitboxes);
 
   // ---------- Vehicles ----------
   const toWorld = world.toWorld, heightAt = groundAt;
@@ -309,6 +312,7 @@
     ...(PB_DATA ? [{x: PB_DATA.centre.x, s: PB_DATA.centre.s, color: '#2e7d32', label: 'Paintball', glyph: '✚'}] : []),
     {x: SCULPTURE_AT.x, s: SCULPTURE_AT.s, color: '#7a5c3e', label: 'HODET N.N.', glyph: '◉'},
     {x: OKSEN_AT.x, s: OKSEN_AT.s, color: '#3a4436', label: 'Torshovoksen', glyph: '◉'},
+    {x: gym.local.x, s: gym.local.s, color: '#c4161c', label: 'Klatreverket Torshov', glyph: '🧗'},
     {...world.toLocal(AIR.jump.x, AIR.jump.z), color: '#c8322c', label: 'Skydiving (jump plane)', glyph: '🪂'},
   ]});
   // Wristwatch (D-pad ↑) shares the first-person overlay with the photo camera.
@@ -350,11 +354,13 @@
     if (player.mode === 'vehicle') {const v = player.vehicle;return (v.aircraft ? v.grounded && v.speed < 3 : Math.abs(v.speed) < 3) ? {text: `□ ${v.kind === 'motorcycle' ? 'Get off' : 'Get out'}`, act: () => exitVehicle()} : null;}
     if (player.mode === 'passenger') {const v = player.vehicle;return (v.aircraft ? v.grounded && v.speed < 3 : Math.abs(v.speed) < 3) ? {text: `□ ${v.kind === 'motorcycle' ? 'Get off' : 'Get out'}`, act: () => exitPassenger()} : null;}
     if (player.mode === 'sit') return {text: '□ Stand up · R2 have a beer', act: () => standUp()};
+    if (player.mode === 'climb' || player.mode === 'hang') return null;
     // During the mission only doors can be used (□ otherwise reloads).
     if (caseGame?.active) {const o = lookTarget();if (o?.userData.doorId) {const d = doors.find(d => d.id === o.userData.doorId);if (d) return {text: `□ ${d.open ? 'Close' : 'Open'} ${d.name.toLowerCase()}`, act: () => toggleDoor(d)};}if (o?.userData.lockedDoor) return {text: '□ Try the door', act: () => {audio.sfx('locked');notice('Locked.');}};return null;}
     // Doors first (the street door of 17A opens normally), then the mission marker beside the entrance.
     {const o = lookTarget();if (o?.userData.doorId) {const d = doors.find(d => d.id === o.userData.doorId);if (d) return {text: `□ ${d.open ? 'Close' : 'Open'} ${d.name.toLowerCase()}`, act: () => toggleDoor(d)};}}
     if (Math.hypot(player.x - MISSION_MARK.x, player.z - MISSION_MARK.z) < 1.6 && Math.abs(player.feet - world.heightWorld(MISSION_MARK.x, MISSION_MARK.z)) < 2) return {text: '□ Start mission: rescue the hostage (4th floor)', act: () => startMission()};
+    const cp = gymPrompt();if (cp) return cp;
     const shp = shopPrompt();if (shp) return shp;
     const fp = firePrompt();if (fp) return fp;
     const sp = stashPrompt();if (sp) return sp;
@@ -488,6 +494,127 @@
     else {drunk = Math.max(0, drunk - (p.sober || 10));audio.sfx('gulp');notice(`You eat ${p.name}.${p.sober ? ` (−${p.sober} s drunk)` : ''}`, 3);}
     wallet.take(p.id);walletT = 4;
   }
+  // ---------- Klatreverket Torshov (issue #40): the reception, the routes, climbing ----------
+  const GC = window.GameClimbing;let gymMenu = null, gripPrev = {L: false, R: false}, climbMsgT = 0;
+  const ropeNeeded = r => r.kind === 'rope' || r.kind === 'lead' || r.kind === 'auto';
+  function gymPrompt() {
+    if (!gym.zoneAt(player, player.feet)) return null;
+    const o = lookTarget(), u = (o && o.userData) || {};
+    if (u.gymDesk) return {text: '□ Reception: day ticket, rental, autobelay introduction', act: () => openGymMenu()};
+    if (u.gymPartner) return {text: '□ Talk to Siri (your climbing partner)', act: () => siriTalk()};
+    if (u.gymHang) return {text: '□ Hang on the hangboard (hold L2 + R2)', act: () => startHang()};
+    if (u.gymMoon) {const n = gym.moonRoutes.length, next = gym.moonSel + 1 >= n ? -1 : gym.moonSel + 1;return {text: next < 0 ? '□ Moonwall: switch the LEDs off' : `□ Moonwall: light up ${gym.moonRoutes[next].name}`, act: () => {const r = gym.lightMoon(next);audio.sfx('beep');notice(r ? `${r.name}: start on the green hold, blue are the hands, finish on the red one.` : 'Moonwall LEDs off.', 4);}};}
+    const dir = camera.getWorldDirection(new T.Vector3()), h = gym.aimAt(camera.position, dir, false);
+    if (h && h.face === 'moon') {const r = gym.moonSel >= 0 ? gym.moonRoutes[gym.moonSel] : null;return r ? routePrompt(r) : {text: 'Moonwall – choose a problem at the control box (□) to light it up', act: () => {}};}
+    const r = gym.routeAt(camera.position, dir, player);
+    return r ? routePrompt(r) : null;
+  }
+  function routePrompt(r) {
+    const v = gym.visit(), label = `${r.name} (${GC.STYLE[r.kind]})`, tell = t => ({text: `${label} – ${t}`, act: () => {notice(t[0].toUpperCase() + t.slice(1) + '.', 3);}});
+    if (!v.paid) return tell(`pay entry at the reception first (${GC.priceAt(new Date())} kr)`);
+    if (!v.shoes) return tell('rent climbing shoes at the reception first (50 kr)');
+    if (ropeNeeded(r) && !v.harness) return tell('you need a harness – rent one at the reception (50 kr)');
+    if (r.kind === 'auto' && !gym.state.autoIntro) return tell('get the free autobelay introduction at the reception first');
+    const verb = r.kind === 'auto' ? 'Clip into the autobelay' : r.kind === 'lead' ? 'Lead' : r.kind === 'rope' ? 'Tie in and climb' : 'Climb', tick = gym.state.ticks[r.id];
+    return {text: `□ ${verb}: ${label}${r.kind === 'rope' ? ', Siri belays' : r.kind === 'lead' ? ', Siri belays – clip every bolt' : ''}${tick ? ` · ✓ ${tick}` : ''}`, act: () => startClimb(r)};
+  }
+  function startClimb(r) {
+    watch.hide();if (photo.active) photo.toggle();gymMenu = null;renderGymMenu();
+    const c = gym.begin(r);player.mode = 'climb';player.yaw = Math.atan2(c.n.x, c.n.z);player.pitch = .3;gripPrev = {L: false, R: false};
+    if ((r.kind === 'rope' || r.kind === 'lead') && gym.siri) gym.siri.say('Partnersjekk: knute, sele, karabin, brems – klar!');
+    const off = r.kind === 'rope' || r.kind === 'lead' ? '○ / C take (hang on the rope), ○ again to be lowered' : r.kind === 'auto' ? '○ / C let go, the autobelay lowers you' : '○ / C drop off onto the mat';
+    notice(`Hold L2 + R2 (both mouse buttons, or Q + R) to grip. Let go with one hand, look at the next hold and grip again · left stick: move your body, push up to stand tall · ✕ jump for a far hold · □ ${r.kind === 'lead' ? 'clip the next bolt, then the anchor' : 'chalk up'} · ${off}`, 10);
+  }
+  function endClimb() {
+    const c = gym.climber, ps = c.pose(), n = c.n, floor = c.floorY(ps.feet), x = ps.feet.x + n.x * .6, z = ps.feet.z + n.z * .6;
+    gym.end();player.mode = 'foot';$('climbHud').hidden = true;place(x, z, player.yaw, floor);
+  }
+  function updateClimb(dt, input, dl) {
+    const c = gym.climber, curve = v => Math.sign(v) * v * v;
+    player.yaw -= input.mouse.dx * .0024 * sensitivity.mouse + curve(input.look.x) * 2.4 * sensitivity.pad * dt;player.pitch = Math.max(-1.45, Math.min(1.45, player.pitch - input.mouse.dy * .0024 * sensitivity.mouse - curve(input.look.y) * 1.8 * sensitivity.pad * dt));
+    const head = {x: c.hip.x + c.up.x * .62 + c.n.x * .06, y: c.hip.y + c.up.y * .62 + c.n.y * .06, z: c.hip.z + c.up.z * .62 + c.n.z * .06}, sway = dl ? Math.sin(performance.now() / 900) * .04 * dl : 0;
+    camera.position.set(head.x, head.y, head.z);camera.rotation.order = 'YXZ';camera.rotation.set(player.pitch + sway, player.yaw, 0);if (camera.fov !== 70) {camera.fov = 70;camera.updateProjectionMatrix();}camera.updateMatrixWorld();
+    const dir = camera.getWorldDirection(new T.Vector3()), aim = gym.aimAt(camera.position, dir), aimPt = gym.aimPoint(camera.position, dir);
+    // Grips: L2 / left mouse button / Q = left hand, R2 / right mouse button / R = right hand (L1 / R1 work too).
+    const grip = {L: !!(input.mouse.left || (!input.mouse.right && input.l2 > .5) || input.held.l1), R: !!(input.mouse.right || (!input.mouse.left && input.r2 > .5) || input.held.r1 || input.held.reload)};
+    const gripEdge = {L: grip.L && !gripPrev.L, R: grip.R && !gripPrev.R};gripPrev = grip;
+    const sq = input.pressed.has('square'), lead = c.style === 'lead';
+    const ev = c.update(dt, {grip, gripEdge, aim, aimPoint: aimPt, stick: {x: Math.abs(input.move.x) > .15 ? input.move.x : 0, y: Math.abs(input.move.y) > .15 ? input.move.y : 0}, dyno: input.pressed.has('cross'), chalk: (sq && !lead) || input.pressed.has('down'), clip: sq && lead, letGo: input.pressed.has('circle'), drunk: dl});
+    for (const e of ev) {
+      if (e === 'grab') audio.sfx('hit', {gain: .25});else if (e === 'chalk') audio.sfx('sniff', {gain: .25});else if (e === 'clip') audio.sfx('click', {gain: .6});
+      else if (e === 'catch' || e === 'take') audio.sfx('thud', {gain: .35});else if (e === 'catchHard' || e === 'land') audio.sfx('thud', {gain: .7});else if (e === 'landHard') audio.sfx('thud', {gain: 1});
+      else if (e === 'deck') {audio.sfx('hit', {gain: 1});audio.sfx('thud', {gain: 1});}else if (e === 'dyno') audio.sfx('throw', {gain: .4});
+      else if (e === 'send') {audio.sfx('cheer', {gain: .5});const how = gym.tick(c.route, c.style);notice(`Sent: ${c.route.name} (${GC.STYLE[c.route.kind]}) – ${how}!`, 5);if (gym.siri && (c.style === 'rope' || c.style === 'lead')) gym.siri.say('Bra jobba! 💪');}
+      else if (e === 'fall' && c.style !== 'boulder' && c.style !== 'moon' && c.style !== 'campus') gym.siri && c.style !== 'auto' && gym.siri.say('Jeg har deg!');
+      if (e !== 'grab') climbMsgT = 3;
+    }
+    if (c.msg) climbMsgT = Math.max(climbMsgT, .2);climbMsgT -= dt;
+    gym.showClimb(camera.position, dir, aim, aim ? gym.classify(c.hands.L.hold ? 'R' : 'L', aim) : null);
+    const ps = c.pose();player.x = ps.feet.x;player.z = ps.feet.z;player.feet = ps.feet.y;
+    // HUD: the route, the pump, height, clips and what to do.
+    const r = c.route, hgt = Math.max(0, ps.feet.y - c.floorY(ps.feet)), el = $('climbHud');el.hidden = false;
+    const dot = r.moon ? '#42a5f5' : '#' + r.hex.toString(16).padStart(6, '0');
+    el.innerHTML = `<b><i class="dot" style="background:${dot}"></i>${r.name} · ${GC.STYLE[r.kind]}${c.offRoute ? ' · <span class="warn">off route</span>' : ''}</b>`
+      + `<span>Pump</span><i class="meter pump"><u style="width:${Math.round(c.pump * 100)}%;background:${c.pump > .8 ? '#ff5252' : c.pump > .55 ? '#ffb02e' : '#66d17a'}"></u></i>`
+      + `<span>Height ${hgt.toFixed(1)} m${c.style === 'lead' ? ` · clips ${c.clipped}/${c.bolts.length}${c.anchorClipped ? ' · anchor ✓' : ''}` : ''}${c.feetOn ? '' : ' · feet hanging'}${c.chalk ? '' : ' · no chalk'}</span>`
+      + (climbMsgT > 0 && c.msg ? `<small class="msg">${c.msg}</small>` : '')
+      + `<small>${c.state === 'hang' ? 'Hanging on the rope: grip a hold to climb on · ○ / C lower' : c.state === 'lower' ? 'Lowering…' : 'Hold L2 / R2 (mouse buttons, Q / R) to grip · ✕ jump · □ ' + (c.style === 'lead' ? 'clip' : 'chalk') + ' · ○ ' + (c.style === 'boulder' || c.style === 'moon' || c.style === 'campus' ? 'drop off' : 'take')}</small>`;
+    if (c.state === 'done') {const msg = c.decked ? c.msg : c.lowered ? (c.sent ? 'Back on the ground.' : 'Lowered to the ground.') : c.sent ? '' : c.msg;endClimb();if (msg) notice(msg, 4);}
+  }
+  // The hangboard: hold L2 + R2 on the 20 mm edge for as long as you can (your best time is saved).
+  let hangT = 0, hangPump = 0;
+  function startHang() {
+    if (!gym.visit().paid) {notice(`Pay entry at the reception first (${GC.priceAt(new Date())} kr).`, 3);return;}
+    watch.hide();if (photo.active) photo.toggle();player.mode = 'hang';hangT = 0;hangPump = 0;player.pitch = .5;
+    notice('Hangboard, 20 mm edge: hold L2 + R2 (both mouse buttons) to hang – let go to drop off. Seven seconds on, three off is a classic set.', 6);
+  }
+  function updateHang(dt, input) {
+    const both = (input.mouse.left && input.mouse.right) || (input.l2 > .5 && input.r2 > .5) || (input.held.l1 && input.held.r1);
+    if (both) {hangT += dt;hangPump = Math.min(1, hangPump + dt / 24);} else {hangPump = Math.max(0, hangPump - dt / 6);if (hangT > .3) {const best = gym.state.bestHang || 0;if (hangT > best) {gym.state.bestHang = hangT;gym.save();}notice(`You hung ${hangT.toFixed(1)} s${hangT > best ? ' – a new best!' : ` (best ${best.toFixed(1)} s)`}.`, 4);hangT = 0;}}
+    if (hangPump >= 1) {notice(`Your fingers give up after ${hangT.toFixed(1)} s.`, 4);hangT = 0;hangPump = .4;}
+    if (input.pressed.has('circle') || input.pressed.has('square') || Math.hypot(input.move.x, input.move.y) > .5) {player.mode = 'foot';$('climbHud').hidden = true;return;}
+    const curve = v => Math.sign(v) * v * v;player.yaw -= input.mouse.dx * .0024 * sensitivity.mouse + curve(input.look.x) * 2 * dt;player.pitch = Math.max(-1.2, Math.min(1.4, player.pitch - input.mouse.dy * .0024 * sensitivity.mouse - curve(input.look.y) * 1.5 * dt));
+    camera.position.set(player.x, player.feet + (both ? 1.9 : player.eye), player.z);camera.rotation.order = 'YXZ';camera.rotation.set(player.pitch, player.yaw, 0);
+    const el = $('climbHud');el.hidden = false;el.innerHTML = `<b>Hangboard · 20 mm edge</b><span>${both ? `Hanging ${hangT.toFixed(1)} s` : 'Hold L2 + R2 to hang'}</span><i class="meter pump"><u style="width:${Math.round(hangPump * 100)}%;background:${hangPump > .8 ? '#ff5252' : '#66d17a'}"></u></i><small>Best ${(gym.state.bestHang || 0).toFixed(1)} s · ○ / C / move to step away</small>`;
+  }
+  function siriTalk() {
+    const v = gym.visit(), sends = Object.keys(gym.state.ticks).length;
+    const lines = !v.paid ? ['Hei! Betal i resepsjonen, så klatrer vi. (Pay at the reception and we can climb.)'] : !v.shoes ? ['Husk klatresko – du får leid i resepsjonen.'] : !v.harness ? ['Skal vi ta tau? Lei en sele i resepsjonen, så sikrer jeg deg. (Rent a harness and I will belay you.)'] :
+      ['Jeg har brattkort – velg en rute med topptau i Galleriet, så sikrer jeg. (Pick a top-rope route.)', 'Lede på Konkurranseveggen? Husk å klippe alle boltene!', `Du har klatret ${sends} ruter her. Prøv Hula eller Discorommet for buldring.`, 'Moonwall er i fjerde etasje, innerst og øverst.'];
+    gym.siri.say(lines[Math.floor(performance.now() / 4000) % lines.length]);
+  }
+  // The reception menu: what you can buy or get, with the real prices for this time of day.
+  function gymItems() {
+    const v = gym.visit(), now = new Date(), price = GC.priceAt(now), bk = GC.brattkortPriceAt(now), staffed = GC.staffedAt(now), P = GC.PRICES;
+    const pay = (kr, what, after) => () => {if (!wallet.pay(kr)) {notice(`Not enough money: ${KR(kr)} needed, you have ${KR(wallet.money)}.`, 3);return;}audio.sfx('register');walletT = 5;after();gym.save();notice(what, 4);};
+    const items = [
+      {label: v.paid ? '✓ Day ticket – paid today' : `Day ticket, adult – ${price} kr`, note: price === P.entryDay ? 'before 16 on weekdays' : 'after 16 and at weekends', done: v.paid,
+        act: pay(price, gym.state.legal ? 'Day ticket paid. God klatring!' : 'Day ticket paid – first visit: you sign the legal notice (egenerklæring). God klatring!', () => {v.paid = true;gym.state.legal = true;})},
+      {label: 'All of it without a rope – 100 kr', note: 'climbing shoes, harness and chalk for today', done: v.shoes && v.harness && v.chalk, act: pay(P.pack, 'Shoes, harness and chalk bag for today.', () => {v.shoes = v.harness = v.chalk = true;})},
+      {label: v.shoes ? '✓ Climbing shoes' : 'Climbing shoes – 50 kr', note: 'you need them on the walls', done: v.shoes, act: pay(P.shoes, 'Climbing shoes – size 42, fits.', () => {v.shoes = true;})},
+      {label: v.harness ? '✓ Harness' : 'Harness – 50 kr', note: 'for rope climbing and the autobelays', done: v.harness, act: pay(P.harness, 'Harness on.', () => {v.harness = true;})},
+      {label: v.chalk ? '✓ Chalk bag' : 'Chalk bag – 20 kr', note: 'chalk up with □ / E or ↓ when you have a free hand', done: v.chalk, act: pay(P.chalk, 'Chalk bag on your belt.', () => {v.chalk = true;})},
+      {label: gym.state.autoIntro ? '✓ Autobelay introduction' : 'Autobelay introduction – free', note: 'clip the carabiner to your harness belay loop, check the gate, climb; let go and it lowers you', done: gym.state.autoIntro, act: () => {gym.state.autoIntro = true;gym.save();gym.staff && gym.staff.say('Klipp i selen, sjekk at porten er lukket – så er du klar!');notice('Autobelay introduction done: you may use the six autobelay lines in the hall.', 4);}},
+      {label: `Brattkort test (top rope) – ${bk} kr`, note: staffed ? 'Siri belays you on top rope (she has one); the test is for belaying others' : 'only when the climbing staff is on duty: after 17 on weekdays, after 11 at weekends', done: !!gym.state.brattkort,
+        act: () => {if (!staffed) {notice('The brattkort test can be taken when the climbing staff is on duty: after 17 on weekdays, after 11 at weekends.', 4);return;}notice('The brattkort test (belaying) is not in the game yet – Siri has a brattkort and belays you.', 4);}},
+      {label: 'Your climbing log', note: `${Object.keys(gym.state.ticks).length} routes and problems sent · hangboard best ${(gym.state.bestHang || 0).toFixed(1)} s`, act: () => {const t = Object.entries(gym.state.ticks).slice(-6).map(([id, how]) => `${gym.routes[id].name} (${how})`).join(', ');notice(t ? `Latest: ${t}` : 'Nothing sent yet.', 6);}}
+    ];
+    return items;
+  }
+  function openGymMenu() {gymMenu = {sel: 0, stick: false};watch.hide();if (gym.staff) gym.staff.say(gym.visit().paid ? 'Hei igjen! Trenger du noe mer?' : 'Hei! Velkommen til Klatreverket.');renderGymMenu();}
+  function renderGymMenu() {
+    const el = $('gymMenu');el.hidden = !gymMenu;if (!gymMenu) return;const items = gymItems();gymMenu.sel = Math.max(0, Math.min(gymMenu.sel, items.length - 1));
+    el.innerHTML = `<b>Klatreverket Torshov · ${KR(wallet.money)}</b><small>Open ${GC.HOURS}</small>` + items.map((e, i) => `<div class="${i === gymMenu.sel ? 'sel' : ''}${e.done ? ' done' : ''}">${e.label}<small>${e.note}</small></div>`).join('') + '<small>↑↓ choose · ✕ / Space take it · ○ / C close</small>';
+  }
+  function gymMenuInput(input) {
+    const y = input.move.y, items = gymItems();
+    if (input.pressed.has('up') || (y < -.5 && !gymMenu.stick)) gymMenu.sel = Math.max(0, gymMenu.sel - 1);
+    if (input.pressed.has('down') || (y > .5 && !gymMenu.stick)) gymMenu.sel = Math.min(items.length - 1, gymMenu.sel + 1);
+    gymMenu.stick = Math.abs(y) > .5;
+    if (input.pressed.has('cross') && items[gymMenu.sel] && !items[gymMenu.sel].done) items[gymMenu.sel].act();
+    if (input.pressed.has('circle') || input.pressed.has('square') || Math.hypot(player.x - gym.W(4, 5).x, player.z - gym.W(4, 5).z) > 4) gymMenu = null;
+    renderGymMenu();input.move.x = input.move.y = 0;['cross', 'circle', 'up', 'down', 'square', 'triangle'].forEach(b => input.pressed.delete(b));
+  }
   function firePrompt() {
     const near = (p, r) => Math.hypot(player.x - p.x, player.z - p.z) < r && Math.abs(player.feet - fire.center.y) < 1.5;
     if (near(fire.woodpile, 1.9)) return {text: `□ Throw a log on the fire (fire ${Math.round(mp.fireLevel() / fire.MAX * 100)} %)`, act: () => addLog()};
@@ -595,6 +722,7 @@
     if (input.pressed.has('share') && !map.open) {quick = quick ? null : {sel: 0, stick: false};renderQuick();}
     if (quick) quickInput(input);
     if (bag) bagInput(input);
+    if (gymMenu) gymMenuInput(input);
     if (caseGame?.active) {
       // The mission owns ✕ (begin), ○ (leave on panels), Options (pause), □ (door or reload), triggers.
       for (const name of input.pressed) {if (name === 'reload') caseGame.key({key: 'r', code: 'KeyR', repeat: false});else if (name === 'options' || caseGame.state !== 'play') caseGame.padButton(name === 'mouseLeft' ? '' : name);else if (['square', 'touchpad'].includes(name)) caseGame.padButton(name);}
@@ -624,7 +752,7 @@
         } else {const g = gear;gear = null;showGear(null);if (g.open) {gearLast = g.sel;if (g.sel === 1) startDrone();else photo.toggle();} else photo.toggle();}
       }
       if (input.pressed.has('up') && !photo.active && !gear) watch.toggle();
-      if (input.pressed.has('down') && !photo.active && !gear && !bag) {openBag();input.pressed.delete('down');}
+      if (input.pressed.has('down') && !photo.active && !gear && !bag && !gymMenu) {openBag();input.pressed.delete('down');}
     } else if (gear) {gear = null;showGear(null);}
     if (photo.active || player.mode !== 'foot') watch.hide();
     if (photo.active) {
@@ -638,7 +766,7 @@
     // Drunk effect: decays in real time.
     drunk = Math.max(0, drunk - dt);const dl = drunkLevel();
     if (boost && (boost.t -= dt) <= 0) {boost = null;audio.muffle(false);notice('The boost wears off.', 2);}
-    const wdt = dt * worldScale();stash.update(dt);shopsTick(dt);
+    const wdt = dt * worldScale();stash.update(dt);shopsTick(dt);gym.update(dt, player, camera);
     // The jump planes move first, so a jumper's seat (and camera) is where the plane is this frame.
     updateJumpFlight(dt);updateGamePilot(dt);
     if (player.mode === 'vehicle') updateVehicle(dt, input, dl);
@@ -648,6 +776,8 @@
     else if (player.mode === 'skydive') updateSkydive(dt, input, dl);
     else if (player.mode === 'drone') updateDrone(dt, input, dl);
     else if (player.mode === 'minigame') updateMinigame(dt, input, dl);
+    else if (player.mode === 'climb') updateClimb(dt, input, dl);
+    else if (player.mode === 'hang') updateHang(dt, input, dl);
     else updateFoot(dt, input, dl);
     // Other vehicles: parked ones idle (far ones are hidden and skipped), ones driven by other players are posed by the lobby.
     cullT -= dt;if (cullT <= 0) {cullT = .4;for (const v of vehicles) {const near = Math.hypot(v.x - camera.position.x, v.z - camera.position.z) < (v.cullDistance || 170);v.group.visible = near || v === player.vehicle;}if (vehicles.some((v, i) => mp.remoteDriven(i))) updateDynamic();}
@@ -664,14 +794,14 @@
     let doorsChanged = false;
     for (const d of doors) if (d.anim) {d.anim.t = Math.min(1, d.anim.t + dt * 2.2);const e = d.anim.t < .5 ? 2 * d.anim.t * d.anim.t : 1 - Math.pow(-2 * d.anim.t + 2, 2) / 2;setDoor(d, d.anim.from + (d.anim.to - d.anim.from) * e);if (d.anim.t >= 1) {d.open = d.anim.to === 1;d.anim = null;doorsChanged = true;}}
     if (doorsChanged || caseGame?.active) updateDynamic();
-    promptTimer -= dt;if (promptTimer <= 0) {promptTimer = .15;promptAction = player.mode === 'minigame' || player.mode === 'drone' || gear?.open || quick || bag || photo.active || (caseGame?.active && caseGame.state !== 'play') ? null : findPrompt();prompt(promptAction?.text);}
+    promptTimer -= dt;if (promptTimer <= 0) {promptTimer = .15;promptAction = player.mode === 'minigame' || player.mode === 'drone' || gear?.open || quick || bag || gymMenu || photo.active || (caseGame?.active && caseGame.state !== 'play') ? null : findPrompt();prompt(promptAction?.text);}
     weather.update(dt, camera, {indoor: weatherIndoor, windWorld: weatherWind});
     ambienceTimer -= dt;if (ambienceTimer <= 0) {ambienceTimer = .25;updateAmbience();if (audio.context) music.attach(audio.context);music.play(musicTrack());}
     // Adaptive resolution keeps the frame rate in the 20–30+ fps range on slower PCs.
     if (fpsAvg < 22) {if (++lowFrames > 90 && pixelRatio > .6) {pixelRatio = Math.max(.6, pixelRatio - .1);renderer.setPixelRatio(pixelRatio);resize();lowFrames = 0;}} else lowFrames = 0;
     renderFrame(dt, t);
   }
-  function placeName() {if (inApartment()) return 'Haarklous plass 17A, 4th floor';const tw = towerAt(player.x, player.z, player.feet);if (tw) return tw.t.own ? 'Stairwell, Haarklous plass 17A' : 'Stairwell, Torshov';return 'Torshov, Oslo';}
+  function placeName() {if (inApartment()) return 'Haarklous plass 17A, 4th floor';{const z = gym.zoneAt(player, player.feet);if (z) return `Klatreverket Torshov, ${gym.ZONE_NAME[z]}`;}const tw = towerAt(player.x, player.z, player.feet);if (tw) return tw.t.own ? 'Stairwell, Haarklous plass 17A' : 'Stairwell, Torshov';return 'Torshov, Oslo';}
 
   function updateFoot(dt, input, dl) {
     // Look.
@@ -714,6 +844,7 @@
   function footstep(soft = 1) {
     let surface = 'grass', stair = false;
     if (shops.shopAt(player, player.feet)) surface = 'tile';
+    else if (gym.zoneAt(player, player.feet)) {const f = collision.supportAt(walkWorld, player, player.feet)?.floor;surface = f?.surfaceKind === 'mat' ? 'sand' : f?.surfaceKind === 'metal' ? 'metal' : 'tile';stair = f?.surfaceKind === 'metal';}
     else if (inApartment()) {const r = roomAt();surface = r === 'bath' ? 'tile' : r ? 'wood' : 'metal';}
     else if (towerAt(player.x, player.z, player.feet)) {surface = 'stone';stair = true;}
     else {const s = world.surfaceAt(player.x, player.z);surface = s === 'asphalt' ? 'asphalt' : s === 'gravel' ? 'gravel' : s === 'sand' ? 'sand' : 'grass';}
@@ -1067,6 +1198,7 @@
     if ((player.mode === 'vehicle' || player.mode === 'passenger') && player.vehicle) {s.v = vehicles.indexOf(player.vehicle);s.s = player.mode === 'vehicle' ? 'd' : 'p';}
     if (player.mode === 'sit' && player.sitSpot) {const sp = player.sitSpot;s.sit = sp.id + 1;s.p = [r(sp.x), r(sp.y), r(sp.z)];s.y = r(sp.yaw);}
     if (player.mode === 'drone') {s.st = 'drone';s.dr = [...drone.pos.toArray().map(r), ...drone.q.toArray().map(q)];}
+    if (player.mode === 'climb' && gym.climber.state !== 'off') {const c = gym.climber, ps = c.pose();s.p = [r(ps.feet.x), r(ps.feet.y), r(ps.feet.z)];s.y = r(ps.yaw);s.st = ps.hang ? 'hang' : 'climb';s.cr = c.route.id;}
     // Skydiving: a jump seat in the flown Caravan (a vehicle seat 'j0'..'j11'), in the scheduled flight (ja), or in the air.
     if (player.mode === 'jumpseat' && skyd.ride) {if (skyd.ride.auto) s.ja = skyd.ride.seat;else {s.v = vehicles.indexOf(caravan);s.s = 'j' + skyd.ride.seat;}}
     if (player.mode === 'skydive' && skyd.jumper) {const J = skyd.jumper;s.p = [r(J.pos.x), r(J.pos.y), r(J.pos.z)];s.y = r(J.yaw);s.sky = J.state === 'freefall' ? 'f' : 'c';}
@@ -1186,7 +1318,7 @@
   }
   let weatherIndoor = false;
   function updateAmbience() {
-    const inApt = inFlat(), tw = towerAt(player.x, player.z, player.feet), indoor = inApt || tw || shops.shopAt(player, player.feet) ? 1 : player.mode === 'jumpseat' ? .6 : player.vehicle && player.vehicle.kind === 'car' ? .7 : player.vehicle && player.vehicle.aircraft ? .4 : 0;
+    const inApt = inFlat(), tw = towerAt(player.x, player.z, player.feet), indoor = inApt || tw || shops.shopAt(player, player.feet) || gym.zoneAt(player, player.feet) ? 1 : player.mode === 'jumpseat' ? .6 : player.vehicle && player.vehicle.kind === 'car' ? .7 : player.vehicle && player.vehicle.aircraft ? .4 : 0;
     weatherIndoor = indoor >= 1 && player.mode !== 'drone';
     const skyAir = player.mode === 'skydive' && skyd.jumper ? Math.hypot(skyd.jumper.vel.x, skyd.jumper.vel.y, skyd.jumper.vel.z) : 0;const ws = weather.state, wet = ws && ['rain', 'sleet', 'snow'].includes(ws.kind) ? ws.intensity : 0;
     audio.ambience({indoor, rain: ws && ws.kind === 'rain' ? wet : ws && ws.kind === 'sleet' ? wet * .6 : 0, windSpeed: Math.max(ws ? ws.wind : 4, skyAir), green: world.greenery(player.x, player.z), traffic: world.trafficDistance(player.x, player.z), height: Math.max(0, player.feet - heightAt(player.x, player.z)) + (inApt ? 10 : 0), stair: Boolean(tw), kitchen: inApt && roomAt() === 'kitchen'});
@@ -1200,7 +1332,7 @@
   const ghost = $('ghost'), gctx = ghost.getContext('2d');
   function renderFrame(dt, t, forPhoto = false) {
     // Sun shadow frustum follows the player (wide outdoors, tight indoors for crisp shadows).
-    const flying = player.mode === 'drone' || player.vehicle?.aircraft, indoor = !flying && (inApartment() || towerAt(player.x, player.z, player.feet)), reach = indoor ? 16 : 42;
+    const flying = player.mode === 'drone' || player.vehicle?.aircraft, indoor = !flying && (inApartment() || towerAt(player.x, player.z, player.feet) || !!gym.zoneAt(player, player.feet)), reach = indoor ? 16 : 42;
     if (flying) {const c = camera.position;sun.target.position.set(c.x, Math.max(heightAt(c.x, c.z), c.y - 25), c.z);} else sun.target.position.set(player.x, player.feet, player.z);sun.position.copy(sun.target.position).addScaledVector(sunDir, indoor ? 45 : 110);sun.target.updateMatrixWorld();
     if (sun.shadow.camera.right !== reach) {Object.assign(sun.shadow.camera, {left: -reach, right: reach, top: reach, bottom: -reach, near: 1, far: indoor ? 100 : 240});sun.shadow.camera.updateProjectionMatrix();}
     camera.updateMatrixWorld();
@@ -1222,7 +1354,7 @@
   }
 
   // ---------- Test / inspection handle ----------
-  window.haarklousGame = {player, vehicles, site, paintball, groundAt, heli, plane, drone, watch, fire, stash, shops, sculpture, oksen, weather, caravan, get skyd() {return skyd;}, get autoPlane() {return autoPlane;}, get jumpFlight() {return jumpFlight;}, boardAuto, boardCaravan, jump, get gp() {return gp;}, callGamePilot, handOver, CARAVAN_HOLD, applyWeather, wallet, get basket() {return basket;}, payAt, takeProduct, useItem, earn, openBag, takeBoost, get boost() {return boost;}, set boost(b) {boost = b;}, get mp() {return mp;}, sitDown, standUp, tryDrive, tryRide, openChat, startDrone, stopDrone, floorBelow, doors, mini, music, photo, map, world, apt, towers, walkWorld, get caseGame() {return caseGame;}, place, toggleDoor, enterVehicle, exitVehicle, startMinigame, startMission, drink, interact, findPrompt, renderFrame, begin, get fps() {return fpsAvg;}, kick: () => requestAnimationFrame(frame), get drunk() {return drunk;}, set drunk(v) {drunk = v;}, setStance, camera, scene};
+  window.haarklousGame = {player, vehicles, site, paintball, groundAt, heli, plane, drone, watch, fire, stash, shops, gym, startClimb, openGymMenu, sculpture, oksen, weather, caravan, get skyd() {return skyd;}, get autoPlane() {return autoPlane;}, get jumpFlight() {return jumpFlight;}, boardAuto, boardCaravan, jump, get gp() {return gp;}, callGamePilot, handOver, CARAVAN_HOLD, applyWeather, wallet, get basket() {return basket;}, payAt, takeProduct, useItem, earn, openBag, takeBoost, get boost() {return boost;}, set boost(b) {boost = b;}, get mp() {return mp;}, sitDown, standUp, tryDrive, tryRide, openChat, startDrone, stopDrone, floorBelow, doors, mini, music, photo, map, world, apt, towers, walkWorld, get caseGame() {return caseGame;}, place, toggleDoor, enterVehicle, exitVehicle, startMinigame, startMission, drink, interact, findPrompt, renderFrame, begin, get fps() {return fpsAvg;}, kick: () => requestAnimationFrame(frame), get drunk() {return drunk;}, set drunk(v) {drunk = v;}, setStance, camera, scene};
   loading.remove();$('start').hidden = false;
   requestAnimationFrame(frame);
 })();
