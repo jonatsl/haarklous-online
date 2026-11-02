@@ -33,7 +33,7 @@ On `main`:
 On branch `feat/gamle-oslo-ensjo` (issue #38, PR #48, not merged yet):
 - Gamle Oslo, Ensjø and the way there: real streets, ground heights and about 7,900 buildings south of the old world (3.4 × 3.4 km, down Trondheimsveien to Bjørvika); churches, MUNCH, the Opera (walkable roof) and tall chimneys modelled; a timed Ensjø → Rathkes gate run.
 
-On branch `feat/klatreverket-torshov` (issue #40, builds on PR #48, not merged yet):
+On branch `feat/klatreverket-torshov` (issue #40, PR #49, builds on PR #48, not merged yet):
 - Klatreverket Torshov at its real place (Myrens verksted 3K) in its real building: 14 m hall, 7 m overhanging competition wall, Galleriet, autobelay tower, bouldering on three floors, the training room with the Moonwall; reception with the real prices and rental; climb with L2 / R2 (bouldering, top rope with Siri belaying, lead with clips, autobelay), pump, falls on the rope, the brattkort test and belaying Siri.
 - The ground round Myrens verksted and Akerselva (district patch 'myrens').
 
@@ -100,7 +100,7 @@ Live site: runs `main` (Worker version 82250255, deployed 2 Nov 2026 after PR #4
     - the brattkort test passed;
     - walked from the old world over the seam at x -760 into the Myrens patch, and from the street up the ramp into the lobby.
   - Not checked: a real DualShock 4, real frame rate on the user's PC, two real players climbing together online.
-- **Status:** branch `feat/klatreverket-torshov`. It contains PR #48 (Gamle Oslo, not merged yet), so merge PR #48 first. Not live.
+- **Status:** PR https://github.com/jonatsl/haarklous-online/pull/49 (branch `feat/klatreverket-torshov`, not merged). It contains PR #48 (Gamle Oslo, not merged yet), so merge PR #48 first. Not live.
 
 ### 2026-11-02 · Gamle Oslo, Ensjø and the way there (issue #38)
 - **What:**
