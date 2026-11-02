@@ -30,7 +30,7 @@ On `main`:
 - Player accounts (optional): create an account or log in with email and password in the pause menu; your account name is your lobby name (PR #34, Better Auth + Supabase).
 - Soundtrack: 2.5-minute open-world loop plus one loop per minigame and the mission; ambient sound by location.
 
-On branch `feat/catacomb` (not on `main` yet):
+On branch `feat/catacomb` ([PR #50](https://github.com/jonatsl/haarklous-online/pull/50), not on `main` yet):
 - A large catacomb under Torshovdalen with three entrances about 100 m apart (marked ☠ on the map): torch-lit bone galleries with real-looking skulls, dark quarry tunnels where you use your torch (□ / L1 / Q), and a map that is wiped underground and fills in with what you see (issue #43).
 
 Live site: runs `main` (Worker version 82250255, deployed 2 Nov 2026 after PR #46; `main` builds byte-for-byte to the live page), so everything above is online.
@@ -79,7 +79,7 @@ Live site: runs `main` (Worker version 82250255, deployed 2 Nov 2026 after PR #4
   - In the browser (simulated controller): walked down the north stair to the hall; the map switched; the dark tunnel showed the prompt and □ lit the torch; screenshots of the mausoleum, the ossuary, the rotunda, the crypt and the Sacellum.
   - Underground about 100 draw calls and 0.8 M triangles. On the surface by the mausoleums it is 1.2 k calls and 1.6 M triangles, as before.
   - Not checked: frame rate on the user's PC (the browser pane was hidden), and sound by ear.
-- **Status:** branch `feat/catacomb`, pull request pending; not on `main`, not live.
+- **Status:** branch `feat/catacomb`, [PR #50](https://github.com/jonatsl/haarklous-online/pull/50) (open); not on `main`, not live.
 
 ### 2026-11-02 · Map waypoint and an optional minimap (issues #41 and #42)
 - **What:**
