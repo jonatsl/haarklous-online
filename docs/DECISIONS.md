@@ -30,7 +30,7 @@ On `main`:
 - Player accounts (optional): create an account or log in with email and password in the pause menu; your account name is your lobby name (PR #34, Better Auth + Supabase).
 - Soundtrack: 2.5-minute open-world loop plus one loop per minigame and the mission; ambient sound by location.
 
-On branch `feat/gamle-oslo-ensjo` (issue #38, not merged yet):
+On branch `feat/gamle-oslo-ensjo` (issue #38, PR #48, not merged yet):
 - Gamle Oslo, Ensjø and the way there: real streets, ground heights and about 7,900 buildings south of the old world (3.4 × 3.4 km, down Trondheimsveien to Bjørvika); churches, MUNCH, the Opera (walkable roof) and tall chimneys modelled; a timed Ensjø → Rathkes gate run.
 
 Live site: runs `main` (Worker version 82250255, deployed 2 Nov 2026 after PR #46; `main` builds byte-for-byte to the live page), so everything above is online.
@@ -65,7 +65,7 @@ Live site: runs `main` (Worker version 82250255, deployed 2 Nov 2026 after PR #4
   - In a browser: crossing the old edge on foot along Trondheimsveien, buildings block you, the Opera roof climbed 28.7 m, the run started, timed, finished, paid, saved and sent you back to Ensjø, the aerial photo loads in about 5 s, and the map shows the district.
   - Not checked: a real controller, the frame rate on the user's PC, online play with others in the district.
 - **Where:** `tools/fetch-district.py`, `tools/make-district.py`, `assets/osm/gamle-oslo-*`, `gamle-oslo-data.js`, `district.js`, `surroundings.js`, `game-landmarks.js`, `game-route.js`, `game-main.js`, `index.html`, `README.md`, `tests/district.test.cjs`, `docs/HANDOFF.md`.
-- **Status:** branch `feat/gamle-oslo-ensjo`, not merged, not live.
+- **Status:** branch `feat/gamle-oslo-ensjo`, PR #48, not merged, not live.
 
 ### 2026-11-02 · Map waypoint and an optional minimap (issues #41 and #42)
 - **What:**
