@@ -96,6 +96,9 @@
       const w = Math.round(el.clientWidth * devicePixelRatio), h = Math.round(el.clientHeight * devicePixelRatio), k = map.scale * devicePixelRatio;
       if (canvas.width !== w || canvas.height !== h) {canvas.width = w;canvas.height = h;}
       const P = (x, s) => [w / 2 + (x - map.cx) * k, h / 2 + (s - map.cs) * k];
+      // Underground (the catacomb, issue #43) the layer paints the whole map: only what you have seen down there.
+      el.querySelector('.map-legend').hidden = !!map.layer;
+      if (map.layer) {map.layer.draw(ctx, {P, k, w, h, dpr: devicePixelRatio, rotation: 0, player: lastPlayer});return;}
       const key = [w, h, map.cx, map.cs, map.scale].join();if (key !== baseKey) {if (base.width !== w || base.height !== h) {base.width = w;base.height = h;}drawBase(w, h, k, P);baseKey = key;}
       ctx.drawImage(base, 0, 0);ctx.textAlign = 'center';
       // Points of interest.

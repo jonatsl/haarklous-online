@@ -39,10 +39,14 @@
     PB_DATA && {x0: PB_DATA.rect.x0 - 1, s0: PB_DATA.rect.s0 - 1, x1: PB_DATA.rect.x0 + PB_DATA.rect.w + 1, s1: PB_DATA.rect.s0 + PB_DATA.rect.d + 1},
     // The yard's own floor and retaining walls replace the ground there: without this cut the hillside was drawn through the
     // yard, up to 4.6 m above the floor, and players on it looked as if they were under the ground (issue #26).
-    PB_DATA && {x0: PB_DATA.rect.x0, s0: PB_DATA.rect.s0, x1: PB_DATA.rect.x0 + PB_DATA.rect.w, s1: PB_DATA.rect.s0 + PB_DATA.rect.d, cutGround: true}].filter(Boolean);
+    PB_DATA && {x0: PB_DATA.rect.x0, s0: PB_DATA.rect.s0, x1: PB_DATA.rect.x0 + PB_DATA.rect.w, s1: PB_DATA.rect.s0 + PB_DATA.rect.d, cutGround: true},
+    // The catacomb's three mausoleums stand over holes in the ground (their stairs start inside, issue #43).
+    ...(window.CatacombLayout ? window.CatacombLayout.holes() : [])].filter(Boolean);
   const world = window.Surroundings.create({T, lib, data: D, renderer, holes, onStatus: t => {const el = $('imageryStatus');if (el) el.textContent = t;}});
   scene.add(world.near);farScene.add(world.far);world.setSun(sunDir);
-  const apt = window.GameApartment.build({T, lib, data: window.APARTMENT});scene.add(apt.group);
+  // The catacomb under Torshovdalen (issue #43): three mausoleums, long stairs, torch-lit bone galleries and dark quarry tunnels.
+  const catacomb = window.GameCatacomb ? window.GameCatacomb.create({T, lib, world, audio}) : null;if (catacomb) scene.add(catacomb.group);
+  const apt =window.GameApartment.build({T, lib, data: window.APARTMENT});scene.add(apt.group);
   // Stair towers: ours (model coordinates) and one in each enterable neighbouring building.
   const towers = [];
   const ownStair = window.Stairwell.create({T, lib, own: true, id: 'own', wallTop: D.own.top});scene.add(ownStair.group);ownStair.group.updateMatrixWorld(true);
@@ -112,17 +116,18 @@
     if (pbRules) {const y = pbRules.ground(x, z);if (y !== null) return y;}
     return world.heightWorld(x, z);
   }
-  const groundFloor = {...world.terrainFloor(), height: p => groundAt(p.x, p.z)};
-  const extraObstacles = [...(siteField ? window.GameSite.fenceObstacles(siteField, groundAt) : []), ...(pbRules ? pbRules.obstacles : [])];
+  // Inside a catacomb mausoleum the ground is not walked on: its door threshold, landing and stair take over (far below = no floor).
+  const groundFloor = {...world.terrainFloor(), height: p => catacomb && catacomb.cutsGround(p.x, p.z) ? -1e4 : groundAt(p.x, p.z)};
+  const extraObstacles = [...(siteField ? window.GameSite.fenceObstacles(siteField, groundAt) : []), ...(pbRules ? pbRules.obstacles : []), ...(catacomb ? catacomb.obstacles : [])];
   const staticObstacles = [...apt.obstacles, ...towers.flatMap(towerObstacles), ...world.obstacles(), ...fire.obstacles, ...stash.obstacles, ...shops.obstacles, ...sculpture.obstacles, ...oksen.obstacles, ...extraObstacles];
-  const walkFloors = [...apt.floors, ...towers.flatMap(towerFloors), ...shops.floors, ...sculpture.floors, ...oksen.floors, groundFloor];
+  const walkFloors = [...apt.floors, ...towers.flatMap(towerFloors), ...shops.floors, ...sculpture.floors, ...oksen.floors, ...(catacomb ? catacomb.floors : []), groundFloor];
   const walkWorld = collision.createWorld({floors: walkFloors, obstacles: staticObstacles, radius: .18, clearance: .08});
   const vehicleWorlds = new Map();
   let vehicleBlockers = null;// the other vehicles' footprints from the last updateDynamic()
   function worldFor(r) {
     const key = r.toFixed(2);
     if (!vehicleWorlds.has(key)) {
-      const w = collision.createWorld({floors: [groundFloor], obstacles: [...world.obstacles(), ...towers.flatMap(towerObstacles), ...fire.obstacles, ...shops.obstacles, ...sculpture.obstacles, ...oksen.obstacles, ...extraObstacles], radius: r, clearance: .08});
+      const w = collision.createWorld({floors: [groundFloor], obstacles: [...world.obstacles(), ...towers.flatMap(towerObstacles), ...fire.obstacles, ...shops.obstacles, ...sculpture.obstacles, ...oksen.obstacles, ...extraObstacles, ...(catacomb ? catacomb.vehicleObstacles : [])], radius: r, clearance: .08});
       // A world made during play (e.g. the bike's on its first ride) gets the other vehicles at once, not one update later.
       if (vehicleBlockers) collision.setDynamic(w, vehicleBlockers);
       vehicleWorlds.set(key, w);
@@ -310,6 +315,7 @@
     {x: SCULPTURE_AT.x, s: SCULPTURE_AT.s, color: '#7a5c3e', label: 'HODET N.N.', glyph: '◉'},
     {x: OKSEN_AT.x, s: OKSEN_AT.s, color: '#3a4436', label: 'Torshovoksen', glyph: '◉'},
     {...world.toLocal(AIR.jump.x, AIR.jump.z), color: '#c8322c', label: 'Skydiving (jump plane)', glyph: '🪂'},
+    ...(catacomb ? catacomb.poi() : []),
   ]});
   // Wristwatch (D-pad ↑) shares the first-person overlay with the photo camera.
   const watch = window.GameWatch.create({T, lib});overlayScene.add(watch.model);
@@ -355,6 +361,7 @@
     // Doors first (the street door of 17A opens normally), then the mission marker beside the entrance.
     {const o = lookTarget();if (o?.userData.doorId) {const d = doors.find(d => d.id === o.userData.doorId);if (d) return {text: `□ ${d.open ? 'Close' : 'Open'} ${d.name.toLowerCase()}`, act: () => toggleDoor(d)};}}
     if (Math.hypot(player.x - MISSION_MARK.x, player.z - MISSION_MARK.z) < 1.6 && Math.abs(player.feet - world.heightWorld(MISSION_MARK.x, MISSION_MARK.z)) < 2) return {text: '□ Start mission: rescue the hostage (4th floor)', act: () => startMission()};
+    {const cp = catacomb && player.mode === 'foot' ? catacomb.prompt() : null;if (cp) return cp;}
     const shp = shopPrompt();if (shp) return shp;
     const fp = firePrompt();if (fp) return fp;
     const sp = stashPrompt();if (sp) return sp;
@@ -565,7 +572,7 @@
     const np = music.position();$('nowPlaying').textContent = np ? `${np.title} (${Math.floor(np.length / 60)}:${String(Math.round(np.length % 60)).padStart(2, '0')} loop)` : '–';
   }
   $('musicVol').oninput = e => {music.setVolume(+e.target.value);renderSettings();};
-  function musicTrack() {if (caseGame?.active) return 'mission';if (player.mode === 'minigame') return discCourses.includes(player.minigame) ? 'discgolf' : 'petanque';return 'main';}
+  function musicTrack() {if (caseGame?.active) return 'mission';if (catacomb?.state.inside) return null;if (player.mode === 'minigame') return discCourses.includes(player.minigame) ? 'discgolf' : 'petanque';return 'main';}
   $('sensPad').oninput = e => {setSens('pad', +e.target.value);renderSettings();};$('sensMouse').oninput = e => {setSens('mouse', +e.target.value);renderSettings();};
   $('minimapOn').onchange = e => {map.minimap = e.target.checked;};
   $('imagery').onchange = e => {try {localStorage.setItem('haarklous-aerial-imagery-v1', e.target.checked ? 'on' : 'off');} catch {}world.setImagery(e.target.checked);};
@@ -604,6 +611,7 @@
       // The button that left the mission (○, ✕ …) must not also crouch or jump.
       if (!caseGame.active) {player.mode = 'foot';['circle', 'cross', 'square', 'options'].forEach(b => input.pressed.delete(b));}
     }
+    if (catacomb) catacombTick(dt, input);
     if (input.pressed.has('touchpad') && !caseGame?.active) map.toggle(player);
     if (map.open) {
       if (input.pressed.has('circle')) map.toggle();
@@ -675,7 +683,7 @@
     renderFrame(dt, t);
   }
   // The other players' arrows on the map and the minimap (their slot colour and name).
-  const lobbyArrows = () => mp ? [...mp.remotes.values()].filter(r => r.seen).map(r => ({x: r.pos.x, z: r.pos.z, headingLocal: -(r.yaw - theta), color: window.GameAvatars.slotCss(r.slot), name: r.name})) : [];
+  const lobbyArrows = () => mp ? [...mp.remotes.values()].filter(r => r.seen).map(r => ({x: r.pos.x, z: r.pos.z, y: r.pos.y, headingLocal: -(r.yaw - theta), color: window.GameAvatars.slotCss(r.slot), name: r.name})) : [];
   // Minimap (issue #42) and the waypoint pin (issue #41): centred on you (on the drone while you fly it), turned with the camera.
   const camDir = new T.Vector3();
   function updateGuide(dt) {
@@ -684,7 +692,7 @@
     const alt = player.mode === 'drone' || player.mode === 'skydive' || player.vehicle?.aircraft ? camera.position.y - groundAt(at.x, at.z) : 0;
     if (map.guide({dt, camera, x: at.x, z: at.z, you: player, heading, view, alt, others: lobbyArrows(), ground: groundAt, show: !photo.active}) === 'reached') notice('Waypoint reached.', 2.5);
   }
-  function placeName() {if (inApartment()) return 'Haarklous plass 17A, 4th floor';const tw = towerAt(player.x, player.z, player.feet);if (tw) return tw.t.own ? 'Stairwell, Haarklous plass 17A' : 'Stairwell, Torshov';return 'Torshov, Oslo';}
+  function placeName() {if (inApartment()) return 'Haarklous plass 17A, 4th floor';{const c = catacomb && catacomb.placeName(player);if (c) return c;}const tw = towerAt(player.x, player.z, player.feet);if (tw) return tw.t.own ? 'Stairwell, Haarklous plass 17A' : 'Stairwell, Torshov';return 'Torshov, Oslo';}
 
   function updateFoot(dt, input, dl) {
     // Look.
@@ -728,7 +736,7 @@
     let surface = 'grass', stair = false;
     if (shops.shopAt(player, player.feet)) surface = 'tile';
     else if (inApartment()) {const r = roomAt();surface = r === 'bath' ? 'tile' : r ? 'wood' : 'metal';}
-    else if (towerAt(player.x, player.z, player.feet)) {surface = 'stone';stair = true;}
+    else if (towerAt(player.x, player.z, player.feet) || catacomb?.state.depth > 0) {surface = 'stone';stair = true;}
     else {const s = world.surfaceAt(player.x, player.z);surface = s === 'asphalt' ? 'asphalt' : s === 'gravel' ? 'gravel' : s === 'sand' ? 'sand' : 'grass';}
     audio.footstep(surface, stair, soft);
   }
@@ -1197,12 +1205,33 @@
     if (r.camera) {camera.position.set(r.camera.x, r.camera.y, r.camera.z);camera.lookAt(r.camera.lookAt);}
     else {camera.position.set(player.x, player.feet + player.eye, player.z);camera.rotation.order = 'YXZ';camera.rotation.set(player.pitch, player.yaw, 0);}
   }
+  // ---------- Catacomb (issue #43) ----------
+  // Underground the map shows only what you have seen down there; L1 / Q is your torch. Deep down (off the stairs) the world
+  // above, the far scene and the sun's shadows are not drawn, and the sun and sky are dimmed for anything not made for the dark.
+  let deepNow = false, deepSaved = null;
+  function catacombTick(dt, input) {
+    const st = catacomb.update(dt, {camera, player}), layer = st.inside ? catacomb.mapLayer : null;
+    // The tunnels are 2 m wide, so the map zooms in down here and back out above.
+    if (map.layer !== layer) {map.layer = layer;if (layer) {map.surfaceScale = map.scale;map.scale = Math.max(map.scale, 6);notice('The catacombs. Your map is blank down here – it fills in with what you see.', 5);} else if (map.surfaceScale) map.scale = map.surfaceScale;}
+    if (input.pressed.has('l1') && st.inside && player.mode === 'foot') notice(catacomb.toggleLamp() ? 'Torch on · L1 / Q switches it off' : 'Torch off', 2);
+    const deep = st.camDeep;
+    if (deep) {
+      if (!deepSaved) deepSaved = {fog: scene.fog.color.clone()};
+      if (sun.intensity > 0) {deepSaved.sun = sun.intensity;deepSaved.sky = sky.intensity;sun.intensity = 0;sky.intensity = deepSaved.sky * .15;}
+      scene.fog.color.setHex(0x0a0807);scene.fog.density = .045;
+    } else if (deepSaved) {
+      if (deepSaved.sun !== undefined) {sun.intensity = deepSaved.sun;sky.intensity = deepSaved.sky;}
+      scene.fog.color.copy(deepSaved.fog);deepSaved = null;applyNearFog();if (weather.state) applyWeather(weather.state);
+    }
+    // Eyes get used to the dark: more exposure deep down.
+    if (deep !== deepNow) {deepNow = deep;world.near.visible = !deep;renderer.shadowMap.autoUpdate = !deep;renderer.shadowMap.needsUpdate = true;renderer.toneMappingExposure = deep ? 1.6 : 1.05;}
+  }
   let weatherIndoor = false;
   function updateAmbience() {
-    const inApt = inFlat(), tw = towerAt(player.x, player.z, player.feet), indoor = inApt || tw || shops.shopAt(player, player.feet) ? 1 : player.mode === 'jumpseat' ? .6 : player.vehicle && player.vehicle.kind === 'car' ? .7 : player.vehicle && player.vehicle.aircraft ? .4 : 0;
+    const inApt = inFlat(), tw = towerAt(player.x, player.z, player.feet), under = catacomb?.state.depth > .3, indoor = inApt || tw || under || shops.shopAt(player, player.feet) ? 1 : player.mode === 'jumpseat' ? .6 : player.vehicle && player.vehicle.kind === 'car' ? .7 : player.vehicle && player.vehicle.aircraft ? .4 : 0;
     weatherIndoor = indoor >= 1 && player.mode !== 'drone';
     const skyAir = player.mode === 'skydive' && skyd.jumper ? Math.hypot(skyd.jumper.vel.x, skyd.jumper.vel.y, skyd.jumper.vel.z) : 0;const ws = weather.state, wet = ws && ['rain', 'sleet', 'snow'].includes(ws.kind) ? ws.intensity : 0;
-    audio.ambience({indoor, rain: ws && ws.kind === 'rain' ? wet : ws && ws.kind === 'sleet' ? wet * .6 : 0, windSpeed: Math.max(ws ? ws.wind : 4, skyAir), green: world.greenery(player.x, player.z), traffic: world.trafficDistance(player.x, player.z), height: Math.max(0, player.feet - heightAt(player.x, player.z)) + (inApt ? 10 : 0), stair: Boolean(tw), kitchen: inApt && roomAt() === 'kitchen'});
+    audio.ambience({indoor, rain: ws && ws.kind === 'rain' ? wet : ws && ws.kind === 'sleet' ? wet * .6 : 0, windSpeed: Math.max(ws ? ws.wind : 4, skyAir), green: world.greenery(player.x, player.z), traffic: world.trafficDistance(player.x, player.z), height: Math.max(0, player.feet - heightAt(player.x, player.z)) + (inApt ? 10 : 0), stair: Boolean(tw) || under, kitchen: inApt && roomAt() === 'kitchen'});
     // Stair-tower light follows the player into whichever stairwell they are in.
     if (tw) {const l = tw.t.stair.lampAt({x: tw.l.x, z: tw.l.z}, player.feet - tw.t.matrix.elements[13]);if (l) {const p = new T.Vector3(l.x, l.y, l.z).applyMatrix4(tw.t.matrix);towerLamp.position.copy(p);towerLamp.intensity = 5.5;}} else towerLamp.intensity = 0;
     if (!['vehicle', 'passenger', 'jumpseat', 'skydive'].includes(player.mode)) $('speedo').hidden = true;
@@ -1213,12 +1242,12 @@
   const ghost = $('ghost'), gctx = ghost.getContext('2d');
   function renderFrame(dt, t, forPhoto = false) {
     // Sun shadow frustum follows the player (wide outdoors, tight indoors for crisp shadows).
-    const flying = player.mode === 'drone' || player.vehicle?.aircraft, indoor = !flying && (inApartment() || towerAt(player.x, player.z, player.feet)), reach = indoor ? 16 : 42;
+    const flying = player.mode === 'drone' || player.vehicle?.aircraft, indoor = !flying && (inApartment() || towerAt(player.x, player.z, player.feet) || catacomb?.state.inside), reach = indoor ? 16 : 42;
     if (flying) {const c = camera.position;sun.target.position.set(c.x, Math.max(heightAt(c.x, c.z), c.y - 25), c.z);} else sun.target.position.set(player.x, player.feet, player.z);sun.position.copy(sun.target.position).addScaledVector(sunDir, indoor ? 45 : 110);sun.target.updateMatrixWorld();
     if (sun.shadow.camera.right !== reach) {Object.assign(sun.shadow.camera, {left: -reach, right: reach, top: reach, bottom: -reach, near: 1, far: indoor ? 100 : 240});sun.shadow.camera.updateProjectionMatrix();}
     camera.updateMatrixWorld();
     farCamera.fov = camera.fov;farCamera.aspect = camera.aspect;farCamera.position.copy(camera.position);farCamera.quaternion.copy(camera.quaternion);farCamera.updateProjectionMatrix();farCamera.updateMatrixWorld();
-    renderer.autoClear = false;renderer.clear();renderer.render(farScene, farCamera);renderer.clearDepth();renderer.render(scene, camera);
+    renderer.autoClear = false;renderer.clear();if (!deepNow) renderer.render(farScene, farCamera);renderer.clearDepth();renderer.render(scene, camera);
     if (!forPhoto) {
       if (caseGame?.active) caseGame.renderOverlay(camera);
       else {const showWatch = watch.update(dt), showPhoto = photo.active && !photo.gallery;photo.model.visible = showPhoto;if (showPhoto || showWatch || paintball?.marker.visible) {renderer.clearDepth();renderer.render(overlayScene, overlayCamera);}}
@@ -1235,7 +1264,7 @@
   }
 
   // ---------- Test / inspection handle ----------
-  window.haarklousGame = {player, vehicles, site, paintball, groundAt, heli, plane, drone, watch, fire, stash, shops, sculpture, oksen, weather, caravan, get skyd() {return skyd;}, get autoPlane() {return autoPlane;}, get jumpFlight() {return jumpFlight;}, boardAuto, boardCaravan, jump, get gp() {return gp;}, callGamePilot, handOver, CARAVAN_HOLD, applyWeather, wallet, get basket() {return basket;}, payAt, takeProduct, useItem, earn, openBag, takeBoost, get boost() {return boost;}, set boost(b) {boost = b;}, get mp() {return mp;}, sitDown, standUp, tryDrive, tryRide, openChat, startDrone, stopDrone, floorBelow, doors, mini, music, photo, map, world, apt, towers, walkWorld, get caseGame() {return caseGame;}, place, toggleDoor, enterVehicle, exitVehicle, startMinigame, startMission, drink, interact, findPrompt, renderFrame, begin, get fps() {return fpsAvg;}, kick: () => requestAnimationFrame(frame), get drunk() {return drunk;}, set drunk(v) {drunk = v;}, setStance, camera, scene};
+  window.haarklousGame = {player, vehicles, site, paintball, catacomb, groundAt, heli, plane, drone, watch, fire, stash, shops, sculpture, oksen, weather, caravan, get skyd() {return skyd;}, get autoPlane() {return autoPlane;}, get jumpFlight() {return jumpFlight;}, boardAuto, boardCaravan, jump, get gp() {return gp;}, callGamePilot, handOver, CARAVAN_HOLD, applyWeather, wallet, get basket() {return basket;}, payAt, takeProduct, useItem, earn, openBag, takeBoost, get boost() {return boost;}, set boost(b) {boost = b;}, get mp() {return mp;}, sitDown, standUp, tryDrive, tryRide, openChat, startDrone, stopDrone, floorBelow, doors, mini, music, photo, map, world, apt, towers, walkWorld, get caseGame() {return caseGame;}, place, toggleDoor, enterVehicle, exitVehicle, startMinigame, startMission, drink, interact, findPrompt, renderFrame, begin, get fps() {return fpsAvg;}, kick: () => requestAnimationFrame(frame), get drunk() {return drunk;}, set drunk(v) {drunk = v;}, setStance, camera, scene};
   loading.remove();$('start').hidden = false;
   requestAnimationFrame(frame);
 })();
