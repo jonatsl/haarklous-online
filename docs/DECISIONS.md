@@ -69,7 +69,7 @@ Live site: runs `main` (Worker version a75a02dc, deployed 3 Nov 2026 after PR #7
   - In the browser (offline): pictures from the banks, a bridge, 45 m and 300 m up and from 2 km away along the whole river show the water; from both banks every 40 m along the river (238 sight lines from eye height, 6 m from the water) the middle of the river is never hidden by ground; in the game's real meshes 0 water points are under the near ground.
   - Cost: +1 draw call and +2,400 triangles (the far ribbon); the near water strips were drawn before too (just upside down). The start takes about 50–80 ms longer (the lowering).
   - Not checked: on the user's own PC; with aerial imagery on.
-- **Status:** branch `fix/akerselva-water`, pull request (not merged yet).
+- **Status:** branch `fix/akerselva-water`, [PR #78](https://github.com/jonatsl/haarklous-online/pull/78) (not merged yet).
 
 ### 2026-11-03 · `main` is live (PR #70, saved progress, badges and the photo hunt)
 - **What:** saved progress for accounts, badges and the photo hunt (PR #70, issues #54 and #58) are merged into `main` (93d4f27) and deployed (Cloudflare Worker version a75a02dc).
