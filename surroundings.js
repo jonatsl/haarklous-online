@@ -64,7 +64,7 @@
       const g = new T.BufferGeometry();g.setAttribute('position', new T.BufferAttribute(pos, 3));g.setAttribute('uv', new T.BufferAttribute(uv, 2));g.setIndex(index);g.computeVertexNormals();
       const tex = new T.CanvasTexture(canvas);tex.colorSpace = T.SRGBColorSpace;tex.anisotropy = 8;
       const m = new T.Mesh(g, new T.MeshStandardMaterial({map: tex, color: 0xa6a6a6, roughness: .97, metalness: 0, envMapIntensity: .35}));
-      m.receiveShadow = true;m.name = name;parent.add(m);return {mesh: m, tex};
+      m.receiveShadow = true;m.name = name;m.userData.grid = {x0: -extent, s0: -extent, step: res, nx: count, ns: count};parent.add(m);return {mesh: m, tex};
     }
 
     // ---------- Map painting (offline ground texture) and surface classes ----------
@@ -434,7 +434,7 @@
       }
       if (!index.length) return null;
       const g = new T.BufferGeometry();g.setAttribute('position', new T.BufferAttribute(pos, 3));g.setAttribute('normal', new T.BufferAttribute(nor, 3));g.setAttribute('uv', new T.BufferAttribute(uv, 2));g.setIndex(index);g.computeBoundingSphere();
-      const m = new T.Mesh(g, material);m.receiveShadow = true;m.name = name;m.userData.noMerge = true;return m;
+      const m = new T.Mesh(g, material);m.receiveShadow = true;m.name = name;m.userData.noMerge = true;m.userData.grid = {x0, s0, step: res, nx: ni + 1, ns: nj + 1, ownNormals: true};return m;
     }
     const texFrom = (w, h, draw, mw, mh) => {const c = document.createElement('canvas');c.width = w;c.height = h;draw(c.getContext('2d'), w, h);const t = new T.CanvasTexture(c);t.colorSpace = T.SRGBColorSpace;t.wrapS = t.wrapT = T.RepeatWrapping;t.repeat.set(1 / mw, 1 / mh);t.anisotropy = 8;return t;};
     // Plaster with four windows per 12 m and storey (3 m); glass bands with mullions every 1.5 m (3.6 m storeys); ribbed metal.
@@ -465,7 +465,7 @@
       d.buildings.forEach((b, i) => {
         const ring = b.ring;if (ring.length < 3) return;
         let cx = 0, cs = 0, gm = Infinity;for (const p of ring) {cx += p[0];cs += p[1];gm = Math.min(gm, relLocal(p[0], p[1]));}cx /= ring.length;cs /= ring.length;
-        const g0 = ground + relLocal(cx, cs), bottom = ground + gm - .6, top = g0 + b.h, set = nearSet(b.tile), f = farSet(b.tile);
+        const g0 = ground + relLocal(cx, cs), bottom = ground + Math.min(gm, b.gm ?? Infinity) - .6, top = g0 + b.h, set = nearSet(b.tile), f = farSet(b.tile);
         Object.assign(b, {cx, cs, base: g0, bottom, top});
         if (b.style === 'brick') {
           walls(set.plinth, ring, bottom, Math.min(g0 + data.plinth, top), g0);if (top > g0 + data.plinth) walls(set.facade, ring, g0 + data.plinth, top, g0 + data.plinth);
