@@ -43,6 +43,16 @@ Live site: runs `main` (Worker version 4a8eab68, deployed 3 Nov 2026 after PR #6
 
 ## Log
 
+### 2026-11-03 · `main` is live (PR #61, the disc golf course on the minimap)
+- **What:** the disc golf course on the minimap and the walk to the next tee (PR #61, issue #60) are merged into `main` (4bfcf20) and deployed (Cloudflare Worker version 4a8eab68).
+  - Deployed from this session's own clean worktree at the merge commit, with `cloud/` packages installed by `npm ci`.
+  - The jobs, e-scooters and city bikes (PR #62) were already live before this deploy; their "live" entry is in PR #66.
+- **Why:** the user said "Merge and deploy" (3 Nov 2026).
+- **Checked:**
+  - `node --test tests/*.cjs`: 117 pass on the merged `main`.
+  - `main` builds byte-for-byte to the committed `haarklous-game.html`, and the live page is byte-for-byte the build.
+- **Status:** live. Issue #60 is closed (GitHub closed it when PR #61 was merged).
+
 ### 2026-11-03 · Disc golf course layout on the minimap (issue #60)
 - **What:**
   - During a disc golf round (Muselunden or Torshovdalen) the round minimap shows the course:
@@ -66,7 +76,7 @@ Live site: runs `main` (Worker version 4a8eab68, deployed 3 Nov 2026 after PR #6
   - `node --test tests/*.cjs`: 107 pass (5 new); 117 pass after merging `main` with the jobs and bikes (PR #62). On the big map the course's icons stay hidden during a round, and the city bike docks keep their zoom labels.
   - In the browser (simulated controller, offline): a real throw on Muselunden hole 1 landed 68 m short and showed as the pink dot with "68 m"; after the hole the walk to tee 2 showed the dashed line and "43 m to the tee"; running onto the tee started hole 2 without a throw; the big map showed the layout; ○ ended the round and the minimap went off again (setting off) or stayed on (setting on); Torshovdalen showed its drawn outline. No script errors.
   - Not checked: on the user's own PC and controller.
-- **Status:** merged into `main` ([PR #61](https://github.com/jonatsl/haarklous-online/pull/61), 4bfcf20) and live (Worker version 4a8eab68, 3 Nov 2026).
+- **Status:** merged into `main` ([PR #61](https://github.com/jonatsl/haarklous-online/pull/61), 4bfcf20) and live (Worker version 4a8eab68, 3 Nov 2026). Issue #60 is closed.
 
 ### 2026-11-03 · `main` is live (PR #62, jobs, e-scooters and city bikes)
 - **What:** delivery and taxi jobs, e-scooters and Oslo city bikes (PR #62, issues #56 and #57) are merged into `main` (9bdda69) and deployed (Cloudflare Worker version a218d9f4).
