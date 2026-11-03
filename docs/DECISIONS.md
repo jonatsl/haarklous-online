@@ -35,20 +35,22 @@ On `main`:
 - Rathkes gate 1: the gate, the passage and the backyard with door 1C, ready for the second flat (issue #44, preparation).
 - Klatreverket Torshov at its real place (Myrens verksted 3K) in its real building: 14 m hall, 7 m overhanging competition wall, Galleriet, autobelay tower, bouldering on three floors, the training room with the Moonwall; reception with the real prices and rental; climb with L2 / R2 (bouldering, top rope with Siri belaying, lead with clips, autobelay), pump, falls on the rope, the brattkort test and belaying Siri.
 - The ground round Myrens verksted and Akerselva (district patch 'myrens').
+- A large catacomb under Torshovdalen with three entrances about 100 m apart (marked ☠ on the map): torch-lit bone galleries with real-looking skulls, dark quarry tunnels where you use your torch (□ / L1 / Q), and a map that is wiped underground and fills in with what you see (PR #50, issue #43).
 
-Live site: Worker version 6b288cd0 (deployed 3 Nov 2026 after PR #49), so everything above is online. `main` has since got the catacomb below, which is not deployed yet.
-
-On `main` since [PR #50](https://github.com/jonatsl/haarklous-online/pull/50) (3 Nov 2026), not deployed yet:
-- A large catacomb under Torshovdalen with three entrances about 100 m apart (marked ☠ on the map): torch-lit bone galleries with real-looking skulls, dark quarry tunnels where you use your torch (□ / L1 / Q), and a map that is wiped underground and fills in with what you see (issue #43).
+Live site: runs `main` (Worker version cfea339d, deployed 3 Nov 2026 after PR #50; `main` builds byte-for-byte to the live page), so everything above is online.
 
 ## Log
 
-### 2026-11-03 · The catacomb (PR #50) is merged; not deployed yet
-- **What:** the catacomb (PR #50, issue #43) is merged into `main` (85841c8).
-  - `main` builds byte-for-byte to the committed game file; 102 Node tests pass on it.
-  - The deploy (`npx wrangler deploy` from `cloud/`) was blocked by Claude Code's permission check. The live site still runs Worker version 6b288cd0, without the catacomb.
-- **Why:** the user said "Merge 50" (3 Nov 2026).
-- **Status:** on `main`; not live until the next deploy.
+### 2026-11-03 · `main` is live (PR #50, the catacomb)
+- **What:** the catacomb (PR #50, issue #43) is merged into `main` (85841c8) and deployed (Cloudflare Worker version cfea339d).
+  - Deployed from this session's own worktree at the merge commit, with `cloud/` packages installed by `npm ci`.
+  - The first deploy try was blocked by Claude Code's permission check until the user asked for it.
+- **Why:** the user said "Merge 50", then "All merged things should be deployed now" (3 Nov 2026).
+- **Checked:**
+  - `node --test tests/*.cjs`: 102 pass on the merged `main`.
+  - The live page is byte-for-byte the build, and `/weather` answers 200.
+  - The live game loads the catacomb (66 chunks), Klatreverket, the kayak and the Ensjø run, with no console errors.
+- **Status:** live.
 
 ### 2026-11-03 · `main` is live (PR #49)
 - **What:** Klatreverket Torshov (PR #49, issue #40) is merged into `main` and deployed (Cloudflare Worker version 6b288cd0).
@@ -102,7 +104,7 @@ On `main` since [PR #50](https://github.com/jonatsl/haarklous-online/pull/50) (3
   - In the browser (simulated controller): walked down the north stair to the hall; the map switched; the dark tunnel showed the prompt and □ lit the torch; screenshots of the mausoleum, the ossuary, the rotunda, the crypt and the Sacellum.
   - Underground about 100 draw calls and 0.8 M triangles. On the surface by the mausoleums it is 1.2 k calls and 1.6 M triangles, as before.
   - Not checked: frame rate on the user's PC (the browser pane was hidden), and sound by ear.
-- **Status:** merged into `main` ([PR #50](https://github.com/jonatsl/haarklous-online/pull/50), 85841c8, 3 Nov 2026); not deployed yet.
+- **Status:** merged into `main` ([PR #50](https://github.com/jonatsl/haarklous-online/pull/50), 85841c8) and live (Worker version cfea339d, 3 Nov 2026).
 
 ### 2026-11-03 · `main` is live (PR #51)
 - **What:** Grünerløkka (PR #51: Akerselva kayak, table tennis at Schous plass, Deichman Grünerløkka and its librarian, Rathkes gate 1) is merged into `main` and deployed (Cloudflare Worker version ddf8bd0a). Issues #44, #45 and #47 are closed.
