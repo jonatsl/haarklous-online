@@ -207,7 +207,7 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
 #phone div:not(.ph-bar){padding:7px 10px;border-radius:10px;display:flex;flex-direction:column;background:#ffffff0d}#phone div small{opacity:.75;font-size:12px}
 #phone div.sel{background:#ffd166;color:#111;font-weight:700}#phone div.off{opacity:.45}#phone .ph-keys{opacity:.65;margin-top:4px;padding:0 6px}
 /* Badges, the photo hunt and best scores (issue #58); the question box (issue #54) */
-#badges{z-index:7}#askBox{z-index:8}
+#badges{z-index:7}#askBox{z-index:8}#acctLink{z-index:9}#acctLink .panel{background:#11161c}
 #badges .panel{width:min(760px,calc(100% - 32px))}
 #badges h3{margin:18px 0 8px}#badges h3 small{font-weight:400;font-size:12px;opacity:.75;margin-left:6px}
 #badges ul{list-style:none;margin:0;padding:0;display:grid;gap:8px}
