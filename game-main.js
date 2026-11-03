@@ -138,7 +138,17 @@
   }
   // Inside a catacomb mausoleum the ground is not walked on: its door threshold, landing and stair take over (far below = no floor).
   const groundFloors = world.terrainFloors().map(f => ({...f, height: p => catacomb && catacomb.cutsGround(p.x, p.z) ? -1e4 : groundAt(p.x, p.z)}));
-  const extraObstacles = [...(siteField ? window.GameSite.fenceObstacles(siteField, groundAt) : []), ...(pbRules ? pbRules.obstacles : []), ...(catacomb ? catacomb.obstacles : [])];
+  // Oslo city bike docks (issue #57) at their real places, from the operator's open data: posts and a totem with the name.
+  const rides = window.GameRentals && window.RIDES ? window.GameRentals.create({T, lib, audio, data: window.RIDES, toWorld: world.toWorld, heightAt: groundAt}) : null;
+  if (rides) scene.add(rides.group);
+  // Job signs (issue #56) beside the doors of Joker and Kiwi; □ there opens the jobs phone. Their doors are delivery pickups too.
+  const JOB_SIGNS = shops.shops.map(sh => {
+    const L = sh.local, at = (a, b) => world.toWorld(L.P0[0] + L.u[0] * a + L.n[0] * b, L.P0[1] + L.u[1] * a + L.n[1] * b), door = L.W - 2;
+    const p = at(door - 2.3, -1.3), q = at(door - 2.3, -.3), pick = world.toLocal(at(door, -1.4).x, at(door, -1.4).z);
+    return {shop: sh, x: p.x, z: p.z, yaw: Math.atan2(-(q.x - p.x), -(q.z - p.z)), pickup: {name: sh.name, kind: 'shop', shop: true, x: pick.x, s: pick.s}};
+  });
+  const signObstacles = JOB_SIGNS.map(j => {const y = groundAt(j.x, j.z);return {points: [[-.5, -.15], [.5, -.15], [.5, .15], [-.5, .15]].map(([a, b]) => ({x: j.x + Math.cos(j.yaw) * a + Math.sin(j.yaw) * b, z: j.z - Math.sin(j.yaw) * a + Math.cos(j.yaw) * b})), minY: y - .3, maxY: y + 2.2, kind: 'sign'};});
+  const extraObstacles = [...(siteField ? window.GameSite.fenceObstacles(siteField, groundAt) : []), ...(pbRules ? pbRules.obstacles : []), ...(catacomb ? catacomb.obstacles : []), ...(rides ? rides.obstacles : []), ...signObstacles];
   const staticObstacles = [...apt.obstacles, ...towers.flatMap(towerObstacles), ...world.obstacles(), ...fire.obstacles, ...stash.obstacles, ...shops.obstacles, ...sculpture.obstacles, ...oksen.obstacles, ...gym.obstacles, ...extraObstacles, ...landmarks.obstacles];
   const walkFloors = [...apt.floors, ...towers.flatMap(towerFloors), ...shops.floors, ...sculpture.floors, ...oksen.floors, ...landmarks.floors, ...gym.floors, ...(catacomb ? catacomb.floors : []), ...groundFloors];
   staticObstacles.push(...grl.flatMap(m => m.obstacles || []));walkFloors.unshift(...grl.flatMap(m => m.floors || []));
@@ -186,7 +196,7 @@
     const segs = roads.flatMap((r, ri) => {const o = [];for (let k = 0; k + 3 < r.p.length; k += 2) o.push({ri, w: r.w, a: [r.p[k], r.p[k + 1]], b: [r.p[k + 2], r.p[k + 3]]});return o;});
     const segDist = (p, s) => {const dx = s.b[0] - s.a[0], ds = s.b[1] - s.a[1], L = dx * dx + ds * ds || 1, t = Math.max(0, Math.min(1, ((p[0] - s.a[0]) * dx + (p[1] - s.a[1]) * ds) / L));return Math.hypot(p[0] - s.a[0] - dx * t, p[1] - s.a[1] - ds * t);};
     const runway = {a: [AIR.plane.x, AIR.plane.z], b: [AIR.plane.x - Math.sin(AIR.plane.yaw) * 280, AIR.plane.z - Math.cos(AIR.plane.yaw) * 280]};
-    const keep = [{x: AIR.heli.x, z: AIR.heli.z, r: 14}, {x: FIRE_POS.x, z: FIRE_POS.z, r: 9}, ...vehicles.map(v => ({x: v.x, z: v.z, r: 7}))];
+    const keep = [{x: AIR.heli.x, z: AIR.heli.z, r: 14}, {x: FIRE_POS.x, z: FIRE_POS.z, r: 9}, ...vehicles.map(v => ({x: v.x, z: v.z, r: 7})), ...(rides ? rides.keepOut : [])];
     const w = worldFor(1.25), bikeColors = [0x16171a, 0x9e1b20, 0xa9afb5, 0x1f3a63, 0xe9e9e4, 0x56657c];let cars = 0, bikes = 0;
     for (const s of segs) {
       const dx = s.b[0] - s.a[0], ds = s.b[1] - s.a[1], L = Math.hypot(dx, ds);if (L < 20) continue;
@@ -215,6 +225,17 @@
   // Skydiving (issue #22): the Cessna 208 Caravan jump plane beside the airstrip, flown by a player with up to 12 jumpers.
   AIR.jump = {x: -107.6, z: -16.7, yaw: .5236};
   const caravan = new AC.JumpPlane(AIR.jump.x, AIR.jump.z, AIR.jump.yaw);vehicles.push(caravan);
+  // City bikes in the docks and e-scooters on the pavements (issue #57), after every older vehicle so their numbers stay.
+  // The scooters' places are seeded and checked the same way on every computer, so the lobby agrees on them.
+  if (rides) {
+    const RV = rides.vehicles(VH);vehicles.push(...RV.bikes);
+    const w = worldFor(.6), taken = vehicles.map(v => ({x: v.x, z: v.z, r: 4})).concat(rides.keepOut);
+    const regions = [{count: 26, inside: (x, s) => Math.hypot(x, s) < 520}, {count: 22, inside: (x, s) => x > -1250 && x < -350 && s > 880 && s < 2000}];
+    const spots = window.GameRentals.scooterSpots({roads: [...D.roads, ...DISTRICTS.flatMap(d => d.roads)], regions, ok: (x, s) => {
+      const p = toWorld(x, s);if (taken.some(k => Math.hypot(k.x - p.x, k.z - p.z) < k.r)) return false;
+      const y = heightAt(p.x, p.z);return collision.canStand(w, p, 1.4, y) && collision.canStand(w, {x: p.x + .5, z: p.z}, 1.4, y) && collision.canStand(w, {x: p.x - .5, z: p.z}, 1.4, y);}});
+    vehicles.push(...RV.placeScooters(spots));
+  }
   vehicles.forEach(v => {v.spawn = v.netGet();});
   vehicles.forEach(v => scene.add(v.group));
   vehicles.filter(v => v.kind === 'excavator').forEach(ex => {
@@ -333,6 +354,7 @@
     areas: [...D.areas, ...DISTRICTS.flatMap(d => [...d.areas.map(a => ({k: mapKind[a.k] || a.k, o: a.o})), ...d.sea.map(o => ({k: 'water', o}))])],
     roads: [...D.roads, ...DISTRICTS.flatMap(d => d.roads.map(r => ({...r, k: r.k === 'rail' ? 'tram' : r.k})))],
     buildings: [...D.buildings, ...DISTRICTS.flatMap(d => [...d.buildings.map(b => ({r: {o: b.ring.flat()}, s: b.style})), ...d.landmarks.map(l => ({r: {o: l.ring}, s: 'brick'}))])]};
+  let rentals = null, jobs = null;// the e-scooter / city bike trips and the jobs (made below, once the wallet exists)
   const map = window.GameMap.create({data: mapData, toLocal: world.toLocal, toWorld, root: view, poi: () => [
     {x: homeLocal.x, s: homeLocal.s, color: '#e0703c', label: 'Home · 4th floor', glyph: '⌂'},
     {...world.toLocal(4.8, 14.2), color: '#b71c1c', label: 'Hostage rescue', glyph: '◎'},
@@ -355,6 +377,7 @@
     ...grl.flatMap(m => m.poi ? m.poi() : []),
     ...DISTRICTS.flatMap(d => d.stations).map(st => ({x: st.x, s: st.s, color: '#e65100', label: `${st.name} T`, glyph: 'T'})),
     ...(catacomb ? catacomb.poi() : []),
+    ...(rentals ? rentals.poi() : []),
   ]});
   // Wristwatch (D-pad ↑) shares the first-person overlay with the photo camera.
   const watch = window.GameWatch.create({T, lib});overlayScene.add(watch.model);
@@ -392,7 +415,7 @@
   function findPrompt() {
     if (player.mode === 'jumpseat') return jumpseatPrompt();
     if (player.mode === 'skydive' || player.mode === 'kayak') return null;
-    if (player.mode === 'vehicle') {const v = player.vehicle;return (v.aircraft ? v.grounded && v.speed < 3 : Math.abs(v.speed) < 3) ? {text: `□ ${v.kind === 'motorcycle' ? 'Get off' : 'Get out'}`, act: () => exitVehicle()} : null;}
+    if (player.mode === 'vehicle') {const v = player.vehicle;return (v.aircraft ? v.grounded && v.speed < 3 : Math.abs(v.speed) < 3) ? {text: v.rental ? rentals.exitText(v) : `□ ${v.kind === 'motorcycle' ? 'Get off' : 'Get out'}`, act: () => exitVehicle()} : null;}
     if (player.mode === 'passenger') {const v = player.vehicle;return (v.aircraft ? v.grounded && v.speed < 3 : Math.abs(v.speed) < 3) ? {text: `□ ${v.kind === 'motorcycle' ? 'Get off' : 'Get out'}`, act: () => exitPassenger()} : null;}
     if (player.mode === 'sit') return {text: '□ Stand up · R2 have a beer', act: () => standUp()};
     if (player.mode === 'climb' || player.mode === 'hang' || player.mode === 'belay') return null;
@@ -401,6 +424,8 @@
     // Doors first (the street door of 17A opens normally), then the mission marker beside the entrance.
     {const o = lookTarget();if (o?.userData.doorId) {const d = doors.find(d => d.id === o.userData.doorId);if (d) return {text: `□ ${d.open ? 'Close' : 'Open'} ${d.name.toLowerCase()}`, act: () => toggleDoor(d)};}}
     if (Math.hypot(player.x - MISSION_MARK.x, player.z - MISSION_MARK.z) < 1.6 && Math.abs(player.feet - world.heightWorld(MISSION_MARK.x, MISSION_MARK.z)) < 2) return {text: '□ Start mission: rescue the hostage (4th floor)', act: () => startMission()};
+    // Jobs (issue #56): the order's pickup and the street door, and the job signs.
+    {const jp = player.mode === 'foot' ? jobs.prompt(player, lookTarget()) : null;if (jp) return jp;}
     const cp = gymPrompt();if (cp) return cp;
     {const rp = route && route.prompt(player);if (rp) return rp;}
     {const cp = catacomb && player.mode === 'foot' ? catacomb.prompt() : null;if (cp) return cp;}
@@ -414,6 +439,8 @@
       const i = vehicles.indexOf(v), drv = mp.occupant(i, 'd'), pas = mp.occupant(i, 'p'), canRide = !!v.hipAnchor('p');
       // The game's pilot flown from this computer: take the controls back while it stands still.
       if (gp && v === caravan) return v.grounded && v.speed < 3 ? {text: "□ Fly the Caravan yourself (the game's pilot gets out)", act: () => {gp = null;caravan.vel.set(0, 0, 0);enterVehicle(caravan);}} : {text: "The game's pilot is flying the Caravan", act: () => {}};
+      // E-scooters and city bikes: unlocking costs money (issue #57).
+      if (v.rental && !drv) return rentals.prompt(v, i);
       if (!drv) return {text: `□ ${v.verb ? v.verb : v.kind === 'motorcycle' ? 'Ride the' : v.kind === 'excavator' ? 'Climb into the' : v.aircraft ? 'Fly the' : 'Drive the'} ${v.name}`, act: () => tryDrive(v)};
       if (canRide && !pas) return {text: `□ Ride along with ${driverName(i)} (${v.kind === 'motorcycle' ? 'pillion' : 'passenger'})`, act: () => tryRide(v)};
       return {text: `${driverName(i)} is ${v.aircraft ? 'flying' : 'driving'} the ${v.name}`, act: () => {}};
@@ -437,6 +464,16 @@
   function tryDrive(v) {
     const i = vehicles.indexOf(v);if (v !== caravan) leaveGamePilot();
     mp.claim(i, 'd').then(r => {if (player.mode !== 'foot') {if (r.ok) mp.release(i, 'd');return;}if (r.ok) enterVehicle(v);else notice(r.timeout ? 'No answer from the lobby – try again.' : `${mp.nameOf(r.by)} just took it.`, 3);});
+  }
+  // A rental: the seat first (online the lobby decides), then the fee; no money, no ride.
+  function rentDrive(v) {
+    const i = vehicles.indexOf(v);leaveGamePilot();
+    mp.claim(i, 'd').then(r => {
+      if (player.mode !== 'foot') {if (r.ok) mp.release(i, 'd');return;}
+      if (!r.ok) {notice(r.timeout ? 'No answer from the lobby – try again.' : `${mp.nameOf(r.by)} just took it.`, 3);return;}
+      const msg = rentals.start(v);if (!msg) {mp.release(i, 'd');return;}
+      enterVehicle(v);rentals.rollOut(v);notice(msg, 8);
+    });
   }
   function tryRide(v) {
     const i = vehicles.indexOf(v);if (v !== caravan) leaveGamePilot();
@@ -476,6 +513,49 @@
   const wallet = shops.wallet, KR = shops.kr, GREET = ['Hei! Velkommen inn.', 'Hei hei!', 'God dag!', 'Hei, si fra om du trenger hjelp.'];
   let basket = [], walletT = 0, lastShop = null, bag = null;
   function earn(amount, why) {if (!(amount > 0)) return;wallet.earn(amount);walletT = 6;audio.sfx('coin');notice(`+${KR(amount)} · ${why}`, 4);}
+  // ---------- E-scooters and city bikes (issue #57): trips and prices ----------
+  // Others' locked city bikes (their state's cb) cannot be taken; a vehicle with a driver is in use.
+  function lockedByOthers() {const m = new Map();if (mp) for (const r of mp.remotes.values()) if (r.st && r.st.cb >= 0) m.set(r.st.cb, r.name);return m;}
+  rentals = rides ? rides.manager({wallet, kr: KR, notice, audio, vehicles, toLocal: world.toLocal, drive: v => rentDrive(v), onPaid: () => {walletT = 6;}, lockedByOthers,
+    inUse: v => {const i = vehicles.indexOf(v);return !!mp.occupant(i, 'd') || lockedByOthers().has(i);}}) : null;
+  // ---------- Jobs: food delivery and taxi (issue #56), from the phone (D-pad → / P) or the job signs ----------
+  jobs = window.GameJobs.create({T, lib, scene, data: window.JOBS || {doors: [], pickups: []}, toWorld, toLocal: world.toLocal, heightAt, avatars: window.GameAvatars.create({T, lib}), audio, notice, earn, map, root: view});
+  scene.add(jobs.group);for (const j of JOB_SIGNS) {jobs.addSign(j.x, j.z, j.yaw);jobs.addPickup(j.pickup);}interactables.push(...jobs.hitboxes);
+  const esc = t => String(t ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+  const wpTo = w => {const l = world.toLocal(w.x, w.z);map.waypoint = {x: l.x, s: l.s};notice('Waypoint set – the purple pin and the minimap show the way.', 3);};
+  function phoneItems() {
+    const s = jobs.shift, dist = window.GameMap.distanceText, items = [], car = player.mode === 'vehicle' && player.vehicle && player.vehicle.kind === 'car' ? player.vehicle : null;
+    if (s && s.kind === 'delivery') items.push({text: '🛵 Stop delivering', sub: `${s.n} delivered · ${Math.round(s.total)} kr this shift`, act: () => jobs.stop('phone')});
+    else items.push({text: '🛵 Deliver food', sub: 'Pick up orders at cafés, restaurants, Joker and Kiwi and take them to street doors before the time runs out – walk, run, ride or drive', act: () => jobs.startDelivery(player)});
+    if (s && s.kind === 'taxi') items.push({text: '🚕 Turn the taxi off', sub: `${s.n} fare${s.n === 1 ? '' : 's'} · ${Math.round(s.total)} kr this shift`, act: () => jobs.stop('phone')});
+    else items.push({text: '🚕 Turn on taxi', sub: car ? 'Pick up passengers and drive them where they want to go – smooth, fast driving earns tips' : 'Sit in a car as the driver first', off: !car, act: () => jobs.startTaxi(car, vehicles.indexOf(car))});
+    if (rentals) {
+      const t = rentals.trip;if (t && t.locked) items.push({text: `🔒 Your locked city bike · ${window.GameRentals.clock(t.t)}`, sub: `Set the waypoint to it – return it to a dock within ${window.GameRentals.NOT_RETURNED.afterS / 60} min of locking it`, act: () => wpTo(t.v)});
+      const sc = rentals.nearestScooter(player);if (sc) items.push({text: `🛴 Nearest e-scooter · ${dist(sc.dist)}`, sub: `Set the waypoint · ${rentals.priceText('scooter')}`, act: () => wpTo(sc.v)});
+      const dk = rentals.nearestDock(player);if (dk) items.push({text: `🚲 ${dk.dock.name} · ${dist(dk.dist)}`, sub: `${dk.dock.count.bike} bike${dk.dock.count.bike === 1 ? '' : 's'}, ${dk.dock.count.ebike} e-bike${dk.dock.count.ebike === 1 ? '' : 's'} free · set the waypoint · ${rentals.priceText('bike')} (e-bike ${window.GameRentals.PLANS.ebike.per_min_pricing[0].rate} kr/min)`, act: () => wpTo(dk.dock.centre)});
+    }
+    items.push({text: 'Close', act: () => {}});
+    return items;
+  }
+  function openPhone() {watch.hide();jobs.phone.show(phoneItems, () => `📱 Jobs & rides · ${KR(wallet.money)}`);}
+  jobs.openPhone = openPhone;
+  // A friend's job (issue #56): riding along with a player who is delivering or driving a taxi, you see their job, follow
+  // their waypoint and get half of each payment they get while you are aboard.
+  let crew = null, jobHudKey = '';
+  function crewTick() {
+    const i = player.mode === 'passenger' && player.vehicle ? vehicles.indexOf(player.vehicle) : -1, d = i >= 0 ? mp.occupant(i, 'd') : null, r = d ? mp.remotes.get(d) : null, jb = r && r.st && r.st.jb;
+    if (!jb) {crew = null;return null;}
+    if (!crew || crew.id !== r.id || crew.k !== jb.k) crew = {id: r.id, k: jb.k, n: jb.n};
+    else if (jb.n > crew.n) {crew.n = jb.n;if (jb.kr > 0) earn(Math.round(Math.min(jb.kr, 1000) / 2), `Your share of ${r.name}'s ${jb.k === 'taxi' ? 'taxi fare' : 'delivery'}`);}
+    if (Array.isArray(jb.to) && !jobs.shift) {const l = world.toLocal(+jb.to[0], +jb.to[1]), wp = map.waypoint;if (Number.isFinite(l.x) && Number.isFinite(l.s) && (!wp || Math.hypot(wp.x - l.x, wp.s - l.s) > 5)) map.waypoint = {x: l.x, s: l.s};}
+    return {name: r.name, jb};
+  }
+  function renderJobHud(c) {
+    const h = jobs.hud();let html = '';
+    if (h) html = `<b>${esc(h.title)}</b><span class="${h.late ? 'late' : ''}">${esc(h.line)}</span>${h.mood !== null ? `<i class="meter mood"><u style="width:${h.mood}%"></u></i>` : ''}<small>Phone: D-pad → / P</small>`;
+    else if (c) html = `<b>With ${esc(c.name)} · ${c.jb.k === 'taxi' ? '🚕 taxi' : '🛵 delivery'}</b><span>${esc(c.jb.t)}</span><small>You get half of each payment while you ride along</small>`;
+    if (html !== jobHudKey) {jobHudKey = html;const el = $('jobHud');el.innerHTML = html;el.hidden = !html;}
+  }
   function shopPrompt() {
     if (player.mode !== 'foot') return null;
     const s = shops.shopAt(player, player.feet), o = lookTarget(), u = (o && o.userData) || {};
@@ -715,10 +795,12 @@
   function sitDown(spot) {watch.hide();if (photo.active) photo.toggle();player.mode = 'sit';player.sitSpot = spot;player.lookYaw = 0;player.lookPitch = -.32;notice('Sitting by the fire · R2 / left mouse: have a beer · □ stand up', 4);}
   function standUp() {const sp = player.sitSpot;player.mode = 'foot';player.sitSpot = null;const dx = fire.center.x - sp.x, dz = fire.center.z - sp.z, l = Math.hypot(dx, dz) || 1;place(sp.x + dx / l * .7, sp.z + dz / l * .7, sp.yaw);}
   function exitVehicle() {
+    if (player.vehicle.rental) rentals.beforeExit(player.vehicle);// a city bike at a dock goes into a free slot
     const v = player.vehicle, i = vehicles.indexOf(v), p = v.exit();if (mp) mp.release(i, 'd', v.netGet());player.mode = 'foot';player.vehicle = null;setClip(.05, 450);$('speedo').classList.remove('air');updateDynamic();
     const y = heightAt(p.x, p.z), sp = collision.findSafeSpawn(walkWorld, p, player.eye, {y, maxDistance: 5});
     if (sp) {player.x = sp.x;player.z = sp.z;player.feet = sp.y;}player.yaw = v.yaw;player.pitch = 0;
     for (const [, w] of vehicleWorlds) collision.setDynamic(w, []);updateDynamic();
+    if (v.rental) rentals.afterExit(v);
   }
 
   // ---------- Grünerløkka: library, Rathkes gate 1, table tennis, Akerselva (issues #44, #45, #47) ----------
@@ -795,7 +877,7 @@
       held: Object.assign({}, st?.buttons || {}), pressed: new Set(edges), released: new Set(released), r2: st ? st.run : 0, l2: st ? st.aim : 0, gamepad: Boolean(gp), mouse: {...mouse}
     };
     if (kx || ky) {input.move.x = kx;input.move.y = ky;}
-    const map = {Space: 'cross', KeyC: 'circle', KeyE: 'square', KeyF: 'triangle', Escape: 'options', KeyM: 'touchpad', KeyG: 'gallery', KeyZ: 'prone', KeyR: 'reload', ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down', ShiftLeft: 'l3', KeyQ: 'l1', KeyV: 'view', KeyY: 'share'};
+    const map = {Space: 'cross', KeyC: 'circle', KeyE: 'square', KeyF: 'triangle', Escape: 'options', KeyM: 'touchpad', KeyG: 'gallery', KeyZ: 'prone', KeyR: 'reload', ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down', ShiftLeft: 'l3', KeyQ: 'l1', KeyV: 'view', KeyY: 'share', KeyP: 'phone'};
     for (const [code, name] of Object.entries(map)) {if (ke(code)) input.pressed.add(name);if (k(code)) input.held[name] = true;}
     // Flying (helicopter, plane, drone): hold Shift or the right mouse button to look around (Battlefield's free look, issue #16).
     const flying = player.mode === 'drone' || (player.mode === 'vehicle' && !!player.vehicle?.aircraft);
@@ -857,6 +939,9 @@
     if (quick) quickInput(input);
     if (bag) bagInput(input);
     if (gymMenu) gymMenuInput(input);
+    // The jobs phone (issue #56): D-pad → / P on foot or in a vehicle (not on the site machines, where → is the arm on a keyboard).
+    if (jobs.phone.open) jobs.phone.input(input);
+    else if ((input.pressed.has('phone') || (input.pressed.has('right') && !player.vehicle?.site)) && (player.mode === 'foot' || player.mode === 'vehicle') && !pbBusy() && !map.open && !caseGame?.active && !bag && !gymMenu && !quick && !photo.active && !gear) {openPhone();input.pressed.delete('right');input.pressed.delete('phone');}
     if (library && library.reading) library.readInput(input);
     if (caseGame?.active) {
       // The mission owns ✕ (begin), ○ (leave on panels), Options (pause), □ (door or reload), triggers.
@@ -921,6 +1006,7 @@
     cullT -= dt;if (cullT <= 0) {cullT = .4;for (const v of vehicles) {const near = Math.hypot(v.x - camera.position.x, v.z - camera.position.z) < (v.cullDistance || 170);v.group.visible = near || v === player.vehicle;}if (vehicles.some((v, i) => mp.remoteDriven(i))) updateDynamic();}
     vehicles.forEach((v, i) => {if (v === player.vehicle && player.mode === 'vehicle') return;if (mp.remoteDriven(i) || (gp && v === caravan)) return;if (!v.group.visible && Math.abs(v.speed || 0) < .01 && !v.aircraft) return;v.update(wdt, {});});
     beerT = Math.max(0, beerT - dt);mp.update(dt);updatePilotAvatar(dt);if (player.mode === 'jumpseat' && skyd.ride) seatCamera();
+    if (rentals) rentals.tick(dt, player);jobs.tick(dt, {player, drunk: dl, camera});jobs.remoteTick(mp.remotes, vehicles, dt, camera);renderJobHud(crewTick());if (jobs.phone.open) jobs.phone.render();
     if (site) site.update(wdt);
     if (paintball) {
       const foot = player.mode === 'foot', p = foot ? input.pressed : new Set(), h = foot ? input.held : {};
@@ -932,7 +1018,7 @@
     let doorsChanged = false;
     for (const d of doors) if (d.anim) {d.anim.t = Math.min(1, d.anim.t + dt * 2.2);const e = d.anim.t < .5 ? 2 * d.anim.t * d.anim.t : 1 - Math.pow(-2 * d.anim.t + 2, 2) / 2;setDoor(d, d.anim.from + (d.anim.to - d.anim.from) * e);if (d.anim.t >= 1) {d.open = d.anim.to === 1;d.anim = null;doorsChanged = true;}}
     if (doorsChanged || caseGame?.active) updateDynamic();
-    promptTimer -= dt;if (promptTimer <= 0) {promptTimer = .15;promptAction = player.mode === 'minigame' || player.mode === 'drone' || gear?.open || quick || bag || gymMenu || photo.active || (caseGame?.active && caseGame.state !== 'play') ? null : findPrompt();prompt(promptAction?.text);}
+    promptTimer -= dt;if (promptTimer <= 0) {promptTimer = .15;promptAction = player.mode === 'minigame' || player.mode === 'drone' || gear?.open || quick || bag || gymMenu || jobs.phone.open || photo.active || (caseGame?.active && caseGame.state !== 'play') ? null : findPrompt();prompt(promptAction?.text);}
     weather.update(dt, camera, {indoor: weatherIndoor, windWorld: weatherWind});
     ambienceTimer -= dt;if (ambienceTimer <= 0) {ambienceTimer = .25;updateAmbience();if (audio.context) music.attach(audio.context);music.play(musicTrack());}
     // Adaptive resolution keeps the frame rate in the 20–30+ fps range on slower PCs.
@@ -1022,7 +1108,7 @@
     if (camera.fov !== 70) {camera.fov = 70;camera.updateProjectionMatrix();}
     if (v.site) siteMachineView(v, seat, input);
     player.x = v.x;player.z = v.z;player.feet = v.y;player.yaw = v.yaw;
-    $('speedo').hidden = false;$('speedo').textContent = v.hud ? v.hud() : v.kind === 'excavator' ? `${(Math.abs(v.speed) * 3.6).toFixed(1)} km/h · bucket ${Math.round(v.load * 100)} %` : `${Math.round(Math.abs(v.speed) * 3.6)} km/h${v.kind === 'motorcycle' ? ` · gear ${v.gear} · ${Math.round(v.rpm / 100) * 100} rpm` : ''}`;
+    $('speedo').hidden = false;$('speedo').textContent = v.rental ? rentals.hud(v) : v.hud ? v.hud() : v.kind === 'excavator' ? `${(Math.abs(v.speed) * 3.6).toFixed(1)} km/h · bucket ${Math.round(v.load * 100)} %` : `${Math.round(Math.abs(v.speed) * 3.6)} km/h${v.kind === 'motorcycle' ? ` · gear ${v.gear} · ${Math.round(v.rpm / 100) * 100} rpm` : ''}`;
   }
   // Construction-site machines (ported from the Unreal version, where the cabs were hard to see from): R3 / V cycles the
   // view from the cab, from outside (behind and above along the operator's heading; the mouse turns it round the machine)
@@ -1362,6 +1448,9 @@
     // This computer flies the game's pilot in the Caravan: what it is doing, for the jumpers' screens.
     if (gp && gp.f) {s.gp = gp.f.phase;if (gp.f.left) s.gl = Math.round(gp.f.left);if (gp.f.green) s.gg = 1;}
     const pb = paintball && paintball.rules.localState();if (pb) s.pb = pb;
+    // A city bike you have locked outside a dock (issue #57); your job, the taxi light and passenger (issue #56).
+    if (rentals) {const lb = rentals.locked();if (lb >= 0) s.cb = lb;}
+    {const js = jobs.localState();if (js) Object.assign(s, js);}
     return s;
   }
   // ---------- Chat ----------
@@ -1458,6 +1547,7 @@
   let lastLobby = null;
   function onLobbyChange() {
     const n = mp.net;if (!n.online || n.code === lastLobby) return;lastLobby = n.code;gp = null;// the game's pilot stays in the old lobby
+    if (rentals && rentals.trip && rentals.trip.locked) rentals.end('lobby');// the locked city bike goes back to its dock in the new lobby
     vehicles.forEach((v, i) => {if (v === player.vehicle) {mp.claim(i, player.mode === 'vehicle' ? 'd' : 'p');return;}v.netSet(v.spawn);if (v.aircraft) v.reset();});
   }
   function updateMinigame(dt, input, dl) {
@@ -1534,6 +1624,7 @@
   // ---------- Test / inspection handle ----------
   window.haarklousGame = {player, vehicles, site, paintball, catacomb, groundAt, heli, plane, drone, watch, fire, stash, shops, gym, startClimb, openGymMenu, startBelay, get belay() {return belay;}, sculpture, oksen, weather, caravan, get skyd() {return skyd;}, get autoPlane() {return autoPlane;}, get jumpFlight() {return jumpFlight;}, boardAuto, boardCaravan, jump, get gp() {return gp;}, callGamePilot, handOver, CARAVAN_HOLD, applyWeather, wallet, get basket() {return basket;}, payAt, takeProduct, useItem, earn, openBag, takeBoost, get boost() {return boost;}, set boost(b) {boost = b;}, get mp() {return mp;}, sitDown, standUp, tryDrive, tryRide, openChat, startDrone, stopDrone, floorBelow, doors, mini, music, photo, map, world, apt, towers, walkWorld, route, landmarks, districts: DISTRICTS, get caseGame() {return caseGame;}, place, toggleDoor, enterVehicle, exitVehicle, startMinigame, startMission, drink, interact, findPrompt, renderFrame, begin, get fps() {return fpsAvg;}, kick: () => requestAnimationFrame(frame), get drunk() {return drunk;}, set drunk(v) {drunk = v;}, setStance, camera, scene};
   Object.assign(window.haarklousGame, {library, pingpong, rathkes, kayak, startKayak, hushedFor: () => hushed});
+  Object.assign(window.haarklousGame, {rides, get rentals() {return rentals;}, jobs, openPhone, rentDrive, JOB_SIGNS});
   loading.remove();$('start').hidden = false;
   requestAnimationFrame(frame);
 })();

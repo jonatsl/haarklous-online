@@ -48,7 +48,7 @@
 
   function create({data, toLocal, toWorld, root, poi}) {
     const el = document.createElement('div');el.id = 'mapOverlay';el.hidden = true;
-    el.innerHTML = '<canvas></canvas><div class="map-legend"><b>Map</b><span><i class="lg home"></i>Your apartment (Haarklous plass 17A)</span><span><i class="lg case"></i>Hostage rescue</span><span><i class="lg disc"></i>Disc golf</span><span><i class="lg petanque"></i>Petanque</span><span><i class="lg you"></i>You</span><span><i class="lg others"></i>Other players in your lobby</span><span><i class="lg wp"></i>Your waypoint</span><small>Left stick / drag: pan · Right stick / wheel: zoom</small><small>✕ / click: set or remove a waypoint · □ / Delete: remove it · ○ / M: close</small><small class="attr">© OpenStreetMap contributors</small></div>';
+    el.innerHTML = '<canvas></canvas><div class="map-legend"><b>Map</b><span><i class="lg home"></i>Your apartment (Haarklous plass 17A)</span><span><i class="lg case"></i>Hostage rescue</span><span><i class="lg disc"></i>Disc golf</span><span><i class="lg petanque"></i>Petanque</span><span><i class="lg you"></i>You</span><span><i class="lg others"></i>Other players in your lobby</span><span><i class="lg wp"></i>Your waypoint</span><span><i class="lg bikes"></i>City bike dock (number = free bikes; zoom in for the name)</span><small>Left stick / drag: pan · Right stick / wheel: zoom</small><small>✕ / click: set or remove a waypoint · □ / Delete: remove it · ○ / M: close</small><small class="attr">© OpenStreetMap contributors</small></div>';
     root.append(el);
     const canvas = el.querySelector('canvas'), ctx = canvas.getContext('2d');
     const map = {open: false, cx: 0, cs: 0, scale: 2.2, waypoint: null, layer: null};
@@ -103,7 +103,8 @@
       ctx.drawImage(base, 0, 0);ctx.textAlign = 'center';
       // Points of interest.
       const icon = (x, s, color, label, glyph) => {const [u, v] = P(x, s), r = 11 * devicePixelRatio;ctx.fillStyle = color;ctx.beginPath();ctx.arc(u, v, r, 0, 7);ctx.fill();ctx.strokeStyle = '#fff';ctx.lineWidth = 2 * devicePixelRatio;ctx.stroke();ctx.fillStyle = '#fff';ctx.font = `bold ${12 * devicePixelRatio}px system-ui`;ctx.textBaseline = 'middle';ctx.fillText(glyph, u, v + .5);ctx.textBaseline = 'alphabetic';if (label) {ctx.fillStyle = '#222';ctx.font = `bold ${12 * devicePixelRatio}px system-ui`;ctx.fillText(label, u, v - r - 5 * devicePixelRatio);}};
-      for (const p of poi()) icon(p.x, p.s, p.color, p.label, p.glyph);
+      // A place with zoomLabel shows its label only when the map is zoomed in that far (the city bike docks, issue #57).
+      for (const p of poi()) icon(p.x, p.s, p.color, p.zoomLabel && map.scale < p.zoomLabel ? '' : p.label, p.glyph);
       // The waypoint: a dashed line from you, the pin and how far it is.
       if (map.waypoint) {
         const [u, v] = P(map.waypoint.x, map.waypoint.s), d = devicePixelRatio;
