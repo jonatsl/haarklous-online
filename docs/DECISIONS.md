@@ -69,7 +69,8 @@ On branch `feat/heli-drone-physics` ([PR #75](https://github.com/jonatsl/haarklo
   - In the browser (built file, account server stubbed): the link box for a new password (two different passwords are refused, then "Password changed ✓"), the box for an expired confirm link (✕ on the controller closes it, the start screen stays), the token gone from the address bar; in the pause menu the not-confirmed line, *Send the email again*, *Forgot password?* with the note and a bad email refused; *Forgot password?* hidden while creating an account.
   - Not checked: a real email (needs the user's Brevo account and key), the live server.
 - **Still to do by the user:** make a free Brevo account, add and confirm a sender address, make an API key, then run `node scripts/set-mail-secret.mjs` in `cloud/` (Claude Code may not write Cloudflare secrets).
-- **Status:** branch `feat/account-email`.
+- **Status:** branch `feat/account-email`, [PR #76](https://github.com/jonatsl/haarklous-online/pull/76).
+
 ### 2026-11-03 · Helicopter and drone: tilting costs lift (issue #73)
 - **What:**
   - **Helicopter:**
