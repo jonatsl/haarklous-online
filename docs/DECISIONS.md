@@ -43,7 +43,7 @@ On `main`:
 
 Live site: runs `main` (Worker version a75a02dc, deployed 3 Nov 2026 after PR #70; `main` builds byte-for-byte to the live page), so everything above is online.
 
-On branch `feat/heli-drone-physics` (issue #73, not merged yet):
+On branch `feat/heli-drone-physics` ([PR #75](https://github.com/jonatsl/haarklous-online/pull/75), issue #73, not merged yet):
 - Helicopter and drone flight closer to the real thing: the rotor's lift tilts with pitch and bank, so tilting takes lift away from climbing and turns it into speed; add collective or thrust to keep your height (issue #73).
 
 ## Log
@@ -66,7 +66,7 @@ On branch `feat/heli-drone-physics` (issue #73, not merged yet):
   - Node tests 132/132 (4 new). Run against the old physics the new tests fail (16.6 m/s climb; the drone did not sink at full tilt).
   - In the game (simulated controller, frames stepped by hand): the helicopter climbed 7.8 m/s at full collective level; held about 55° nose down it sank 3.1 m/s at full collective and 7.6 m/s at centre, at about 260 km/h; let go, it levelled and stopped sinking. The drone hovered at 0.0 m/s, sank 1.4 m/s at full tilt (69 km/h) and climbed 3.9 m/s with thrust up while tilted. No script errors.
   - Not checked: a real DualShock 4, mouse flying on the user's PC.
-- **Status:** branch `feat/heli-drone-physics`, not merged, not live.
+- **Status:** branch `feat/heli-drone-physics`, [PR #75](https://github.com/jonatsl/haarklous-online/pull/75), not merged, not live.
 
 ### 2026-11-03 · `main` is live (PR #70, saved progress, badges and the photo hunt)
 - **What:** saved progress for accounts, badges and the photo hunt (PR #70, issues #54 and #58) are merged into `main` (93d4f27) and deployed (Cloudflare Worker version a75a02dc).
