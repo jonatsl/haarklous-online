@@ -40,13 +40,21 @@ On `main`:
 - A large catacomb under Torshovdalen with three entrances about 100 m apart (marked ☠ on the map): torch-lit bone galleries with real-looking skulls, dark quarry tunnels where you use your torch (□ / L1 / Q), and a map that is wiped underground and fills in with what you see (PR #50, issue #43).
 - Logged in, your progress is your account's and is there on any PC or browser: money and bottles, the bag, photos (an album of up to 60), badges, best scores, Klatreverket ticks, the catacomb map and your settings; it saves by itself. The first log-in on a browser with its own progress asks whether to move it into the account. Without an account it stays in the browser as before (issue #54, PR #70).
 - Badges and a photo hunt in the pause menu (R1 / B): 16 badges from playing and ten places to photograph (Torshovoksen, HODET N.N., Deichman Grünerløkka, Klatreverket, the catacomb's rotunda, Muselunden, MUNCH, the Opera, Rathkes gate 1, your street door); each new badge pays 50–300 kr; best scores for the minigames, the mission, skydiving and the runs; an orange landing target for skydivers at the airstrip (issue #58, PR #70).
+- Helicopter and drone flight closer to the real thing: the rotor's lift tilts with pitch and bank, so tilting takes lift away from climbing and turns it into speed; add collective or thrust to keep your height (issue #73, PR #75).
 
-Live site: runs `main` (Worker version a75a02dc, deployed 3 Nov 2026 after PR #70; `main` builds byte-for-byte to the live page), so everything above is online.
-
-On branch `feat/heli-drone-physics` ([PR #75](https://github.com/jonatsl/haarklous-online/pull/75), issue #73, not merged yet):
-- Helicopter and drone flight closer to the real thing: the rotor's lift tilts with pitch and bank, so tilting takes lift away from climbing and turns it into speed; add collective or thrust to keep your height (issue #73).
+Live site: runs `main` (Worker version 281119ea, deployed 3 Nov 2026 after PR #75; `main` builds byte-for-byte to the live page), so everything above is online.
 
 ## Log
+
+### 2026-11-03 · `main` is live (PR #75, helicopter and drone lift)
+- **What:** the helicopter and drone flight change (PR #75, issue #73) is merged into `main` (29057ae) and deployed (Cloudflare Worker version 281119ea).
+  - Deployed from this session's own clean worktree at the merge commit, with `cloud/` packages installed by `npm ci`.
+- **Why:** the user said "implement issue 73 then merge and deploy" (3 Nov 2026).
+- **Checked:**
+  - `node --test tests/*.cjs`: 132 pass on the merged `main`.
+  - `main` builds byte-for-byte to the committed `haarklous-game.html`, and the live page is byte-for-byte the build. `/weather` answers 200.
+  - In the live game: the helicopter at full collective climbs 7.9 m/s level, 3.9 m/s at 30° nose down and −0.2 m/s at 45°. No console errors.
+- **Status:** live.
 
 ### 2026-11-03 · Helicopter and drone: tilting costs lift (issue #73)
 - **What:**
@@ -66,7 +74,7 @@ On branch `feat/heli-drone-physics` ([PR #75](https://github.com/jonatsl/haarklo
   - Node tests 132/132 (4 new). Run against the old physics the new tests fail (16.6 m/s climb; the drone did not sink at full tilt).
   - In the game (simulated controller, frames stepped by hand): the helicopter climbed 7.8 m/s at full collective level; held about 55° nose down it sank 3.1 m/s at full collective and 7.6 m/s at centre, at about 260 km/h; let go, it levelled and stopped sinking. The drone hovered at 0.0 m/s, sank 1.4 m/s at full tilt (69 km/h) and climbed 3.9 m/s with thrust up while tilted. No script errors.
   - Not checked: a real DualShock 4, mouse flying on the user's PC.
-- **Status:** branch `feat/heli-drone-physics`, [PR #75](https://github.com/jonatsl/haarklous-online/pull/75), not merged, not live.
+- **Status:** merged into `main` ([PR #75](https://github.com/jonatsl/haarklous-online/pull/75), 29057ae) and live (Worker version 281119ea, 3 Nov 2026). Issue #73 is closed.
 
 ### 2026-11-03 · `main` is live (PR #70, saved progress, badges and the photo hunt)
 - **What:** saved progress for accounts, badges and the photo hunt (PR #70, issues #54 and #58) are merged into `main` (93d4f27) and deployed (Cloudflare Worker version a75a02dc).
