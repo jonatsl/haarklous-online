@@ -67,18 +67,24 @@
         bubble.tex.needsUpdate = true;bubble.s.visible = true;bubbleT = 7;
       }
       const set = (o, x = 0, y = 0, z = 0) => o.rotation.set(x, y, z);
-      // stance: stand | crouch | prone | sit | drive | ride | pillion | drone | climb | hang | belay ; seat poses put the hip at the group origin.
+      // stance: stand | crouch | prone | sit | drive | ride | pillion | cycle | scoot | drone | climb | hang | belay ; seat poses put the hip at the group origin.
       function pose({stance = 'stand', speed = 0, dt = 0, beer = false, marker = false}) {
-        phase += speed * dt * 3.2;const sw = Math.sin(phase), amp = Math.min(1, speed / 3.6);
+        phase += speed * dt * (stance === 'cycle' ? 1.5 : 3.2);const sw = Math.sin(phase), amp = Math.min(1, speed / 3.6);
         hips.position.set(0, .95, 0);set(hips);set(torso);set(neck);set(head);
         for (const [s, side] of [[1, L], [-1, R]]) {set(side.leg.hip);set(side.leg.kn);set(side.arm.sh, 0, 0, s * .08);set(side.arm.el);}
-        const seated = stance === 'sit' || stance === 'drive' || stance === 'ride' || stance === 'pillion';
+        const seated = stance === 'sit' || stance === 'drive' || stance === 'ride' || stance === 'pillion' || stance === 'cycle';
         if (seated) {
           hips.position.set(0, 0, 0);
           for (const side of [L, R]) {set(side.leg.hip, stance === 'ride' || stance === 'pillion' ? 1.15 : 1.45);set(side.leg.kn, stance === 'ride' || stance === 'pillion' ? -1.75 : -1.45);}
           if (stance === 'ride' || stance === 'pillion') {L.leg.hip.rotation.z = -.22;R.leg.hip.rotation.z = .22;torso.rotation.x = stance === 'ride' ? -.42 : -.15;}
           if (stance === 'drive' || stance === 'ride') for (const side of [L, R]) {side.arm.sh.rotation.x = stance === 'ride' ? 1.1 : .95;side.arm.el.rotation.x = .45;}
+          // A city bike (issue #57): sitting upright, hands forward on the bars, the legs going round with the pedals.
+          else if (stance === 'cycle') {torso.rotation.x = -.18;for (const [s, side] of [[1, L], [-1, R]]) {const c = Math.sin(phase + (s > 0 ? 0 : Math.PI));set(side.leg.hip, 1.05 + c * .38);set(side.leg.kn, -1.25 + Math.cos(phase + (s > 0 ? 0 : Math.PI)) * .45);side.arm.sh.rotation.x = .95;side.arm.el.rotation.x = .3;}}
           else for (const side of [L, R]) {side.arm.sh.rotation.x = .35;side.arm.el.rotation.x = .9;}
+        } else if (stance === 'scoot') {
+          // Standing on an e-scooter (issue #57): one foot ahead of the other, knees soft, both hands forward on the bar.
+          torso.rotation.x = -.08;set(L.leg.hip, -.18);set(R.leg.hip, .2);set(L.leg.kn, -.12);set(R.leg.kn, -.2);hips.position.y = .93;
+          for (const side of [L, R]) {side.arm.sh.rotation.x = .85;side.arm.el.rotation.x = .25;}
         } else if (stance === 'crouch') {
           hips.position.y = .62;torso.rotation.x = -.35;
           for (const side of [L, R]) {set(side.leg.hip, 1.25 + sw * .25 * amp);set(side.leg.kn, -1.95);side.arm.sh.rotation.x = .5;side.arm.el.rotation.x = .6;}

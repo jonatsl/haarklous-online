@@ -45,7 +45,8 @@
         case 'vs': {const i = +m.v, v = vehicles[i];if (!v) break;const o = occ[i];if (o && o.d && o.d !== net.you) {const prev = vehTargets.get(i);vehTargets.set(i, {a: m.s, prev: prev ? prev.a : m.s, at: performance.now(), prevAt: prev ? prev.at : performance.now() - 100});} else if (ctx.drivingIndex() !== i) v.netSet(m.s);break;}
         case 'occ': {
           const before = occ;occ = m.occ || {};
-          for (const [i, o] of Object.entries(before)) if (o.d && o.d !== net.you && !(occ[i] && occ[i].d === o.d)) vehTargets.delete(+i);
+          // A driver got off: the vehicle stays where their last update put it (it used to stay where the smoothing had got to).
+          for (const [i, o] of Object.entries(before)) if (o.d && o.d !== net.you && !(occ[i] && occ[i].d === o.d)) settle(+i);
           break;
         }
         case 'claim': {if (m.ok) (occ[m.v] || (occ[m.v] = {}))[m.seat] = net.you;const res = pending.get(+m.v);if (res) {pending.delete(+m.v);res({ok: m.ok, by: m.by});}break;}// a granted seat is ours at once
@@ -57,6 +58,7 @@
         case 'reset': for (const id of [...remotes.keys()]) drop(id);occ = {};vehTargets.clear();for (const [, res] of pending) res({ok: true, offline: true});pending.clear();break;
       }
     }
+    function settle(i) {const t = vehTargets.get(i), v = vehicles[i];if (t && v) {v.netSet(t.a);v.netCur = null;}vehTargets.delete(i);}
     // Seats: online the lobby decides who gets a seat; offline every seat is yours.
     function claim(i, seat) {
       if (!net.online) return Promise.resolve({ok: true});
@@ -96,14 +98,14 @@
         const di = ctx.drivingIndex();if (di >= 0 && vehT <= 0) {vehT = 1 / 12;net.send({t: 'vs', v: di, s: vehicles[di].netGet()});}
       }
       // Vehicles driven by others.
-      for (const [i, tgt] of vehTargets) {const v = vehicles[i];if (!v || !remoteDriven(i)) {vehTargets.delete(i);if (v) v.netCur = null;continue;}smoothVehicle(i, v, tgt, dt);}
+      for (const [i, tgt] of vehTargets) {const v = vehicles[i];if (!v || !remoteDriven(i)) {settle(i);continue;}smoothVehicle(i, v, tgt, dt);}
       // Avatars.
       for (const r of remotes.values()) {
         const st = r.st;if (!st) {r.av.group.visible = false;continue;}
         const g = r.av.group;g.visible = true;let stance = st.st || 'stand';
         const vi = st.v ?? -1, anchor = vi >= 0 && vehicles[vi] ? vehicles[vi].hipAnchor(st.s) : st.ja != null && ctx.autoAnchor ? ctx.autoAnchor(st.ja) : null;
         if (anchor) {
-          anchor.obj.updateWorldMatrix(true, false);g.position.copy(anchor.obj.localToWorld(anchor.pos.clone()));g.quaternion.copy(anchor.obj.getWorldQuaternion(new T.Quaternion()));if (anchor.yaw) g.rotateY(anchor.yaw);stance = anchor.stance;r.pos.copy(g.position);r.speed = 0;
+          anchor.obj.updateWorldMatrix(true, false);g.position.copy(anchor.obj.localToWorld(anchor.pos.clone()));g.quaternion.copy(anchor.obj.getWorldQuaternion(new T.Quaternion()));if (anchor.yaw) g.rotateY(anchor.yaw);stance = anchor.stance;r.pos.copy(g.position);r.speed = stance === 'cycle' ? Math.abs(vehicles[vi].speed || 0) : 0;
         } else {
           const target = new T.Vector3(st.p[0], st.p[1], st.p[2]);
           if (!r.seen || r.pos.distanceTo(target) > 12) r.pos.copy(target);
@@ -113,7 +115,7 @@
           if (ctx.skyPose) ctx.skyPose(r, st, g);// skydiving: belly-down in freefall, a canopy over them (game-main)
           if (st.sit) stance = 'sit';
         }
-        r.seen = true;r.av.pose({stance, speed: stance === 'stand' || stance === 'crouch' || stance === 'prone' || stance === 'climb' ? r.speed : 0, dt, beer: !!st.b, marker: ctx.holdsMarker ? ctx.holdsMarker(r.id) : false});r.av.update(dt, cam, ctx.showTag ? ctx.showTag(r.id) : true);
+        r.seen = true;r.av.pose({stance, speed: stance === 'stand' || stance === 'crouch' || stance === 'prone' || stance === 'climb' || stance === 'cycle' ? r.speed : 0, dt, beer: !!st.b, marker: ctx.holdsMarker ? ctx.holdsMarker(r.id) : false});r.av.update(dt, cam, ctx.showTag ? ctx.showTag(r.id) : true);
         // Their drone.
         if (st.dr) {if (!r.drone) {r.drone = avatars.drone();scene.add(r.drone);}r.drone.visible = true;r.drone.position.set(st.dr[0], st.dr[1], st.dr[2]);r.drone.quaternion.set(st.dr[3], st.dr[4], st.dr[5], st.dr[6]);}
         else if (r.drone) r.drone.visible = false;

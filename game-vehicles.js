@@ -122,7 +122,7 @@
       move(dt) {
         const f = this.forward(), nx = this.x + f.x * this.speed * dt, nz = this.z + f.z * this.speed * dt;
         if (Math.abs(this.speed) < .001 || this.clear(nx, nz)) {this.x = nx;this.z = nz;}
-        else {if (Math.abs(this.speed) > 2.5) audio.sfx('hit', {gain: Math.min(1, Math.abs(this.speed) / 10)});this.speed = 0;}
+        else {if (Math.abs(this.speed) > 2.5) audio.sfx('hit', {gain: Math.min(1, Math.abs(this.speed) / 10)});if (this.onHit) this.onHit(Math.abs(this.speed));this.speed = 0;}
       }
       // ---- Multiplayer: the driver's client sends netGet(); everybody else poses the vehicle with netSet() + netAnimate(). ----
       netGet() {return [this.x, this.y, this.z, this.yaw, this.pitch, this.roll || 0, this.speed, ...this.netExtra()].map(v => Math.round(v * 1000) / 1000);}
@@ -440,7 +440,8 @@
       netApply(a) {[this.swing, this.boom, this.stickA, this.bucketA, this.load, this.vl, this.vr] = a;this.pose();this.dirt.visible = this.load > .15;this.dirt.scale.set(1.1 * this.load, .55 * this.load, .9 * this.load);}
       netAnimate(dt) {this.trackPhase += dt;this.tracks[0].position.z = ((this.vl * this.trackPhase) % .156);this.tracks[1].position.z = ((this.vr * this.trackPhase) % .156);}
     }
-    return {Motorcycle, Car, Excavator, Vehicle};
+    // The model helpers are shared with the e-scooters and city bikes (game-rentals.js).
+    return {Motorcycle, Car, Excavator, Vehicle, parts: {mesh, box, cyl, rounded, rod, hand, forearm, wheel, decal}};
   }
   return {create};
 });
