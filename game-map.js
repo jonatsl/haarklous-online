@@ -15,7 +15,11 @@
  *   guide({dt, camera, x, z, you: {x, z}, heading, view, alt, others, ground(x, z), show}) once a frame while you play: x/z = the
  *   minimap's centre, heading = your arrow, view = the camera's heading (the minimap's "up"); returns 'reached' when you got
  *   within 7 m of the waypoint (it is then removed).
- * Pure helpers (Node-tested): edgePoint, screenSpot, toRim, distanceText, minimapRange.
+ * Disc golf course (issue #60): map.course = a round's layout (GameMinigames' layout(): outline, holes, current, walking, lie,
+ *   distance) or null. While it is set the minimap is shown (even when switched off) and zooms so the hole you play (or the way to
+ *   the next tee) fits; it and the big map draw the course outline, every hole's tee (with its number), basket and fairway line
+ *   (the current hole bright, the others faded), your lie with the metres to the basket, and the way to the next tee.
+ * Pure helpers (Node-tested): edgePoint, screenSpot, toRim, distanceText, minimapRange, courseOutline, courseRange.
  */
 (function (root, factory) {
   const api = factory();
@@ -45,13 +49,23 @@
   const distanceText = m => m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`;
   // Metres from the minimap's centre to its rim: 90 m on foot, more with speed (m/s) and height above the ground (m).
   const minimapRange = (speed, alt) => Math.min(300, 90 + 4.5 * Math.max(0, speed) + .5 * Math.max(0, alt || 0));
+  // A course without a drawn outline: the convex hull round its tees and baskets, `pad` metres out (rounded corners). Flat [x, s, ...].
+  function courseOutline(holes, pad) {
+    const pts = [];
+    for (const h of holes) for (const [x, s] of [h.tee, h.basket]) for (let i = 0; i < 12; i++) pts.push([x + Math.cos(i / 12 * Math.PI * 2) * pad, s + Math.sin(i / 12 * Math.PI * 2) * pad]);
+    pts.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const cross = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]), half = list => {const h = [];for (const p of list) {while (h.length > 1 && cross(h[h.length - 2], h[h.length - 1], p) <= 0) h.pop();h.push(p);}h.pop();return h;};
+    return [...half(pts), ...half(pts.slice().reverse())].flat();
+  }
+  // Metres from the minimap's centre (you, [x, s]) to its rim so every point fits with a margin: 40 m at least, 300 m at most.
+  const courseRange = (you, points) => Math.min(300, Math.max(40, Math.max(0, ...points.map(p => Math.hypot(p[0] - you[0], p[1] - you[1]))) * 1.12 + 8));
 
   function create({data, toLocal, toWorld, root, poi}) {
     const el = document.createElement('div');el.id = 'mapOverlay';el.hidden = true;
-    el.innerHTML = '<canvas></canvas><div class="map-legend"><b>Map</b><span><i class="lg home"></i>Your apartment (Haarklous plass 17A)</span><span><i class="lg case"></i>Hostage rescue</span><span><i class="lg disc"></i>Disc golf</span><span><i class="lg petanque"></i>Petanque</span><span><i class="lg you"></i>You</span><span><i class="lg others"></i>Other players in your lobby</span><span><i class="lg wp"></i>Your waypoint</span><small>Left stick / drag: pan · Right stick / wheel: zoom</small><small>✕ / click: set or remove a waypoint · □ / Delete: remove it · ○ / M: close</small><small class="attr">© OpenStreetMap contributors</small></div>';
+    el.innerHTML = '<canvas></canvas><div class="map-legend"><b>Map</b><span><i class="lg home"></i>Your apartment (Haarklous plass 17A)</span><span><i class="lg case"></i>Hostage rescue</span><span><i class="lg disc"></i>Disc golf</span><span><i class="lg petanque"></i>Petanque</span><span><i class="lg you"></i>You</span><span><i class="lg others"></i>Other players in your lobby</span><span><i class="lg wp"></i>Your waypoint</span><span><i class="lg bikes"></i>City bike dock (number = free bikes; zoom in for the name)</span><small>Left stick / drag: pan · Right stick / wheel: zoom</small><small>✕ / click: set or remove a waypoint · □ / Delete: remove it · ○ / M: close</small><small class="attr">© OpenStreetMap contributors</small></div>';
     root.append(el);
     const canvas = el.querySelector('canvas'), ctx = canvas.getContext('2d');
-    const map = {open: false, cx: 0, cs: 0, scale: 2.2, waypoint: null, layer: null};
+    const map = {open: false, cx: 0, cs: 0, scale: 2.2, waypoint: null, layer: null, course: null};
     const pairs = flat => {const out = [];for (let i = 0; i < flat.length; i += 2) out.push([flat[i], flat[i + 1]]);return out;};
     const order = ['footway', 'path', 'cycleway', 'steps', 'pedestrian', 'service', 'track', 'living_street', 'unclassified', 'residential', 'tertiary', 'secondary', 'primary', 'trunk_link', 'trunk', 'tram'];
     const PATHS = ['footway', 'path', 'steps', 'cycleway', 'track', 'pedestrian'];
@@ -60,6 +74,44 @@
       g.beginPath();g.moveTo(u, v);g.bezierCurveTo(u - r * 1.1, v - r * 1.3, u - r, v - r * 2.4, u, v - r * 2.4);g.bezierCurveTo(u + r, v - r * 2.4, u + r * 1.1, v - r * 1.3, u, v);g.closePath();
       g.fillStyle = WP;g.fill();g.strokeStyle = '#fff';g.lineWidth = Math.max(1.5, r * .22);g.stroke();g.fillStyle = '#fff';g.beginPath();g.arc(u, v - r * 1.55, r * .38, 0, 7);g.fill();
     }
+    // The disc golf course while a round is on (issue #60), in screen space: P(x, s) -> [u, v], d = device pixels, z = size
+    // (1 on the minimap), you = [u, v] (for the way to the next tee), rim(u, v) -> [u, v] pulls a tee that is out of range in.
+    const hulls = new Map();
+    function drawCourse(g, c, P, d, z, you, rim) {
+      let outline = c.outline;if (!outline) {if (!hulls.has(c.name)) hulls.set(c.name, courseOutline(c.holes, 14));outline = hulls.get(c.name);}
+      g.save();g.lineJoin = g.lineCap = 'round';g.textAlign = 'center';g.textBaseline = 'middle';
+      g.beginPath();pairs(outline).forEach(([x, s], i) => {const [u, v] = P(x, s);i ? g.lineTo(u, v) : g.moveTo(u, v);});g.closePath();
+      g.fillStyle = '#4caf5024';g.fill();g.setLineDash([5 * d * z, 4 * d * z]);g.strokeStyle = '#8fd19acc';g.lineWidth = 1.5 * d * z;g.stroke();g.setLineDash([]);
+      const order = c.holes.map((_, i) => i).filter(i => i !== c.current).concat(c.current);
+      for (const i of order) {
+        const h = c.holes[i], now = i === c.current, [tu, tv] = P(...h.tee), [bu, bv] = P(...h.basket);
+        g.globalAlpha = now ? 1 : .38;
+        g.strokeStyle = now ? '#ffffff' : '#cfe8d2';g.lineWidth = (now ? 2.2 : 1.4) * d * z;g.beginPath();g.moveTo(tu, tv);g.lineTo(bu, bv);g.stroke();
+        g.fillStyle = '#f2c200';g.strokeStyle = '#111';g.lineWidth = 1.2 * d * z;g.beginPath();g.arc(bu, bv, (now ? 3.6 : 3) * d * z, 0, 7);g.fill();g.stroke();
+        if (!(now && c.walking)) teeMark(g, tu, tv, h.n, now, d * z);
+      }
+      g.globalAlpha = 1;
+      // Walking to the next tee: a dashed line from you, and the tee (on the rim when it is out of range).
+      if (c.walking && you) {
+        const h = c.holes[c.current];let [tu, tv] = P(...h.tee);
+        g.strokeStyle = '#ffffff';g.globalAlpha = .9;g.lineWidth = 2.2 * d * z;g.setLineDash([6 * d * z, 5 * d * z]);g.beginPath();g.moveTo(you[0], you[1]);g.lineTo(tu, tv);g.stroke();g.setLineDash([]);g.globalAlpha = 1;
+        if (rim) [tu, tv] = rim(tu, tv);teeMark(g, tu, tv, h.n, true, d * z);
+      }
+      // Your lie: where your last throw landed, and how far it is to the basket. You stand on it, so the dot is big enough to
+      // show round your arrow, and the metres sit beside it (off the fairway line).
+      if (c.lie) {
+        const [u, v] = P(...c.lie), t = `${c.distance} m`;
+        g.fillStyle = '#ff4f9a';g.strokeStyle = '#fff';g.lineWidth = 1.5 * d * z;g.beginPath();g.arc(u, v, 9 * d * z, 0, 7);g.fill();g.stroke();
+        g.font = `bold ${10 * d * z}px system-ui`;g.textAlign = 'left';g.lineWidth = 3 * d * z;g.strokeStyle = '#000c';g.strokeText(t, u + 13 * d * z, v);g.fillStyle = '#fff';g.fillText(t, u + 13 * d * z, v);
+      }
+      g.restore();
+    }
+    function teeMark(g, u, v, n, now, d) {
+      const r = (now ? 7 : 6) * d;g.fillStyle = now ? '#2e9e44' : '#2b6e38';g.strokeStyle = '#fff';g.lineWidth = 1.2 * d;g.beginPath();g.arc(u, v, r, 0, 7);g.fill();g.stroke();
+      g.fillStyle = '#fff';g.font = `bold ${(n > 9 ? 7.5 : 9) * d}px system-ui`;g.fillText(String(n), u, v + .5 * d);
+    }
+    // While a round is on its own tees and baskets replace the course's map icons.
+    const shownPoi = () => poi().filter(p => !(map.course && p.course === map.course.name));
     // Every area, road and building with its bounding box (made once), so a frame only draws what is in view.
     let feats = null;
     function features() {
@@ -101,9 +153,11 @@
       if (map.layer) {map.layer.draw(ctx, {P, k, w, h, dpr: devicePixelRatio, rotation: 0, player: lastPlayer});return;}
       const key = [w, h, map.cx, map.cs, map.scale].join();if (key !== baseKey) {if (base.width !== w || base.height !== h) {base.width = w;base.height = h;}drawBase(w, h, k, P);baseKey = key;}
       ctx.drawImage(base, 0, 0);ctx.textAlign = 'center';
+      if (map.course) {const l = lastPlayer && toLocal(lastPlayer.x, lastPlayer.z);drawCourse(ctx, map.course, P, devicePixelRatio, 1.4, l && P(l.x, l.s), null);}
       // Points of interest.
       const icon = (x, s, color, label, glyph) => {const [u, v] = P(x, s), r = 11 * devicePixelRatio;ctx.fillStyle = color;ctx.beginPath();ctx.arc(u, v, r, 0, 7);ctx.fill();ctx.strokeStyle = '#fff';ctx.lineWidth = 2 * devicePixelRatio;ctx.stroke();ctx.fillStyle = '#fff';ctx.font = `bold ${12 * devicePixelRatio}px system-ui`;ctx.textBaseline = 'middle';ctx.fillText(glyph, u, v + .5);ctx.textBaseline = 'alphabetic';if (label) {ctx.fillStyle = '#222';ctx.font = `bold ${12 * devicePixelRatio}px system-ui`;ctx.fillText(label, u, v - r - 5 * devicePixelRatio);}};
-      for (const p of poi()) icon(p.x, p.s, p.color, p.label, p.glyph);
+      // A place with zoomLabel shows its label only when the map is zoomed in that far (the city bike docks, issue #57).
+      for (const p of shownPoi()) icon(p.x, p.s, p.color, p.zoomLabel && map.scale < p.zoomLabel ? '' : p.label, p.glyph);
       // The waypoint: a dashed line from you, the pin and how far it is.
       if (map.waypoint) {
         const [u, v] = P(map.waypoint.x, map.waypoint.s), d = devicePixelRatio;
@@ -205,9 +259,10 @@
         const t = tile(i, j);if (t) mg.drawImage(t, i * TILE - PAD, j * TILE - PAD, TILE + 2 * PAD, TILE + 2 * PAD);
       }
       mg.setTransform(1, 0, 0, 1, 0, 0);
+      if (map.course) drawCourse(mg, map.course, (px, ps) => {const [u, v] = at(px, ps);return [R + u, R + v];}, d, 1, [R, R], (u, v) => {const q = toRim(u - R, v - R, inner - 9 * d);return [R + q.u, R + q.v];});
       // Places (only those in range), other players (on the rim when out of range), the waypoint (always), you in the middle.
       mg.textAlign = 'center';mg.textBaseline = 'middle';
-      for (const p of poi()) {
+      for (const p of shownPoi()) {
         const [u, v] = at(p.x, p.s);if (Math.hypot(u, v) > inner - 4 * d) continue;
         const r = (p.label ? 6.5 : 3) * d;mg.fillStyle = p.color;mg.beginPath();mg.arc(R + u, R + v, r, 0, 7);mg.fill();mg.strokeStyle = '#fff';mg.lineWidth = 1.2 * d;mg.stroke();
         if (p.label) {mg.fillStyle = '#fff';mg.font = `bold ${8 * d}px system-ui`;mg.fillText(p.glyph, R + u, R + v + .5 * d);}
@@ -245,13 +300,16 @@
       if (map.waypoint && you && !map.layer) {const wp = toWorld(map.waypoint.x, map.waypoint.s);if (Math.hypot(wp.x - you.x, wp.z - you.z) <= REACH) {map.waypoint = null;reached = true;}}
       // Zoom out with speed (smoothed; a jump of more than 150 m/s is a teleport, not speed).
       if (last && dt > 0) {const v = Math.hypot(x - last.x, z - last.z) / dt;if (v < 150) speed += (v - speed) * Math.min(1, dt * 2);}last = {x, z};
-      range += (minimapRange(speed, alt) - range) * Math.min(1, (dt || 0) * 1.5);
-      const miniShown = miniOn && show;mini.hidden = !miniShown;root.classList.toggle('has-minimap', miniShown);
+      // A disc golf round zooms to the hole you play (tee, basket and your lie) or to the next tee while you walk there.
+      const c = map.course && !map.layer ? map.course : null, l = c && toLocal(x, z), h = c && c.holes[c.current];
+      const want = c ? courseRange([l.x, l.s], c.walking ? [h.tee] : [h.tee, h.basket, ...(c.lie ? [c.lie] : [])]) : minimapRange(speed, alt);
+      range += (want - range) * Math.min(1, (dt || 0) * 1.5);
+      const miniShown = (miniOn || !!c) && show;mini.hidden = !miniShown;root.classList.toggle('has-minimap', miniShown);
       if (miniShown) drawMini({x, z, heading, view, others});
       if (map.waypoint && show && camera && !map.layer) drawPointer(camera, you, ground);else ptr.hidden = true;
       return reached ? 'reached' : null;
     };
     return map;
   }
-  return {create, edgePoint, screenSpot, toRim, distanceText, minimapRange, REACH};
+  return {create, edgePoint, screenSpot, toRim, distanceText, minimapRange, courseOutline, courseRange, REACH};
 });

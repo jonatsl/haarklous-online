@@ -16,7 +16,7 @@ On `main`:
 - Cars and motorcycles follow gravity (9.81 m/s²) and fly over crests and bumps taken fast (PR #5).
 - FPV drone (hold △), photo camera with gallery (tap △), wristwatch (D-pad ↑), map (touchpad).
 - A waypoint you set on the map (✕ or a click) and a purple pin on screen that leads you there until you are within 7 m (issue #41); an optional round minimap in the bottom-left corner like GTA IV's, turned on in the pause menu (issue #42).
-- Minigames: the real Muselunden DiscGolfPark (12 holes, PR #13) and two disc golf holes in Torshovdalen, petanque against Arne; hostage-rescue mission (start at the red ring by the entrance); stay home after the mission.
+- Minigames: the real Muselunden DiscGolfPark (12 holes, PR #13) and two disc golf holes in Torshovdalen (you walk from hole to hole, and the minimap shows the course, your lie and the way to the next tee, issue #60), petanque against Arne; hostage-rescue mission (start at the red ring by the entrance); stay home after the mission.
 - Firepit with benches, beer crate and woodpile (fire size shared online); beer and aquavit in the apartment (30 s drunk each).
 - Joker and Kiwi shops at their real places with a cashier; money in kroner (start 500 kr, earned from the mission, minigames and bottle deposit), Norwegian beer hours, a bag of bought items (PR #6).
 - Three hidden stashes with 30-second boosts: 3× running speed, 3× jump height or bullet time.
@@ -33,15 +33,13 @@ On `main`:
 - Kayaking down Akerselva from three put-ins (Bjølsen, Sagene, Grünerløkka) to Vaterland: the real river, its falls and bridges (issue #45).
 - Schous plass: playable table tennis against Ola; Deichman Grünerløkka with thousands of books, *The Inner Game of Tennis* and a readable *Moby-Dick*, and a librarian who shushes runners and loud voices (issues #44, #47).
 - Rathkes gate 1: the gate, the passage and the backyard with door 1C, ready for the second flat (issue #44, preparation).
-
-On branch `feat/klatreverket-torshov` (issue #40, PR #49, not merged yet):
 - Klatreverket Torshov at its real place (Myrens verksted 3K) in its real building: 14 m hall, 7 m overhanging competition wall, Galleriet, autobelay tower, bouldering on three floors, the training room with the Moonwall; reception with the real prices and rental; climb with L2 / R2 (bouldering, top rope with Siri belaying, lead with clips, autobelay), pump, falls on the rope, the brattkort test and belaying Siri.
 - The ground round Myrens verksted and Akerselva (district patch 'myrens').
+- Jobs that earn money, from a phone (D-pad → / P) or the JOBB signs by Joker and Kiwi: food delivery from real cafés, restaurants and the shops to real street doors, and taxi with passengers who tip for smooth, fast driving; a friend riding along gets half (issue #56).
+- E-scooters on the pavements (10 kr + 3 kr a minute, 20 km/h, left where you get off – for everyone online) and Oslo city bikes and e-bikes in the 40 real Oslo Bysykkel docks around Torshov, Myrens and Grünerløkka, at the real prices; the map shows the free bikes at each dock (issue #57).
+- A large catacomb under Torshovdalen with three entrances about 100 m apart (marked ☠ on the map): torch-lit bone galleries with real-looking skulls, dark quarry tunnels where you use your torch (□ / L1 / Q), and a map that is wiped underground and fills in with what you see (PR #50, issue #43).
 
-Live site: runs `main` (Worker version ddf8bd0a, deployed 3 Nov 2026 after PR #51; `main` builds byte-for-byte to the live page), so everything above is online.
-
-On branch `feat/catacomb` ([PR #50](https://github.com/jonatsl/haarklous-online/pull/50), not on `main` yet):
-- A large catacomb under Torshovdalen with three entrances about 100 m apart (marked ☠ on the map): torch-lit bone galleries with real-looking skulls, dark quarry tunnels where you use your torch (□ / L1 / Q), and a map that is wiped underground and fills in with what you see (issue #43).
+Live site: runs `main` (Worker version 4a8eab68, deployed 3 Nov 2026 after PR #61; `main` builds byte-for-byte to the live page), so everything above is online.
 
 On branch `feat/progress-and-badges` (issues #54 and #58, not merged yet):
 - Logged in, your progress is your account's and is there on any PC or browser: money and bottles, the bag, photos (an album of up to 60), badges, best scores, Klatreverket ticks, the catacomb map and your settings; it saves by itself. The first log-in on a browser with its own progress asks whether to move it into the account. Without an account it stays in the browser as before (issue #54).
@@ -83,11 +81,99 @@ On branch `feat/progress-and-badges` (issues #54 and #58, not merged yet):
   - `game-minigames.js`, `game-tabletennis.js`, `case-game.js`: report results for the best scores.
   - `index.html`, `style.css`, `README.md`, `docs/HANDOFF.md`; tests `tests/progress.test.cjs`, `tests/badges.test.cjs`.
 - **Checked:**
-  - Node tests 113/113 (11 new).
+  - Node tests 113/113 (11 new); 128/128 after merging `main` (jobs and bikes, the disc golf minimap). The merged game starts, the phone (D-pad →) and the badges list (R1) open and close, no script errors.
   - On a local copy of the server (`wrangler dev`, logged in as a test user): saving and loading, bad input refused, the 61st photo refused.
   - In the browser: the question and both answers; 900 + 777 = 1677 kr after moving, the photo moved; a newer save from "another PC" loaded on reload; log-out saved the last change and brought the browser's copy back; deleting a photo in the account album; all ten photo places photographed through the game's own camera path (photos checked by eye); the badges list; a real canopy landing 7.8 m from the target gave "On target" and 150 kr.
   - Not checked: the live server (needs the merge and a deploy), a real DualShock 4, two PCs at the same time (the last save wins).
 - **Status:** branch `feat/progress-and-badges`, not merged, not live.
+
+### 2026-11-03 · `main` is live (PR #61, the disc golf course on the minimap)
+- **What:** the disc golf course on the minimap and the walk to the next tee (PR #61, issue #60) are merged into `main` (4bfcf20) and deployed (Cloudflare Worker version 4a8eab68).
+  - Deployed from this session's own clean worktree at the merge commit, with `cloud/` packages installed by `npm ci`.
+  - The jobs, e-scooters and city bikes (PR #62) were already live before this deploy; their "live" entry is in PR #66.
+- **Why:** the user said "Merge and deploy" (3 Nov 2026).
+- **Checked:**
+  - `node --test tests/*.cjs`: 117 pass on the merged `main`.
+  - `main` builds byte-for-byte to the committed `haarklous-game.html`, and the live page is byte-for-byte the build.
+- **Status:** live. Issue #60 is closed (GitHub closed it when PR #61 was merged).
+
+### 2026-11-03 · Disc golf course layout on the minimap (issue #60)
+- **What:**
+  - During a disc golf round (Muselunden or Torshovdalen) the round minimap shows the course:
+    - the course outline (Muselunden's own outline; for Torshovdalen, which has none, a line round its tees and baskets),
+    - every hole's tee with its number, its basket (yellow) and a line from tee to basket,
+    - the hole you play bright, the other holes faded,
+    - your lie (where your last throw landed) as a pink dot with the metres to the basket.
+  - The minimap zooms so the whole hole you play fits (tee, basket and your lie).
+  - After each hole you now walk (or run) to the next tee. The minimap shows the way there with a dashed line, and the card counts the metres to the tee. The next hole starts when you are within 3 m of its tee. □ takes you straight there, as the old automatic move did. ○ still ends the round.
+  - The big map (touchpad) shows the same layout while a round is on. The course's normal map icons are hidden then.
+  - If the minimap is switched off in the pause menu, it turns on by itself during the round and off again afterwards. The saved setting does not change.
+  - If you keep R2 held from running when you reach the tee, it does not start a throw; let go of R2 first.
+- **Why:** issue #60 (the user asked to implement it, 3 Nov 2026). Before, the game moved you to the next tee by itself; the issue says you walk there and the minimap shows the way, so walking was added.
+- **Where:**
+  - `game-map.js`: `map.course`, `drawCourse` (minimap and big map), `courseOutline`, `courseRange`; the minimap shows during a round.
+  - `game-minigames.js`: the walk between holes (`walk`, `beginHole`), `layout()` for the map, `toLocal`.
+  - `game-main.js`: `updateMinigame` lets you walk between holes, `updateGuide` gives the map the round's layout, the scorecard text, the course tag on the map icons.
+  - `README.md`, `index.html` (controls text and the minimap setting), `docs/HANDOFF.md`.
+  - Tests: `tests/map.test.cjs` (outline, zoom) and `tests/minigames.test.cjs` (walk to the next tee, □, ○, the last hole, the layout).
+- **Checked:**
+  - `node --test tests/*.cjs`: 107 pass (5 new); 117 pass after merging `main` with the jobs and bikes (PR #62). On the big map the course's icons stay hidden during a round, and the city bike docks keep their zoom labels.
+  - In the browser (simulated controller, offline): a real throw on Muselunden hole 1 landed 68 m short and showed as the pink dot with "68 m"; after the hole the walk to tee 2 showed the dashed line and "43 m to the tee"; running onto the tee started hole 2 without a throw; the big map showed the layout; ○ ended the round and the minimap went off again (setting off) or stayed on (setting on); Torshovdalen showed its drawn outline. No script errors.
+  - Not checked: on the user's own PC and controller.
+- **Status:** merged into `main` ([PR #61](https://github.com/jonatsl/haarklous-online/pull/61), 4bfcf20) and live (Worker version 4a8eab68, 3 Nov 2026). Issue #60 is closed.
+
+### 2026-11-03 · Delivery and taxi jobs; e-scooters and Oslo city bikes (issues #56 and #57)
+- **What:**
+  - **Phone:** D-pad → (keyboard → or P) opens a phone on foot or in a vehicle: start or stop a delivery shift, turn taxi on or off, and see the nearest e-scooter and city bike dock (✕ sets the waypoint). □ at the *JOBB* signs beside Joker and Kiwi opens it too.
+  - **Delivery (#56):**
+    - An order comes in from a real café, restaurant or takeaway near Torshov (22 places from OpenStreetMap) or from Joker / Kiwi. The waypoint, the minimap and a yellow ring show where to go.
+    - □ there picks up the order. Then it must go to a real street door: one of 881 OpenStreetMap addresses, with the door on the side that faces its own street. A door with the house number appears on the building.
+    - Pay: 35 kr + 7 kr per 100 m, up to 50 % more for being fast, 40 % when the time has run out. On foot, running, by bike, scooter, motorcycle or car.
+  - **Taxi (#56):**
+    - In a car as the driver, turn on taxi: the roof light comes on. A passenger calls from a street address and waits at the kerb; stop beside them and they get in the back seat and ask for an address in the neighbourhood.
+    - Fare 65 kr + 20 kr per km. Smooth and fast driving gives a tip up to a quarter of the fare. Crashes, hard braking and swerving, wrong turns (driving 45 m away from the destination) and drunk driving make the passenger angry (a bar on the job card, comments in a speech bubble) and the tip smaller or nothing.
+    - Getting out ends the taxi shift; a passenger in the back leaves without paying.
+  - **With friends online (#56):** others see your taxi light and your passenger. A friend who rides along (passenger seat or pillion) sees your job, follows your waypoint and gets half of each payment.
+  - **E-scooters (#57):** 48 on the pavements around Torshov and Grünerløkka. □ unlocks one: 10 kr, then 3 kr every started minute. Ride standing, alone, at up to 20 km/h. Getting off ends the ride; the scooter stays there, for the other players too.
+  - **City bikes and e-bikes (#57):**
+    - The 40 real Oslo Bysykkel docks around Torshov, Myrens and Grünerløkka, from the operator's open data (GBFS, 3 Nov 2026), each with up to 10 of its slots, a name totem and about half full (a third e-bikes).
+    - The real prices: 8 kr, then 1 kr (e-bike 2 kr) for every started minute after the first.
+    - R2 pedals: about 22 km/h on the flat, 13 km/h up a 3.6 % hill, 7 km/h up 8 %; the e-bike keeps 23 km/h up 3.6 % and 16 km/h up 8 % (its motor stops helping at 25 km/h).
+    - Return it to any dock with a free slot (□). Elsewhere □ locks it and the trip goes on; after 15 minutes outside a dock you pay a 250 kr fee for not returning it (the game's own rule). Nobody else can take a bike you have locked.
+    - The map shows every dock with the number of free bikes; zoomed in, its name and how many are bikes and e-bikes.
+  - **A fix for everyone online:** when a player got off a vehicle, the others dropped the last position update, so the vehicle could stand a little wrong for them. Now it stands exactly where it was left.
+- **Why:** the user's issues #56 ("Delivery and taxi jobs") and #57 ("E-scooters and city bikes", with the comment "include some e-bikes too"); the user asked to implement both (3 Nov 2026).
+  - The e-scooter price is a typical Oslo price, not one company's, and no company names or logos are used. The 250 kr fee and the 15 minutes are the game's own choice (the issue asks that keeping the bike too long or not returning it costs more).
+  - The waiting passenger stands at the kerb, not at their door: some buildings stand 20 m back from the street.
+- **Where:** `game-jobs.js`, `jobs-data.js`, `game-rentals.js`, `rides-data.js`, `tools/make-jobs-rides.cjs`, `assets/gbfs/oslo-bysykkel-2026-11-03.json`, `assets/osm/jobs-osm-2026-11-03.json`, `game-main.js` (docks and signs, vehicles, prompts, phone, job card, crew share, online state), `game-vehicles.js` (`onHit`, shared model parts), `game-multiplayer.js` (last position on getting off, cycling speed), `game-avatars.js` (scooter and cycling poses), `game-audio.js` (e-motor, unlock, bell), `game-map.js` (dock labels when zoomed in, legend), `index.html`, `style.css`, `README.md`, `docs/HANDOFF.md`, `tests/jobs-rides.test.cjs`.
+- **Checked:**
+  - Node tests 112/112 (10 new): prices, dock counting, the docks clear of buildings and streets, seeded scooter places, delivery pay, taxi fare / mood / tip, wrong turns, orders, doors on the street side of their building.
+  - In the browser (simulated controller): scooter unlocked (10 kr), top speed exactly 20 km/h, ride ended and paid; city bike taken from a dock (count 7 → 6, map label updated), rolled out of the slot, locked outside a dock (250 kr after 15 min), e-bike returned into a free slot with the right price (3:20 → 14 kr); delivery from the phone: order at Kiwi, door with its number on Siloveien 2, paid 103 kr; taxi: call, boarding, a crash (mood 82 → 48, tip 7 kr), payment, getting out ends the shift. No script errors.
+  - Online with two players on a local lobby server: a scooter left by one is exactly there for the other (live and after joining); the other sees the taxi light and the passenger in the back seat; the friend riding along got half of the fare (44 of 87 kr); a locked city bike cannot be taken by the other.
+  - Cost: about 6 draw calls per scooter or bike in view (with shadows), 3 per dock.
+- **Not checked:** a real DualShock 4, the look and sound on a real screen, real players in different homes.
+- **Status:** branch `feat/jobs-and-bikes`, PR #62 (https://github.com/jonatsl/haarklous-online/pull/62) for the user's review (not merged, not deployed).
+
+### 2026-11-03 · `main` is live (PR #50, the catacomb)
+- **What:** the catacomb (PR #50, issue #43) is merged into `main` (85841c8) and deployed (Cloudflare Worker version cfea339d).
+  - Deployed from this session's own worktree at the merge commit, with `cloud/` packages installed by `npm ci`.
+  - The first deploy try was blocked by Claude Code's permission check until the user asked for it.
+- **Why:** the user said "Merge 50", then "All merged things should be deployed now" (3 Nov 2026).
+- **Checked:**
+  - `node --test tests/*.cjs`: 102 pass on the merged `main`.
+  - The live page is byte-for-byte the build, and `/weather` answers 200.
+  - The live game loads the catacomb (66 chunks), Klatreverket, the kayak and the Ensjø run, with no console errors.
+- **Status:** live.
+
+### 2026-11-03 · `main` is live (PR #49)
+- **What:** Klatreverket Torshov (PR #49, issue #40) is merged into `main` and deployed (Cloudflare Worker version 6b288cd0).
+  - Deployed from a clean worktree of the merged `main` (102a042), with `cloud/` packages installed by `npm ci`.
+- **Why:** the user said "Merge this then" (3 Nov 2026), answering whether to merge and deploy PR #49.
+- **Checked:**
+  - `node --test tests/*.cjs`: 93 pass on the merged `main`.
+  - The live page is byte-for-byte the build (apart from line endings); `/weather` answers 200.
+  - The live game loads with Klatreverket (112 routes), the Gamle Oslo and Myrens ground and the kayak.
+- **Status:** live.
 
 ### 2026-11-03 · A large catacomb with three entrances (issue #43)
 - **What:**
@@ -131,7 +217,7 @@ On branch `feat/progress-and-badges` (issues #54 and #58, not merged yet):
   - In the browser (simulated controller): walked down the north stair to the hall; the map switched; the dark tunnel showed the prompt and □ lit the torch; screenshots of the mausoleum, the ossuary, the rotunda, the crypt and the Sacellum.
   - Underground about 100 draw calls and 0.8 M triangles. On the surface by the mausoleums it is 1.2 k calls and 1.6 M triangles, as before.
   - Not checked: frame rate on the user's PC (the browser pane was hidden), and sound by ear.
-- **Status:** branch `feat/catacomb`, [PR #50](https://github.com/jonatsl/haarklous-online/pull/50) (open); not on `main`, not live.
+- **Status:** merged into `main` ([PR #50](https://github.com/jonatsl/haarklous-online/pull/50), 85841c8) and live (Worker version cfea339d, 3 Nov 2026).
 
 ### 2026-11-03 · `main` is live (PR #51)
 - **What:** Grünerløkka (PR #51: Akerselva kayak, table tennis at Schous plass, Deichman Grünerløkka and its librarian, Rathkes gate 1) is merged into `main` and deployed (Cloudflare Worker version ddf8bd0a). Issues #44, #45 and #47 are closed.
@@ -233,7 +319,7 @@ On branch `feat/progress-and-badges` (issues #54 and #58, not merged yet):
     - the brattkort test passed;
     - walked from the old world over the seam at x -760 into the Myrens patch, and from the street up the ramp into the lobby.
   - Not checked: a real DualShock 4, real frame rate on the user's PC, two real players climbing together online.
-- **Status:** PR https://github.com/jonatsl/haarklous-online/pull/49 (branch `feat/klatreverket-torshov`, not merged). It was built on PR #48, which is now merged; `main` is merged into the branch. Not live.
+- **Status:** on `main` (PR #49, merged 3 Nov 2026 with the user's OK) and live (Worker version 6b288cd0).
 
 ### 2026-11-02 · Gamle Oslo, Ensjø and the way there (issue #38)
 - **What:**
