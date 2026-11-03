@@ -78,6 +78,16 @@ Live site: runs `main` (Worker version 4a8eab68, deployed 3 Nov 2026 after PR #6
   - Not checked: on the user's own PC and controller.
 - **Status:** merged into `main` ([PR #61](https://github.com/jonatsl/haarklous-online/pull/61), 4bfcf20) and live (Worker version 4a8eab68, 3 Nov 2026). Issue #60 is closed.
 
+### 2026-11-03 · `main` is live (PR #62, jobs, e-scooters and city bikes)
+- **What:** delivery and taxi jobs, e-scooters and Oslo city bikes (PR #62, issues #56 and #57) are merged into `main` (9bdda69) and deployed (Cloudflare Worker version a218d9f4).
+  - Deployed from this session's own worktree at the merge commit, with `cloud/` packages installed by `npm ci`.
+- **Why:** the user said "Merge and deploy" (3 Nov 2026).
+- **Checked:**
+  - `node --test tests/*.cjs`: 112 pass on the merged `main`.
+  - The live page is byte-for-byte the build.
+  - The live game loads the 40 city bike docks, the 881 street doors and the phone, with no console errors.
+- **Status:** live.
+
 ### 2026-11-03 · Delivery and taxi jobs; e-scooters and Oslo city bikes (issues #56 and #57)
 - **What:**
   - **Phone:** D-pad → (keyboard → or P) opens a phone on foot or in a vehicle: start or stop a delivery shift, turn taxi on or off, and see the nearest e-scooter and city bike dock (✕ sets the waypoint). □ at the *JOBB* signs beside Joker and Kiwi opens it too.
@@ -108,7 +118,7 @@ Live site: runs `main` (Worker version 4a8eab68, deployed 3 Nov 2026 after PR #6
   - Online with two players on a local lobby server: a scooter left by one is exactly there for the other (live and after joining); the other sees the taxi light and the passenger in the back seat; the friend riding along got half of the fare (44 of 87 kr); a locked city bike cannot be taken by the other.
   - Cost: about 6 draw calls per scooter or bike in view (with shadows), 3 per dock.
 - **Not checked:** a real DualShock 4, the look and sound on a real screen, real players in different homes.
-- **Status:** branch `feat/jobs-and-bikes`, PR #62 (https://github.com/jonatsl/haarklous-online/pull/62) for the user's review (not merged, not deployed).
+- **Status:** merged into `main` ([PR #62](https://github.com/jonatsl/haarklous-online/pull/62), 9bdda69) and live (Worker version a218d9f4, 3 Nov 2026). Issues #56 and #57 are closed.
 
 ### 2026-11-03 · `main` is live (PR #50, the catacomb)
 - **What:** the catacomb (PR #50, issue #43) is merged into `main` (85841c8) and deployed (Cloudflare Worker version cfea339d).
