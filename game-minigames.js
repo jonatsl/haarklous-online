@@ -1,10 +1,14 @@
 /* Minigames in the open world: disc golf (two par-3 holes about 70 m in Torshovdalen) and petanque (singles, 3 boules,
  * game to 13 points, real scoring) against a CGI opponent who always waits at the court.
- * GameMinigames.create({T, lib, audio, heightAt, toWorld, data, hud, muselunden}) -> {discgolf, muselunden, petanque}
+ * GameMinigames.create({T, lib, audio, heightAt, toWorld, toLocal, data, hud, muselunden}) -> {discgolf, muselunden, petanque}
  *   discgolf: the two holes in Torshovdalen (data.discgolf); muselunden: the real 12-hole Muselunden DiscGolfPark
  *   (muselunden-data.js, when given). Both are the same disc golf game with their own holes.; GameMinigames.petanqueNext(hold, left)
  * Each game: group (scene objects), near(player) -> prompt text or null, start(player), update(dt, input, view) -> camera override,
  *   active, stop(). Input: {aimYaw, aimPitch, charge(0..1 while held), release (bool), alt (L2 held), cancel}.
+ * Disc golf (issue #60): after a hole you walk to the next tee (update returns {walk: true}: the game moves you on foot; input.at =
+ *   your feet {x, z, y}, input.skip = □ takes you straight there); the hole starts within 3 m of the tee. layout() -> what the
+ *   minimap and the map draw while a round is on: {name, outline (local [x, s, ...] or null), holes [{n, tee, basket}] (local
+ *   [x, s]), current (index), walking, lie [x, s] | null (after your first throw on the hole), distance (m to the basket)} | null.
  */
 (function (root, factory) {
   root.GameMinigames = factory();
@@ -17,7 +21,7 @@
     const other = hold === 'you' ? 'npc' : 'you';
     return left[other] > 0 ? other : left[hold] > 0 ? hold : null;
   }
-  function create({T, lib, audio, heightAt, toWorld, data, hud, trees, reward, muselunden}) {
+  function create({T, lib, audio, heightAt, toWorld, toLocal, data, hud, trees, reward, muselunden}) {
     const V3 = (x, y, z) => new T.Vector3(x, y, z);
     const mesh = (parent, geo, mat, x = 0, y = 0, z = 0) => {const m = new T.Mesh(geo, mat);m.position.set(x, y, z);m.castShadow = m.receiveShadow = true;parent.add(m);return m;};
     const gauss = () => {let u = 0, v = 0;while (!u) u = Math.random();while (!v) v = Math.random();return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);};
@@ -30,7 +34,7 @@
       const holes = (course.holes || []).map((h, i) => {
         const tee = toWorld(h.tee[0], h.tee[1]), basket = toWorld(h.basket[0], h.basket[1]);
         tee.y = heightAt(tee.x, tee.z);basket.y = heightAt(basket.x, basket.z);
-        return {n: h.n || i + 1, par: h.par, tee, basket, length: Math.hypot(basket.x - tee.x, basket.z - tee.z)};
+        return {n: h.n || i + 1, par: h.par, tee, basket, length: Math.hypot(basket.x - tee.x, basket.z - tee.z), local: {tee: h.tee, basket: h.basket}};
       });
       const galv = lib.metal(0xb9bec2, .35), yellow = lib.paint(0xf2c200, .4), chainM = lib.metal(0xd7dadc, .25), pad = lib.concrete(0x7b7d78), sign = lib.wood(0x6b4a2b, .6);
       for (const h of holes) {
@@ -53,7 +57,7 @@
       lib.mergeStatic(group);
       const discMat = new T.MeshPhysicalMaterial({color: 0xff4f9a, roughness: .35, clearcoat: .6});
       const disc = mesh(group, new T.CylinderGeometry(.105, .1, .022, 28), discMat);disc.visible = false;
-      const game = {group, holes, active: false, hole: 0, strokes: [], lie: null, disc: {pos: V3(), vel: V3(), bank: 0, flying: false, rest: false}, charging: 0, followT: 0, message: ''};
+      const game = {group, holes, active: false, hole: 0, walk: null, toTee: 0, strokes: [], lie: null, disc: {pos: V3(), vel: V3(), bank: 0, flying: false, rest: false}, charging: 0, followT: 0, message: ''};
       game.near = p => {
         if (game.active) return null;
         for (const h of holes) if (Math.hypot(p.x - h.tee.x, p.z - h.tee.z) < 4 && Math.abs(p.y - h.tee.y) < 3) return `□ Play disc golf · ${course.name} · Hull ${h.n} (par ${h.par}, ${Math.round(h.length)} m)`;
@@ -61,10 +65,16 @@
       };
       game.start = p => {
         const h = holes.reduce((best, x) => Math.hypot(p.x - x.tee.x, p.z - x.tee.z) < Math.hypot(p.x - best.tee.x, p.z - best.tee.z) ? x : best, holes[0]);
-        game.active = true;game.hole = h.n - 1;game.strokes = holes.map(() => 0);game.lie = {x: h.tee.x, z: h.tee.z, y: h.tee.y};game.disc.flying = false;disc.visible = false;game.message = `${course.name} · Hull ${h.n} · Par ${h.par} · Hold R2 (or left mouse) to throw, aim with the camera, left stick X for hyzer/anhyzer.`;
+        game.active = true;game.hole = h.n - 1;game.walk = null;game.pending = null;game.landed = false;game.strokes = holes.map(() => 0);game.lie = {x: h.tee.x, z: h.tee.z, y: h.tee.y};game.disc.flying = false;disc.visible = false;game.message = `${course.name} · Hull ${h.n} · Par ${h.par} · Hold R2 (or left mouse) to throw, aim with the camera, left stick X for hyzer/anhyzer.`;
         return {x: h.tee.x, z: h.tee.z, yaw: Math.atan2(-(h.basket.x - h.tee.x), -(h.basket.z - h.tee.z))};
       };
-      game.stop = () => {game.active = false;disc.visible = false;hud.discgolf(null);};
+      game.stop = () => {game.active = false;game.walk = null;game.pending = null;disc.visible = false;hud.discgolf(null);};
+      const faceBasket = h => Math.atan2(-(h.basket.x - h.tee.x), -(h.basket.z - h.tee.z));
+      // The next hole starts on its tee, facing the basket.
+      function beginHole(i) {
+        const n = holes[i];game.hole = i;game.walk = null;game.landed = false;game.lie = {x: n.tee.x, z: n.tee.z, y: n.tee.y};game.message = `Hull ${n.n} · Par ${n.par}`;
+        hud.discgolf(game.state());return {teleport: {x: n.tee.x, z: n.tee.z, yaw: faceBasket(n)}};
+      }
       function throwDisc(input) {
         const h = holes[game.hole], dist = Math.hypot(h.basket.x - game.lie.x, h.basket.z - game.lie.z), putt = dist < 11;
         const power = input.power, speed = putt ? 3 + power * 9 : 9 + power * 20, err = (putt ? .025 : .05) * (1 + (input.drunk || 0) * 2);
@@ -111,6 +121,13 @@
         if (!game.active) return null;
         const h = holes[game.hole], D = game.disc;
         if (input.cancel) {game.stop();return {done: 'Disc golf round ended.'};}
+        // Between holes you walk to the next tee (the minimap shows the way); □ takes you straight there.
+        if (game.walk !== null) {
+          const n = holes[game.walk], at = input.at || n.tee;game.toTee = Math.hypot(at.x - n.tee.x, at.z - n.tee.z);
+          if (input.skip || (game.toTee < 3 && Math.abs((at.y ?? n.tee.y) - n.tee.y) < 3)) return beginHole(game.walk);
+          game.message = `Walk to the tee of hull ${n.n}: the way is on your minimap. □ takes you straight there.`;
+          hud.discgolf(game.state());return {walk: true};
+        }
         if (D.flying || (disc.visible && !D.rest && D.vel.lengthSq() > 0)) {
           let r = null;for (let i = 0; i < 4 && !r; i++) r = step(dt / 4);
           disc.position.copy(D.pos);disc.rotation.set(Math.sin(D.bank) * .6, D.time * 40, 0);
@@ -120,7 +137,7 @@
             // Money: par 50 kr, birdie 100 kr, eagle or better 200 kr.
             if (reward && diff <= 0) reward(diff <= -2 ? 200 : diff === -1 ? 100 : 50, `${name} on ${course.name} hole ${h.n}`);
             game.pending = {next: true, t: 2.5};D.rest = true;
-          } else if (r === 'rest') {D.rest = true;game.lie ={x: D.pos.x, z: D.pos.z, y: heightAt(D.pos.x, D.pos.z)};game.message = `${Math.round(Math.hypot(h.basket.x - D.pos.x, h.basket.z - D.pos.z))} m to the basket. Throw again from where the disc landed.`;game.pending = {lie: true, t: .8};}
+          } else if (r === 'rest') {D.rest = true;game.landed = true;game.lie = {x: D.pos.x, z: D.pos.z, y: heightAt(D.pos.x, D.pos.z)};game.message = `${Math.round(Math.hypot(h.basket.x - D.pos.x, h.basket.z - D.pos.z))} m to the basket. Throw again from where the disc landed.`;game.pending = {lie: true, t: .8};}
           // Follow camera behind and above the disc.
           const back = V3(D.pos.x - game.lie.x, 0, D.pos.z - game.lie.z).normalize();
           hud.discgolf(game.state());
@@ -131,7 +148,7 @@
           if (game.pending.t <= 0) {
             if (game.pending.next) {
               game.pending = null;disc.visible = false;D.rest = false;
-              if (game.hole + 1 < holes.length) {game.hole++;const n = holes[game.hole];game.lie = {x: n.tee.x, z: n.tee.z, y: n.tee.y};game.message = `Hull ${n.n} · Par ${n.par}`;hud.discgolf(game.state());return {teleport: {x: n.tee.x, z: n.tee.z, yaw: Math.atan2(-(n.basket.x - n.tee.x), -(n.basket.z - n.tee.z))}};}
+              if (game.hole + 1 < holes.length) {game.walk = game.hole + 1;const n = holes[game.walk];game.toTee = Math.hypot(game.lie.x - n.tee.x, game.lie.z - n.tee.z);hud.discgolf(game.state());return {walk: true};}
               const total = game.strokes.reduce((a, b) => a + b, 0), par = holes.reduce((a, b) => a + b.par, 0);game.stop();
               return {done: `${course.name} finished: ${total} throws (${total - par >= 0 ? '+' : ''}${total - par} vs par ${par}).`};
             }
@@ -143,7 +160,18 @@
         hud.discgolf(game.state(input.charge));
         return {lock: true};
       };
-      game.state = (charge = 0) => {const h = holes[game.hole];return {course: course.name, hole: h.n, holes: holes.length, par: h.par, strokes: game.strokes.slice(), distance: game.lie ? Math.round(Math.hypot(h.basket.x - game.lie.x, h.basket.z - game.lie.z)) : 0, charge, message: game.message};};
+      game.state = (charge = 0) => {
+        const walk = game.walk !== null, h = holes[walk ? game.walk : game.hole];
+        return {course: course.name, hole: h.n, holes: holes.length, par: h.par, strokes: game.strokes.slice(), walk, distance: walk ? Math.round(game.toTee) : game.lie ? Math.round(Math.hypot(h.basket.x - game.lie.x, h.basket.z - game.lie.z)) : 0, charge, message: game.message};
+      };
+      // The course on the minimap and the map (issue #60). The lie shows once you have thrown on the hole, until it is holed.
+      const plan = {name: course.name, outline: course.outline || null, holes: holes.map(h => ({n: h.n, tee: h.local.tee, basket: h.local.basket}))};
+      game.layout = () => {
+        if (!game.active) return null;
+        const walk = game.walk !== null, h = holes[game.hole], thrown = !walk && game.landed && !(game.pending && game.pending.next) && game.lie && toLocal;
+        const l = thrown ? toLocal(game.lie.x, game.lie.z) : null;
+        return {...plan, current: walk ? game.walk : game.hole, walking: walk, lie: l ? [l.x, l.s] : null, distance: l ? Math.round(Math.hypot(h.basket.x - game.lie.x, h.basket.z - game.lie.z)) : 0};
+      };
       return game;
     }
 

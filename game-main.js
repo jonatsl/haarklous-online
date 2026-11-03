@@ -223,7 +223,7 @@
 
   // ---------- HUD ----------
   const hud = {
-    discgolf(s) {const el = $('discHud');if (!s) {el.hidden = true;return;}el.hidden = false;el.innerHTML = `<b>${s.course} · Hull ${s.hole}/${s.holes} · Par ${s.par}</b><span>Throws: ${s.strokes.map((n, i) => `H${i + 1} ${n}`).join(' · ')}</span><span>${s.distance} m to the basket</span><i class="meter"><u style="width:${Math.round(s.charge * 100)}%"></u></i><small>${s.message}</small><small>Hold R2 / left mouse, release to throw · left stick ←/→ hyzer · ○ quit</small>`;},
+    discgolf(s) {const el = $('discHud');if (!s) {el.hidden = true;return;}el.hidden = false;el.innerHTML = `<b>${s.course} · Hull ${s.hole}/${s.holes} · Par ${s.par}</b><span>Throws: ${s.strokes.map((n, i) => `H${i + 1} ${n}`).join(' · ')}</span><span>${s.distance} m to the ${s.walk ? 'tee' : 'basket'}</span><i class="meter"><u style="width:${Math.round(s.charge * 100)}%"></u></i><small>${s.message}</small><small>${s.walk ? 'Walk or run to the tee · □ straight there · ○ quit' : 'Hold R2 / left mouse, release to throw · left stick ←/→ hyzer · ○ quit'}</small>`;},
     petanque(s) {
       const el = $('petanqueHud'), marks = $('markers');if (!s) {el.hidden = true;marks.replaceChildren();return;}el.hidden = false;
       el.innerHTML = `<b>Petanque · You ${s.score.you} – ${s.score.npc} ${s.npcName}</b><span>Mène ${s.mene} · Boules left: you ${s.you}, ${s.npcName} ${s.npc}</span><span>${s.hold ? (s.hold === 'you' ? `You hold the point by ${s.margin.toFixed(2)} m` : `${s.npcName} holds the point by ${s.margin.toFixed(2)} m`) : 'Nobody holds the point'}</span><span>${s.turn === 'you' ? `Your turn: ${s.aim === 'jack' ? 'throw the jack (6–10 m)' : (s.shoot ? 'shoot (L2 held)' : 'point (hold L2 to shoot)')}` : s.turn === 'npc' ? `${s.npcName} is throwing…` : ''}</span><i class="meter"><u style="width:${Math.round(s.charge * 100)}%"></u></i><small>${s.message}</small><small>Hold R2 / left mouse for power, release to throw · ○ quit</small>`;
@@ -312,7 +312,7 @@
   }
 
   // ---------- Minigames, photo camera, map ----------
-  const mini = window.GameMinigames.create({T, lib, audio, heightAt, toWorld, data: D, hud, trees: world.trees, reward: (v, why) => earn(v, why), muselunden: window.MUSELUNDEN});
+  const mini = window.GameMinigames.create({T, lib, audio, heightAt, toWorld, toLocal: world.toLocal, data: D, hud, trees: world.trees, reward: (v, why) => earn(v, why), muselunden: window.MUSELUNDEN});
   const discCourses = [mini.discgolf, mini.muselunden].filter(Boolean);
   scene.add(...discCourses.map(g => g.group), mini.petanque.group);
   const photo = window.GameCamera.create({T, lib, audio, root: view});
@@ -336,10 +336,10 @@
   const map = window.GameMap.create({data: mapData, toLocal: world.toLocal, toWorld, root: view, poi: () => [
     {x: homeLocal.x, s: homeLocal.s, color: '#e0703c', label: 'Home · 4th floor', glyph: '⌂'},
     {...world.toLocal(4.8, 14.2), color: '#b71c1c', label: 'Hostage rescue', glyph: '◎'},
-    ...(D.discgolf || []).map((h, i) => ({x: h.tee[0], s: h.tee[1], color: '#6a1b9a', label: `Disc golf ${i + 1}`, glyph: '◉'})),
-    ...(D.discgolf || []).map(h => ({x: h.basket[0], s: h.basket[1], color: '#9c4dcc', label: '', glyph: '⛳'})),
-    ...(window.MUSELUNDEN ? window.MUSELUNDEN.holes.map(h => ({x: h.tee[0], s: h.tee[1], color: '#6a1b9a', label: h.n === 1 ? 'Muselunden disc golf 1' : `${h.n}`, glyph: '◉'})) : []),
-    ...(window.MUSELUNDEN ? window.MUSELUNDEN.holes.map(h => ({x: h.basket[0], s: h.basket[1], color: '#9c4dcc', label: '', glyph: '⛳'})) : []),
+    ...(D.discgolf || []).map((h, i) => ({x: h.tee[0], s: h.tee[1], color: '#6a1b9a', label: `Disc golf ${i + 1}`, glyph: '◉', course: 'Torshovdalen'})),
+    ...(D.discgolf || []).map(h => ({x: h.basket[0], s: h.basket[1], color: '#9c4dcc', label: '', glyph: '⛳', course: 'Torshovdalen'})),
+    ...(window.MUSELUNDEN ? window.MUSELUNDEN.holes.map(h => ({x: h.tee[0], s: h.tee[1], color: '#6a1b9a', label: h.n === 1 ? 'Muselunden disc golf 1' : `${h.n}`, glyph: '◉', course: window.MUSELUNDEN.name})) : []),
+    ...(window.MUSELUNDEN ? window.MUSELUNDEN.holes.map(h => ({x: h.basket[0], s: h.basket[1], color: '#9c4dcc', label: '', glyph: '⛳', course: window.MUSELUNDEN.name})) : []),
     ...(D.petanque ? [{x: D.petanque.x, s: D.petanque.s, color: '#00838f', label: 'Petanque', glyph: '●'}] : []),
     {...world.toLocal(AIR.heli.x, AIR.heli.z), color: '#1565c0', label: 'Helipad', glyph: 'H'},
     {...world.toLocal(AIR.plane.x, AIR.plane.z), color: '#1565c0', label: 'Airstrip', glyph: '✈'},
@@ -945,6 +945,7 @@
   // Minimap (issue #42) and the waypoint pin (issue #41): centred on you (on the drone while you fly it), turned with the camera.
   const camDir = new T.Vector3();
   function updateGuide(dt) {
+    const g = player.mode === 'minigame' && player.minigame;map.course = g && g.layout ? g.layout() : null;// a disc golf round (issue #60)
     camera.getWorldDirection(camDir);const heading = -(player.yaw - theta), at = player.mode === 'drone' ? camera.position : player;
     const view = Math.hypot(camDir.x, camDir.z) > .05 ? theta - Math.atan2(-camDir.x, -camDir.z) : heading;// looking straight down (skydiving): your heading
     const alt = player.mode === 'drone' || player.mode === 'skydive' || player.vehicle?.aircraft ? camera.position.y - groundAt(at.x, at.z) : 0;
@@ -1461,11 +1462,14 @@
     vehicles.forEach((v, i) => {if (v === player.vehicle) {mp.claim(i, player.mode === 'vehicle' ? 'd' : 'p');return;}v.netSet(v.spawn);if (v.aircraft) v.reset();});
   }
   function updateMinigame(dt, input, dl) {
-    const g = player.minigame, mouseScale = .0024 * sensitivity.mouse, curve = v => Math.sign(v) * v * v;
-    player.yaw -= input.mouse.dx * mouseScale + curve(input.look.x) * 2 * sensitivity.pad * dt;player.pitch = Math.max(-1.2, Math.min(1.2, player.pitch - input.mouse.dy * mouseScale - curve(input.look.y) * 1.4 * sensitivity.pad * dt));
-    const holding = input.r2 > .5;if (holding) g.charge = Math.min(1, (g.charge || 0) + dt / 1.2);
+    const g = player.minigame, mouseScale = .0024 * sensitivity.mouse, curve = v => Math.sign(v) * v * v, walking = g.walk != null;
+    // Disc golf between holes (issue #60): you walk to the next tee; R2 (run) must be let go before it charges a throw there.
+    if (walking) g.r2Wait = true;else if (input.r2 < .3) g.r2Wait = false;
+    if (!walking) {player.yaw -= input.mouse.dx * mouseScale + curve(input.look.x) * 2 * sensitivity.pad * dt;player.pitch = Math.max(-1.2, Math.min(1.2, player.pitch - input.mouse.dy * mouseScale - curve(input.look.y) * 1.4 * sensitivity.pad * dt));}
+    const holding = input.r2 > .5 && !walking && !g.r2Wait;if (holding) g.charge = Math.min(1, (g.charge || 0) + dt / 1.2);
     const release = !holding && (g.charge || 0) > 0, power = g.charge || 0;if (release) g.charge = 0;
-    const r = g.update(dt * worldScale(), {aimYaw: player.yaw + (dl ? Math.sin(performance.now() / 600) * .05 * dl : 0), aimPitch: player.pitch, charge: g.charge || 0, power, release, alt: input.l2 > .5, hyzer: input.move.x, cancel: input.pressed.has('circle'), drunk: dl}, camera) || {};
+    const r = g.update(dt * worldScale(), {aimYaw: player.yaw + (dl ? Math.sin(performance.now() / 600) * .05 * dl : 0), aimPitch: player.pitch, charge: g.charge || 0, power, release, alt: input.l2 > .5, hyzer: input.move.x, cancel: input.pressed.has('circle'), drunk: dl, at: {x: player.x, z: player.z, y: player.feet}, skip: walking && input.pressed.has('square')}, camera) || {};
+    if (r.walk) {input.pressed.delete('square');input.pressed.delete('circle');updateFoot(dt, input, dl);return;}
     if (r.teleport) place(r.teleport.x, r.teleport.z, r.teleport.yaw);
     if (r.stand) {player.x = r.stand.x;player.z = r.stand.z;player.feet = r.stand.y ?? heightAt(player.x, player.z);}
     if (r.face !== undefined) {player.yaw = r.face;player.pitch = -.12;}

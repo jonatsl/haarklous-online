@@ -281,7 +281,7 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
         <p id="walletLine" class="small"></p>
         <label>Music volume <output id="musicOut"></output><input id="musicVol" type="range" min="0" max="1" step="0.05"></label>
         <p class="small">Controller: D-pad ←/→ changes the music volume. Now playing: <span id="nowPlaying">–</span></p>
-        <label class="row"><input id="minimapOn" type="checkbox"> Minimap – round, in the bottom-left corner, turns with you (controller: D-pad ↓)</label>
+        <label class="row"><input id="minimapOn" type="checkbox"> Minimap – round, in the bottom-left corner, turns with you (controller: D-pad ↓); always on during a disc golf round</label>
         <p id="weatherLine" class="small">Weather: loading the real weather…</p>
         <section class="mp acct">
           <h3>Account <small>(optional)</small></h3>
@@ -314,7 +314,7 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
         <dl class="controls small">
           <dt>Motorcycle / car</dt><dd>□ get on/in · R2 throttle · L2 brake/reverse · left stick steer · right stick look</dd>
           <dt>Excavator</dt><dd>L1/L2 left track forward/back · R1/R2 right track · left stick: swing and stick · right stick: boom and bucket</dd>
-          <dt>Disc golf / petanque</dt><dd>Aim with the camera · hold R2, release to throw · ○ quit</dd>
+          <dt>Disc golf / petanque</dt><dd>Aim with the camera · hold R2, release to throw · ○ quit · disc golf: walk to the next tee after each hole (□ takes you straight there); the minimap shows the course</dd>
           <dt>Construction site</dt><dd>North in Torshovdalen, through the gate: dozer, 30 t excavator, wheel loader, hauler, tipper truck, mobile crane and tower crane · □ climb in · R2 / L2 drive (excavator: L1/L2 R1/R2 tracks) · right stick (or the arrow keys) works the blade, bucket, body or boom · mobile crane: L1 outriggers · cranes: ✕ hook or set down a load · R3 / V view: cab, outside, above the hook</dd>
           <dt>Paintball</dt><dd>Walk into the lobby outside the course gate (the first one there is the admin) · ↑↓ team · admin: ←→ game, △ paint / reball, hold ✕ start · in a game: R2 / left mouse fire, L2 / right mouse aim, □ / R reload, hold △ leave</dd>
           <dt>Helicopter</dt><dd>Mode 2: left stick ↑↓ collective (centre = hover), ←→ pedals · right stick pitch and roll · R3 / V chase camera · □ get out after landing · Keyboard + mouse (Battlefield): W/S collective, A/D pedals, mouse pitch and roll (mouse up = nose down), hold Shift or the right mouse button to look around</dd>
@@ -5731,11 +5731,15 @@ window.KLATREVERKET={"attribution":"Building: OpenStreetMap way 1031709261 (ODbL
 window.MUSELUNDEN={"name":"Muselunden DiscGolfPark","layout":"Muselunden 12 hull (2022)","par":36,"outline":[598.8,-274.3,665.6,-310.8,670.0,-361.4,679.1,-419.5,686.8,-439.1,649.1,-446.1,621.1,-473.7,617.2,-519.1,601.4,-518.7,569.1,-467.6,521.3,-439.7,518.7,-430.7,469.0,-411.9,381.7,-442.7,318.3,-489.3,316.1,-480.7,332.0,-429.8,358.4,-346.3,409.2,-276.7,431.7,-195.9,472.5,-180.4,537.6,-239.6,598.8,-274.3],"sources":"UDisc layout \"Muselunden 12 hull (2022)\" (lengths, par); Muselunden Frisbeeklubb \"Midlertidig banekart 2021\" (places), georeferenced to the OSM pitches 172317127 / 172317126; OSM way 785654764 (course).","holes":[{"n":1,"par":3,"tee":[655.1,-359.0],"basket":[552.7,-387.3],"length":106.3,"mapLength":108.6,"moved":1.2},{"n":2,"par":3,"tee":[539.4,-364.1],"basket":[589.4,-346.5],"length":53.0,"mapLength":47.5,"moved":2.7},{"n":3,"par":3,"tee":[506.2,-242.5],"basket":[438.7,-234.6],"length":68.0,"mapLength":75.4,"moved":3.7},{"n":4,"par":3,"tee":[422.1,-279.5],"basket":[384.8,-330.3],"length":63.0,"mapLength":78.6,"moved":7.8},{"n":5,"par":3,"tee":[393.4,-438.9],"basket":[359.0,-445.3],"length":35.0,"mapLength":26.6,"moved":4.2},{"n":6,"par":3,"tee":[327.6,-479.4],"basket":[344.9,-432.5],"length":50.0,"mapLength":57.8,"moved":6.9},{"n":7,"par":3,"tee":[352.4,-364.0],"basket":[401.2,-407.0],"length":65.0,"mapLength":61.9,"moved":1.5},{"n":8,"par":3,"tee":[459.3,-370.1],"basket":[521.6,-355.4],"length":64.0,"mapLength":64.6,"moved":0.3},{"n":9,"par":3,"tee":[458.7,-392.4],"basket":[530.3,-417.9],"length":76.0,"mapLength":68.8,"moved":3.6},{"n":10,"par":3,"tee":[544.9,-440.7],"basket":[619.3,-420.9],"length":77.0,"mapLength":87.5,"moved":5.3},{"n":11,"par":3,"tee":[630.8,-469.7],"basket":[608.5,-516.6],"length":52.0,"mapLength":43.5,"moved":4.3},{"n":12,"par":3,"tee":[591.9,-489.0],"basket":[614.0,-447.6],"length":47.0,"mapLength":62.1,"moved":7.6}]};
 </script><script>/* Minigames in the open world: disc golf (two par-3 holes about 70 m in Torshovdalen) and petanque (singles, 3 boules,
  * game to 13 points, real scoring) against a CGI opponent who always waits at the court.
- * GameMinigames.create({T, lib, audio, heightAt, toWorld, data, hud, muselunden}) -> {discgolf, muselunden, petanque}
+ * GameMinigames.create({T, lib, audio, heightAt, toWorld, toLocal, data, hud, muselunden}) -> {discgolf, muselunden, petanque}
  *   discgolf: the two holes in Torshovdalen (data.discgolf); muselunden: the real 12-hole Muselunden DiscGolfPark
  *   (muselunden-data.js, when given). Both are the same disc golf game with their own holes.; GameMinigames.petanqueNext(hold, left)
  * Each game: group (scene objects), near(player) -> prompt text or null, start(player), update(dt, input, view) -> camera override,
  *   active, stop(). Input: {aimYaw, aimPitch, charge(0..1 while held), release (bool), alt (L2 held), cancel}.
+ * Disc golf (issue #60): after a hole you walk to the next tee (update returns {walk: true}: the game moves you on foot; input.at =
+ *   your feet {x, z, y}, input.skip = □ takes you straight there); the hole starts within 3 m of the tee. layout() -> what the
+ *   minimap and the map draw while a round is on: {name, outline (local [x, s, ...] or null), holes [{n, tee, basket}] (local
+ *   [x, s]), current (index), walking, lie [x, s] | null (after your first throw on the hole), distance (m to the basket)} | null.
  */
 (function (root, factory) {
   root.GameMinigames = factory();
@@ -5748,7 +5752,7 @@ window.MUSELUNDEN={"name":"Muselunden DiscGolfPark","layout":"Muselunden 12 hull
     const other = hold === 'you' ? 'npc' : 'you';
     return left[other] > 0 ? other : left[hold] > 0 ? hold : null;
   }
-  function create({T, lib, audio, heightAt, toWorld, data, hud, trees, reward, muselunden}) {
+  function create({T, lib, audio, heightAt, toWorld, toLocal, data, hud, trees, reward, muselunden}) {
     const V3 = (x, y, z) => new T.Vector3(x, y, z);
     const mesh = (parent, geo, mat, x = 0, y = 0, z = 0) => {const m = new T.Mesh(geo, mat);m.position.set(x, y, z);m.castShadow = m.receiveShadow = true;parent.add(m);return m;};
     const gauss = () => {let u = 0, v = 0;while (!u) u = Math.random();while (!v) v = Math.random();return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);};
@@ -5761,7 +5765,7 @@ window.MUSELUNDEN={"name":"Muselunden DiscGolfPark","layout":"Muselunden 12 hull
       const holes = (course.holes || []).map((h, i) => {
         const tee = toWorld(h.tee[0], h.tee[1]), basket = toWorld(h.basket[0], h.basket[1]);
         tee.y = heightAt(tee.x, tee.z);basket.y = heightAt(basket.x, basket.z);
-        return {n: h.n || i + 1, par: h.par, tee, basket, length: Math.hypot(basket.x - tee.x, basket.z - tee.z)};
+        return {n: h.n || i + 1, par: h.par, tee, basket, length: Math.hypot(basket.x - tee.x, basket.z - tee.z), local: {tee: h.tee, basket: h.basket}};
       });
       const galv = lib.metal(0xb9bec2, .35), yellow = lib.paint(0xf2c200, .4), chainM = lib.metal(0xd7dadc, .25), pad = lib.concrete(0x7b7d78), sign = lib.wood(0x6b4a2b, .6);
       for (const h of holes) {
@@ -5784,7 +5788,7 @@ window.MUSELUNDEN={"name":"Muselunden DiscGolfPark","layout":"Muselunden 12 hull
       lib.mergeStatic(group);
       const discMat = new T.MeshPhysicalMaterial({color: 0xff4f9a, roughness: .35, clearcoat: .6});
       const disc = mesh(group, new T.CylinderGeometry(.105, .1, .022, 28), discMat);disc.visible = false;
-      const game = {group, holes, active: false, hole: 0, strokes: [], lie: null, disc: {pos: V3(), vel: V3(), bank: 0, flying: false, rest: false}, charging: 0, followT: 0, message: ''};
+      const game = {group, holes, active: false, hole: 0, walk: null, toTee: 0, strokes: [], lie: null, disc: {pos: V3(), vel: V3(), bank: 0, flying: false, rest: false}, charging: 0, followT: 0, message: ''};
       game.near = p => {
         if (game.active) return null;
         for (const h of holes) if (Math.hypot(p.x - h.tee.x, p.z - h.tee.z) < 4 && Math.abs(p.y - h.tee.y) < 3) return `□ Play disc golf · ${course.name} · Hull ${h.n} (par ${h.par}, ${Math.round(h.length)} m)`;
@@ -5792,10 +5796,16 @@ window.MUSELUNDEN={"name":"Muselunden DiscGolfPark","layout":"Muselunden 12 hull
       };
       game.start = p => {
         const h = holes.reduce((best, x) => Math.hypot(p.x - x.tee.x, p.z - x.tee.z) < Math.hypot(p.x - best.tee.x, p.z - best.tee.z) ? x : best, holes[0]);
-        game.active = true;game.hole = h.n - 1;game.strokes = holes.map(() => 0);game.lie = {x: h.tee.x, z: h.tee.z, y: h.tee.y};game.disc.flying = false;disc.visible = false;game.message = `${course.name} · Hull ${h.n} · Par ${h.par} · Hold R2 (or left mouse) to throw, aim with the camera, left stick X for hyzer/anhyzer.`;
+        game.active = true;game.hole = h.n - 1;game.walk = null;game.pending = null;game.landed = false;game.strokes = holes.map(() => 0);game.lie = {x: h.tee.x, z: h.tee.z, y: h.tee.y};game.disc.flying = false;disc.visible = false;game.message = `${course.name} · Hull ${h.n} · Par ${h.par} · Hold R2 (or left mouse) to throw, aim with the camera, left stick X for hyzer/anhyzer.`;
         return {x: h.tee.x, z: h.tee.z, yaw: Math.atan2(-(h.basket.x - h.tee.x), -(h.basket.z - h.tee.z))};
       };
-      game.stop = () => {game.active = false;disc.visible = false;hud.discgolf(null);};
+      game.stop = () => {game.active = false;game.walk = null;game.pending = null;disc.visible = false;hud.discgolf(null);};
+      const faceBasket = h => Math.atan2(-(h.basket.x - h.tee.x), -(h.basket.z - h.tee.z));
+      // The next hole starts on its tee, facing the basket.
+      function beginHole(i) {
+        const n = holes[i];game.hole = i;game.walk = null;game.landed = false;game.lie = {x: n.tee.x, z: n.tee.z, y: n.tee.y};game.message = `Hull ${n.n} · Par ${n.par}`;
+        hud.discgolf(game.state());return {teleport: {x: n.tee.x, z: n.tee.z, yaw: faceBasket(n)}};
+      }
       function throwDisc(input) {
         const h = holes[game.hole], dist = Math.hypot(h.basket.x - game.lie.x, h.basket.z - game.lie.z), putt = dist < 11;
         const power = input.power, speed = putt ? 3 + power * 9 : 9 + power * 20, err = (putt ? .025 : .05) * (1 + (input.drunk || 0) * 2);
@@ -5842,6 +5852,13 @@ window.MUSELUNDEN={"name":"Muselunden DiscGolfPark","layout":"Muselunden 12 hull
         if (!game.active) return null;
         const h = holes[game.hole], D = game.disc;
         if (input.cancel) {game.stop();return {done: 'Disc golf round ended.'};}
+        // Between holes you walk to the next tee (the minimap shows the way); □ takes you straight there.
+        if (game.walk !== null) {
+          const n = holes[game.walk], at = input.at || n.tee;game.toTee = Math.hypot(at.x - n.tee.x, at.z - n.tee.z);
+          if (input.skip || (game.toTee < 3 && Math.abs((at.y ?? n.tee.y) - n.tee.y) < 3)) return beginHole(game.walk);
+          game.message = `Walk to the tee of hull ${n.n}: the way is on your minimap. □ takes you straight there.`;
+          hud.discgolf(game.state());return {walk: true};
+        }
         if (D.flying || (disc.visible && !D.rest && D.vel.lengthSq() > 0)) {
           let r = null;for (let i = 0; i < 4 && !r; i++) r = step(dt / 4);
           disc.position.copy(D.pos);disc.rotation.set(Math.sin(D.bank) * .6, D.time * 40, 0);
@@ -5851,7 +5868,7 @@ window.MUSELUNDEN={"name":"Muselunden DiscGolfPark","layout":"Muselunden 12 hull
             // Money: par 50 kr, birdie 100 kr, eagle or better 200 kr.
             if (reward && diff <= 0) reward(diff <= -2 ? 200 : diff === -1 ? 100 : 50, `${name} on ${course.name} hole ${h.n}`);
             game.pending = {next: true, t: 2.5};D.rest = true;
-          } else if (r === 'rest') {D.rest = true;game.lie ={x: D.pos.x, z: D.pos.z, y: heightAt(D.pos.x, D.pos.z)};game.message = `${Math.round(Math.hypot(h.basket.x - D.pos.x, h.basket.z - D.pos.z))} m to the basket. Throw again from where the disc landed.`;game.pending = {lie: true, t: .8};}
+          } else if (r === 'rest') {D.rest = true;game.landed = true;game.lie = {x: D.pos.x, z: D.pos.z, y: heightAt(D.pos.x, D.pos.z)};game.message = `${Math.round(Math.hypot(h.basket.x - D.pos.x, h.basket.z - D.pos.z))} m to the basket. Throw again from where the disc landed.`;game.pending = {lie: true, t: .8};}
           // Follow camera behind and above the disc.
           const back = V3(D.pos.x - game.lie.x, 0, D.pos.z - game.lie.z).normalize();
           hud.discgolf(game.state());
@@ -5862,7 +5879,7 @@ window.MUSELUNDEN={"name":"Muselunden DiscGolfPark","layout":"Muselunden 12 hull
           if (game.pending.t <= 0) {
             if (game.pending.next) {
               game.pending = null;disc.visible = false;D.rest = false;
-              if (game.hole + 1 < holes.length) {game.hole++;const n = holes[game.hole];game.lie = {x: n.tee.x, z: n.tee.z, y: n.tee.y};game.message = `Hull ${n.n} · Par ${n.par}`;hud.discgolf(game.state());return {teleport: {x: n.tee.x, z: n.tee.z, yaw: Math.atan2(-(n.basket.x - n.tee.x), -(n.basket.z - n.tee.z))}};}
+              if (game.hole + 1 < holes.length) {game.walk = game.hole + 1;const n = holes[game.walk];game.toTee = Math.hypot(game.lie.x - n.tee.x, game.lie.z - n.tee.z);hud.discgolf(game.state());return {walk: true};}
               const total = game.strokes.reduce((a, b) => a + b, 0), par = holes.reduce((a, b) => a + b.par, 0);game.stop();
               return {done: `${course.name} finished: ${total} throws (${total - par >= 0 ? '+' : ''}${total - par} vs par ${par}).`};
             }
@@ -5874,7 +5891,18 @@ window.MUSELUNDEN={"name":"Muselunden DiscGolfPark","layout":"Muselunden 12 hull
         hud.discgolf(game.state(input.charge));
         return {lock: true};
       };
-      game.state = (charge = 0) => {const h = holes[game.hole];return {course: course.name, hole: h.n, holes: holes.length, par: h.par, strokes: game.strokes.slice(), distance: game.lie ? Math.round(Math.hypot(h.basket.x - game.lie.x, h.basket.z - game.lie.z)) : 0, charge, message: game.message};};
+      game.state = (charge = 0) => {
+        const walk = game.walk !== null, h = holes[walk ? game.walk : game.hole];
+        return {course: course.name, hole: h.n, holes: holes.length, par: h.par, strokes: game.strokes.slice(), walk, distance: walk ? Math.round(game.toTee) : game.lie ? Math.round(Math.hypot(h.basket.x - game.lie.x, h.basket.z - game.lie.z)) : 0, charge, message: game.message};
+      };
+      // The course on the minimap and the map (issue #60). The lie shows once you have thrown on the hole, until it is holed.
+      const plan = {name: course.name, outline: course.outline || null, holes: holes.map(h => ({n: h.n, tee: h.local.tee, basket: h.local.basket}))};
+      game.layout = () => {
+        if (!game.active) return null;
+        const walk = game.walk !== null, h = holes[game.hole], thrown = !walk && game.landed && !(game.pending && game.pending.next) && game.lie && toLocal;
+        const l = thrown ? toLocal(game.lie.x, game.lie.z) : null;
+        return {...plan, current: walk ? game.walk : game.hole, walking: walk, lie: l ? [l.x, l.s] : null, distance: l ? Math.round(Math.hypot(h.basket.x - game.lie.x, h.basket.z - game.lie.z)) : 0};
+      };
       return game;
     }
 
@@ -8853,7 +8881,11 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
  *   guide({dt, camera, x, z, you: {x, z}, heading, view, alt, others, ground(x, z), show}) once a frame while you play: x/z = the
  *   minimap's centre, heading = your arrow, view = the camera's heading (the minimap's "up"); returns 'reached' when you got
  *   within 7 m of the waypoint (it is then removed).
- * Pure helpers (Node-tested): edgePoint, screenSpot, toRim, distanceText, minimapRange.
+ * Disc golf course (issue #60): map.course = a round's layout (GameMinigames' layout(): outline, holes, current, walking, lie,
+ *   distance) or null. While it is set the minimap is shown (even when switched off) and zooms so the hole you play (or the way to
+ *   the next tee) fits; it and the big map draw the course outline, every hole's tee (with its number), basket and fairway line
+ *   (the current hole bright, the others faded), your lie with the metres to the basket, and the way to the next tee.
+ * Pure helpers (Node-tested): edgePoint, screenSpot, toRim, distanceText, minimapRange, courseOutline, courseRange.
  */
 (function (root, factory) {
   const api = factory();
@@ -8883,13 +8915,23 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
   const distanceText = m => m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`;
   // Metres from the minimap's centre to its rim: 90 m on foot, more with speed (m/s) and height above the ground (m).
   const minimapRange = (speed, alt) => Math.min(300, 90 + 4.5 * Math.max(0, speed) + .5 * Math.max(0, alt || 0));
+  // A course without a drawn outline: the convex hull round its tees and baskets, `pad` metres out (rounded corners). Flat [x, s, ...].
+  function courseOutline(holes, pad) {
+    const pts = [];
+    for (const h of holes) for (const [x, s] of [h.tee, h.basket]) for (let i = 0; i < 12; i++) pts.push([x + Math.cos(i / 12 * Math.PI * 2) * pad, s + Math.sin(i / 12 * Math.PI * 2) * pad]);
+    pts.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const cross = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]), half = list => {const h = [];for (const p of list) {while (h.length > 1 && cross(h[h.length - 2], h[h.length - 1], p) <= 0) h.pop();h.push(p);}h.pop();return h;};
+    return [...half(pts), ...half(pts.slice().reverse())].flat();
+  }
+  // Metres from the minimap's centre (you, [x, s]) to its rim so every point fits with a margin: 40 m at least, 300 m at most.
+  const courseRange = (you, points) => Math.min(300, Math.max(40, Math.max(0, ...points.map(p => Math.hypot(p[0] - you[0], p[1] - you[1]))) * 1.12 + 8));
 
   function create({data, toLocal, toWorld, root, poi}) {
     const el = document.createElement('div');el.id = 'mapOverlay';el.hidden = true;
     el.innerHTML = '<canvas></canvas><div class="map-legend"><b>Map</b><span><i class="lg home"></i>Your apartment (Haarklous plass 17A)</span><span><i class="lg case"></i>Hostage rescue</span><span><i class="lg disc"></i>Disc golf</span><span><i class="lg petanque"></i>Petanque</span><span><i class="lg you"></i>You</span><span><i class="lg others"></i>Other players in your lobby</span><span><i class="lg wp"></i>Your waypoint</span><small>Left stick / drag: pan · Right stick / wheel: zoom</small><small>✕ / click: set or remove a waypoint · □ / Delete: remove it · ○ / M: close</small><small class="attr">© OpenStreetMap contributors</small></div>';
     root.append(el);
     const canvas = el.querySelector('canvas'), ctx = canvas.getContext('2d');
-    const map = {open: false, cx: 0, cs: 0, scale: 2.2, waypoint: null, layer: null};
+    const map = {open: false, cx: 0, cs: 0, scale: 2.2, waypoint: null, layer: null, course: null};
     const pairs = flat => {const out = [];for (let i = 0; i < flat.length; i += 2) out.push([flat[i], flat[i + 1]]);return out;};
     const order = ['footway', 'path', 'cycleway', 'steps', 'pedestrian', 'service', 'track', 'living_street', 'unclassified', 'residential', 'tertiary', 'secondary', 'primary', 'trunk_link', 'trunk', 'tram'];
     const PATHS = ['footway', 'path', 'steps', 'cycleway', 'track', 'pedestrian'];
@@ -8898,6 +8940,44 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
       g.beginPath();g.moveTo(u, v);g.bezierCurveTo(u - r * 1.1, v - r * 1.3, u - r, v - r * 2.4, u, v - r * 2.4);g.bezierCurveTo(u + r, v - r * 2.4, u + r * 1.1, v - r * 1.3, u, v);g.closePath();
       g.fillStyle = WP;g.fill();g.strokeStyle = '#fff';g.lineWidth = Math.max(1.5, r * .22);g.stroke();g.fillStyle = '#fff';g.beginPath();g.arc(u, v - r * 1.55, r * .38, 0, 7);g.fill();
     }
+    // The disc golf course while a round is on (issue #60), in screen space: P(x, s) -> [u, v], d = device pixels, z = size
+    // (1 on the minimap), you = [u, v] (for the way to the next tee), rim(u, v) -> [u, v] pulls a tee that is out of range in.
+    const hulls = new Map();
+    function drawCourse(g, c, P, d, z, you, rim) {
+      let outline = c.outline;if (!outline) {if (!hulls.has(c.name)) hulls.set(c.name, courseOutline(c.holes, 14));outline = hulls.get(c.name);}
+      g.save();g.lineJoin = g.lineCap = 'round';g.textAlign = 'center';g.textBaseline = 'middle';
+      g.beginPath();pairs(outline).forEach(([x, s], i) => {const [u, v] = P(x, s);i ? g.lineTo(u, v) : g.moveTo(u, v);});g.closePath();
+      g.fillStyle = '#4caf5024';g.fill();g.setLineDash([5 * d * z, 4 * d * z]);g.strokeStyle = '#8fd19acc';g.lineWidth = 1.5 * d * z;g.stroke();g.setLineDash([]);
+      const order = c.holes.map((_, i) => i).filter(i => i !== c.current).concat(c.current);
+      for (const i of order) {
+        const h = c.holes[i], now = i === c.current, [tu, tv] = P(...h.tee), [bu, bv] = P(...h.basket);
+        g.globalAlpha = now ? 1 : .38;
+        g.strokeStyle = now ? '#ffffff' : '#cfe8d2';g.lineWidth = (now ? 2.2 : 1.4) * d * z;g.beginPath();g.moveTo(tu, tv);g.lineTo(bu, bv);g.stroke();
+        g.fillStyle = '#f2c200';g.strokeStyle = '#111';g.lineWidth = 1.2 * d * z;g.beginPath();g.arc(bu, bv, (now ? 3.6 : 3) * d * z, 0, 7);g.fill();g.stroke();
+        if (!(now && c.walking)) teeMark(g, tu, tv, h.n, now, d * z);
+      }
+      g.globalAlpha = 1;
+      // Walking to the next tee: a dashed line from you, and the tee (on the rim when it is out of range).
+      if (c.walking && you) {
+        const h = c.holes[c.current];let [tu, tv] = P(...h.tee);
+        g.strokeStyle = '#ffffff';g.globalAlpha = .9;g.lineWidth = 2.2 * d * z;g.setLineDash([6 * d * z, 5 * d * z]);g.beginPath();g.moveTo(you[0], you[1]);g.lineTo(tu, tv);g.stroke();g.setLineDash([]);g.globalAlpha = 1;
+        if (rim) [tu, tv] = rim(tu, tv);teeMark(g, tu, tv, h.n, true, d * z);
+      }
+      // Your lie: where your last throw landed, and how far it is to the basket. You stand on it, so the dot is big enough to
+      // show round your arrow, and the metres sit beside it (off the fairway line).
+      if (c.lie) {
+        const [u, v] = P(...c.lie), t = `${c.distance} m`;
+        g.fillStyle = '#ff4f9a';g.strokeStyle = '#fff';g.lineWidth = 1.5 * d * z;g.beginPath();g.arc(u, v, 9 * d * z, 0, 7);g.fill();g.stroke();
+        g.font = `bold ${10 * d * z}px system-ui`;g.textAlign = 'left';g.lineWidth = 3 * d * z;g.strokeStyle = '#000c';g.strokeText(t, u + 13 * d * z, v);g.fillStyle = '#fff';g.fillText(t, u + 13 * d * z, v);
+      }
+      g.restore();
+    }
+    function teeMark(g, u, v, n, now, d) {
+      const r = (now ? 7 : 6) * d;g.fillStyle = now ? '#2e9e44' : '#2b6e38';g.strokeStyle = '#fff';g.lineWidth = 1.2 * d;g.beginPath();g.arc(u, v, r, 0, 7);g.fill();g.stroke();
+      g.fillStyle = '#fff';g.font = `bold ${(n > 9 ? 7.5 : 9) * d}px system-ui`;g.fillText(String(n), u, v + .5 * d);
+    }
+    // While a round is on its own tees and baskets replace the course's map icons.
+    const shownPoi = () => poi().filter(p => !(map.course && p.course === map.course.name));
     // Every area, road and building with its bounding box (made once), so a frame only draws what is in view.
     let feats = null;
     function features() {
@@ -8939,9 +9019,10 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
       if (map.layer) {map.layer.draw(ctx, {P, k, w, h, dpr: devicePixelRatio, rotation: 0, player: lastPlayer});return;}
       const key = [w, h, map.cx, map.cs, map.scale].join();if (key !== baseKey) {if (base.width !== w || base.height !== h) {base.width = w;base.height = h;}drawBase(w, h, k, P);baseKey = key;}
       ctx.drawImage(base, 0, 0);ctx.textAlign = 'center';
+      if (map.course) {const l = lastPlayer && toLocal(lastPlayer.x, lastPlayer.z);drawCourse(ctx, map.course, P, devicePixelRatio, 1.4, l && P(l.x, l.s), null);}
       // Points of interest.
       const icon = (x, s, color, label, glyph) => {const [u, v] = P(x, s), r = 11 * devicePixelRatio;ctx.fillStyle = color;ctx.beginPath();ctx.arc(u, v, r, 0, 7);ctx.fill();ctx.strokeStyle = '#fff';ctx.lineWidth = 2 * devicePixelRatio;ctx.stroke();ctx.fillStyle = '#fff';ctx.font = `bold ${12 * devicePixelRatio}px system-ui`;ctx.textBaseline = 'middle';ctx.fillText(glyph, u, v + .5);ctx.textBaseline = 'alphabetic';if (label) {ctx.fillStyle = '#222';ctx.font = `bold ${12 * devicePixelRatio}px system-ui`;ctx.fillText(label, u, v - r - 5 * devicePixelRatio);}};
-      for (const p of poi()) icon(p.x, p.s, p.color, p.label, p.glyph);
+      for (const p of shownPoi()) icon(p.x, p.s, p.color, p.label, p.glyph);
       // The waypoint: a dashed line from you, the pin and how far it is.
       if (map.waypoint) {
         const [u, v] = P(map.waypoint.x, map.waypoint.s), d = devicePixelRatio;
@@ -9042,9 +9123,10 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
         const t = tile(i, j);if (t) mg.drawImage(t, i * TILE - PAD, j * TILE - PAD, TILE + 2 * PAD, TILE + 2 * PAD);
       }
       mg.setTransform(1, 0, 0, 1, 0, 0);
+      if (map.course) drawCourse(mg, map.course, (px, ps) => {const [u, v] = at(px, ps);return [R + u, R + v];}, d, 1, [R, R], (u, v) => {const q = toRim(u - R, v - R, inner - 9 * d);return [R + q.u, R + q.v];});
       // Places (only those in range), other players (on the rim when out of range), the waypoint (always), you in the middle.
       mg.textAlign = 'center';mg.textBaseline = 'middle';
-      for (const p of poi()) {
+      for (const p of shownPoi()) {
         const [u, v] = at(p.x, p.s);if (Math.hypot(u, v) > inner - 4 * d) continue;
         const r = (p.label ? 6.5 : 3) * d;mg.fillStyle = p.color;mg.beginPath();mg.arc(R + u, R + v, r, 0, 7);mg.fill();mg.strokeStyle = '#fff';mg.lineWidth = 1.2 * d;mg.stroke();
         if (p.label) {mg.fillStyle = '#fff';mg.font = `bold ${8 * d}px system-ui`;mg.fillText(p.glyph, R + u, R + v + .5 * d);}
@@ -9082,15 +9164,18 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
       if (map.waypoint && you && !map.layer) {const wp = toWorld(map.waypoint.x, map.waypoint.s);if (Math.hypot(wp.x - you.x, wp.z - you.z) <= REACH) {map.waypoint = null;reached = true;}}
       // Zoom out with speed (smoothed; a jump of more than 150 m/s is a teleport, not speed).
       if (last && dt > 0) {const v = Math.hypot(x - last.x, z - last.z) / dt;if (v < 150) speed += (v - speed) * Math.min(1, dt * 2);}last = {x, z};
-      range += (minimapRange(speed, alt) - range) * Math.min(1, (dt || 0) * 1.5);
-      const miniShown = miniOn && show;mini.hidden = !miniShown;root.classList.toggle('has-minimap', miniShown);
+      // A disc golf round zooms to the hole you play (tee, basket and your lie) or to the next tee while you walk there.
+      const c = map.course && !map.layer ? map.course : null, l = c && toLocal(x, z), h = c && c.holes[c.current];
+      const want = c ? courseRange([l.x, l.s], c.walking ? [h.tee] : [h.tee, h.basket, ...(c.lie ? [c.lie] : [])]) : minimapRange(speed, alt);
+      range += (want - range) * Math.min(1, (dt || 0) * 1.5);
+      const miniShown = (miniOn || !!c) && show;mini.hidden = !miniShown;root.classList.toggle('has-minimap', miniShown);
       if (miniShown) drawMini({x, z, heading, view, others});
       if (map.waypoint && show && camera && !map.layer) drawPointer(camera, you, ground);else ptr.hidden = true;
       return reached ? 'reached' : null;
     };
     return map;
   }
-  return {create, edgePoint, screenSpot, toRim, distanceText, minimapRange, REACH};
+  return {create, edgePoint, screenSpot, toRim, distanceText, minimapRange, courseOutline, courseRange, REACH};
 });
 </script><script>/* Catacomb layout (issue #43): a large catacomb under Torshovdalen with three entrances about 100 m apart.
  * Pure data, no three.js, so it runs in Node tests. Everything is in the map's local frame: x east, s south (metres), y = world height.
@@ -13000,7 +13085,7 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
 
   // ---------- HUD ----------
   const hud = {
-    discgolf(s) {const el = $('discHud');if (!s) {el.hidden = true;return;}el.hidden = false;el.innerHTML = `<b>${s.course} · Hull ${s.hole}/${s.holes} · Par ${s.par}</b><span>Throws: ${s.strokes.map((n, i) => `H${i + 1} ${n}`).join(' · ')}</span><span>${s.distance} m to the basket</span><i class="meter"><u style="width:${Math.round(s.charge * 100)}%"></u></i><small>${s.message}</small><small>Hold R2 / left mouse, release to throw · left stick ←/→ hyzer · ○ quit</small>`;},
+    discgolf(s) {const el = $('discHud');if (!s) {el.hidden = true;return;}el.hidden = false;el.innerHTML = `<b>${s.course} · Hull ${s.hole}/${s.holes} · Par ${s.par}</b><span>Throws: ${s.strokes.map((n, i) => `H${i + 1} ${n}`).join(' · ')}</span><span>${s.distance} m to the ${s.walk ? 'tee' : 'basket'}</span><i class="meter"><u style="width:${Math.round(s.charge * 100)}%"></u></i><small>${s.message}</small><small>${s.walk ? 'Walk or run to the tee · □ straight there · ○ quit' : 'Hold R2 / left mouse, release to throw · left stick ←/→ hyzer · ○ quit'}</small>`;},
     petanque(s) {
       const el = $('petanqueHud'), marks = $('markers');if (!s) {el.hidden = true;marks.replaceChildren();return;}el.hidden = false;
       el.innerHTML = `<b>Petanque · You ${s.score.you} – ${s.score.npc} ${s.npcName}</b><span>Mène ${s.mene} · Boules left: you ${s.you}, ${s.npcName} ${s.npc}</span><span>${s.hold ? (s.hold === 'you' ? `You hold the point by ${s.margin.toFixed(2)} m` : `${s.npcName} holds the point by ${s.margin.toFixed(2)} m`) : 'Nobody holds the point'}</span><span>${s.turn === 'you' ? `Your turn: ${s.aim === 'jack' ? 'throw the jack (6–10 m)' : (s.shoot ? 'shoot (L2 held)' : 'point (hold L2 to shoot)')}` : s.turn === 'npc' ? `${s.npcName} is throwing…` : ''}</span><i class="meter"><u style="width:${Math.round(s.charge * 100)}%"></u></i><small>${s.message}</small><small>Hold R2 / left mouse for power, release to throw · ○ quit</small>`;
@@ -13089,7 +13174,7 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
   }
 
   // ---------- Minigames, photo camera, map ----------
-  const mini = window.GameMinigames.create({T, lib, audio, heightAt, toWorld, data: D, hud, trees: world.trees, reward: (v, why) => earn(v, why), muselunden: window.MUSELUNDEN});
+  const mini = window.GameMinigames.create({T, lib, audio, heightAt, toWorld, toLocal: world.toLocal, data: D, hud, trees: world.trees, reward: (v, why) => earn(v, why), muselunden: window.MUSELUNDEN});
   const discCourses = [mini.discgolf, mini.muselunden].filter(Boolean);
   scene.add(...discCourses.map(g => g.group), mini.petanque.group);
   const photo = window.GameCamera.create({T, lib, audio, root: view});
@@ -13113,10 +13198,10 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
   const map = window.GameMap.create({data: mapData, toLocal: world.toLocal, toWorld, root: view, poi: () => [
     {x: homeLocal.x, s: homeLocal.s, color: '#e0703c', label: 'Home · 4th floor', glyph: '⌂'},
     {...world.toLocal(4.8, 14.2), color: '#b71c1c', label: 'Hostage rescue', glyph: '◎'},
-    ...(D.discgolf || []).map((h, i) => ({x: h.tee[0], s: h.tee[1], color: '#6a1b9a', label: `Disc golf ${i + 1}`, glyph: '◉'})),
-    ...(D.discgolf || []).map(h => ({x: h.basket[0], s: h.basket[1], color: '#9c4dcc', label: '', glyph: '⛳'})),
-    ...(window.MUSELUNDEN ? window.MUSELUNDEN.holes.map(h => ({x: h.tee[0], s: h.tee[1], color: '#6a1b9a', label: h.n === 1 ? 'Muselunden disc golf 1' : `${h.n}`, glyph: '◉'})) : []),
-    ...(window.MUSELUNDEN ? window.MUSELUNDEN.holes.map(h => ({x: h.basket[0], s: h.basket[1], color: '#9c4dcc', label: '', glyph: '⛳'})) : []),
+    ...(D.discgolf || []).map((h, i) => ({x: h.tee[0], s: h.tee[1], color: '#6a1b9a', label: `Disc golf ${i + 1}`, glyph: '◉', course: 'Torshovdalen'})),
+    ...(D.discgolf || []).map(h => ({x: h.basket[0], s: h.basket[1], color: '#9c4dcc', label: '', glyph: '⛳', course: 'Torshovdalen'})),
+    ...(window.MUSELUNDEN ? window.MUSELUNDEN.holes.map(h => ({x: h.tee[0], s: h.tee[1], color: '#6a1b9a', label: h.n === 1 ? 'Muselunden disc golf 1' : `${h.n}`, glyph: '◉', course: window.MUSELUNDEN.name})) : []),
+    ...(window.MUSELUNDEN ? window.MUSELUNDEN.holes.map(h => ({x: h.basket[0], s: h.basket[1], color: '#9c4dcc', label: '', glyph: '⛳', course: window.MUSELUNDEN.name})) : []),
     ...(D.petanque ? [{x: D.petanque.x, s: D.petanque.s, color: '#00838f', label: 'Petanque', glyph: '●'}] : []),
     {...world.toLocal(AIR.heli.x, AIR.heli.z), color: '#1565c0', label: 'Helipad', glyph: 'H'},
     {...world.toLocal(AIR.plane.x, AIR.plane.z), color: '#1565c0', label: 'Airstrip', glyph: '✈'},
@@ -13722,6 +13807,7 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
   // Minimap (issue #42) and the waypoint pin (issue #41): centred on you (on the drone while you fly it), turned with the camera.
   const camDir = new T.Vector3();
   function updateGuide(dt) {
+    const g = player.mode === 'minigame' && player.minigame;map.course = g && g.layout ? g.layout() : null;// a disc golf round (issue #60)
     camera.getWorldDirection(camDir);const heading = -(player.yaw - theta), at = player.mode === 'drone' ? camera.position : player;
     const view = Math.hypot(camDir.x, camDir.z) > .05 ? theta - Math.atan2(-camDir.x, -camDir.z) : heading;// looking straight down (skydiving): your heading
     const alt = player.mode === 'drone' || player.mode === 'skydive' || player.vehicle?.aircraft ? camera.position.y - groundAt(at.x, at.z) : 0;
@@ -14238,11 +14324,14 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
     vehicles.forEach((v, i) => {if (v === player.vehicle) {mp.claim(i, player.mode === 'vehicle' ? 'd' : 'p');return;}v.netSet(v.spawn);if (v.aircraft) v.reset();});
   }
   function updateMinigame(dt, input, dl) {
-    const g = player.minigame, mouseScale = .0024 * sensitivity.mouse, curve = v => Math.sign(v) * v * v;
-    player.yaw -= input.mouse.dx * mouseScale + curve(input.look.x) * 2 * sensitivity.pad * dt;player.pitch = Math.max(-1.2, Math.min(1.2, player.pitch - input.mouse.dy * mouseScale - curve(input.look.y) * 1.4 * sensitivity.pad * dt));
-    const holding = input.r2 > .5;if (holding) g.charge = Math.min(1, (g.charge || 0) + dt / 1.2);
+    const g = player.minigame, mouseScale = .0024 * sensitivity.mouse, curve = v => Math.sign(v) * v * v, walking = g.walk != null;
+    // Disc golf between holes (issue #60): you walk to the next tee; R2 (run) must be let go before it charges a throw there.
+    if (walking) g.r2Wait = true;else if (input.r2 < .3) g.r2Wait = false;
+    if (!walking) {player.yaw -= input.mouse.dx * mouseScale + curve(input.look.x) * 2 * sensitivity.pad * dt;player.pitch = Math.max(-1.2, Math.min(1.2, player.pitch - input.mouse.dy * mouseScale - curve(input.look.y) * 1.4 * sensitivity.pad * dt));}
+    const holding = input.r2 > .5 && !walking && !g.r2Wait;if (holding) g.charge = Math.min(1, (g.charge || 0) + dt / 1.2);
     const release = !holding && (g.charge || 0) > 0, power = g.charge || 0;if (release) g.charge = 0;
-    const r = g.update(dt * worldScale(), {aimYaw: player.yaw + (dl ? Math.sin(performance.now() / 600) * .05 * dl : 0), aimPitch: player.pitch, charge: g.charge || 0, power, release, alt: input.l2 > .5, hyzer: input.move.x, cancel: input.pressed.has('circle'), drunk: dl}, camera) || {};
+    const r = g.update(dt * worldScale(), {aimYaw: player.yaw + (dl ? Math.sin(performance.now() / 600) * .05 * dl : 0), aimPitch: player.pitch, charge: g.charge || 0, power, release, alt: input.l2 > .5, hyzer: input.move.x, cancel: input.pressed.has('circle'), drunk: dl, at: {x: player.x, z: player.z, y: player.feet}, skip: walking && input.pressed.has('square')}, camera) || {};
+    if (r.walk) {input.pressed.delete('square');input.pressed.delete('circle');updateFoot(dt, input, dl);return;}
     if (r.teleport) place(r.teleport.x, r.teleport.z, r.teleport.yaw);
     if (r.stand) {player.x = r.stand.x;player.z = r.stand.z;player.feet = r.stand.y ?? heightAt(player.x, player.z);}
     if (r.face !== undefined) {player.yaw = r.face;player.pitch = -.12;}

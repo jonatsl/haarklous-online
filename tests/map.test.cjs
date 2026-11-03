@@ -43,3 +43,24 @@ test('the minimap shows 90 m on foot and zooms out with speed and height, at mos
   assert.equal(M.minimapRange(60, 3000), 300);assert.equal(M.minimapRange(-5, -10), 90);
   assert.equal(M.REACH, 7);
 });
+
+test('a disc golf course without an outline gets one round its tees and baskets (issue #60)', () => {
+  const holes = [{tee: [94.4, 9.8], basket: [162.45, 26.22]}, {tee: [163.52, 34.14], basket: [125.99, 93.23]}], pad = 14;
+  const o = M.courseOutline(holes, pad), pts = [];for (let i = 0; i < o.length; i += 2) pts.push([o[i], o[i + 1]]);
+  assert.ok(pts.length >= 6);
+  // Convex, one way round: every turn has the same sign.
+  const turn = i => {const [a, b, c] = [pts[i], pts[(i + 1) % pts.length], pts[(i + 2) % pts.length]];return (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0]);};
+  const sign = Math.sign(turn(0));for (let i = 0; i < pts.length; i++) assert.equal(Math.sign(turn(i)), sign);
+  // Every tee and basket is inside, at least 12 m from the edge.
+  for (const h of holes) for (const p of [h.tee, h.basket]) for (let i = 0; i < pts.length; i++) {
+    const a = pts[i], b = pts[(i + 1) % pts.length], L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    assert.ok(sign * ((b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0])) / L > 12, `${p} is near edge ${i}`);
+  }
+});
+
+test('during a round the minimap zooms so the hole fits: 40 m at least, 300 m at most', () => {
+  // On the tee of a 106 m hole the basket (106 m away) is inside the rim.
+  const r = M.courseRange([0, 0], [[0, 0], [106.3, 0]]);assert.ok(r > 106.3 && r < 130, String(r));
+  // Near the basket: the close-in floor. Far from the course: never wider than 300 m.
+  assert.equal(M.courseRange([0, 0], [[5, 0]]), 40);assert.equal(M.courseRange([0, 0], [[2000, 0]]), 300);
+});
