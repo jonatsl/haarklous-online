@@ -267,6 +267,7 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
           <dt>Share / Enter or T</dt><dd>Chat with the other players (quick chat on the controller)</dd>
           <dt>R2 / L3 / Shift</dt><dd>Run</dd>
           <dt>L2 / R2 · mouse buttons</dt><dd>Climbing at Klatreverket: hold to grip with the left / right hand, let go and look at the next hold to reach it</dd>
+          <dt>L1 / Q</dt><dd>Torch on / off in the catacombs (□ too, where it is dark)</dd>
           <dt>Options / Esc</dt><dd>Pause and settings</dd>
         </dl>
         <button id="startButton">Click or press ✕ to start</button>
@@ -325,6 +326,7 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
           <dt>Klatreverket</dt><dd>The climbing centre at Myrens verksted (about 1 km west, by Akerselva): pay and rent shoes / harness at the reception (□) · look at a hold of a route and □ to start · hold L2 + R2 (both mouse buttons, or Q + R) to grip; let go with one hand, look at the next hold and grip again · left stick moves your body (push up to stand tall) · ✕ jump for a far hold · □ chalk up, on lead: clip the next bolt and the anchor · ○ drop off / take, ○ again to be lowered</dd>
           <dt>Shops</dt><dd>Joker and Kiwi at their real places: □ takes an item, pay at the till, □ at the machine returns empty bottles (2 kr each) · D-pad ↓ / ↓ opens your bag · money: missions, disc golf, petanque, bottle deposit</dd>
           <dt>Stashes</dt><dd>Three hidden crates around the neighbourhood: □ snort a line or use the needle for a random 30-second boost – 3× running speed, 3× jump height or bullet time</dd>
+          <dt>Catacombs</dt><dd>Three stone mausoleums in Torshovdalen (☠ on the map: the petanque lawn, the west side and the big lawn) lead down long stairs to a large catacomb · torches light the bone galleries; in the dark quarry tunnels □ / L1 / Q switches on your torch · underground the map shows only what you have seen there</dd>
           <dt>Drinks</dt><dd>Beer and aquavit in the apartment: each beer or sip = 30 s drunk</dd>
           <dt>Kayak (Akerselva)</dt><dd>□ at a kayak rack (Bjølsen, Sagene, Grünerløkka) · left stick ↑ / W paddle, ↓ / S back-paddle, ←→ / A D turn · right stick / mouse look around · R3 / V view from behind · □ get out on a bank when slow · the run ends at Vaterland, before the culvert</dd>
           <dt>Table tennis</dt><dd>Schous plass, against Ola: R2 / left mouse swing (early = cross-court, late = down the line) · aim with the camera · L2 smash · left stick / A D move · R2 serves · first to 11 · ○ quit</dd>
@@ -8932,6 +8934,9 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
       const w = Math.round(el.clientWidth * devicePixelRatio), h = Math.round(el.clientHeight * devicePixelRatio), k = map.scale * devicePixelRatio;
       if (canvas.width !== w || canvas.height !== h) {canvas.width = w;canvas.height = h;}
       const P = (x, s) => [w / 2 + (x - map.cx) * k, h / 2 + (s - map.cs) * k];
+      // Underground (the catacomb, issue #43) the layer paints the whole map: only what you have seen down there.
+      el.querySelector('.map-legend').hidden = !!map.layer;
+      if (map.layer) {map.layer.draw(ctx, {P, k, w, h, dpr: devicePixelRatio, rotation: 0, player: lastPlayer});return;}
       const key = [w, h, map.cx, map.cs, map.scale].join();if (key !== baseKey) {if (base.width !== w || base.height !== h) {base.width = w;base.height = h;}drawBase(w, h, k, P);baseKey = key;}
       ctx.drawImage(base, 0, 0);ctx.textAlign = 'center';
       // Points of interest.
@@ -9086,6 +9091,1660 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
     return map;
   }
   return {create, edgePoint, screenSpot, toRim, distanceText, minimapRange, REACH};
+});
+</script><script>/* Catacomb layout (issue #43): a large catacomb under Torshovdalen with three entrances about 100 m apart.
+ * Pure data, no three.js, so it runs in Node tests. Everything is in the map's local frame: x east, s south (metres), y = world height.
+ * The plan is a 2 m grid (88 × 84 cells) from local (X0, S0). Rooms are placed by hand; galleries between them are dug by a
+ * seeded A* that keeps a cell of rock between neighbouring galleries; dark side galleries branch off the quarry tunnels.
+ * Every entrance is a small stone mausoleum on the surface (its 4 × 8 m footprint is cut out of the ground) with a straight
+ * stair under its back wall down to an entrance hall on the catacomb floor (FLOOR_Y).
+ * CatacombLayout.build({heightLocal}) -> layout   heightLocal(x, s) -> terrain y
+ *   layout: {kind, style, room (per cell), rooms, entrances, torches, cellOf(x, s), centre(i, j), floorAt(idx, x, s), ceilAt(idx, x, s),
+ *            walkable(idx), los(x0, s0, x1, s1), floors(), obstacles(), vehicleObstacles(), cutsGround(x, s), inside(x, s, y), depth(x, s, y)}
+ * CatacombLayout.explorer(layout, saved) -> {seen, reveal(x, s, radius), count, save()}   (what the map shows)
+ * CatacombLayout.ENTRANCES, holes() (terrain cuts for Surroundings.create)
+ */
+(function (root, factory) {
+  const api = factory();
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  else root.CatacombLayout = api;
+})(typeof window === 'undefined' ? globalThis : window, function () {
+  'use strict';
+  const CELL = 2, X0 = -65, S0 = 99, NX = 88, NS = 84, FLOOR_Y = -28.5;
+  // Terrain must be this far above the floor (the ceilings are up to 3.6 m, the rest is rock).
+  const COVER = 5.5, ROOM_COVER = 6.6;
+  const ROCK = 0, CORRIDOR = 1, ROOM = 2, STAIR = 3;
+  const STYLES = ['rock', 'masonry', 'ossuary', 'quarry', 'crypt', 'rotunda', 'well', 'hall', 'stair', 'chapel', 'cavern', 'workroom'];
+  const S = Object.fromEntries(STYLES.map((n, i) => [n, i]));
+  const DARK = new Set([S.quarry, S.well, S.cavern, S.workroom]);
+  // The mausoleums: footprint [x0, s0, x1, s1] on the terrain's 4 m grid, the stair runs along `dir` (the door is on the other side).
+  const ENTRANCES = [
+    {id: 'north', label: 'North', word: 'NORD', sted: 'PETANQUEBANEN', place: 'the petanque lawn', rect: [64, 132, 68, 140], dir: [0, 1]},
+    {id: 'west', label: 'West', word: 'VEST', sted: 'VESTSIDEN AV TORSHOVDALEN', place: 'the west side of Torshovdalen', rect: [-28, 188, -20, 192], dir: [1, 0]},
+    {id: 'south', label: 'South', word: 'SØR', sted: 'DEN STORE PLENEN I TORSHOVDALEN', place: 'the big lawn in Torshovdalen', rect: [40, 232, 44, 240], dir: [0, -1]},
+  ];
+  // Rooms in grid cells [i0, j0, i1, j1] (inclusive). Halls are added at the stair feet.
+  const ROOMS = [
+    {id: 'rotunda', name: 'Rotunda of bones', style: 'rotunda', cells: [47, 31, 51, 35], ceil: {type: 'dome', base: 2.8, rise: 1.8}},
+    {id: 'chapel', name: 'Chapel of bones', style: 'chapel', cells: [16, 18, 19, 23], ceil: {type: 'cloister', base: 2.9, rise: .7}},
+    {id: 'crypt', name: 'Crypt', style: 'crypt', cells: [35, 60, 40, 63], ceil: {type: 'cloister', base: 3.0, rise: .9}},
+    {id: 'well', name: 'Quarrymen’s well', style: 'well', cells: [79, 54, 81, 56], ceil: {type: 'flat', base: 3.1}},
+    {id: 'cavern', name: 'Collapsed quarry', style: 'cavern', cells: [69, 70, 73, 74], ceil: {type: 'flat', base: 3.4}},
+    {id: 'workroom', name: 'Quarrymen’s room', style: 'workroom', cells: [77, 8, 80, 11], ceil: {type: 'flat', base: 2.9}},
+    {id: 'sacellum', name: 'Sacellum', style: 'chapel', cells: [6, 43, 9, 47], ceil: {type: 'cloister', base: 2.9, rise: .8}},
+    {id: 'bonehall', name: 'Hall of skulls', style: 'chapel', cells: [10, 62, 15, 65], ceil: {type: 'cloister', base: 3.0, rise: .8}},
+  ];
+  // Galleries between rooms: [from, to, style]. Lit: masonry and ossuary. Dark: quarry.
+  const LINKS = [
+    ['hall-north', 'rotunda', 'ossuary'], ['rotunda', 'hall-south', 'masonry'], ['rotunda', 'chapel', 'ossuary'], ['chapel', 'hall-west', 'masonry'],
+    ['hall-west', 'sacellum', 'ossuary'], ['sacellum', 'bonehall', 'ossuary'], ['bonehall', 'crypt', 'masonry'], ['crypt', 'hall-south', 'masonry'],
+    ['hall-south', 'well', 'quarry'], ['well', 'hall-north', 'quarry'], ['well', 'cavern', 'quarry'], ['cavern', 'crypt', 'quarry'],
+    ['hall-north', 'workroom', 'quarry'], ['workroom', 'chapel', 'quarry'], ['sacellum', 'chapel', 'quarry'], ['bonehall', 'cavern', 'quarry'],
+  ];
+  const rng = seed => () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const holes = () => ENTRANCES.map(e => ({x0: e.rect[0], s0: e.rect[1], x1: e.rect[2], s1: e.rect[3], cutGround: true}));
+
+  function build({heightLocal, seed = 4301}) {
+    const N = NX * NS, kind = new Uint8Array(N), style = new Uint8Array(N), roomOf = new Int16Array(N).fill(-1), blocked = new Uint8Array(N);
+    const id = (i, j) => j * NX + i, inGrid = (i, j) => i >= 0 && j >= 0 && i < NX && j < NS;
+    const centre = (i, j) => ({x: X0 + (i + .5) * CELL, s: S0 + (j + .5) * CELL});
+    const cellOf = (x, s) => {const i = Math.floor((x - X0) / CELL), j = Math.floor((s - S0) / CELL);return inGrid(i, j) ? {i, j, idx: id(i, j)} : null;};
+    const walkable = idx => kind[idx] !== ROCK;
+    // Rock cover above each cell (the lowest terrain over its corners and centre).
+    const cover = new Float32Array(N);
+    for (let j = 0; j < NS; j++) for (let i = 0; i < NX; i++) {
+      const x = X0 + i * CELL, s = S0 + j * CELL;
+      cover[id(i, j)] = Math.min(heightLocal(x, s), heightLocal(x + CELL, s), heightLocal(x, s + CELL), heightLocal(x + CELL, s + CELL), heightLocal(x + 1, s + 1)) - FLOOR_Y;
+    }
+    // ---------- Entrances: mausoleum, stair, hall ----------
+    const entrances = ENTRANCES.map(e => {
+      const [x0, s0, x1, s1] = e.rect, alongX = e.dir[0] !== 0, sign = alongX ? e.dir[0] : e.dir[1];
+      const door = alongX ? (sign > 0 ? x0 : x1) : (sign > 0 ? s0 : s1), line = alongX ? (s0 + s1) / 2 : (x0 + x1) / 2;
+      let top = -Infinity;for (let a = 0; a <= 4; a++) for (let b = 0; b <= 4; b++) top = Math.max(top, heightLocal(x0 + (x1 - x0) * a / 4, s0 + (s1 - s0) * b / 4));
+      top = Math.round((top + .12) * 100) / 100;
+      const depth = top - FLOOR_Y, t0 = 2.2, landing = depth > 12 ? 2 : 0, want = t0 + depth / .6 + landing;
+      const tBottom = 2 * Math.ceil((want - 1) / 2) + 1, run = tBottom - t0 - landing, slope = depth / run, tMid = t0 + run / 2;
+      // t = metres from the outer face of the door along the stair; the inner face of the 1 m front wall is t = 1.
+      const floorT = t => t <= t0 ? top : t <= tMid ? top - slope * (t - t0) : t <= tMid + landing ? top - slope * (tMid - t0) : Math.max(FLOOR_Y, top - slope * (t - t0 - landing));
+      const toLocal = (t, c) => alongX ? {x: door + sign * t, s: line + c} : {x: line + c, s: door + sign * t};
+      const tOf = (x, s) => ((alongX ? x : s) - door) * sign;
+      const lane = alongX ? (line - 1 - S0) / CELL : (line - 1 - X0) / CELL;
+      const cells = [];for (let t = 1; t < tBottom; t += CELL) {const p = toLocal(t + 1, 0), c = cellOf(p.x, p.s);cells.push(c.idx);}
+      const foot = toLocal(tBottom + 3, 0), fc = cellOf(foot.x, foot.s);
+      const hall = {id: 'hall-' + e.id, name: `${e.label} entrance hall`, style: 'hall', ceil: {type: 'cloister', base: 2.9, rise: .6}, entrance: e.id,
+        cells: [fc.i - 1, fc.j - 1, fc.i + 1, fc.j + 1]};
+      return {...e, alongX, sign, door, line, top, depth, t0, tMid, landing, tBottom, slope, floorT, toLocal, tOf, lane, cells, hall,
+        doorWidth: 1.6, pavilionTop: top + 3.0, inner: 7, headroom: 2.4};
+    });
+    const rooms = [...entrances.map(e => e.hall), ...ROOMS.map(r => ({...r}))];
+    rooms.forEach((r, k) => {
+      const [i0, j0, i1, j1] = r.cells;r.index = k;r.x0 = X0 + i0 * CELL;r.s0 = S0 + j0 * CELL;r.x1 = X0 + (i1 + 1) * CELL;r.s1 = S0 + (j1 + 1) * CELL;
+      r.cx = (r.x0 + r.x1) / 2;r.cs = (r.s0 + r.s1) / 2;r.dark = DARK.has(S[r.style]);
+      for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {const c = id(i, j);kind[c] = ROOM;style[c] = S[r.style];roomOf[c] = k;}
+    });
+    entrances.forEach(e => {
+      e.cells.forEach(c => {kind[c] = STAIR;style[c] = S.stair;});
+      // Keep other galleries a cell away from the stair tunnel (it climbs through the rock above them).
+      e.cells.forEach(c => {const i = c % NX, j = Math.floor(c / NX);for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) if (inGrid(i + di, j + dj)) blocked[id(i + di, j + dj)] = 1;});
+    });
+    const roomById = Object.fromEntries(rooms.map(r => [r.id, r]));
+    // ---------- Galleries (seeded A*) ----------
+    const rnd = rng(seed), DI = [0, 1, 0, -1], DJ = [-1, 0, 1, 0];// N E S W (north = -s)
+    // Smooth value noise (6-cell lattice) makes the galleries meander instead of running dead straight.
+    const lat = Float32Array.from({length: (NX / 6 + 2) * (NS / 6 + 2) | 0}, () => rnd()), LW = NX / 6 + 2 | 0;
+    const noise = Float32Array.from({length: N}, (_, c) => {const fi = (c % NX) / 6, fj = Math.floor(c / NX) / 6, i = Math.floor(fi), j = Math.floor(fj), u = fi - i, v = fj - j, L = (a, b) => lat[b * LW + a];
+      return (L(i, j) * (1 - u) + L(i + 1, j) * u) * (1 - v) + (L(i, j + 1) * (1 - u) + L(i + 1, j + 1) * u) * v;});
+    const coverOk = c => cover[c] >= COVER;
+    const middle = r => id(Math.floor((r.cells[0] + r.cells[2]) / 2), Math.floor((r.cells[1] + r.cells[3]) / 2));
+    function dig(a, b, st) {
+      const A = roomById[a], B = roomById[b], s0 = middle(A), g0 = middle(B);
+      // One waypoint off to the side of the straight line, where the rock allows it.
+      const ai = s0 % NX, aj = Math.floor(s0 / NX), bi = g0 % NX, bj = Math.floor(g0 / NX), len = Math.hypot(bi - ai, bj - aj);
+      let via = null;
+      for (let tries = 0; tries < 12 && !via; tries++) {
+        const off = (rnd() - .5) * len * .5, wi = Math.round((ai + bi) / 2 - (bj - aj) / len * off), wj = Math.round((aj + bj) / 2 + (bi - ai) / len * off);
+        if (wi > 2 && wj > 2 && wi < NX - 3 && wj < NS - 3 && kind[id(wi, wj)] === ROCK && coverOk(id(wi, wj)) && !blocked[id(wi, wj)]) via = id(wi, wj);
+      }
+      const p1 = via !== null ? route(s0, via, A, B, st) : null;
+      return p1 ? (route(via, g0, A, B, st) || p1) : route(s0, g0, A, B, st);
+    }
+    function route(start, goal, A, B, st) {
+      const gi = goal % NX, gj = Math.floor(goal / NX), best = new Float32Array(N * 5).fill(Infinity), from = new Int32Array(N * 5).fill(-1), heap = [];
+      const push = (f, st2) => {heap.push([f, st2]);let k = heap.length - 1;while (k) {const p = (k - 1) >> 1;if (heap[p][0] <= heap[k][0]) break;[heap[p], heap[k]] = [heap[k], heap[p]];k = p;}};
+      const pop = () => {const top = heap[0], last = heap.pop();if (heap.length) {heap[0] = last;let k = 0;for (;;) {const l = 2 * k + 1, r = l + 1;let m = k;if (l < heap.length && heap[l][0] < heap[m][0]) m = l;if (r < heap.length && heap[r][0] < heap[m][0]) m = r;if (m === k) break;[heap[m], heap[k]] = [heap[k], heap[m]];k = m;}}return top;};
+      const h = c => Math.abs(c % NX - gi) + Math.abs(Math.floor(c / NX) - gj);
+      best[start * 5 + 4] = 0;push(h(start), start * 5 + 4);
+      while (heap.length) {
+        const [, s5] = pop(), c = Math.floor(s5 / 5), d = s5 % 5, g = best[s5];
+        if (c === goal) {
+          const path = [];for (let s = s5; s >= 0; s = from[s]) path.push(Math.floor(s / 5));
+          path.forEach(p => {if (kind[p] === ROCK) {kind[p] = CORRIDOR;style[p] = S[st];}});return path;
+        }
+        const ci = c % NX, cj = Math.floor(c / NX);
+        for (let nd = 0; nd < 4; nd++) {
+          const ni = ci + DI[nd], nj = cj + DJ[nd];if (ni < 1 || nj < 1 || ni > NX - 2 || nj > NS - 2) continue;
+          const n = id(ni, nj);let cost;
+          if (kind[n] === STAIR || blocked[n] && kind[n] !== ROOM) continue;
+          if (kind[n] === ROOM) cost = roomOf[n] === A.index || roomOf[n] === B.index ? .2 : 6;
+          else if (kind[n] === CORRIDOR) cost = .7;
+          else {
+            if (!coverOk(n)) continue;
+            cost = 1 + noise[n] * 2.6;
+            // Do not run alongside another gallery: a cell of rock stays between them.
+            for (let k = 0; k < 4; k++) {const qi = ni + DI[k], qj = nj + DJ[k], q = id(qi, qj);if (q !== c && walkable(q) && roomOf[q] !== A.index && roomOf[q] !== B.index) cost += 7;}
+            for (const [qi, qj] of [[ni - 1, nj - 1], [ni + 1, nj - 1], [ni - 1, nj + 1], [ni + 1, nj + 1]]) {const q = id(qi, qj);if (walkable(q) && Math.abs(qi - ci) + Math.abs(qj - cj) > 1) cost += 1.5;}
+          }
+          if (d < 4 && d !== nd) cost += 1.1;
+          const s2 = n * 5 + nd, g2 = g + cost;
+          if (g2 < best[s2]) {best[s2] = g2;from[s2] = s5;push(g2 + h(n), s2);}
+        }
+      }
+      return null;
+    }
+    const paths = LINKS.map(([a, b, st]) => ({a, b, style: st, path: dig(a, b, st)}));
+    // Dark side galleries off the quarry tunnels, some meeting other tunnels (loops), most ending blind.
+    const quarry = () => {const l = [];for (let c = 0; c < N; c++) if (kind[c] === CORRIDOR && style[c] === S.quarry) l.push(c);return l;};
+    const freeAround = (n, prev) => {const ni = n % NX, nj = Math.floor(n / NX);for (let k = 0; k < 4; k++) {const q = id(ni + DI[k], nj + DJ[k]);if (q !== prev && walkable(q)) return false;}return true;};
+    for (let k = 0; k < 70; k++) {
+      const list = quarry(), c0 = list[Math.floor(rnd() * list.length)];if (c0 === undefined) break;
+      let c = c0, d = Math.floor(rnd() * 4), len = 3 + Math.floor(rnd() * 11);
+      for (let step = 0; step < len; step++) {
+        const ci = c % NX, cj = Math.floor(c / NX), ni = ci + DI[d], nj = cj + DJ[d];
+        if (ni < 1 || nj < 1 || ni > NX - 2 || nj > NS - 2) break;
+        const n = id(ni, nj);if (walkable(n) || blocked[n] || !coverOk(n)) break;
+        if (!freeAround(n, c)) {if (rnd() < .3 && step > 1) {kind[n] = CORRIDOR;style[n] = S.quarry;}break;}
+        // Diagonal neighbours other than the way we came would merge two galleries into a wide hall.
+        let diag = false;for (const [qi, qj] of [[ni - 1, nj - 1], [ni + 1, nj - 1], [ni - 1, nj + 1], [ni + 1, nj + 1]]) if (walkable(id(qi, qj)) && Math.abs(qi - ci) + Math.abs(qj - cj) > 1) diag = true;
+        if (diag) break;
+        kind[n] = CORRIDOR;style[n] = S.quarry;c = n;if (rnd() < .28) d = (d + (rnd() < .5 ? 1 : 3)) % 4;
+      }
+    }
+    // Short blind niches off the lit ossuary galleries (more bones).
+    for (let c = 0; c < N; c++) if (kind[c] === CORRIDOR && style[c] === S.ossuary && rnd() < .07) {
+      const ci = c % NX, cj = Math.floor(c / NX), d = Math.floor(rnd() * 4), n = id(ci + DI[d], cj + DJ[d]);
+      if (!walkable(n) && !blocked[n] && coverOk(n) && freeAround(n, c)) {let diag = false;const ni = n % NX, nj = Math.floor(n / NX);for (const [qi, qj] of [[ni - 1, nj - 1], [ni + 1, nj - 1], [ni - 1, nj + 1], [ni + 1, nj + 1]]) if (walkable(id(qi, qj)) && Math.abs(qi - ci) + Math.abs(qj - cj) > 1) diag = true;if (!diag) {kind[n] = CORRIDOR;style[n] = S.ossuary;}}
+    }
+    // ---------- Heights ----------
+    const stairOf = new Int8Array(N).fill(-1);entrances.forEach((e, k) => e.cells.forEach(c => {stairOf[c] = k;}));
+    const open = c => {const i = c % NX, j = Math.floor(c / NX);return [0, 1, 2, 3].map(k => inGrid(i + DI[k], j + DJ[k]) && walkable(id(i + DI[k], j + DJ[k])));};
+    // Gallery ceilings: a barrel vault (springing 1.9 m, crown 2.75 m) along straight runs, flat 2.75 m at bends and junctions.
+    const vault = new Int8Array(N);// 0 flat, 1 along s (north-south), 2 along x
+    for (let c = 0; c < N; c++) if (kind[c] === CORRIDOR) {const o = open(c);if (!o[1] && !o[3] && (o[0] || o[2])) vault[c] = 1;else if (!o[0] && !o[2] && (o[1] || o[3])) vault[c] = 2;}
+    function floorAt(c, x, s) {const k = stairOf[c];if (k < 0) return FLOOR_Y;const e = entrances[k];return e.floorT(e.tOf(x, s));}
+    function ceilAt(c, x, s) {
+      const k = stairOf[c];
+      if (k >= 0) {const e = entrances[k], t = e.tOf(x, s);return t < e.inner ? e.pavilionTop : e.floorT(t) + e.headroom;}
+      if (kind[c] === ROOM) {
+        const r = rooms[roomOf[c]], f = r.ceil, u = (x - r.cx) / ((r.x1 - r.x0) / 2), v = (s - r.cs) / ((r.s1 - r.s0) / 2);
+        if (f.type === 'dome') {const q = Math.min(1, Math.hypot(u, v) / Math.SQRT2);return FLOOR_Y + f.base + f.rise * Math.sqrt(1 - q * q);}
+        if (f.type === 'cloister') {const m = Math.min(1, Math.max(Math.abs(u), Math.abs(v)));return FLOOR_Y + f.base + f.rise * (1 - m * m);}
+        return FLOOR_Y + f.base;
+      }
+      const v = vault[c];if (!v) return FLOOR_Y + 2.75;
+      const ctr = centre(c % NX, Math.floor(c / NX)), u = Math.max(-1, Math.min(1, v === 1 ? x - ctr.x : s - ctr.s));
+      return FLOOR_Y + 1.9 + .85 * Math.sqrt(1 - u * u);
+    }
+    // ---------- Line of sight on the grid (Amanatides–Woo) ----------
+    function los(xa, sa, xb, sb) {
+      let i = Math.floor((xa - X0) / CELL), j = Math.floor((sa - S0) / CELL);const ib = Math.floor((xb - X0) / CELL), jb = Math.floor((sb - S0) / CELL);
+      const dx = xb - xa, ds = sb - sa, si = Math.sign(dx), sj = Math.sign(ds);
+      const tdx = si ? CELL / Math.abs(dx) : Infinity, tds = sj ? CELL / Math.abs(ds) : Infinity;
+      let tx = si ? ((si > 0 ? X0 + (i + 1) * CELL : X0 + i * CELL) - xa) / dx : Infinity, ts = sj ? ((sj > 0 ? S0 + (j + 1) * CELL : S0 + j * CELL) - sa) / ds : Infinity;
+      for (let n = 0; n < 400; n++) {
+        if (!inGrid(i, j) || !walkable(id(i, j))) return false;
+        if (i === ib && j === jb) return true;
+        // Passing exactly through a corner needs both side cells open.
+        if (Math.abs(tx - ts) < 1e-9) {if (!inGrid(i + si, j) || !walkable(id(i + si, j)) || !inGrid(i, j + sj) || !walkable(id(i, j + sj))) return false;i += si;j += sj;tx += tdx;ts += tds;}
+        else if (tx < ts) {i += si;tx += tdx;} else {j += sj;ts += tds;}
+      }
+      return false;
+    }
+    // ---------- Torches on the walls of the lit parts ----------
+    const torches = [];
+    {
+      const lit = c => walkable(c) && !DARK.has(style[c]);
+      const near = (x, s, r) => torches.some(t => Math.hypot(t.x - x, t.s - s) < r);
+      const order = [];for (let c = 0; c < N; c++) if (lit(c)) order.push(c);
+      for (const c of order) {
+        const i = c % NX, j = Math.floor(c / NX), ctr = centre(i, j), o = open(c), st = style[c];
+        const spacing = kind[c] === ROOM ? 5.5 : st === S.stair ? 6 : 6.5;
+        for (let k = 0; k < 4; k++) {
+          if (o[k]) continue;
+          // The wall is on side k; the torch hangs 0.12 m off it at 1.85 m (lower in the vaulted galleries' springing).
+          const nx = -DI[k], ns = -DJ[k], x = ctr.x + DI[k] * (CELL / 2 - .12), s = ctr.s + DJ[k] * (CELL / 2 - .12);
+          if (st === S.stair) {const e = entrances[stairOf[c]], t = e.tOf(x, s);if (t < 2 || Math.abs(e.alongX ? DI[k] : DJ[k]) > 0) continue;}
+          if (kind[c] === CORRIDOR && (k + i + j) % 2) continue;
+          if (near(x, s, spacing)) continue;
+          const y = floorAt(c, x, s) + (st === S.stair ? 1.75 : 1.8);
+          torches.push({x, s, y, nx, ns, cell: c, phase: torches.length % 4});
+        }
+      }
+    }
+    // ---------- Collision (world coordinates come from the caller's toWorld) ----------
+    function wallRuns() {
+      // Every edge between a walkable cell and rock (or the door of a mausoleum), merged into straight runs.
+      const runs = [], key = (c, k) => c * 4 + k, used = new Set();
+      for (let c = 0; c < N; c++) if (walkable(c)) {
+        const o = open(c);
+        for (let k = 0; k < 4; k++) {
+          if (o[k] || used.has(key(c, k))) continue;
+          // Walk back to the start of this straight run, then forward.
+          const along = k % 2 === 0 ? 1 : 0, bones = q => style[q] === S.ossuary || style[q] === S.chapel;// N/S walls run along x
+          const same = p => walkable(p) && !open(p)[k] && bones(p) === bones(c) && (stairOf[p] < 0) === (stairOf[c] < 0);
+          let a = c;for (;;) {const ai = a % NX - along, aj = Math.floor(a / NX) - (1 - along);if (!inGrid(ai, aj) || !same(id(ai, aj))) break;a = id(ai, aj);}
+          const cells = [];for (let b = a; ; ) {cells.push(b);used.add(key(b, k));const bi = b % NX + along, bj = Math.floor(b / NX) + (1 - along);if (!inGrid(bi, bj) || !same(id(bi, bj))) break;b = id(bi, bj);}
+          runs.push({side: k, cells});
+        }
+      }
+      return runs;
+    }
+    const runs = wallRuns();
+    function obstacles(toWorld) {
+      const list = [], W = (x, s) => toWorld(x, s);
+      for (const r of runs) {
+        const first = centre(r.cells[0] % NX, Math.floor(r.cells[0] / NX)), last = centre(r.cells[r.cells.length - 1] % NX, Math.floor(r.cells[r.cells.length - 1] / NX)), k = r.side;
+        const ossuary = r.cells.every(c => style[c] === S.ossuary || style[c] === S.chapel), inset = ossuary ? .22 : 0;
+        let lo = Infinity, hi = -Infinity;for (const c of r.cells) {const p = centre(c % NX, Math.floor(c / NX));lo = Math.min(lo, floorAt(c, p.x - 1, p.s - 1), floorAt(c, p.x + 1, p.s + 1));hi = Math.max(hi, ceilAt(c, p.x, p.s));}
+        // The wall line (on the cell edge) and the rock behind it; k: 0 N (-s), 1 E (+x), 2 S (+s), 3 W (-x).
+        const dx = DI[k], ds = DJ[k], ax = k % 2 === 0 ? [first.x - 1, last.x + 1] : null, as = k % 2 ? [first.s - 1, last.s + 1] : null;
+        const wall = k % 2 === 0 ? first.s + ds * 1 : first.x + dx * 1;
+        let pts;
+        if (k % 2 === 0) pts = [[ax[0], wall - ds * inset], [ax[1], wall - ds * inset], [ax[1], wall + ds * .4], [ax[0], wall + ds * .4]];
+        else pts = [[wall - dx * inset, as[0]], [wall - dx * inset, as[1]], [wall + dx * .4, as[1]], [wall + dx * .4, as[0]]];
+        // A mausoleum's door is a gap in its front wall.
+        const e = entrances.find(en => r.cells.includes(en.cells[0]) && (en.alongX ? k === (en.sign > 0 ? 3 : 1) : k === (en.sign > 0 ? 0 : 2)));
+        if (e) {
+          const a = e.alongX ? pts.map(p => p[1]) : pts.map(p => p[0]), lo2 = Math.min(...a), hi2 = Math.max(...a), g0 = e.line - e.doorWidth / 2, g1 = e.line + e.doorWidth / 2;
+          for (const [u0, u1] of [[lo2, g0], [g1, hi2]]) if (u1 - u0 > .01) {const q = pts.map(p => e.alongX ? [p[0], p[1] === lo2 ? u0 : u1] : [p[0] === lo2 ? u0 : u1, p[1]]);list.push({points: q.map(p => W(p[0], p[1])), minY: lo - .5, maxY: hi + .5, kind: 'catacomb'});}
+          continue;
+        }
+        list.push({points: pts.map(p => W(p[0], p[1])), minY: lo - .5, maxY: hi + .5, kind: 'catacomb'});
+      }
+      // The mausoleums' outer walls, for people outside (the stair passes under the back wall below minY).
+      for (const e of entrances) {
+        const [x0, s0, x1, s1] = e.rect, y0 = e.top - .6, y1 = e.top + 5, box = (a, b, c, d) => list.push({points: [W(a, b), W(c, b), W(c, d), W(a, d)], minY: y0, maxY: y1, kind: 'mausoleum'});
+        const g0 = e.line - e.doorWidth / 2, g1 = e.line + e.doorWidth / 2;
+        if (e.alongX) {box(x0, s0, x1, s0 + 1);box(x0, s1 - 1, x1, s1);const fx = e.sign > 0 ? x0 : x1 - 1, bx = e.sign > 0 ? x1 - 1 : x0;box(bx, s0, bx + 1, s1);box(fx, s0, fx + 1, g0);box(fx, g1, fx + 1, s1);}
+        else {box(x0, s0, x0 + 1, s1);box(x1 - 1, s0, x1, s1);const fs = e.sign > 0 ? s0 : s1 - 1, bs = e.sign > 0 ? s1 - 1 : s0;box(x0, bs, x1, bs + 1);box(x0, fs, g0, fs + 1);box(g1, fs, x1, fs + 1);}
+      }
+      return list;
+    }
+    function vehicleObstacles(toWorld) {return entrances.map(e => {const [x0, s0, x1, s1] = e.rect;return {points: [toWorld(x0, s0), toWorld(x1, s0), toWorld(x1, s1), toWorld(x0, s1)], minY: e.top - 1, maxY: e.top + 5, kind: 'mausoleum'};});}
+    // Walk floors: the catacomb floor (one rectangle under the whole grid; the walls are obstacles), and per entrance the door
+    // threshold (it meets the terrain exactly at the door), the top landing, two flights and the half landing.
+    function floors(toWorld, toLocal) {
+      const list = [{name: 'Catacomb floor', points: [toWorld(X0, S0), toWorld(X0 + NX * CELL, S0), toWorld(X0 + NX * CELL, S0 + NS * CELL), toWorld(X0, S0 + NS * CELL)], y: FLOOR_Y, ceilingHeight: 2.6, surfaceKind: 'stone'}];
+      for (const e of entrances) {
+        const quad = (t0, t1, w) => [e.toLocal(t0, -w), e.toLocal(t1, -w), e.toLocal(t1, w), e.toLocal(t0, w)].map(p => toWorld(p.x, p.s));
+        // The threshold rises from the terrain at the outer face of the door (so the two floors meet exactly) to the landing.
+        const threshold = p => {const q = toLocal(p.x, p.z), t = Math.max(0, Math.min(1, e.tOf(q.x, q.s))), d = e.toLocal(0, (e.alongX ? q.s : q.x) - e.line), g = heightLocal(d.x, d.s);return g + (e.top - g) * t;};
+        list.push({name: `Catacomb door (${e.id})`, points: quad(0, 1, e.doorWidth / 2), height: threshold, ceilingHeight: 2.3, surfaceKind: 'stone'});
+        list.push({name: `Catacomb landing (${e.id})`, points: quad(1, e.t0, 1), y: e.top, ceilingHeight: 2.8, surfaceKind: 'stone'});
+        const ramp = (ta, tb) => {const a = e.toLocal(ta, 0), b = e.toLocal(tb, 0), wa = toWorld(a.x, a.s), wb = toWorld(b.x, b.s), L = Math.hypot(wb.x - wa.x, wb.z - wa.z), ya = e.floorT(ta), yb = e.floorT(tb), g = (yb - ya) / L;
+          return {name: `Catacomb stair (${e.id})`, points: quad(ta, tb, 1), y: ya, slope: {x: (wb.x - wa.x) / L * g, z: (wb.z - wa.z) / L * g, origin: wa}, ceilingHeight: 2.3, surfaceKind: 'stone'};};
+        if (e.landing) {list.push(ramp(e.t0, e.tMid));list.push({name: `Catacomb half landing (${e.id})`, points: quad(e.tMid, e.tMid + e.landing, 1), y: e.floorT(e.tMid), ceilingHeight: 2.4, surfaceKind: 'stone'});list.push(ramp(e.tMid + e.landing, e.tBottom));}
+        else list.push(ramp(e.t0, e.tBottom));
+      }
+      return list;
+    }
+    // Inside a mausoleum the terrain is not walked on (the door threshold, landing and stair take over).
+    const cutsGround = (x, s) => entrances.some(e => x > e.rect[0] && x < e.rect[2] && s > e.rect[1] && s < e.rect[3]);
+    // Underground: on the catacomb floor, or on a stair below its door. depth() is 0 at the door and 1 from 4.5 m down.
+    function depth(x, s, y) {
+      const c = cellOf(x, s);if (!c || !walkable(c.idx)) return 0;
+      const k = stairOf[c.idx];if (k >= 0) return Math.max(0, Math.min(1, (entrances[k].top - .3 - y) / 4.2));
+      return y < FLOOR_Y + 4 ? 1 : 0;
+    }
+    const inside = (x, s, y) => {const c = cellOf(x, s);return !!c && walkable(c.idx) && (stairOf[c.idx] < 0 ? y < FLOOR_Y + 4 : y < entrances[stairOf[c.idx]].top - 1.2);};
+    const deep = (x, s, y) => {const c = cellOf(x, s);return !!c && walkable(c.idx) && stairOf[c.idx] < 0 && y < FLOOR_Y + 4;};
+    return {CELL, X0, S0, NX, NS, FLOOR_Y, STYLES, S, DARK, ROCK, CORRIDOR, ROOM, STAIR, kind, style, roomOf, stairOf, vault, cover, rooms, entrances, torches, paths, runs,
+      id, centre, cellOf, walkable, open, floorAt, ceilAt, los, obstacles, vehicleObstacles, floors, cutsGround, depth, inside, deep,
+      isDark: c => DARK.has(style[c])};
+  }
+
+  // What you have seen down there (the map shows only this). Saved in localStorage by the caller as a base64 bit set.
+  function explorer(L, saved) {
+    const n = L.NX * L.NS, seen = new Uint8Array(n);
+    if (saved) {try {const bin = typeof atob === 'function' ? atob(saved) : Buffer.from(saved, 'base64').toString('binary');for (let i = 0; i < n; i++) seen[i] = (bin.charCodeAt(i >> 3) >> (i & 7)) & 1;} catch {}}
+    let count = seen.reduce((a, b) => a + b, 0);
+    function reveal(x, s, radius) {
+      const c = L.cellOf(x, s);if (!c) return 0;let added = 0;const r = Math.ceil(radius / L.CELL);
+      for (let dj = -r; dj <= r; dj++) for (let di = -r; di <= r; di++) {
+        const i = c.i + di, j = c.j + dj;if (i < 0 || j < 0 || i >= L.NX || j >= L.NS) continue;
+        const idx = L.id(i, j);if (seen[idx] || !L.walkable(idx)) continue;
+        const p = L.centre(i, j);if (Math.hypot(p.x - x, p.s - s) > radius) continue;
+        // Seen when the line from you to any point near the cell centre is clear.
+        if (L.los(x, s, p.x, p.s) || L.los(x, s, p.x - .7, p.s - .7) || L.los(x, s, p.x + .7, p.s + .7) || L.los(x, s, p.x - .7, p.s + .7) || L.los(x, s, p.x + .7, p.s - .7)) {seen[idx] = 1;added++;}
+      }
+      count += added;return added;
+    }
+    function save() {const bytes = new Uint8Array(Math.ceil(n / 8));for (let i = 0; i < n; i++) if (seen[i]) bytes[i >> 3] |= 1 << (i & 7);let bin = '';for (const b of bytes) bin += String.fromCharCode(b);return typeof btoa === 'function' ? btoa(bin) : Buffer.from(bin, 'binary').toString('base64');}
+    return {seen, reveal, save, get count() {return count;}};
+  }
+
+  // Terrain sampler for Node tests and tools: the same bilinear 4 m grid as Surroundings (relative decimetres + ground).
+  function terrainSampler(D) {
+    const ter = D.terrain, N = ter.n, half = ter.half, step = ter.step;
+    const bin = typeof atob === 'function' ? atob(ter.dm) : Buffer.from(ter.dm, 'base64').toString('binary'), bytes = new Uint8Array(bin.length);for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const raw = new Int16Array(bytes.buffer), g = new Float32Array(raw.length);for (let i = 0; i < raw.length; i++) g[i] = raw[i] / 10;
+    return (x, s) => {const fi = Math.min(N - 1.001, Math.max(0, (x + half) / step)), fj = Math.min(N - 1.001, Math.max(0, (s + half) / step)), i = Math.floor(fi), j = Math.floor(fj), u = fi - i, v = fj - j;
+      return D.ground + g[j * N + i] * (1 - u) * (1 - v) + g[j * N + i + 1] * u * (1 - v) + g[(j + 1) * N + i] * (1 - u) * v + g[(j + 1) * N + i + 1] * u * v;};
+  }
+  return {build, explorer, terrainSampler, holes, ENTRANCES, ROOMS, LINKS, FLOOR_Y, CELL, X0, S0, NX, NS};
+});
+</script><script>/* Catacomb models: procedural human skulls, femurs and an ossuary bone-wall texture (GitHub issue 43).
+ * CatacombModels.create({T}) -> {skull, femur, boneWall, boneColor}
+ *   skull({lod = 'high' | 'low' | 'far', jaw = false}) indexed BufferGeometry: position, normal, uv, color (bone tint x
+ *     occlusion, linear RGB). Metres; face toward +z, top +y, x/z centred on the bounding box, y = 0 at the lowest point.
+ *     About 0.20 long, 0.14 wide, 0.16 tall (0.21 with the jaw). Triangles: high <= 6000, low <= 700, far <= 160.
+ *   femur({lod}) indexed BufferGeometry, same attributes, 0.45 m along +x, bounding box centred on the origin
+ *     (head and trochanter at -x, condyles at +x, head toward +z, knee front toward +y). high <= 1200, low <= 200, far 40.
+ *   boneWall({size = 1024}) {map, normal, tile: [1, 0.625]}: canvas textures (browser only) of a stacked-bone ossuary
+ *     wall (size px per metre), tileable both ways, repeat = 1 / tile. Map is sRGB, normal map linear (OpenGL style).
+ *   boneColor  material colour for vertexColors: true (tint and occlusion are already in the vertex colours).
+ * Shapes are signed-distance fields in millimetres, projected along rays (skull: from one centre, a geodesic sphere
+ * denser over the face; femur: from its axis), then refined edge by edge where shape or shading changes most until
+ * the triangle budget is used, so meshes are closed and crack-free. Orbits and nose stop on a black floor 7 mm behind
+ * the opening, so they read as holes. Occlusion is sampled from the same fields. uv: skull spherical (seam at the
+ * back), femur (along, around). Results are memoised and deterministic (no Math.random).
+ */
+(function (root, factory) {
+  const api = factory();
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  else root.CatacombModels = api;
+})(typeof window === 'undefined' ? globalThis : window, function () {
+  'use strict';
+  const {sqrt, abs, min, max, sin, cos, PI, floor, atan2, acos} = Math;
+  const clamp = (v, a = 0, b = 1) => v < a ? a : v > b ? b : v, lerp = (a, b, t) => a + (b - a) * t;
+  const ss = (a, b, v) => {const t = clamp((v - a) / (b - a));return t * t * (3 - 2 * t);};
+  const lin = c => c <= .04045 ? c / 12.92 : Math.pow((c + .055) / 1.055, 2.4);
+
+  // ---------- distance primitives (millimetres) ----------
+  const smin = (a, b, k) => {const h = max(k - abs(a - b), 0) / k;return min(a, b) - h * h * k * .25;};
+  const smax = (a, b, k) => -smin(-a, -b, k);
+  function ell(x, y, z, rx, ry, rz) {
+    const a = x / rx, b = y / ry, c = z / rz, k0 = sqrt(a * a + b * b + c * c), k1 = sqrt(a * a / (rx * rx) + b * b / (ry * ry) + c * c / (rz * rz));
+    return k1 < 1e-9 ? -min(rx, ry, rz) : k0 * (k0 - 1) / k1;
+  }
+  // Capsule from a to b with radius ra at a and rb at b.
+  function cap(x, y, z, ax, ay, az, bx, by, bz, ra, rb = ra) {
+    const px = x - ax, py = y - ay, pz = z - az, dx = bx - ax, dy = by - ay, dz = bz - az, h = clamp((px * dx + py * dy + pz * dz) / (dx * dx + dy * dy + dz * dz));
+    const qx = px - dx * h, qy = py - dy * h, qz = pz - dz * h;return sqrt(qx * qx + qy * qy + qz * qz) - (ra + (rb - ra) * h);
+  }
+  function rbox(x, y, z, bx, by, bz, r) {
+    const qx = abs(x) - bx + r, qy = abs(y) - by + r, qz = abs(z) - bz + r, ox = max(qx, 0), oy = max(qy, 0), oz = max(qz, 0);
+    return sqrt(ox * ox + oy * oy + oz * oz) + min(max(qx, qy, qz), 0) - r;
+  }
+  // Signed distance to a 2D polygon given as a flat [x0, y0, x1, y1, ...] list.
+  function poly(px, py, P) {
+    let d = (px - P[0]) ** 2 + (py - P[1]) ** 2, s = 1;
+    for (let i = 0, j = P.length - 2; i < P.length; j = i, i += 2) {
+      const ex = P[j] - P[i], ey = P[j + 1] - P[i + 1], wx = px - P[i], wy = py - P[i + 1], h = clamp((wx * ex + wy * ey) / (ex * ex + ey * ey)), bx = wx - ex * h, by = wy - ey * h;
+      d = min(d, bx * bx + by * by);
+      const c1 = py >= P[i + 1], c2 = py < P[j + 1], c3 = ex * wy > ey * wx;
+      if ((c1 && c2 && c3) || (!c1 && !c2 && !c3)) s = -s;
+    }
+    return s * sqrt(d);
+  }
+  // A 2D distance extruded to half thickness w with rounded edges of radius r.
+  const extrude = (d2, dw, w, r) => {const qx = d2 + r, qy = abs(dw) - w + r;return sqrt(max(qx, 0) ** 2 + max(qy, 0) ** 2) + min(max(qx, qy), 0) - r;};
+
+  // ---------- deterministic noise ----------
+  function hash(i, j, k, s) {let h = (Math.imul(i, 374761393) + Math.imul(j, 668265263) + Math.imul(k, 1440662683) + Math.imul(s, 1274126177)) | 0;h = Math.imul(h ^ h >>> 13, 1274126177);return ((h ^ h >>> 16) >>> 0) / 4294967296;}
+  function noise(x, y, z, s = 0) {
+    const i = floor(x), j = floor(y), k = floor(z), fx = x - i, fy = y - j, fz = z - k, u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy), w = fz * fz * (3 - 2 * fz), h = (a, b, c) => hash(i + a, j + b, k + c, s);
+    return lerp(lerp(lerp(h(0, 0, 0), h(1, 0, 0), u), lerp(h(0, 1, 0), h(1, 1, 0), u), v), lerp(lerp(h(0, 0, 1), h(1, 0, 1), u), lerp(h(0, 1, 1), h(1, 1, 1), u), v), w);
+  }
+  const fbm = (x, y, z, s) => noise(x, y, z, s) * .55 + noise(x * 2.1, y * 2.1, z * 2.1, s + 1) * .3 + noise(x * 4.3, y * 4.3, z * 4.3, s + 2) * .15;
+
+  // ---------- skull field (mm; origin between the ear holes on the eye-ear plane, face toward +z) ----------
+  const ARCH = [[46, -8, 60, 7, 4.2], [55, -7.5, 52, 6, 3.4], [61, -6.5, 43, 5, 2.8], [63, -5, 33, 4.6, 2.6], [62, -4, 23, 4.8, 2.7], [58, -3, 13, 6, 3.8]];
+  const archField = (X, y, z) => {let d = 1e9;for (let i = 0; i < ARCH.length - 1; i++) {const a = ARCH[i], b = ARCH[i + 1];d = min(d, cap(X, y, z, a[0], a[1], a[2], b[0], b[1], b[2], a[4] + .8, b[4] + .8));}return d;};
+  // Hole shapes (negative inside), used for carving and for darkening their insides.
+  function orbitHole(X, y, z) {
+    const ox = X - 31, oy = y - 17, oz = z - 82, lx = .951 * ox - .309 * oz, lz = .309 * ox + .951 * oz;
+    const o = smin(rbox(lx, oy + lx * .12, lz, 19.5, 17, 15, 10), ell(X - 27, y - 15, z - 60, 15.5, 14.5, 22), 8);
+    return smin(o, cap(X, y, z, 25, 15, 52, 15, 13, 26, 7, 4), 8);
+  }
+  const noseHole = (x, X, y, z) => smin(smin(ell(X - 6.8, y + 15, z - 92, 7.8, 8.5, 30), ell(x, y + 4, z - 92, 4.8, 11, 30), 5), ell(x, y + 8, z - 58, 15, 17, 28), 6);
+  const earHole = (X, y, z) => cap(X, y, z, 70, -3, 3, 50, -2, 3, 4.5);
+  // How far a point sits behind the rim of an orbit, the nose or an ear opening (0 elsewhere).
+  function holeDepth(x, y, z) {
+    const X = abs(x);let d = 0;
+    if (z > 20 && X < 55 && orbitHole(X, y, z) < 1.5) d = max(d, -((X - 31) * .309 + (z - 79) * .951));
+    if (z > 20 && X < 25 && y < 12 && noseHole(x, X, y, z) < 1.5) d = max(d, 94 + (y + 10) * .15 - z);
+    if (X > 40 && y < 6 && y > -12 && earHole(X, y, z) < 1.5) d = max(d, 63 - X);
+    return d;
+  }
+  // Rays that fall deep into an orbit or the nose stop on a flat floor 7 mm behind the opening (see star()).
+  function holeFloor(x, y, z, cx, cy, cz, dx, dy, dz, t) {
+    const X = abs(x), s = x < 0 ? -1 : 1;
+    if (z > 20 && X < 55 && orbitHole(X, y, z) < 1.5) {const den = s * .309 * dx + .951 * dz;if (den > .1) t = max(t, (.309 * 31 + .951 * 79 - 7 - s * .309 * cx - .951 * cz) / den);}
+    else if (z > 20 && X < 25 && y < 12 && noseHole(x, X, y, z) < 1.5) {const den = dz - .15 * dy;if (den > .1) t = max(t, (86.5 - cz + .15 * cy) / den);}
+    return t;
+  }
+  // Skull without the jaw. Parts are skipped where they cannot reach the point (cheap box tests keep it fast).
+  // holes: 0 = none; otherwise orbits and nose are carved (holes - 1) mm smaller (far LOD, whose colours blur outward).
+  function cranium(x, y, z, holes, arch, band) {
+    const X = abs(x);
+    // Brain case: a narrow frontal egg and a wider parietal-occipital egg, base flattened.
+    let d = smin(ell(x, y - 40, z + 18, 70, 72, 80), ell(x, y - 40, z - 12, 58, 72, 78), 24);
+    d = smax(d, -y - 24, 14);
+    // Upper face band (orbits are carved into it), maxilla and the skull-base block under the vault.
+    if (y < 47 && z > -34) {
+      let f = ell(x, y - 15, z - 56, 49, 24, 34);
+      f = smin(f, ell(x, y + 21, z - 58, 33, 21, 32), 10);
+      f = smin(f, ell(x, y + 14, z - 18, 43, 20, 44), 10);
+      d = smin(d, f, 8);
+    }
+    // Temporal fossa: a shallow hollow on the side of the head, deepest just behind the orbit rim.
+    if (X > 30 && y > -14 && y < 56 && z > -21 && z < 67) {const px = X - 47 - (55 - z) * .32;d = smax(d, -rbox(px - 16, y - 21, z - 23, 16, 25, 34, 10), 12);}
+    if (z > 22) {
+      d = smin(d, cap(X, y, z, 7, 32, 88.5, 40, 35.5, 76, 5.5, 5), 6);          // brow ridge
+      d = smin(d, cap(X, y, z, 45.5, -4, 64, 45, 33, 69, 5.5, 5), 5);           // lateral orbit rim
+      d = smin(d, cap(X, y, z, 20, -1, 83, 43, -4, 69, 4.5, 5), 5);             // lower orbit rim
+      d = smin(d, ell(X - 45, y + 8, z - 62, 9, 12, 11), 6);                     // cheekbone
+      if (X < 12) d = smin(d, cap(x, y, z, 0, 27, 89, 0, 7, 94, 5.5, 4), 5);    // nasal bones
+      if (y < -16) {                                                             // alveolar ridge over the tooth roots
+        d = smin(d, cap(X, y, z, 0, -31, 86, 13, -31, 82, 6), 4);
+        d = smin(d, cap(X, y, z, 13, -31, 82, 25, -30.5, 66, 6, 6.5), 4);
+        d = smin(d, cap(X, y, z, 25, -30.5, 66, 30, -29.5, 36, 6.5, 7), 4);
+      }
+    }
+    if (X > 38 && y < 8 && z < 26) {
+      d = smin(d, ell(X - 53, y + 19, z + 8, 9, 14, 10), 8);                     // mastoid
+      d = smin(d, ell(X - 57, y + 4, z - 12, 8, 6, 8), 5);                       // arch root
+    }
+    if (z < -86) d = smin(d, ell(x, y - 4, z + 99, 8, 5, 5), 6);              // occipital knob
+    if (arch && X > 38 && y < 6 && z > 4 && z < 70) d = smin(d, archField(X, y, z), 3);
+    if (band && y < -30 && z > 25) d = smin(d, min(cap(X, y, z, 0, -42, 85, 17, -42, 79, 5), cap(X, y, z, 17, -42, 79, 27, -40, 60, 5), cap(X, y, z, 27, -40, 60, 29, -39, 40, 5.5)), 2);
+    if (holes) {
+      if (z > 19 && X < 54) d = smax(d, 1 - holes - orbitHole(X, y, z), 3.5);                         // orbits
+      if (z > 26 && X < 24 && y < 12 && y > -30) d = smax(d, 1 - holes - noseHole(x, X, y, z), 2);    // nasal aperture (inverted heart)
+      if (X > 44 && y < 4 && y > -10) d = smax(d, -earHole(X, y, z), 1.5);                // ear canal
+      if (y < -16 && z < -2) d = smax(d, -ell(x, y + 26, z + 22, 15, 8, 18), 2);          // foramen magnum
+    }
+    if (X < 4 && y < -17 && y > -26 && z > 80) d = smin(d, cap(x, y, z, 0, -22, 84, 0, -21, 95, 2.2, 1.2), 2); // nasal spine
+    return d;
+  }
+  // Mandible: the body is a rounded slab swept along a U curve; the ramus (with its notch, condyle neck and
+  // coronoid) is a side outline in the (z, y) plane, extruded to 8 mm.
+  const MCURVE = [[0, 82], [10, 79.5], [18, 73.5], [24, 64], [29, 51], [33, 38], [38, 25], [43, 12], [46, 2]];
+  const MSEG = MCURVE.slice(1).map((b, i) => {const a = MCURVE[i], dx = b[0] - a[0], dz = b[1] - a[1], L = sqrt(dx * dx + dz * dz);return [a[0], a[1], dx, dz, L, 1 / (L * L)];}), MLEN = MSEG.reduce((s, q) => s + q[4], 0);
+  const RAMUS = [4, -60, 5, -40, 8, -19, 14, -23, 22, -25, 29, -18, 33, -13, 35, -24, 34, -40, 38, -55, 30, -62, 16, -67, 10, -66.5, 6, -64];
+  function mandible(x, y, z, filler) {
+    const X = abs(x);
+    let best = 1e9, bt = 0, acc = 0;
+    for (const [ax, az, dx, dz, L, iL2] of MSEG) {
+      const h = clamp(((X - ax) * dx + (z - az) * dz) * iL2), qx = X - ax - dx * h, qz = z - az - dz * h, dd = qx * qx + qz * qz;
+      if (dd < best) {best = dd;bt = (acc + L * h) / MLEN;}
+      acc += L;
+    }
+    const w = lerp(6, 4.8, bt), top = lerp(-53, -50, bt), bot = lerp(-88, -67, Math.pow(bt, 1.1)), r = min(w, 5), qx = sqrt(best) - w + r, qy = abs(y - (top + bot) / 2) - (top - bot) / 2 + r;
+    let d = sqrt(max(qx, 0) ** 2 + max(qy, 0) ** 2) + min(max(qx, qy), 0) - r;
+    if (X > 30 && z < 50) d = smin(d, extrude(poly(z, y, RAMUS) - 2, X - 45.5 - (14 - z) * .08, 4, 2.5), 6);
+    if (X > 36 && y > -34 && z < 18) {
+      d = smin(d, cap(X, y, z, 46.5, -26, 5, 48.5, -10, 6, 5), 3);             // condyle neck
+      d = smin(d, ell(X - 50, y + 8, z - 7, 10, 5, 6), 3);                     // condyle
+    }
+    if (X < 20 && y < -70 && z > 72) d = smin(d, ell(x, y + 82, z - 84.5, 10, 7, 4.5), 6); // chin
+    if (filler) d = smin(d, ell(x, y + 66, z - 40, 32, 9, 32), 4);
+    return d;
+  }
+  // Tooth rows: crown centres along a dental arch (x >= 0 half), widths along the arch, depths, crown heights.
+  // Only the first 7 per side are built: wisdom teeth are left out (often lost, and it keeps the budget).
+  const ROWS = [
+    {up: 1, arch: [[0, 85.5], [9, 83.5], [17, 79], [23, 72], [26.5, 63], [28, 54], [29, 45], [29.5, 36], [29.5, 27]], w: [8.5, 6.5, 7.5, 7, 6.5, 10, 9, 8.5], d: [7, 6, 8, 9, 9, 11, 11, 10], h: [10.5, 9, 10, 8.5, 8, 7, 7, 6.5], tilt: [14, 12, 8, 4, 3, 2, 2, 2]},
+    {up: 0, arch: [[0, 81.5], [8, 79.5], [15, 75.5], [21, 69], [24.5, 61], [26, 52], [27, 43], [27.5, 34], [27.5, 25]], w: [5.5, 6, 7, 7, 7, 11, 10.5, 10], d: [6, 6.5, 7.5, 7.5, 8, 10.5, 10, 9.5], h: [9, 9, 11, 8.5, 8, 7.5, 7, 7], tilt: [16, 14, 8, 4, 3, 2, 2, 2]}
+  ];
+  function archAt(arch, s) {
+    for (let i = 0; i < arch.length - 1; i++) {
+      const a = arch[i], b = arch[i + 1], L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      if (s <= L || i === arch.length - 2) {const t = s / L;return {x: lerp(a[0], b[0], t), z: lerp(a[1], b[1], t), tx: (b[0] - a[0]) / L, tz: (b[1] - a[1]) / L};}
+      s -= L;
+    }
+  }
+  const TEETH = [];
+  ROWS.forEach((row, ri) => {
+    let s = 0;
+    row.w.slice(0, 7).forEach((w, k) => {
+      const p = archAt(row.arch, s + w / 2 + .15);s += w + .3;
+      for (const side of [1, -1]) {
+        const id = ri * 16 + k * 2 + (side > 0 ? 0 : 1), j = hash(id, 3, 9, 77) - .5, frac = (s - w / 2) / 64, h = row.h[k] + j * .8;
+        const nx = -p.tz * side, nz = p.tx, tilt = (row.tilt[k] + j * 5) * PI / 180, tip = row.up ? -47.5 + 5 * frac : -45 + 2.5 * frac;
+        const ax = nx * sin(tilt), ay = (row.up ? -1 : 1) * cos(tilt), az = nz * sin(tilt);
+        // Gum point so that the crown middle sits on the arch and the tip on the bite line.
+        const gy = row.up ? tip + h * cos(tilt) : tip - h * cos(tilt);
+        TEETH.push({up: row.up, k, id, j, w: w * (1 + j * .04), d: row.d[k], h, gx: p.x * side - ax * h * .5, gy, gz: p.z - az * h * .5, ax, ay, az, tx: p.tx * side, tz: p.tz, nx, nz,
+          cx: p.x * side, cy: gy + ay * h * .5, cz: p.z});
+      }
+    });
+  });
+  function teethField(x, y, z, lower) {
+    let d = 1e9;
+    for (const t of TEETH) if ((t.up || lower) && abs(x - t.cx) < 14 && abs(z - t.cz) < 14) {const r = max(t.w, t.d) * .4;d = min(d, ell(x - t.cx, y - t.cy, z - t.cz, r, t.h * .45, r));}
+    return d;
+  }
+
+  // ---------- femur field (mm; shaft along x, head toward +z, knee front toward +y) ----------
+  function femurField(x, y, z) {
+    const u = clamp(x / 185, -1, 1), bow = 6 * (1 - u * u), r = 13 + 2 * u * u;
+    let d = max(sqrt((y - bow) ** 2 + z * z * 1.1) - r, abs(x) - 180);
+    d = smin(d, min(cap(x, y, z, -130, -8, 0, 0, -3.5, 0, 3), cap(x, y, z, 0, -3.5, 0, 130, -8, 0, 3)), 6);  // linea aspera
+    d = smin(d, cap(x, y, z, -168, 1, 2, -197, 4, 36, 14, 12.5), 10);       // neck
+    d = smin(d, sqrt((x + 204) ** 2 + (y - 5) ** 2 + (z - 42) ** 2) - 23, 4); // head
+    d = smax(d, -(sqrt((x + 207) ** 2 + (y - 5) ** 2 + (z - 64) ** 2) - 3.5), 2); // fovea pit on the head
+    d = smin(d, ell(x + 196, y, z + 15, 22, 17, 14), 10);                    // greater trochanter
+    d = smin(d, ell(x + 158, y + 13, z - 11, 8, 8, 7), 5);                   // lesser trochanter
+    d = smin(d, cap(x, y, z, -192, -7, -14, -160, -12, 8, 5), 6);            // intertrochanteric crest
+    d = smin(d, ell(x - 166, y + 2, z, 34, 19, 29), 16);                     // distal flare
+    d = smin(d, min(ell(x - 198, y + 8, z - 20, 26, 27, 14.5), ell(x - 198, y + 8, z + 19, 26, 27, 15.5)), 8); // condyles
+    d = smin(d, min(sqrt((x - 186) ** 2 + (y + 1) ** 2 + (z - 33) ** 2), sqrt((x - 186) ** 2 + (y + 1) ** 2 + (z + 34) ** 2)) - 8, 8); // epicondyles
+    d = smax(d, -cap(x, y, z, 185, -32, 0, 240, -26, 0, 7.5), 4);           // notch between the condyles
+    d = smax(d, -cap(x, y, z, 158, 25, 0, 214, 20, 0, 6.5), 5);             // knee-cap groove
+    return d;
+  }
+
+  // ---------- meshing ----------
+  // Sphere directions: subdivided icosahedron (20 f^2 triangles), outward winding.
+  function geodesic(f) {
+    const t = (1 + sqrt(5)) / 2, V = [[-1, t, 0], [1, t, 0], [-1, -t, 0], [1, -t, 0], [0, -1, t], [0, 1, t], [0, -1, -t], [0, 1, -t], [t, 0, -1], [t, 0, 1], [-t, 0, -1], [-t, 0, 1]];
+    const F = [[0, 11, 5], [0, 5, 1], [0, 1, 7], [0, 7, 10], [0, 10, 11], [1, 5, 9], [5, 11, 4], [11, 10, 2], [10, 7, 6], [7, 1, 8], [3, 9, 4], [3, 4, 2], [3, 2, 6], [3, 6, 8], [3, 8, 9], [4, 9, 5], [2, 4, 11], [6, 2, 10], [8, 6, 7], [9, 8, 1]];
+    const dirs = [], tris = [], keys = new Map();
+    const vid = (x, y, z) => {const l = sqrt(x * x + y * y + z * z);x /= l;y /= l;z /= l;const key = Math.round(x * 1e5) + ',' + Math.round(y * 1e5) + ',' + Math.round(z * 1e5);let id = keys.get(key);if (id === undefined) {id = dirs.length / 3;keys.set(key, id);dirs.push(x, y, z);}return id;};
+    for (const [a, b, c] of F) {
+      const A = V[a], B = V[b], C = V[c], g = [];
+      for (let i = 0; i <= f; i++) {g.push([]);for (let j = 0; j <= f - i; j++) g[i].push(vid(A[0] + ((B[0] - A[0]) * i + (C[0] - A[0]) * j) / f, A[1] + ((B[1] - A[1]) * i + (C[1] - A[1]) * j) / f, A[2] + ((B[2] - A[2]) * i + (C[2] - A[2]) * j) / f));}
+      for (let i = 0; i < f; i++) for (let j = 0; j < f - i; j++) {tris.push(g[i][j], g[i + 1][j], g[i][j + 1]);if (i + j < f - 1) tris.push(g[i + 1][j], g[i + 1][j + 1], g[i][j + 1]);}
+    }
+    return {dirs, tris};
+  }
+  // Pulls directions toward axis a (strength k < 1), so the face gets more vertices than the back of the head.
+  function warp({dirs, tris}, ax, ay, az, k) {
+    const l = sqrt(ax * ax + ay * ay + az * az), out = [];ax /= l;ay /= l;az /= l;
+    for (let i = 0; i < dirs.length; i += 3) {
+      const x = dirs[i], y = dirs[i + 1], z = dirs[i + 2], c = clamp(x * ax + y * ay + z * az, -1, 1), s = acos(c) / PI, th = (s - k * sin(PI * s) / PI) * PI;
+      let px = x - ax * c, py = y - ay * c, pz = z - az * c;const pl = sqrt(px * px + py * py + pz * pz);
+      if (pl < 1e-9) {out.push(x, y, z);continue;}
+      px /= pl;py /= pl;pz /= pl;out.push(ax * cos(th) + px * sin(th), ay * cos(th) + py * sin(th), az * cos(th) + pz * sin(th));
+    }
+    return {dirs: out, tris};
+  }
+  // First surface crossing met when walking in from outside along centre + d * t.
+  function trace(field, cx, cy, cz, dx, dy, dz, t) {
+    let prev = t;
+    for (let n = 0; n < 200 && t > 0; n++) {
+      const d = field(cx + dx * t, cy + dy * t, cz + dz * t);
+      if (d < .1) {
+        if (d > -.1) return t;
+        let a = t, b = prev;                       // overshot: bisect between inside (a) and outside (b)
+        for (let k = 0; k < 10; k++) {const m = (a + b) / 2;if (field(cx + dx * m, cy + dy * m, cz + dz * m) < 0) a = m;else b = m;}
+        return (a + b) / 2;
+      }
+      prev = t;t -= d > 3 ? d : max(d * .9, .04);
+    }
+    return max(t, 0);
+  }
+  function gradient(field, x, y, z, e, out) {
+    const a = field(x + e, y - e, z - e), b = field(x - e, y - e, z + e), c = field(x - e, y + e, z - e), d = field(x + e, y + e, z + e);
+    const nx = a - b - c + d, ny = -a - b + c + d, nz = -a + b - c + d, l = sqrt(nx * nx + ny * ny + nz * nz) || 1;out[0] = nx / l;out[1] = ny / l;out[2] = nz / l;return out;
+  }
+  const AO_STEPS = [2, 5, 10, 18];
+  function occlusion(field, x, y, z, nx, ny, nz, scale = 1) {
+    let occ = 0, w = 1;
+    for (const s of AO_STEPS) {const h = s * scale;occ += w * clamp((h - field(x + nx * h, y + ny * h, z + nz * h)) / h);w *= .72;}
+    return clamp(1 - occ * .48);
+  }
+
+  // Mesh accumulator in millimetres.
+  function Mesh() {this.p = [];this.n = [];this.c = [];this.u = [];this.i = [];}
+  Mesh.prototype.vert = function (x, y, z, nx, ny, nz, col, u, v) {this.p.push(x, y, z);this.n.push(nx, ny, nz);this.c.push(col[0], col[1], col[2]);this.u.push(u, v);return this.p.length / 3 - 1;};
+  // Area-weighted face normals for the vertices from v0 on (used by teeth and arch tubes).
+  Mesh.prototype.faceNormals = function (v0, i0) {
+    const P = this.p, N = this.n;for (let v = v0 * 3; v < N.length; v++) N[v] = 0;
+    for (let i = i0; i < this.i.length; i += 3) {
+      const a = this.i[i] * 3, b = this.i[i + 1] * 3, c = this.i[i + 2] * 3, ux = P[b] - P[a], uy = P[b + 1] - P[a + 1], uz = P[b + 2] - P[a + 2], vx = P[c] - P[a], vy = P[c + 1] - P[a + 1], vz = P[c + 2] - P[a + 2];
+      const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+      for (const q of [a, b, c]) {N[q] += nx;N[q + 1] += ny;N[q + 2] += nz;}
+    }
+    for (let v = v0 * 3; v < N.length; v += 3) {const l = Math.hypot(N[v], N[v + 1], N[v + 2]) || 1;N[v] /= l;N[v + 1] /= l;N[v + 2] /= l;}
+  };
+  // Rings of points (each ring an array of [x, y, z]) joined into a tube; optional tip point closes the last ring.
+  // Winding is flipped when the first face points inward.
+  Mesh.prototype.rings = function (rings, tip, colour, uvOf) {
+    const v0 = this.p.length / 3, i0 = this.i.length, S = rings[0].length;
+    for (const ring of rings) for (const q of ring) this.vert(q[0], q[1], q[2], 0, 0, 0, colour, ...uvOf(q));
+    for (let r = 0; r < rings.length - 1; r++) for (let j = 0; j < S; j++) {const a = v0 + r * S + j, b = v0 + (r + 1) * S + j, c = v0 + (r + 1) * S + (j + 1) % S, d = v0 + r * S + (j + 1) % S;this.i.push(a, b, d, b, c, d);}
+    if (tip) {const t = this.vert(tip[0], tip[1], tip[2], 0, 0, 0, colour, ...uvOf(tip)), L = v0 + (rings.length - 1) * S;for (let j = 0; j < S; j++) this.i.push(L + j, t, L + (j + 1) % S);}
+    // Orientation check: the first quad's normal against the direction away from the ring centre.
+    const P = this.p, ia = this.i[i0] * 3, ib = this.i[i0 + 1] * 3, ic = this.i[i0 + 2] * 3, cen = rings[0].reduce((s, q) => [s[0] + q[0] / S, s[1] + q[1] / S, s[2] + q[2] / S], [0, 0, 0]);
+    const ux = P[ib] - P[ia], uy = P[ib + 1] - P[ia + 1], uz = P[ib + 2] - P[ia + 2], vx = P[ic] - P[ia], vy = P[ic + 1] - P[ia + 1], vz = P[ic + 2] - P[ia + 2];
+    if ((uy * vz - uz * vy) * (P[ia] - cen[0]) + (uz * vx - ux * vz) * (P[ia + 1] - cen[1]) + (ux * vy - uy * vx) * (P[ia + 2] - cen[2]) < 0) for (let i = i0; i < this.i.length; i += 3) {const s = this.i[i + 1];this.i[i + 1] = this.i[i + 2];this.i[i + 2] = s;}
+    this.faceNormals(v0, i0);
+    return v0;
+  };
+  // Projects a field along rays: each vertex is the first surface met walking in from outside. rays = {dirs, tris} from a
+  // shared centre (skull), or with per-ray origins (femur). The colour callback gets position and normal.
+  // floor(x, y, z, ox, oy, oz, dx, dy, dz, t) may return a smaller depth for rays that fall deep into a hole: the
+  // vertex then becomes a black floor (normal toward the opening), which keeps triangles from stretching down the walls.
+  // Then, while under `budget` triangles, the edge with the highest score (length x (bend + shade contrast)) is split
+  // at the mid ray; both triangles on it are halved, so the mesh stays closed and detail goes to rims and ridges.
+  // probe > 0 (small budgets) also traces each edge's mid ray and adds how far that point (distance and shade) is from
+  // the straight edge, so a bright nose bridge between two dark orbits or the tip of the chin is not skipped.
+  function star(mesh, field, rays, {centre = [0, 0, 0], tMax, colourOf, floor = null, budget = 0, probe = 0, uvOf = null}) {
+    const base = mesh.p.length / 3, D = [], O = [], SH = [], TT = [], P = mesh.p, N = mesh.n, probes = new Map(), shared = !rays.origins;
+    const sample = (ox, oy, oz, dx, dy, dz, from = tMax) => {
+      const l = sqrt(dx * dx + dy * dy + dz * dz), g = [0, 0, 0];dx /= l;dy /= l;dz /= l;
+      if (from < tMax && field(ox + dx * from, oy + dy * from, oz + dz * from) < 1) from = tMax;   // started inside: from the top
+      const t0 = trace(field, ox, oy, oz, dx, dy, dz, from), t = floor ? floor(ox + dx * t0, oy + dy * t0, oz + dz * t0, ox, oy, oz, dx, dy, dz, t0) : t0, x = ox + dx * t, y = oy + dy * t, z = oz + dz * t;
+      let c;
+      if (t > t0 + .01) {g[0] = -dx;g[1] = -dy;g[2] = -dz;c = colourOf(x, y, z, g[0], g[1], g[2]).map(v => v * .5);c.shade = 0;}
+      else {gradient(field, x, y, z, .3, g);c = colourOf(x, y, z, g[0], g[1], g[2]);}
+      return {ox, oy, oz, dx, dy, dz, t, x, y, z, g, c, shade: c.shade ?? (c[0] + c[1] + c[2]) / 3};
+    };
+    const add = s => {
+      D.push(s.dx, s.dy, s.dz);O.push(s.ox, s.oy, s.oz);SH.push(s.shade);TT.push(s.t);
+      const uv = uvOf ? uvOf(s.x, s.y, s.z, s.dx, s.dy, s.dz) : [.5 + atan2(s.dx, s.dz) / (2 * PI), 1 - acos(clamp(s.dy, -1, 1)) / PI];
+      return mesh.vert(s.x, s.y, s.z, s.g[0], s.g[1], s.g[2], s.c, uv[0], uv[1]) - base;
+    };
+    const mid = (a, b, from) => sample((O[a * 3] + O[b * 3]) / 2, (O[a * 3 + 1] + O[b * 3 + 1]) / 2, (O[a * 3 + 2] + O[b * 3 + 2]) / 2, D[a * 3] + D[b * 3], D[a * 3 + 1] + D[b * 3 + 1], D[a * 3 + 2] + D[b * 3 + 2], from);
+    for (let i = 0; i < rays.dirs.length; i += 3) {const o = shared ? centre : rays.origins.slice(i, i + 3);add(sample(o[0], o[1], o[2], rays.dirs[i], rays.dirs[i + 1], rays.dirs[i + 2]));}
+    const tris = rays.tris.slice();
+    if (budget > tris.length / 3) {
+      const edges = new Map(), hs = [], ha = [], hb = [], key = (a, b) => a < b ? a * 1048576 + b : b * 1048576 + a;
+      const link = (a, b, t) => {const k = key(a, b), e = edges.get(k);if (e) e.push(t);else edges.set(k, [t]);};
+      const score = (a, b) => {
+        // Edge size across the rays (gap between the rays x distance), so depth jumps at hole rims do not count.
+        const A = (base + a) * 3, B = (base + b) * 3, ra = TT[a], rb = TT[b], r = (ra + rb) / 2, ex = shared ? D[a * 3] - D[b * 3] : P[A] - P[B], ey = shared ? D[a * 3 + 1] - D[b * 3 + 1] : P[A + 1] - P[B + 1], ez = shared ? D[a * 3 + 2] - D[b * 3 + 2] : P[A + 2] - P[B + 2];
+        const len = (shared ? r : 1) * sqrt(ex * ex + ey * ey + ez * ez);
+        if (len < .9) return 0;
+        const bend = 1 - (N[A] * N[B] + N[A + 1] * N[B + 1] + N[A + 2] * N[B + 2]), shade = abs(SH[a] - SH[b]);
+        let err = 0;
+        if (probe) {const m = mid(a, b, max(ra, rb) + 4);probes.set(key(a, b), m);err = probe * (abs(m.t - r) + 20 * abs(m.shade - (SH[a] + SH[b]) / 2));}
+        return len * (bend * 3 + shade * 2 + .02) + err;
+      };
+      const push = (a, b) => {   // binary max-heap on parallel arrays
+        let i = hs.length;hs.push(score(a, b));ha.push(a);hb.push(b);
+        while (i > 0) {const p = (i - 1) >> 1;if (hs[p] >= hs[i]) break;[hs[p], hs[i]] = [hs[i], hs[p]];[ha[p], ha[i]] = [ha[i], ha[p]];[hb[p], hb[i]] = [hb[i], hb[p]];i = p;}
+      };
+      const pop = () => {
+        const top = [hs[0], ha[0], hb[0]], s = hs.pop(), a = ha.pop(), b = hb.pop();
+        if (hs.length) {
+          hs[0] = s;ha[0] = a;hb[0] = b;let i = 0;
+          for (;;) {const l = 2 * i + 1, r = l + 1;let m = i;if (l < hs.length && hs[l] > hs[m]) m = l;if (r < hs.length && hs[r] > hs[m]) m = r;if (m === i) break;[hs[m], hs[i]] = [hs[i], hs[m]];[ha[m], ha[i]] = [ha[i], ha[m]];[hb[m], hb[i]] = [hb[i], hb[m]];i = m;}
+        }
+        return top;
+      };
+      for (let t = 0; t < tris.length / 3; t++) for (let k = 0; k < 3; k++) {const a = tris[t * 3 + k], b = tris[t * 3 + (k + 1) % 3];link(a, b, t);if (a < b) push(a, b);}
+      while (tris.length / 3 + 2 <= budget && hs.length) {
+        const [s, a, b] = pop();
+        if (s <= 0) break;
+        const ts = edges.get(key(a, b));
+        if (!ts) continue;
+        edges.delete(key(a, b));
+        const m = add(probes.get(key(a, b)) || mid(a, b, min(tMax, max(TT[a], TT[b]) + 4)));
+        push(a, m);push(m, b);
+        for (const t of ts) {
+          let k = 0;while (!((tris[t * 3 + k] === a && tris[t * 3 + (k + 1) % 3] === b) || (tris[t * 3 + k] === b && tris[t * 3 + (k + 1) % 3] === a))) k++;
+          const p = tris[t * 3 + k], q = tris[t * 3 + (k + 1) % 3], c = tris[t * 3 + (k + 2) % 3], nt = tris.length / 3;
+          tris[t * 3] = p;tris[t * 3 + 1] = m;tris[t * 3 + 2] = c;tris.push(m, q, c);    // (p, q, c) -> (p, m, c) + (m, q, c)
+          const qc = edges.get(key(q, c));qc[qc.indexOf(t)] = nt;
+          link(p, m, t);link(m, q, nt);link(m, c, t);link(m, c, nt);push(m, c);
+        }
+      }
+    }
+    for (const t of tris) mesh.i.push(base + t);
+  }
+  // Recolours vertices from v0 on (teeth and tubes get their normals only after meshing).
+  function recolour(mesh, v0, colourOf) {
+    const P = mesh.p, N = mesh.n, C = mesh.c;
+    for (let v = v0 * 3; v < P.length; v += 3) {const c = colourOf(P[v], P[v + 1], P[v + 2], N[v], N[v + 1], N[v + 2], v / 3);C[v] = c[0];C[v + 1] = c[1];C[v + 2] = c[2];}
+  }
+  // Finished geometry in metres; place: 'base' = x/z centred, lowest point at y = 0; 'centre' = bounding box centred.
+  function toGeometry(T, mesh, place) {
+    const P = mesh.p, lo = [1e9, 1e9, 1e9], hi = [-1e9, -1e9, -1e9];
+    for (let i = 0; i < P.length; i++) {const a = i % 3;if (P[i] < lo[a]) lo[a] = P[i];if (P[i] > hi[a]) hi[a] = P[i];}
+    const off = [(lo[0] + hi[0]) / 2, place === 'base' ? lo[1] : (lo[1] + hi[1]) / 2, (lo[2] + hi[2]) / 2], pos = new Float32Array(P.length);
+    for (let i = 0; i < P.length; i++) pos[i] = (P[i] - off[i % 3]) * .001;
+    const g = new T.BufferGeometry(), count = P.length / 3;
+    g.setAttribute('position', new T.BufferAttribute(pos, 3));
+    g.setAttribute('normal', new T.BufferAttribute(new Float32Array(mesh.n), 3));
+    g.setAttribute('uv', new T.BufferAttribute(new Float32Array(mesh.u), 2));
+    g.setAttribute('color', new T.BufferAttribute(new Float32Array(mesh.c), 3));
+    g.setIndex(new T.BufferAttribute(count < 65536 ? new Uint16Array(mesh.i) : new Uint32Array(mesh.i), 1));
+    g.computeBoundingBox();g.computeBoundingSphere();
+    return g;
+  }
+
+  // ---------- colours ----------
+  // Aged bone: ivory with yellow-brown stains, darker in creases and holes. Returns linear RGB.
+  function boneColour(x, y, z, ao, depth, extra = 1) {
+    const p = fbm(x / 26, y / 26, z / 26, 3), q = noise(x / 3.5, y / 3.5, z / 3.5, 7), stain = ss(.4, .72, p) * .8, soot = ss(.55, .8, noise(x / 40 + 3, y / 40, z / 40, 5)) * .35;
+    let r = lerp(.84, .68, stain), g = lerp(.78, .56, stain), b = lerp(.64, .4, stain);
+    const shade = (.14 + .86 * Math.pow(ao, 1.4)) * (1 - .975 * ss(.5, 4.5, depth)), k = (.9 + .16 * q) * (1 - soot) * shade * extra, out = [lin(r) * k, lin(g) * k, lin(b) * k];
+    out.shade = shade;   // light and shadow only (no stains): steers mesh refinement
+    return out;
+  }
+  // Faint wavy suture lines on the vault: coronal, sagittal, lambdoid.
+  function suture(x, y, z) {
+    const X = abs(x), wig = (s, f) => 1.6 * sin(s * .55 + f) + .9 * sin(s * 1.7 + 2 * f);
+    let s = 0;
+    if (y > 28) s = max(s, 1 - abs(z - 10 - .36 * (112 - y) + wig(x, 1)) / 1.6);
+    if (y > 70 && z < 12 && z > -86) s = max(s, 1 - abs(x + wig(z, 2)) / 1.4);
+    if (z < -40 && y > -2) s = max(s, 1 - abs(z + 88 - .5 * (80 - y) + wig(X, 3)) / 1.6);
+    return clamp(s);
+  }
+
+  function create({T}) {
+    const cache = new Map(), memo = (key, make) => {if (!cache.has(key)) cache.set(key, make());return cache.get(key);};
+    const SPHERES = {};
+    const sphere = (f, ax, ay, az, k) => memo(`sphere${f},${ax},${ay},${az},${k}`, () => warp(SPHERES[f] || (SPHERES[f] = geodesic(f)), ax, ay, az, k));
+
+    // level 0 = high, 1 = low, 2 = far.
+    function buildSkull(level, jaw) {
+      const high = level === 0;
+      const mesh = new Mesh(), C = jaw && !high ? [0, level === 2 ? 0 : 8, 24] : [0, 22, 22], uvOf = q => {const dx = q[0] - C[0], dy = q[1] - C[1], dz = q[2] - C[2], l = Math.hypot(dx, dy, dz) || 1;return [.5 + atan2(dx, dz) / (2 * PI), 1 - acos(clamp(dy / l, -1, 1)) / PI];};
+      // Low and far jaws also get the lower tooth band and a cheek filler: one solid face outline at a distance.
+      const lowJaw = (x, y, z) => {const X = abs(x);return min(mandible(x, y, z, 0), cap(X, y, z, 0, -49, 81.5, 15, -49, 75.5, 4.5), cap(X, y, z, 15, -49, 75.5, 26, -48, 52, 4.5), ell(X - 38, y + 36, z - 42, 9, 16, 16));};
+      const holes = level === 2 ? 4 : 1, shape = high ? (x, y, z) => cranium(x, y, z, 1, 0, 0) : jaw ? (x, y, z) => min(cranium(x, y, z, holes, 1, 1), lowJaw(x, y, z)) : (x, y, z) => cranium(x, y, z, holes, 1, 1);
+      const full = (x, y, z) => {
+        let d = cranium(x, y, z, holes, 1, !high);
+        if (jaw && y < 2 && z > -15 && abs(x) < 66) d = min(d, high ? mandible(x, y, z, 0) : lowJaw(x, y, z));
+        if (high && y < -25 && y > -62 && z > 15) d = min(d, teethField(x, y, z, jaw));
+        return d;
+      };
+      const skullColour = (x, y, z, nx, ny, nz) => {
+        const depth = holeDepth(x, y, z), vault = y > 0 && z < 70 ? 1 - .22 * suture(x, y, z) : 1;
+        let col = boneColour(x, y, z, occlusion(full, x, y, z, nx, ny, nz), depth, vault);
+        if (!high && y < -36 && y > (jaw ? -54 : -48) && z > 22 && abs(x) < 33) col = col.map((c, i) => c * [1.12, 1.1, 1.0][i]);  // tooth band, a little paler
+        return col;
+      };
+      // Cranium: face-weighted sphere, refined up to its share of the budget (teeth 30 and arches 60 triangles each).
+      const f = high ? (jaw ? 10 : 12) : level === 1 ? 4 : 2, budget = high ? (jaw ? 3540 : 5440) : level === 1 ? 690 : 160;
+      star(mesh, shape, sphere(f, 0, -.35, .94, level === 2 ? .6 : .5), {centre: C, tMax: jaw && !high ? 150 : 135, colourOf: skullColour, floor: holeFloor, budget, probe: level === 2 ? 1.2 : 0});
+      if (!high) return mesh;
+      // Zygomatic arches as real bars, so the temple hollow shows behind them.
+      for (const side of [1, -1]) {
+        const rings = [];
+        for (let i = 0; i < ARCH.length; i++) {
+          const a = ARCH[Math.max(i - 1, 0)], b = ARCH[Math.min(i + 1, ARCH.length - 1)], p = ARCH[i], tx = b[0] - a[0], tz = b[2] - a[2], tl = Math.hypot(tx, tz), sx = tz / tl, sz = -tx / tl;
+          const ring = [];for (let j = 0; j < 6; j++) {const an = j / 6 * 2 * PI, c = cos(an) * p[4], s = sin(an) * p[3];ring.push([(p[0] + sx * c) * side, p[1] + s, p[2] + sz * c]);}
+          rings.push(ring);
+        }
+        const v0 = mesh.rings(rings, null, [0, 0, 0], uvOf);
+        recolour(mesh, v0, skullColour);
+      }
+      // Teeth: rings from inside the bone to the crown, tip closed by a fan.
+      for (const t of TEETH) {
+        if (!t.up && !jaw) continue;
+        const type = t.k < 2 ? 0 : t.k === 2 ? 1 : t.k < 5 ? 2 : 3, S = 6;
+        // Ring profile: [fraction of crown height, width scale, depth scale].
+        const prof = [[-.15, .78, .82], [.42, 1, 1], [.84, [.97, .74, .9, .95][type], [.5, .8, .9, .93][type]]], tipE = [1.0, 1.1, .98, .93][type];
+        let ux = t.tx, uz = t.tz;const vx = t.nx - t.ax * (t.nx * t.ax + t.nz * t.az), vy = -t.ay * (t.nx * t.ax + t.nz * t.az), vz = t.nz - t.az * (t.nx * t.ax + t.nz * t.az), vl = Math.hypot(vx, vy, vz);
+        const rings = prof.map(([e, sw, sd]) => {
+          const cx = t.gx + t.ax * e * t.h, cy = t.gy + t.ay * e * t.h, cz = t.gz + t.az * e * t.h, ring = [];
+          for (let j = 0; j < S; j++) {const an = (j + .5) / S * 2 * PI, a = cos(an) * t.w / 2 * sw, b = sin(an) * t.d / 2 * sd;ring.push([cx + ux * a + vx / vl * b, cy + vy / vl * b, cz + uz * a + vz / vl * b]);}
+          return ring;
+        });
+        const v0 = mesh.rings(rings, [t.gx + t.ax * tipE * t.h, t.gy + t.ay * tipE * t.h, t.gz + t.az * tipE * t.h], [0, 0, 0], uvOf);
+        const tint = [.88 + t.j * .1, .82 + t.j * .08, .62 + t.j * .02];
+        recolour(mesh, v0, (x, y, z, nx, ny, nz, v) => {
+          const ao = occlusion(full, x, y, z, nx, ny, nz, .7), neck = (v - v0) < S ? .4 : 1;
+          const k = (.18 + .82 * Math.pow(ao, 1.3)) * neck * (.92 + .1 * noise(x / 2, y / 2, z / 2, 11));
+          return [lin(tint[0]) * k, lin(tint[1]) * k, lin(tint[2]) * k];
+        });
+      }
+      // Lower jaw: its own star projection from inside the mouth floor.
+      if (jaw) {
+        const v0 = mesh.p.length / 3, M = [0, -62, 36], shape = (x, y, z) => mandible(x, y, z, 1);
+        star(mesh, shape, sphere(6, 0, -.45, .9, .3), {centre: M, tMax: 110, budget: 1500, colourOf: (x, y, z, nx, ny, nz) => {
+          const inside = max(0, mandible(x, y, z, 0));     // the mouth-floor filler is not bone: keep it dark
+          return boneColour(x, y, z, occlusion(full, x, y, z, nx, ny, nz), inside * 3);
+        }});
+        for (let v = v0; v < mesh.p.length / 3; v++) {const uv = uvOf([mesh.p[v * 3], mesh.p[v * 3 + 1], mesh.p[v * 3 + 2]]);mesh.u[v * 2] = uv[0];mesh.u[v * 2 + 1] = uv[1];}
+      }
+      return mesh;
+    }
+    const level = lod => lod === 'low' ? 1 : lod === 'far' ? 2 : 0;
+    function skull({lod = 'high', jaw = false} = {}) {
+      const l = level(lod);
+      return memo(`skull:${l}:${!!jaw}`, () => toGeometry(T, buildSkull(l, !!jaw), 'base'));
+    }
+
+    // Femur: rays out from the shaft axis (rings) and from its two end points (caps), refined to the budget.
+    function femur({lod = 'high'} = {}) {
+      const l = level(lod);
+      return memo(`femur:${l}`, () => {
+        const mesh = new Mesh(), S = [12, 6, 5][l], A = -178, B = 180, budget = [1200, 200, 40][l];
+        const capA = [[30, 60], [25, 60], [22]][l], capB = capA.slice().reverse(), cyl = [[-178, -165, -150, -130, -90, -30, 30, 90, 130, 150, 165, 180], [-170, -120, 0, 120, 170], [-165, 165]][l];
+        const rings = [...capA.map(a => [A, -a]), ...cyl.map(x => [x, 0]), ...capB.map(a => [B, a])], dirs = [-1, 0, 0], origins = [A, 0, 0], tris = [];
+        for (const [x0, a] of rings) for (let j = 0; j < S; j++) {
+          const ph = j / S * 2 * PI, r = abs(a) * PI / 180, s = a ? sin(r) : 1, ax = a < 0 ? -cos(r) : a > 0 ? cos(r) : 0;
+          dirs.push(ax, s * cos(ph), s * sin(ph));origins.push(x0, 0, 0);
+        }
+        dirs.push(1, 0, 0);origins.push(B, 0, 0);
+        const R = rings.length, ring = r => 1 + r * S, pb = 1 + R * S;
+        for (let j = 0; j < S; j++) {const j1 = (j + 1) % S;tris.push(0, ring(0) + j1, ring(0) + j, pb, ring(R - 1) + j, ring(R - 1) + j1);}
+        for (let r = 0; r < R - 1; r++) for (let j = 0; j < S; j++) {const j1 = (j + 1) % S, a = ring(r) + j, b = ring(r + 1) + j, c = ring(r + 1) + j1, d = ring(r) + j1;tris.push(a, d, b, b, d, c);}
+        const colourOf = (x, y, z, nx, ny, nz) => {
+          const ao = occlusion(femurField, x, y, z, nx, ny, nz), joint = ss(190, 215, abs(x)) * .08, dirt = ss(.5, .8, fbm(x / 60, y / 30, z / 30, 21)) * .25;
+          return boneColour(x * 1.7, y, z, ao, 0, (1 + joint) * (1 - dirt));
+        };
+        star(mesh, femurField, {dirs, origins, tris}, {tMax: 95, colourOf, budget, uvOf: (x, y, z) => [(x + 230) / 460, .5 + atan2(z, y) / (2 * PI)]});
+        return toGeometry(T, mesh, 'centre');
+      });
+    }
+
+    // ---------- ossuary wall texture ----------
+    // Bone ends are splatted into typed arrays as domes with a depth test (the nearer bone wins); then height minus its
+    // blur darkens the gaps and contacts, and a Sobel pass gives the normal map. One canvas write per texture.
+    function boneWall({size = 1024} = {}) {
+      return memo(`wall:${size}`, () => {
+        let seed = 98765, xs = 2463534242;
+        const rand = () => {seed = (seed * 16807) % 2147483647;return seed / 2147483647;};
+        const grain = () => {xs ^= xs << 13;xs ^= xs >>> 17;xs ^= xs << 5;return (xs >>> 0) / 4294967296;};   // fast per-pixel noise
+        const W = size, H = Math.round(size * .625), px = W / 1000, N = W * H;      // 1 m across, px per mm
+        const Z = new Float32Array(N).fill(-60), R = new Float32Array(N).fill(.05), G = new Float32Array(N).fill(.04), B = new Float32Array(N).fill(.03);
+        const WX = new Int32Array(W * 3);for (let i = 0; i < W * 3; i++) WX[i] = i % W;  // wrap table for x + W
+        // Tileable smooth noise from a random lattice of cw cells across, with per-column and per-row lookup tables.
+        const lattice = cw => {
+          const ch = Math.max(2, Math.round(cw * H / W)), v = new Float32Array(cw * ch), i0 = new Int32Array(W), i1 = new Int32Array(W), u = new Float32Array(W), j0 = new Int32Array(H), j1 = new Int32Array(H), t = new Float32Array(H);
+          for (let i = 0; i < v.length; i++) v[i] = rand();
+          for (let x = 0; x < W; x++) {const f = x * cw / W, i = floor(f), s = f - i;i0[x] = i % cw;i1[x] = (i + 1) % cw;u[x] = s * s * (3 - 2 * s);}
+          for (let y = 0; y < H; y++) {const f = y * ch / H, j = floor(f), s = f - j;j0[y] = (j % ch) * cw;j1[y] = ((j + 1) % ch) * cw;t[y] = s * s * (3 - 2 * s);}
+          return {v, i0, i1, u, j0, j1, t};
+        };
+        const at = (L, x, y) => {const a = L.v[L.j0[y] + L.i0[x]], b = L.v[L.j0[y] + L.i1[x]], c = L.v[L.j1[y] + L.i0[x]], d = L.v[L.j1[y] + L.i1[x]], u = L.u[x];return a + (b - a) * u + (c - a + (a - b - c + d) * u) * L.t[y];};
+        const mottle = lattice(110), grime = lattice(7);
+        const PALETTE = [[.84, .78, .66], [.78, .71, .56], [.7, .61, .45], [.64, .57, .47], [.56, .49, .39], [.47, .41, .33], [.36, .31, .26], [.27, .24, .21], [.8, .77, .7]];
+        const pick = (f = 1) => {const c = PALETTE[floor(rand() * PALETTE.length)], k = (.88 + rand() * .22) * f;return [c[0] * k, c[1] * k, c[2] * k];};
+        // One dome: centre (x, y), radii and rotation in px, base height z0, peak height amp; hole = marrow cavity
+        // (fraction of the radius) for a broken shaft; crack = 1 scratches a crack across.
+        function dome(x, y, rx, ry, a, z0, amp, c, hole, crack) {
+          const ca = cos(a), sa = sin(a), r = max(rx, ry), irx = 1 / rx, iry = 1 / ry, h2 = hole * hole, ih2 = hole ? 1 / h2 : 0, cav = 7 * px, rimZ = z0 + amp * sqrt(1 - h2);
+          const ct = rand() * PI, cc = cos(ct), cs = sin(ct), co = (rand() - .5) * .8, cw = .7 / r, cr = c[0], cg = c[1], cb = c[2];
+          // Per row, the ellipse spans the roots of qa dx^2 + qb dx + qc = 1 (no pixels outside it are visited).
+          const qa = (ca * irx) ** 2 + (sa * iry) ** 2, qk = 2 * ca * sa * (irx * irx - iry * iry), qy = (sa * irx) ** 2 + (ca * iry) ** 2, y0 = floor(y - r) | 0, y1 = Math.ceil(y + r) | 0;
+          let row = ((y0 % H) + H) % H;
+          for (let yy = y0; yy <= y1; yy++, row = row + 1 === H ? 0 : row + 1) {
+            const base = row * W, dy = yy - y, dys = dy * sa, dyc = dy * ca, qb = qk * dy, disc = qb * qb - 4 * qa * (qy * dy * dy - 1);
+            if (disc <= 0) continue;
+            const sq = sqrt(disc), x0 = Math.ceil(x + (-qb - sq) / (2 * qa)) | 0, x1 = floor(x + (-qb + sq) / (2 * qa)) | 0;
+            for (let xx = x0; xx <= x1; xx++) {
+              const dx = xx - x, u = (dx * ca + dys) * irx, v = (dyc - dx * sa) * iry, q = u * u + v * v;
+              if (q >= 1) continue;
+              const s = sqrt(1 - q);let z = z0 + amp * s, k = .74 + .26 * s;
+              if (q < h2) {z = rimZ - cav * (1 - q * ih2);k = .3;}
+              if (crack && abs(u * cc + v * cs - co + .06 * sin(u * 11 + v * 7)) < cw) {z -= .6;k *= .45;}
+              const i = base + WX[xx + W];
+              if (z > Z[i]) {Z[i] = z;R[i] = cr * k;G[i] = cg * k;B[i] = cb * k;}
+            }
+          }
+        }
+        // A bone lying along the row: a cylinder of half length L and radius rr, tilted by a, with knobs at both ends.
+        function rod(x, y, L, rr, a, z0, c) {
+          x %= W;
+          const ca = cos(a), sa = sin(a), ex = abs(ca) * L + rr, ey = abs(sa) * L + rr, cr = c[0], cg = c[1], cb = c[2], f = .9 / px;
+          const x0 = floor(x - ex) | 0, x1 = Math.ceil(x + ex) | 0, y0 = floor(y - ey) | 0, y1 = Math.ceil(y + ey) | 0;
+          let row = ((y0 % H) + H) % H;
+          for (let yy = y0; yy <= y1; yy++) {
+            const base = row * W, dy = yy - y;
+            for (let xx = x0; xx <= x1; xx++) {
+              const dx = xx - x, u = dx * ca + dy * sa, v = (dy * ca - dx * sa) / rr;
+              if (abs(v) >= 1 || abs(u) > L) continue;
+              const s = sqrt(1 - v * v), z = z0 + rr * s, k = (.74 + .26 * s) * (.94 + .06 * sin(u * f + v * 3)), i = base + WX[xx + W];
+              if (z > Z[i]) {Z[i] = z;R[i] = cr * k;G[i] = cg * k;B[i] = cb * k;}
+            }
+            if (++row === H) row = 0;
+          }
+          for (const e of [-1, 1]) dome(x + e * L * ca, y + e * L * sa, rr * 1.35, rr * 1.2, a + rand() - .5, z0, rr * 1.15, c, 0, rand() < .3 ? 1 : 0);
+        }
+        // Back layer: smaller, darker bones that show through the gaps.
+        for (let i = 0, n = N / (900 * px * px); i < n; i++) {const r = (8 + rand() * 12) * px;dome(rand() * W, rand() * H, r, r * (.7 + rand() * .3), rand() * PI, -34 * px, r * .8, pick(.5), 0, 0);}
+        // Layers: mostly rows of bone ends, now and then a row of shafts laid lengthwise.
+        const rows = [];let total = 0;
+        while (total < H * .95) {const shaft = rows.length % 5 === 3, h = (shaft ? 34 + rand() * 10 : 54 + rand() * 18) * px;rows.push({h, shaft});total += h;}
+        let y = 0;
+        for (const row of rows) {
+          const h = row.h * H / total, yc = y + h / 2, z0 = (rand() - .5) * 8 * px;
+          if (row.shaft) {
+            let x = rand() * W;const end = x + W;
+            while (x < end) {const L = (70 + rand() * 120) * px, rr = h * (.28 + rand() * .1);rod(x + L, yc + (rand() - .5) * h * .3, L, rr, (rand() - .5) * .12, z0 - 4 * px, pick());x += 2 * L + rr * (2.2 + rand() * 1.5);}
+          } else {
+            const radii = [];let sum = 0;
+            while (sum < W) {const r = min((20 + rand() * 15) * px, h * .58);radii.push(r);sum += 2 * r * .92;}
+            const scale = W / sum;let x = rand() * W;
+            for (const r of radii) {
+              x += r * .92 * scale;
+              const cx = x, cy = yc + (rand() - .5) * max(0, h - 2 * r) + (rand() - .5) * 5 * px, c = pick(), kind = rand(), a = rand() * PI, zz = z0 + (rand() - .5) * 8 * px, crack = rand() < .25 ? 1 : 0;
+              if (kind < .47) dome(cx, cy, r, r * (.88 + rand() * .12), a, zz, r * (.75 + rand() * .25), c, 0, crack);                       // femur or humerus head
+              else if (kind < .73) {                                                                                                        // two condyles
+                dome(cx, cy, r, r * .8, a, zz, r * .45, c, 0, 0);
+                for (const e of [-1, 1]) {const rr = r * (.56 + rand() * .06);dome(cx + cos(a) * r * .42 * e, cy + sin(a) * r * .42 * e, rr, rr * .9, a, zz + r * .15, rr * .85, c, 0, e > 0 ? crack : 0);}
+              } else if (kind < .9) {                                                                                                       // knobbly end
+                dome(cx, cy, r, r * .74, a, zz, r * .55, c, 0, crack);
+                for (let b = 0; b < 3; b++) {const rr = r * (.28 + rand() * .18), d = r * .45 * rand(), t = rand() * 7;dome(cx + cos(t) * d, cy + sin(t) * d * .7, rr, rr, 0, zz + r * .3, rr * .8, c, 0, 0);}
+              } else dome(cx, cy, r * .78, r * .72, a, zz - 3 * px, r * .3, pick(1.08), .45 + rand() * .15, crack);                         // broken shaft
+              x += r * .92 * scale;
+            }
+          }
+          y += h;
+        }
+        // Blur of the height (box passes, wrapping): pixels lower than their surroundings get darker.
+        const blur = (src, rad) => {
+          const tmp = new Float32Array(N), out = new Float32Array(N), acc = new Float32Array(W), inv = 1 / (2 * rad + 1);
+          for (let yy = 0; yy < H; yy++) {const row = yy * W;let s = 0;for (let k = -rad; k <= rad; k++) s += src[row + WX[k + W]];for (let xx = 0; xx < W; xx++) {tmp[row + xx] = s * inv;s += src[row + WX[xx + rad + 1 + W]] - src[row + WX[xx - rad + W]];}}
+          for (let k = -rad; k <= rad; k++) {const row = ((k + H) % H) * W;for (let xx = 0; xx < W; xx++) acc[xx] += tmp[row + xx];}
+          for (let yy = 0; yy < H; yy++) {const row = yy * W, add = ((yy + rad + 1) % H) * W, sub = ((yy - rad + H) % H) * W;for (let xx = 0; xx < W; xx++) {out[row + xx] = acc[xx] * inv;acc[xx] += tmp[add + xx] - tmp[sub + xx];}}
+          return out;
+        };
+        const rad = Math.max(2, Math.round(5 * px)), soft = blur(Z, rad + 1), floorZ = -20 * px, zc = new Float32Array(N);
+        for (let i = 0; i < N; i++) zc[i] = Z[i] > floorZ ? Z[i] : floorZ;
+        const canvas = () => {const c = document.createElement('canvas');c.width = W;c.height = H;return c;};
+        const col = canvas(), nrm = canvas(), cx2 = col.getContext('2d'), nx2 = nrm.getContext('2d'), ci = cx2.createImageData(W, H), ni = nx2.createImageData(W, H), boneZ = -30 * px, ipx = 1 / px;
+        const cd = new Uint32Array(ci.data.buffer), nd = new Uint32Array(ni.data.buffer), u8 = v => v < 0 ? 0 : v > 255 ? 255 : v | 0;   // RGBA bytes, little-endian
+        for (let yy = 0; yy < H; yy++) {
+          const up = ((yy + H - 1) % H) * W, mid = yy * W, dn = ((yy + 1) % H) * W;
+          for (let xx = 0; xx < W; xx++) {
+            const i = mid + xx, l = WX[xx - 1 + W], r = WX[xx + 1 + W];
+            // Normal (Sobel on the height, clamped in the deep gaps); same convention as materials.js normalFrom.
+            const dx = (zc[up + r] + 2 * zc[mid + r] + zc[dn + r] - zc[up + l] - 2 * zc[mid + l] - zc[dn + l]) * .125, dy = (zc[dn + l] + 2 * zc[dn + xx] + zc[dn + r] - zc[up + l] - 2 * zc[up + xx] - zc[up + r]) * .125, len = 127.5 / sqrt(dx * dx + dy * dy + 1);
+            nd[i] = 0xff000000 | u8(127.5 + len) << 16 | u8(127.5 + dy * len) << 8 | u8(127.5 - dx * len);
+            // Colour: occlusion from the blurred height, soot, grain and pores.
+            const cavity = soft[i] - Z[i], ao = cavity > 0 ? 1 / (1 + cavity * ipx * .045) : 1, gr = grain(), gm = at(grime, xx, yy);
+            let k = 255 * ao * (.7 + .4 * gm) * (.86 + .24 * at(mottle, xx, yy)) * (.92 + .16 * gr);
+            if (gr < .012 && Z[i] > boneZ) k *= .5;                                                  // pores
+            cd[i] = 0xff000000 | u8(B[i] * k * (.8 + .2 * gm)) << 16 | u8(G[i] * k * (.9 + .1 * gm)) << 8 | u8(R[i] * k);   // soot is a little browner
+          }
+        }
+        cx2.putImageData(ci, 0, 0);nx2.putImageData(ni, 0, 0);
+        const tile = [1, H / W], tex = (c, srgb) => {const t = new T.CanvasTexture(c);t.wrapS = t.wrapT = T.RepeatWrapping;if (srgb) t.colorSpace = T.SRGBColorSpace;t.repeat.set(1 / tile[0], 1 / tile[1]);t.needsUpdate = true;return t;};
+        return {map: tex(col, true), normal: tex(nrm, false), tile};
+      });
+    }
+    return {skull, femur, boneWall, boneColor: 0xffffff};
+  }
+  return {create};
+});
+</script><script>/* The catacomb (issue #43): three stone mausoleums in Torshovdalen lead down long stairs to a large catacomb under the park.
+ * Layout from catacomb-layout.js (pure, tested); skulls, femurs and the bone-wall texture from catacomb-models.js.
+ * Lit galleries have burning torches on the walls; in the dark quarry tunnels a torch prompt appears (□ / L1 / Q). Underground
+ * the map is wiped and draws only what you have seen down there (map.layer = catacomb.mapLayer); it is kept in localStorage.
+ * Light: the torches' light is baked into the vertices with line of sight on the grid, so no three.js lights are added and the
+ * rest of the world's shaders never change. The catacomb's materials add the baked light (flickering in four groups) and your
+ * torch (a spot light in the shader). Outdoor light (sun, sky, environment) only reaches the mausoleums and the top of the stairs.
+ * GameCatacomb.create({T, lib, world, audio}) -> {group, layout, floors, obstacles, vehicleObstacles, cutsGround(x, z), poi(),
+ *   update(dt, {camera, player}) -> {depth, deep, inside, dark}, prompt(player), toggleLamp(), lamp, mapLayer, placeName(player), explorer}
+ */
+(function (root, factory) {
+  root.GameCatacomb = factory();
+})(typeof window === 'undefined' ? globalThis : window, function () {
+  'use strict';
+  const DI = [0, 1, 0, -1], DJ = [-1, 0, 1, 0];// N E S W (north = -s)
+  const SAVE_KEY = 'haarklous-catacomb-map-v1';
+  function create({T, lib, world, audio}) {
+    const CL = window.CatacombLayout, models = window.CatacombModels ? window.CatacombModels.create({T}) : null;
+    const L = CL.build({heightLocal: (x, s) => {const w = world.toWorld(x, s);return world.heightWorld(w.x, w.z);}});
+    const {CELL, X0, S0, NX, NS, FLOOR_Y, S, kind, style} = L;
+    const group = new T.Group();group.name = 'Catacomb';group.rotation.y = world.data.geo.theta;group.position.set(world.data.geo.x, 0, world.data.geo.z);
+    let seed = 90210;const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const cellBox = c => {const i = c % NX, j = Math.floor(c / NX);return {x0: X0 + i * CELL, s0: S0 + j * CELL, x1: X0 + (i + 1) * CELL, s1: S0 + (j + 1) * CELL};};
+    const roomCells = r => {const out = [];for (let j = r.cells[1]; j <= r.cells[3]; j++) for (let i = r.cells[0]; i <= r.cells[2]; i++) out.push(L.id(i, j));return out;};
+    const room = id => L.rooms.find(r => r.id === id);
+
+    // ---------- Procedural textures ----------
+    const cv = (w, h = w) => {const c = document.createElement('canvas');c.width = w;c.height = h;return c;};
+    function normalFrom(height, strength) {
+      const w = height.width, h = height.height, src = height.getContext('2d').getImageData(0, 0, w, h).data, out = cv(w, h), ctx = out.getContext('2d'), img = ctx.createImageData(w, h);
+      const at = (x, y) => src[(((y + h) % h) * w + ((x + w) % w)) * 4] / 255;
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {const dx = (at(x + 1, y) - at(x - 1, y)) * strength, dy = (at(x, y + 1) - at(x, y - 1)) * strength, l = Math.hypot(dx, dy, 1), i = (y * w + x) * 4;img.data[i] = (-dx / l * .5 + .5) * 255;img.data[i + 1] = (dy / l * .5 + .5) * 255;img.data[i + 2] = (1 / l * .5 + .5) * 255;img.data[i + 3] = 255;}
+      ctx.putImageData(img, 0, 0);return out;
+    }
+    const tex = (c, tile, color = true) => {const t = new T.CanvasTexture(c);t.wrapS = t.wrapT = T.RepeatWrapping;t.anisotropy = 8;if (color) t.colorSpace = T.SRGBColorSpace;t.repeat.set(1 / tile[0], 1 / tile[1]);return t;};
+    const blur = (c, r) => {const o = cv(c.width, c.height), x = o.getContext('2d');x.filter = `blur(${r}px)`;for (const dx of [-c.width, 0, c.width]) for (const dy of [-c.height, 0, c.height]) x.drawImage(c, dx, dy);return o;};
+    const grey = v => `rgb(${v | 0},${v | 0},${v | 0})`;
+    // Tileable blobs painted into several canvases at once (colour and height share the same shapes).
+    function blobs(ctxs, w, h, n, r, f) {for (let i = 0; i < n; i++) {const x = rand() * w, y = rand() * h, rr = r * (.4 + rand()), v = rand();for (const dx of [-w, 0, w]) for (const dy of [-h, 0, h]) ctxs.forEach((c, k) => {c.fillStyle = f(v, k);c.beginPath();c.arc(x + dx, y + dy, rr, 0, 7);c.fill();});}}
+    // Soft tileable mottling in greys (many faint blobs, blurred), laid over a colour canvas with multiply.
+    function cloud(W, H, n, r, soft) {const c = cv(W, H), x = c.getContext('2d');x.fillStyle = '#c8c8c8';x.fillRect(0, 0, W, H);blobs([x], W, H, n, r, v => `rgba(${v > .5 ? '255,255,255' : '40,40,40'},.16)`);return blur(c, soft);}
+    function grain(ctxs, W, H, n, a) {for (let i = 0; i < n; i++) {const px = rand() * W, py = rand() * H, s = 1 + rand() * 2, v = rand() > .5;ctxs.forEach((c, k) => {c.fillStyle = k ? (v ? 'rgba(255,255,255,.18)' : 'rgba(0,0,0,.18)') : (v ? `rgba(225,215,195,${a})` : `rgba(40,34,28,${a})`);c.fillRect(px, py, s, s);});}}
+    // Dressed limestone blocks in courses (lit galleries, halls, mausoleums).
+    function masonry() {
+      const W = 1024, H = 512, px = 512, c = cv(W, H), h = cv(W, H), x = c.getContext('2d'), y = h.getContext('2d');
+      x.fillStyle = '#2f2923';x.fillRect(0, 0, W, H);y.fillStyle = '#000';y.fillRect(0, 0, W, H);
+      const rows = [];for (let top = 0; top < H - 60; ) {const rh = Math.round((.2 + rand() * .12) * px);rows.push([top, rh]);top += rh;}
+      const last = rows[rows.length - 1];last[1] = H - last[0];
+      for (const [r0, rh] of rows) for (let a = -rand() * 200; a < W; ) {
+        const bw = (.32 + rand() * .5) * px, base = 150 + rand() * 34, tint = rand() * 12, hv = 175 + rand() * 50;
+        for (const dx of [0, -W]) {
+          const bx = a + dx;x.fillStyle = `rgb(${base + 12 + tint | 0},${base + 3 | 0},${base - 16 - tint | 0})`;x.fillRect(bx + 3, r0 + 3, bw - 6, rh - 6);
+          // Worn arrises: darker round the edge of each block, a little light on its top edge.
+          x.strokeStyle = 'rgba(30,24,18,.28)';x.lineWidth = 7;x.strokeRect(bx + 6, r0 + 6, bw - 12, rh - 12);x.fillStyle = 'rgba(255,245,225,.08)';x.fillRect(bx + 4, r0 + 4, bw - 8, 5);
+          y.fillStyle = grey(hv);y.fillRect(bx + 5, r0 + 5, bw - 10, rh - 10);
+        }
+        a += bw;
+      }
+      grain([x, y], W, H, 9000, .14);
+      x.globalCompositeOperation = 'multiply';x.drawImage(cloud(W, H, 260, 60, 28), 0, 0);x.globalCompositeOperation = 'source-over';
+      return {map: tex(c, [2, 1]), normal: tex(normalFrom(blur(h, 1.6), 2.4), [2, 1], false)};
+    }
+    // Raw quarry rock: mottled limestone with fine grain and a few cracks (dark tunnels and every ceiling).
+    function rock(dark) {
+      const W = 512, c = cv(W), h = cv(W), x = c.getContext('2d'), y = h.getContext('2d');
+      x.fillStyle = dark ? '#7a705f' : '#8d8270';x.fillRect(0, 0, W, W);y.fillStyle = '#808080';y.fillRect(0, 0, W, W);
+      const hc = cloud(W, W, 220, 40, 12);y.globalAlpha = .9;y.drawImage(hc, 0, 0);y.globalAlpha = 1;
+      grain([x, y], W, W, 7000, .12);
+      for (let i = 0; i < 14; i++) {let px = rand() * W, py = rand() * W;x.strokeStyle = 'rgba(35,29,22,.35)';y.strokeStyle = 'rgba(20,20,20,.8)';x.lineWidth = y.lineWidth = .8 + rand();x.beginPath();y.beginPath();x.moveTo(px, py);y.moveTo(px, py);for (let k = 0; k < 9; k++) {px += (rand() - .5) * 36;py += (rand() - .3) * 26;x.lineTo(px, py);y.lineTo(px, py);}x.stroke();y.stroke();}
+      x.globalCompositeOperation = 'multiply';x.drawImage(cloud(W, W, 160, 46, 20), 0, 0);x.globalCompositeOperation = 'source-over';
+      return {map: tex(c, [2.4, 2.4]), normal: tex(normalFrom(blur(h, 1.2), 3), [2.4, 2.4], false)};
+    }
+    // Trodden earth with gravel (gallery floors); worn flagstones (rooms, stairs).
+    function earth() {
+      const W = 512, c = cv(W), h = cv(W), x = c.getContext('2d'), y = h.getContext('2d');
+      x.fillStyle = '#5a4e40';x.fillRect(0, 0, W, W);y.fillStyle = '#707070';y.fillRect(0, 0, W, W);
+      blobs([x, y], W, W, 120, 40, (v, k) => k ? grey(100 + v * 40) : `rgba(${70 + v * 40 | 0},${60 + v * 34 | 0},${48 + v * 26 | 0},.3)`);
+      blobs([x, y], W, W, 2600, 2.6, (v, k) => k ? grey(150 + v * 100) : `rgb(${120 + v * 80 | 0},${110 + v * 70 | 0},${92 + v * 60 | 0})`);
+      return {map: tex(c, [2, 2]), normal: tex(normalFrom(blur(h, .8), 2), [2, 2], false)};
+    }
+    // Worn flagstones in courses of different widths (rooms, stairs).
+    function flags() {
+      const W = 512, c = cv(W), h = cv(W), x = c.getContext('2d'), y = h.getContext('2d'), px = W / 2;
+      x.fillStyle = '#29241e';x.fillRect(0, 0, W, W);y.fillStyle = '#000';y.fillRect(0, 0, W, W);
+      const rows = [];for (let top = 0; top < W - 60; ) {const rh = Math.round((.36 + rand() * .22) * px);rows.push([top, rh]);top += rh;}rows[rows.length - 1][1] = W - rows[rows.length - 1][0];
+      for (const [r0, rh] of rows) for (let a = -rand() * 120; a < W; ) {
+        const bw = (.4 + rand() * .45) * px, v = 104 + rand() * 46, hv = 175 + rand() * 50;
+        for (const dx of [0, -W]) {x.fillStyle = `rgb(${v + 8 | 0},${v | 0},${v - 12 | 0})`;x.fillRect(a + dx + 4, r0 + 4, bw - 8, rh - 8);x.strokeStyle = 'rgba(25,20,15,.3)';x.lineWidth = 6;x.strokeRect(a + dx + 7, r0 + 7, bw - 14, rh - 14);y.fillStyle = grey(hv);y.fillRect(a + dx + 6, r0 + 6, bw - 12, rh - 12);}
+        a += bw;
+      }
+      grain([x, y], W, W, 5000, .14);
+      x.globalCompositeOperation = 'multiply';x.drawImage(cloud(W, W, 140, 40, 18), 0, 0);x.globalCompositeOperation = 'source-over';
+      return {map: tex(c, [2, 2]), normal: tex(normalFrom(blur(h, 1.5), 2.2), [2, 2], false)};
+    }
+    function cobweb() {
+      const W = 256, c = cv(W), x = c.getContext('2d');x.strokeStyle = 'rgba(235,230,220,.75)';x.lineWidth = 1;
+      const spokes = 11;for (let i = 0; i < spokes; i++) {const a = i / spokes * Math.PI / 2;x.beginPath();x.moveTo(0, 0);x.lineTo(Math.cos(a) * W, Math.sin(a) * W);x.stroke();}
+      for (let r = 14; r < W; r += 12 + rand() * 9) {x.beginPath();for (let i = 0; i <= spokes; i++) {const a = i / spokes * Math.PI / 2, rr = r * (.93 + rand() * .1);i ? x.lineTo(Math.cos(a) * rr, Math.sin(a) * rr) : x.moveTo(Math.cos(a) * rr, Math.sin(a) * rr);}x.stroke();}
+      const t = new T.CanvasTexture(c);t.colorSpace = T.SRGBColorSpace;return t;
+    }
+    // Engraved tablet: dark letters cut into pale stone.
+    function tablet(lines, w = 1024, h = 384) {
+      const c = cv(w, h), x = c.getContext('2d');x.fillStyle = '#b6ab95';x.fillRect(0, 0, w, h);
+      for (let i = 0; i < 900; i++) {x.fillStyle = `rgba(${rand() > .5 ? '255,250,240' : '40,32,24'},${rand() * .12})`;x.fillRect(rand() * w, rand() * h, 3, 3);}
+      x.strokeStyle = '#4a4034';x.lineWidth = 8;x.strokeRect(18, 18, w - 36, h - 36);x.textAlign = 'center';x.textBaseline = 'middle';
+      lines.forEach((l, i) => {const size = l.size || 64;x.font = `${l.bold === false ? '' : 'bold '}${size}px Georgia, 'Times New Roman', serif`;const yy = h / 2 + (i - (lines.length - 1) / 2) * size * 1.25;
+        x.fillStyle = 'rgba(255,250,235,.55)';x.fillText(l.text, w / 2 + 2, yy + 2);x.fillStyle = '#2d251c';x.fillText(l.text, w / 2, yy);});
+      const t = new T.CanvasTexture(c);t.colorSpace = T.SRGBColorSpace;t.anisotropy = 8;return t;
+    }
+    const TX = {masonry: masonry(), rock: rock(false), quarry: rock(true), earth: earth(), flags: flags(), cobweb: cobweb()};
+    TX.bones = models ? models.boneWall({size: 768}) : null;
+
+    // ---------- Materials: baked torch light, outdoor-light mask, your torch ----------
+    const U = {uFlick: {value: new T.Vector4(1, 1, 1, 1)}, uLamp: {value: new T.Vector4(1, .93, .82, 0)}, uLampPos: {value: new T.Vector3(.17, -.2, .05)}, uLampDir: {value: new T.Vector3(-.03, .05, -1).normalize()}, uLampCos: {value: new T.Vector2(Math.cos(.52), Math.cos(.22))}, uDark: {value: .014}};
+    function bakeMaterial(params, {instanced = false} = {}) {
+      const m = new T.MeshStandardMaterial({metalness: 0, envMapIntensity: 0, ...params}), a = instanced ? 'i' : '';
+      m.onBeforeCompile = sh => {
+        Object.assign(sh.uniforms, U);
+        sh.vertexShader = sh.vertexShader.replace('#include <common>', `#include <common>\nattribute vec3 ${a}bake;attribute vec3 ${a}bakeDir;attribute vec2 ${a}bakeX;varying vec3 vBake;varying vec3 vBakeDir;varying vec2 vBakeX;`)
+          .replace('#include <begin_vertex>', `#include <begin_vertex>\nvBake = ${a}bake;vBakeX = ${a}bakeX;vBakeDir = mat3(modelViewMatrix) * ${a}bakeDir;`);
+        sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vBake;varying vec3 vBakeDir;varying vec2 vBakeX;uniform vec4 uFlick;uniform vec4 uLamp;uniform vec3 uLampPos;uniform vec3 uLampDir;uniform vec2 uLampCos;uniform float uDark;')
+          .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
+          {
+            float sky = vBakeX.x;
+            reflectedLight.directDiffuse *= sky;reflectedLight.directSpecular *= sky;reflectedLight.indirectDiffuse *= sky;reflectedLight.indirectSpecular *= sky;
+            reflectedLight.indirectDiffuse += material.diffuseColor * uDark;
+            float relief = 1.0;
+            if (dot(vBakeDir, vBakeDir) > .0004) {vec3 d = normalize(vBakeDir);vec3 g = normalize(vNormal);relief = clamp((max(dot(geometryNormal, d), 0.0) + .2) / (max(dot(g, d), 0.0) + .2), .3, 1.8);}
+            int ph = int(vBakeX.y + .5);float fl = ph == 0 ? uFlick.x : ph == 1 ? uFlick.y : ph == 2 ? uFlick.z : uFlick.w;
+            reflectedLight.directDiffuse += BRDF_Lambert(material.diffuseColor) * vBake * fl * relief;
+            if (uLamp.w > 0.0) {
+              vec3 lv = uLampPos - geometryPosition;float dl = length(lv);vec3 ld = lv / max(dl, .001);
+              float spot = smoothstep(uLampCos.x, uLampCos.y, dot(-ld, uLampDir));
+              IncidentLight il;il.direction = ld;il.visible = true;il.color = uLamp.rgb * uLamp.w * (spot * .94 + .06) * getDistanceAttenuation(dl, 34.0, 2.0);
+              RE_Direct(il, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight);
+            }
+          }`);
+      };
+      m.customProgramCacheKey = () => 'catacomb-' + a;
+      return m;
+    }
+    const MAT = {
+      masonry: bakeMaterial({map: TX.masonry.map, normalMap: TX.masonry.normal, roughness: .86, color: 0xd8cfbf}),
+      rock: bakeMaterial({map: TX.rock.map, normalMap: TX.rock.normal, roughness: .93, color: 0xc4baa8}),
+      quarry: bakeMaterial({map: TX.quarry.map, normalMap: TX.quarry.normal, roughness: .95, color: 0xc4baa8}),
+      earth: bakeMaterial({map: TX.earth.map, normalMap: TX.earth.normal, roughness: .97, color: 0xc8beb0}),
+      flags: bakeMaterial({map: TX.flags.map, normalMap: TX.flags.normal, roughness: .8, color: 0xd9d2c4}),
+      bones: TX.bones ? bakeMaterial({map: TX.bones.map, normalMap: TX.bones.normal, roughness: .78, color: 0xffffff}) : bakeMaterial({color: 0xb9ab8e, roughness: .8}),
+      iron: bakeMaterial({color: 0x2b2826, roughness: .55, metalness: .6}),
+      wood: bakeMaterial({color: 0x4a3322, roughness: .85}),
+      soot: bakeMaterial({color: 0x17130f, roughness: .9}),
+      water: bakeMaterial({color: 0x0b1214, roughness: .04, metalness: .3}),
+      wax: bakeMaterial({color: 0xe8dcc0, roughness: .6}),
+      stone: bakeMaterial({map: TX.rock.map, normalMap: TX.rock.normal, normalScale: new T.Vector2(.45, .45), roughness: .78, color: 0xf0e6d4}),
+      web: bakeMaterial({map: TX.cobweb, transparent: true, alphaTest: .05, side: T.DoubleSide, depthWrite: false, roughness: 1}),
+    };
+    const boneColor = models ? models.boneColor : 0xd9ccb0;
+    const SKULL_MAT = bakeMaterial({color: boneColor, roughness: .78, vertexColors: true}, {instanced: true});
+
+    // ---------- Light baking ----------
+    const TORCH_RGB = [1, .5, .19], TORCH_I = 4.2, RANGE = 11;
+    const torches = L.torches.map(t => ({...t}));
+    const candles = [];// small lights placed with the props: {x, s, y, i, phase}
+    let bins = null;// filled on the first bake, after the props have placed their candles
+    function lightAt(x, s, y, nx, ny, ns, own) {
+      let r = 0, g = 0, b = 0, dx = 0, dy = 0, ds = 0, best = 0, phase = 0;
+      // Line of sight from a point a hair inside its own cell (points on a cell edge would otherwise test the rock behind).
+      const c = own >= 0 ? L.centre(own % NX, Math.floor(own / NX)) : null, px = c ? x + (c.x - x) * .04 : x, ps = c ? s + (c.s - s) * .04 : s;
+      const add = (lx, ls, ly, I, ph) => {
+        const vx = lx - x, vy = ly - y, vs = ls - s, d = Math.hypot(vx, vy, vs);if (d > RANGE || d < 1e-4) return;
+        // Pale limestone throws a lot of light back: surfaces turned away still get a fifth (bounce).
+        const ndl = nx === null ? 1 : .2 + .8 * Math.max(0, (vx * nx + vy * ny + vs * ns) / d);
+        if (!L.los(lx, ls, px, ps)) return;
+        const q = 1 - Math.pow(d / RANGE, 4), w = I * q * q / (.4 + d * d * .8);
+        r += TORCH_RGB[0] * w * ndl;g += TORCH_RGB[1] * w * ndl;b += TORCH_RGB[2] * w * ndl;dx += vx / d * w;dy += vy / d * w;ds += vs / d * w;if (w > best) {best = w;phase = ph;}
+      };
+      // Lights in 12 m bins: a point only looks at the bins round it (the range is 11 m).
+      if (!bins) {bins = new Map();const put = q => {const k = Math.floor(q.x / 12) + ',' + Math.floor(q.s / 12);if (!bins.has(k)) bins.set(k, []);bins.get(k).push(q);};torches.forEach(t => put({x: t.x + t.nx * .06, s: t.s + t.ns * .06, y: t.y + .28, i: TORCH_I, phase: t.phase}));candles.forEach(put);}
+      const bi = Math.floor(x / 12), bj = Math.floor(s / 12);for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {const list = bins.get((bi + di) + ',' + (bj + dj));if (list) for (const q of list) add(q.x, q.s, q.y, q.i, q.phase);}
+      const dl = Math.hypot(dx, dy, ds) || 1;
+      return [r, g, b, dx / dl, dy / dl, ds / dl, phase];
+    }
+    // Daylight on a stair: full in the mausoleum's doorway, gone 9 m in.
+    function skyAt(cell, x, s) {const k = cell >= 0 ? L.stairOf[cell] : -1;if (k < 0) return 0;const t = L.entrances[k].tOf(x, s);return Math.pow(Math.max(0, Math.min(1, 1 - (t - 1) / 9)), 2);}
+    // Position noise shared by every surface through a point, so walls, vaults and arches meet without cracks.
+    const hash = (x, y, z) => {const h = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;return h - Math.floor(h);};
+    function vnoise(x, y, z) {
+      const i = Math.floor(x), j = Math.floor(y), k = Math.floor(z), f = t => t * t * (3 - 2 * t), a = f(x - i), b = f(y - j), c = f(z - k);
+      const l = (p, q, r) => hash(i + p, j + q, k + r), m = (q, r) => l(0, q, r) * (1 - a) + l(1, q, r) * a;
+      return (m(0, 0) * (1 - b) + m(1, 0) * b) * (1 - c) + (m(0, 1) * (1 - b) + m(1, 1) * b) * c;
+    }
+    const roughCell = new Float32Array(NX * NS);for (let c = 0; c < NX * NS; c++) roughCell[c] = L.isDark(c) ? .09 : style[c] === S.stair ? .015 : .035;
+    function roughAt(x, s) {const fi = (x - X0) / CELL - .5, fj = (s - S0) / CELL - .5, i = Math.floor(fi), j = Math.floor(fj), u = fi - i, v = fj - j, g = (a, b) => roughCell[Math.min(NS - 1, Math.max(0, b)) * NX + Math.min(NX - 1, Math.max(0, a))];return (g(i, j) * (1 - u) + g(i + 1, j) * u) * (1 - v) + (g(i, j + 1) * (1 - u) + g(i + 1, j + 1) * u) * v;}
+    function displace(x, y, s) {const a = roughAt(x, s), f = 1.7;return [x + (vnoise(x * f, y * f, s * f) - .5) * 2.2 * a, y + (vnoise(x * f + 17, y * f, s * f) - .5) * 1.6 * a, s + (vnoise(x * f, y * f + 31, s * f) - .5) * 2.2 * a];}
+
+    // ---------- Geometry buckets: one per chunk (8 x 8 cells; each stair is its own) and material ----------
+    const CH = 8, chunks = new Map();
+    const chunkKey = c => {const k = L.stairOf[c];return k >= 0 ? 'e' + k : Math.floor((c % NX) / CH) + ',' + Math.floor(Math.floor(c / NX) / CH);};
+    const chunkAt = (x, s) => {const c = L.cellOf(x, s);return c ? chunkKey(c.idx) : '0,0';};
+    function chunk(key) {if (!chunks.has(key)) chunks.set(key, {key, mats: new Map(), skulls: [], femurs: [], min: [Infinity, Infinity, Infinity], max: [-Infinity, -Infinity, -Infinity]});return chunks.get(key);}
+    function bucket(key, mat) {const ch = chunk(key);if (!ch.mats.has(mat)) ch.mats.set(mat, {pos: [], nrm: [], uv: [], bake: [], dir: [], x: [], idx: []});return ch.mats.get(mat);}
+    const push3 = (a, v) => a.push(v[0], v[1], v[2]);
+    // A grid of (nu+1) x (nv+1) points from f(u, v) -> {p: [x, y, s], uv}; n is the side it faces (winding and normals follow it).
+    function patch(key, mat, nu, nv, f, n, cell, opts = {}) {
+      const b = bucket(key, mat), base = b.pos.length / 3, P = [], raw = [];
+      for (let j = 0; j <= nv; j++) for (let i = 0; i <= nu; i++) {const q = f(i / nu, j / nv);raw.push(q);P.push(opts.flat ? q.p : displace(q.p[0], q.p[1], q.p[2]));}
+      const at = (i, j) => P[Math.min(nv, Math.max(0, j)) * (nu + 1) + Math.min(nu, Math.max(0, i))];
+      const sub = (a, c) => [a[0] - c[0], a[1] - c[1], a[2] - c[2]], crs = (a, c) => [a[1] * c[2] - a[2] * c[1], a[2] * c[0] - a[0] * c[2], a[0] * c[1] - a[1] * c[0]];
+      let flip = false;{const nn = crs(sub(raw[nu + 1].p, raw[0].p), sub(raw[1].p, raw[0].p));flip = nn[0] * n[0] + nn[1] * n[1] + nn[2] * n[2] < 0;}
+      for (let j = 0; j <= nv; j++) for (let i = 0; i <= nu; i++) {
+        const k = j * (nu + 1) + i, q = raw[k], p = P[k];
+        let nn = crs(sub(at(i, j + 1), at(i, j - 1)), sub(at(i + 1, j), at(i - 1, j)));if (flip) nn = nn.map(v => -v);
+        const l = Math.hypot(...nn);nn = l > 1e-9 ? nn.map(v => v / l) : n;
+        const lit = lightAt(q.p[0], q.p[2], q.p[1] + n[1] * .04, n[0], n[1], n[2], cell);
+        push3(b.pos, p);push3(b.nrm, nn);b.uv.push(q.uv[0], q.uv[1]);push3(b.bake, lit);b.dir.push(lit[3], lit[4], lit[5]);b.x.push(opts.sky ?? skyAt(cell, q.p[0], q.p[2]), lit[6]);
+      }
+      for (let j = 0; j < nv; j++) for (let i = 0; i < nu; i++) {const a = base + j * (nu + 1) + i, c = a + nu + 1;if (flip) b.idx.push(a, a + 1, c, a + 1, c + 1, c);else b.idx.push(a, c, a + 1, a + 1, c, c + 1);}
+    }
+    // A three.js geometry placed with matrix m (catacomb frame) into a bucket, baked per vertex.
+    const tmpV = new T.Vector3(), tmpN = new T.Vector3(), nm = new T.Matrix3();
+    function addGeometry(key, mat, geo, m, cell, opts = {}) {
+      const b = bucket(key, mat), g = geo, base = b.pos.length / 3, P = g.attributes.position, N = g.attributes.normal, UV = g.attributes.uv;nm.getNormalMatrix(m);
+      for (let i = 0; i < P.count; i++) {
+        tmpV.fromBufferAttribute(P, i).applyMatrix4(m);tmpN.fromBufferAttribute(N, i).applyMatrix3(nm).normalize();
+        const lit = lightAt(tmpV.x, tmpV.z, tmpV.y, tmpN.x, tmpN.y, tmpN.z, cell);
+        b.pos.push(tmpV.x, tmpV.y, tmpV.z);b.nrm.push(tmpN.x, tmpN.y, tmpN.z);b.uv.push(UV ? UV.getX(i) * (opts.uvScale || 1) : 0, UV ? UV.getY(i) * (opts.uvScale || 1) : 0);push3(b.bake, lit);b.dir.push(lit[3], lit[4], lit[5]);b.x.push(opts.sky ?? skyAt(cell, tmpV.x, tmpV.z), lit[6]);
+      }
+      if (g.index) for (let i = 0; i < g.index.count; i++) b.idx.push(base + g.index.getX(i));else for (let i = 0; i < P.count; i++) b.idx.push(base + i);
+    }
+    const M4 = (x, y, s, yaw = 0, sx = 1, sy = 1, sz = 1, pitch = 0, roll = 0) => new T.Matrix4().compose(new T.Vector3(x, y, s), new T.Quaternion().setFromEuler(new T.Euler(pitch, yaw, roll, 'YXZ')), new T.Vector3(sx, sy, sz));
+    // A box in metres with uv in metres (for the stone textures), placed at (x, y, s) bottom-centre.
+    function box(key, mat, x, y, s, w, h, d, yaw, cell, opts) {const g = new T.BoxGeometry(w, h, d);boxUVm(g, w, h, d);addGeometry(key, mat, g, M4(x, y + h / 2, s, yaw), cell, opts);}
+    function boxUVm(g, w, h, d) {const p = g.attributes.position, n = g.attributes.normal, uv = g.attributes.uv;for (let i = 0; i < p.count; i++) {const ax = Math.abs(n.getX(i)), ay = Math.abs(n.getY(i));uv.setXY(i, ax > .5 ? p.getZ(i) : p.getX(i), ay > .5 ? p.getZ(i) : p.getY(i));}}
+    const wallMat = c => L.isDark(c) ? MAT.quarry : MAT.masonry;
+    const bonesCell = c => style[c] === S.ossuary || style[c] === S.chapel;
+    const STACK = 1.45, INSET = .22;
+    function edgeOf(c, k) {
+      const B = cellBox(c);
+      if (k === 0) return {a: [B.x0, B.s0], b: [B.x1, B.s0], n: [0, 1]};
+      if (k === 2) return {a: [B.x1, B.s1], b: [B.x0, B.s1], n: [0, -1]};
+      if (k === 1) return {a: [B.x1, B.s0], b: [B.x1, B.s1], n: [-1, 0]};
+      return {a: [B.x0, B.s1], b: [B.x0, B.s0], n: [1, 0]};
+    }
+
+    // ---------- Props first (their candles light the walls) ----------
+    const props = [], obstaclesLocal = [];// obstacle polygons in local [x, s] with minY/maxY
+    const block = (x, s, hw, hd, yaw, y0, y1) => {const c = Math.cos(yaw), sn = Math.sin(yaw), pts = [[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]].map(([a, b]) => [x + a * c + b * sn, s - a * sn + b * c]);obstaclesLocal.push({pts, minY: y0, maxY: y1});};
+    const ring = (x, s, r, y0, y1, n = 12) => obstaclesLocal.push({pts: Array.from({length: n}, (_, i) => [x + Math.cos(i / n * 6.283) * r, s + Math.sin(i / n * 6.283) * r]), minY: y0, maxY: y1});
+    const candle = (x, s, y, i = 1.1) => {candles.push({x, s, y: y + .2, i, phase: candles.length % 4});props.push({kind: 'candle', x, s, y});};
+    {
+      const R = room('rotunda');props.push({kind: 'pillar', x: R.cx, s: R.cs});ring(R.cx, R.cs, 1.05, FLOOR_Y - 1, FLOOR_Y + 4);
+      for (const id of ['chapel', 'sacellum', 'bonehall']) {
+        const r = room(id), c = L.cellOf(r.cx, r.cs).idx;
+        // The altar of skulls stands against the wall farthest from the room's doorways.
+        const sides = [0, 1, 2, 3].map(k => {const E = k === 0 ? r.s0 : k === 2 ? r.s1 : k === 1 ? r.x1 : r.x0;let doors = 0;roomCells(r).forEach(q => {const o = L.open(q), qi = q % NX + DI[k], qj = Math.floor(q / NX) + DJ[k], n = L.id(qi, qj);if (o[k] && L.roomOf[n] !== r.index) doors++;});return {k, doors, E};});
+        const side = sides.sort((a, b) => a.doors - b.doors || ((b.k % 2 ? r.s1 - r.s0 : r.x1 - r.x0) - (a.k % 2 ? r.s1 - r.s0 : r.x1 - r.x0)))[0].k;
+        const nx = -DI[side], ns = -DJ[side], ax = side % 2 ? r.x1 - (side === 1 ? 0 : r.x1 - r.x0) : r.cx, as = side % 2 ? r.cs : (side === 0 ? r.s0 : r.s1);
+        const x = ax + nx * .75, s = as + ns * .75, yaw = Math.atan2(nx, ns);
+        props.push({kind: 'altar', x, s, yaw, nx, ns, cell: c});block(x, s, .95, .5, yaw, FLOOR_Y - 1, FLOOR_Y + 1.1);
+        candle(x + Math.cos(yaw) * .75, s - Math.sin(yaw) * .75, FLOOR_Y + .95);candle(x - Math.cos(yaw) * .75, s + Math.sin(yaw) * .75, FLOOR_Y + .95);
+        if (id === 'bonehall') for (const [u, v] of [[-.27, -.27], [.27, -.27], [-.27, .27], [.27, .27]]) {const px = r.cx + u * (r.x1 - r.x0), ps = r.cs + v * (r.s1 - r.s0);props.push({kind: 'column', x: px, s: ps, h: L.ceilAt(L.cellOf(px, ps).idx, px, ps) - FLOOR_Y + .3});block(px, ps, .32, .32, 0, FLOOR_Y - 1, FLOOR_Y + 4);}
+      }
+      const C = room('crypt');props.push({kind: 'sarcophagus', x: C.cx, s: C.cs, yaw: (C.x1 - C.x0) > (C.s1 - C.s0) ? Math.PI / 2 : 0});block(C.cx, C.cs, ...((C.x1 - C.x0) > (C.s1 - C.s0) ? [1.2, .55] : [.55, 1.2]), 0, FLOOR_Y - 1, FLOOR_Y + 1.1);
+      for (const [u, v] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) candle(C.cx + u * 1.6, C.cs + v * .95, FLOOR_Y + .02, 1.3);
+      for (const [u, v] of [[-.36, -.33], [.36, -.33], [-.36, .33], [.36, .33]]) {const px = C.cx + u * (C.x1 - C.x0), ps = C.cs + v * (C.s1 - C.s0);props.push({kind: 'column', x: px, s: ps, h: L.ceilAt(L.cellOf(px, ps).idx, px, ps) - FLOOR_Y + .3});block(px, ps, .3, .3, 0, FLOOR_Y - 1, FLOOR_Y + 4);}
+      const Wl = room('well');props.push({kind: 'well', x: Wl.cx, s: Wl.cs});block(Wl.cx, Wl.cs, 1.25, 1.25, 0, FLOOR_Y - 1, FLOOR_Y + .7);
+      const Cv = room('cavern');for (let i = 0; i < 9; i++) {const x = Cv.x0 + 1.2 + rand() * (Cv.x1 - Cv.x0 - 2.4), s = Cv.s0 + 1.2 + rand() * (Cv.s1 - Cv.s0 - 2.4), r = .35 + rand() * .55;props.push({kind: 'rubble', x, s, r});ring(x, s, r * .9, FLOOR_Y - 1, FLOOR_Y + r * 1.2, 8);}
+      for (const [u, v] of [[-.3, -.3], [.3, .3]]) {const x = Cv.cx + u * (Cv.x1 - Cv.x0), s = Cv.cs + v * (Cv.s1 - Cv.s0);props.push({kind: 'prop', x, s});block(x, s, .12, .12, 0, FLOOR_Y - 1, FLOOR_Y + 4);}
+      const Wr = room('workroom');props.push({kind: 'table', x: Wr.cx, s: Wr.cs});block(Wr.cx, Wr.cs, .9, .45, 0, FLOOR_Y - 1, FLOOR_Y + .8);
+      for (const [u, v] of [[.38, -.32], [.34, .3]]) {const x = Wr.cx + u * (Wr.x1 - Wr.x0), s = Wr.cs + v * (Wr.s1 - Wr.s0);props.push({kind: 'barrel', x, s});ring(x, s, .32, FLOOR_Y - 1, FLOOR_Y + .9, 8);}
+      // Timber props in long straight dark tunnels, cobwebs and loose bones in dead ends.
+      let since = 0;
+      for (let c = 0; c < NX * NS; c++) {
+        if (kind[c] !== L.CORRIDOR || !L.isDark(c)) continue;
+        const o = L.open(c), n = o.filter(Boolean).length, ctr = L.centre(c % NX, Math.floor(c / NX));
+        if (L.vault[c] && ++since > 5 && rand() < .5) {since = 0;props.push({kind: 'frame', x: ctr.x, s: ctr.s, along: L.vault[c], cell: c});const across = L.vault[c] === 1;for (const d of [-.82, .82]) block(ctr.x + (across ? d : 0), ctr.s + (across ? 0 : d), .09, .09, 0, FLOOR_Y - 1, FLOOR_Y + 2.2);}
+        if (n === 1) {props.push({kind: 'web', cell: c});props.push({kind: 'scatter', cell: c});}
+      }
+    }
+
+    // ---------- Floors, ceilings, walls, arches ----------
+    const doorEdge = new Map();L.entrances.forEach(e => doorEdge.set(e.cells[0] * 4 + (e.alongX ? (e.sign > 0 ? 3 : 1) : (e.sign > 0 ? 0 : 2)), e));
+    for (let c = 0; c < NX * NS; c++) {
+      if (!L.walkable(c)) continue;
+      const B = cellBox(c), key = chunkKey(c), open = L.open(c), stair = L.stairOf[c] >= 0;
+      if (!stair) {
+        // Floor, reaching 12 cm under the walls where there is rock.
+        const fx0 = B.x0 - (open[3] ? 0 : .12), fx1 = B.x1 + (open[1] ? 0 : .12), fs0 = B.s0 - (open[0] ? 0 : .12), fs1 = B.s1 + (open[2] ? 0 : .12);
+        const paved = kind[c] === L.ROOM && !L.isDark(c);
+        patch(key, paved ? MAT.flags : MAT.earth, 4, 4, (u, v) => {const x = fx0 + (fx1 - fx0) * u, s = fs0 + (fs1 - fs0) * v;return {p: [x, FLOOR_Y, s], uv: [x, s]};}, [0, 1, 0], c, {flat: true});
+      }
+      const vault = L.vault[c], along2 = vault === 2;
+      patch(key, L.isDark(c) ? MAT.quarry : MAT.rock, vault ? 8 : stair ? 2 : 4, 4, (u, v) => {const x = along2 ? B.x0 + CELL * v : B.x0 + CELL * u, s = along2 ? B.s0 + CELL * u : B.s0 + CELL * v;return {p: [x, L.ceilAt(c, x, s), s], uv: [x, s]};}, [0, -1, 0], c);
+      for (let k = 0; k < 4; k++) {
+        const E = edgeOf(c, k), n3 = [E.n[0], 0, E.n[1]], u0 = p => Math.abs(E.n[0]) ? p[1] : p[0];
+        const pt = t => [E.a[0] + (E.b[0] - E.a[0]) * t, E.a[1] + (E.b[1] - E.a[1]) * t];
+        if (open[k]) {
+          // Arch face (lunette) where this cell's lower ceiling meets the neighbour's higher one; it faces the neighbour.
+          const nb = L.id(c % NX + DI[k], Math.floor(c / NX) + DJ[k]), hA = t => L.ceilAt(c, ...pt(t)), hB = t => L.ceilAt(nb, ...pt(t));
+          let diff = 0;for (let t = 0; t <= 1.0001; t += .125) diff = Math.max(diff, hB(t) - hA(t));
+          if (diff > .02) patch(key, wallMat(nb), 8, 1, (u, v) => {const [x, s] = pt(u), lo = hA(u) - .06, hi = Math.max(hA(u), hB(u)) + .1, y = lo + (hi - lo) * v;return {p: [x, y, s], uv: [u0([x, s]), y - FLOOR_Y]};}, [-E.n[0], 0, -E.n[1]], nb);
+          continue;
+        }
+        if (doorEdge.has(c * 4 + k)) continue;// the mausoleum's front wall is built with the mausoleum
+        const bot = (x, s) => stair ? L.floorAt(c, x, s) - .35 : FLOOR_Y - .12;
+        const wall = (lo, mat = wallMat(c)) => patch(key, mat, 8, 4, (u, v) => {const [x, s] = pt(u), y0 = lo ? lo : bot(x, s), y1 = L.ceilAt(c, x, s) + .25, y = y0 + (y1 - y0) * v;return {p: [x, y, s], uv: [u0([x, s]), y - FLOOR_Y]};}, n3, c);
+        if (bonesCell(c)) {wall(FLOOR_Y + STACK - .05);boneStack(c, k, E, key);} else wall();
+      }
+      if (stair) stairSteps(c, L.entrances[L.stairOf[c]], key);
+    }
+    // ---------- Ossuary walls: bones stacked 1.45 m high, 22 cm proud of the rock, with rows of skulls ----------
+    function boneStack(c, k, E, key) {
+      const nx = E.n[0], ns = E.n[1], open = L.open(c), prev = (k + 3) % 4, next = (k + 1) % 4, ux = (E.b[0] - E.a[0]) / CELL, us = (E.b[1] - E.a[1]) / CELL;
+      // Where the side wall turns away the stack ends with a face; at inner corners it stops at the other stack's face.
+      const da = open[prev] ? 0 : INSET, dz = open[next] ? 0 : INSET, A = [E.a[0] + nx * INSET + ux * da, E.a[1] + ns * INSET + us * da], Z = [E.b[0] + nx * INSET - ux * dz, E.b[1] + ns * INSET - us * dz];
+      // uv in metres (the bone texture's repeat is set to its real size).
+      const along = p => Math.abs(nx) ? p[1] : p[0], len = Math.hypot(Z[0] - A[0], Z[1] - A[1]);
+      patch(key, MAT.bones, 8, 3, (u, v) => {const x = A[0] + (Z[0] - A[0]) * u, s = A[1] + (Z[1] - A[1]) * u, y = FLOOR_Y + STACK * v;return {p: [x, y, s], uv: [along([x, s]), y - FLOOR_Y]};}, [nx, 0, ns], c, {flat: true});
+      patch(key, MAT.bones, 8, 1, (u, v) => {const x = A[0] + (Z[0] - A[0]) * u - nx * INSET * v, s = A[1] + (Z[1] - A[1]) * u - ns * INSET * v;return {p: [x, FLOOR_Y + STACK, s], uv: [along([x, s]), v * INSET]};}, [0, 1, 0], c, {flat: true});
+      for (const [end, side, P] of [[open[prev], -1, A], [open[next], 1, Z]]) if (end) patch(key, MAT.bones, 1, 3, (u, v) => {const x = P[0] - nx * INSET * u, s = P[1] - ns * INSET * u;return {p: [x, FLOOR_Y + STACK * v, s], uv: [u * INSET, STACK * v]};}, [ux * side, 0, us * side], c, {flat: true});
+      const n = Math.max(1, Math.floor(len / .24)), yaw = Math.atan2(nx, ns), ch = chunk(key);
+      for (let i = 0; i < n; i++) {
+        const t = (i + .5) / n, x = A[0] + (Z[0] - A[0]) * t, s = A[1] + (Z[1] - A[1]) * t;
+        for (const h of [.34, .94]) ch.skulls.push({x: x - nx * .035, s: s - ns * .035, y: FLOOR_Y + h, yaw: yaw + (rand() - .5) * .25, tilt: (rand() - .5) * .14, cell: c, n: [nx, 0, ns]});
+        if (i % 2 === 0 || rand() < .35) ch.skulls.push({x: x - nx * .1, s: s - ns * .1, y: FLOOR_Y + STACK, yaw: yaw + (rand() - .5) * .6, tilt: (rand() - .5) * .1, cell: c, n: [nx, 0, ns]});
+      }
+    }
+    // ---------- Stairs: stone steps around the walking ramp (its line runs through the middle of every tread) ----------
+    function stairSteps(c, e, key) {
+      const B = cellBox(c), ta = e.tOf(B.x0, B.s0), tb = e.tOf(B.x1, B.s1), t0 = Math.min(ta, tb), t1 = Math.max(ta, tb), dirN = e.alongX ? [e.sign, 0, 0] : [0, 0, e.sign];
+      const quad = (pa, pb, ya, yb, n) => patch(key, MAT.flags, 1, 1, (u, v) => {const w = -1.12 + 2.24 * u, t = pa + (pb - pa) * v, p = e.toLocal(t, w), y = ya + (yb - ya) * v;return {p: [p.x, y, p.s], uv: [w, n[1] ? t : y]};}, n, c, {flat: true});
+      const tread = (a, b, y) => {a = Math.max(a, t0);b = Math.min(b, t1);if (b - a > 1e-4) quad(a, b, y, y, [0, 1, 0]);};
+      const riser = (t, yHi, yLo) => {if (t >= t0 - 1e-6 && t < t1 - 1e-6) quad(t, t, yHi, yLo, [-dirN[0], 0, -dirN[2]]);};
+      tread(0, e.t0, e.top);
+      const flights = e.landing ? [[e.t0, e.tMid], [e.tMid + e.landing, e.tBottom]] : [[e.t0, e.tBottom]];
+      if (e.landing) tread(e.tMid, e.tMid + e.landing, e.floorT(e.tMid));
+      for (const [k0, k1] of flights) {
+        const n = Math.max(1, Math.round((k1 - k0) / .28)), go = (k1 - k0) / n, yA = e.floorT(k0), rise = (yA - e.floorT(k1)) / n;
+        for (let i = 0; i < n; i++) {const y = yA - (i + .5) * rise;tread(k0 + i * go, k0 + (i + 1) * go, y);riser(k0 + i * go, i ? yA - (i - .5) * rise : yA, y);}
+        riser(k1, yA - (n - .5) * rise, e.floorT(k1));
+      }
+    }
+
+    // ---------- Props: geometry ----------
+    const skullHi = models ? models.skull({lod: 'high'}) : new T.SphereGeometry(.085, 16, 12).translate(0, .085, 0), skullLo = models ? models.skull({lod: 'low'}) : new T.SphereGeometry(.085, 8, 6).translate(0, .085, 0);
+    const jawHi = models ? models.skull({lod: 'high', jaw: true}) : skullHi, jawLo = models ? models.skull({lod: 'low', jaw: true}) : skullLo;
+    const femurHi = models ? models.femur({lod: 'high'}) : new T.CylinderGeometry(.018, .018, .45, 8).rotateZ(Math.PI / 2), femurLo = models ? models.femur({lod: 'low'}) : femurHi;
+    // The far version, where the models have one (fewer triangles than the light one), else the light one.
+    const tris = geo => (geo.index ? geo.index.count : geo.attributes.position.count) / 3;
+    const farOf = (make, lo) => {try {const f = models && make();return f && tris(f) < tris(lo) ? f : lo;} catch {return lo;}};
+    const skullFar = farOf(() => models.skull({lod: 'far'}), skullLo), jawFar = farOf(() => models.skull({lod: 'far', jaw: true}), jawLo), femurFar = farOf(() => models.femur({lod: 'far'}), femurLo);
+    const HI_CAP = 32;
+    const cellAt = (x, s) => {const q = L.cellOf(x, s);return q ? q.idx : -1;};
+    for (const p of props) {
+      const key = p.cell !== undefined ? chunkKey(p.cell) : chunkAt(p.x, p.s), cell = p.cell !== undefined ? p.cell : cellAt(p.x, p.s), ch = chunk(key);
+      if (p.kind === 'pillar') {
+        // The bone barrel of the rotunda: stacked bones round a core, three rings of skulls, a stone cap.
+        const g = new T.CylinderGeometry(.95, 1.0, 2.3, 28, 4, true), uv = g.attributes.uv;for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 6, uv.getY(i) * 2.3);
+        addGeometry(key, MAT.bones, g, M4(p.x, FLOOR_Y + 1.15, p.s), cell);
+        addGeometry(key, MAT.stone, new T.CylinderGeometry(1.12, 1.12, .22, 28), M4(p.x, FLOOR_Y + 2.41, p.s), cell, {uvScale: 2});
+        for (const [h, n] of [[.36, 15], [1.0, 16], [1.62, 15]]) for (let i = 0; i < n; i++) {const a = (i + (h > .9 && h < 1.1 ? .5 : 0)) / n * Math.PI * 2, nx = Math.sin(a), ns = Math.cos(a);ch.skulls.push({x: p.x + nx * .91, s: p.s + ns * .91, y: FLOOR_Y + h, yaw: a, tilt: 0, cell, n: [nx, 0, ns]});}
+        for (let i = 0; i < 12; i++) {const a = i / 12 * Math.PI * 2;ch.skulls.push({x: p.x + Math.sin(a) * .7, s: p.s + Math.cos(a) * .7, y: FLOOR_Y + 2.52, yaw: a, tilt: 0, cell, n: [Math.sin(a), 0, Math.cos(a)]});}
+      } else if (p.kind === 'altar') {
+        box(key, MAT.stone, p.x, FLOOR_Y, p.s, 1.9, .9, 1.0, p.yaw, cell);box(key, MAT.stone, p.x, FLOOR_Y + .9, p.s, 2.06, .08, 1.12, p.yaw, cell);
+        // A pyramid of skulls on the altar, a stone cross on the wall behind it.
+        const fx = Math.sin(p.yaw), fs = Math.cos(p.yaw), rx = Math.cos(p.yaw), rs = -Math.sin(p.yaw);
+        [[5, .98, .12], [4, 1.13, -.04], [3, 1.28, -.18], [1, 1.43, -.3]].forEach(([n, y, d]) => {for (let i = 0; i < n; i++) {const u = (i - (n - 1) / 2) * .22;ch.skulls.push({x: p.x + rx * u + fx * d, s: p.s + rs * u + fs * d, y: FLOOR_Y + y - .1, yaw: p.yaw, tilt: 0, cell, n: [fx, 0, fs]});}});
+        const wx = p.x - fx * .73, ws = p.s - fs * .73;box(key, MAT.stone, wx, FLOOR_Y + 1.5, ws, .14, 1.15, .08, p.yaw, cell);box(key, MAT.stone, wx, FLOOR_Y + 2.2, ws, .62, .14, .08, p.yaw, cell);
+      } else if (p.kind === 'column') {
+        box(key, MAT.stone, p.x, FLOOR_Y, p.s, .62, .22, .62, 0, cell);box(key, MAT.masonry, p.x, FLOOR_Y + .22, p.s, .5, p.h - .5, .5, 0, cell);box(key, MAT.stone, p.x, FLOOR_Y + p.h - .28, p.s, .62, .28, .62, 0, cell);
+      } else if (p.kind === 'sarcophagus') {
+        box(key, MAT.stone, p.x, FLOOR_Y, p.s, 2.3, .14, 1.0, p.yaw, cell);box(key, MAT.stone, p.x, FLOOR_Y + .14, p.s, 2.1, .66, .82, p.yaw, cell);
+        box(key, MAT.stone, p.x, FLOOR_Y + .8, p.s, 2.24, .16, .96, p.yaw, cell);box(key, MAT.stone, p.x, FLOOR_Y + .96, p.s, 1.9, .07, .7, p.yaw, cell);
+        const c = Math.cos(p.yaw), sn = Math.sin(p.yaw);box(key, MAT.stone, p.x, FLOOR_Y + 1.03, p.s, 1.3, .04, .12, p.yaw, cell);box(key, MAT.stone, p.x + c * .3, FLOOR_Y + 1.03, p.s - sn * .3, .12, .04, .5, p.yaw, cell);
+        ch.skulls.push({x: p.x - c * .7, s: p.s + sn * .7, y: FLOOR_Y + 1.03, yaw: p.yaw + Math.PI / 2, tilt: 0, cell, n: [0, 1, 0], jaw: true});
+      } else if (p.kind === 'candle') {
+        addGeometry(key, MAT.wax, new T.CylinderGeometry(.03, .034, .2, 10), M4(p.x, p.y + .1, p.s), cell);
+      } else if (p.kind === 'well') {
+        // A square stone curb round a pool of black water.
+        for (const [dx, ds, w, d] of [[0, -1.1, 2.5, .3], [0, 1.1, 2.5, .3], [-1.1, 0, .3, 1.9], [1.1, 0, .3, 1.9]]) box(key, MAT.stone, p.x + dx, FLOOR_Y, p.s + ds, w, .62, d, 0, cell);
+        patch(key, MAT.water, 1, 1, (u, v) => ({p: [p.x - .95 + 1.9 * u, FLOOR_Y + .18, p.s - .95 + 1.9 * v], uv: [u, v]}), [0, 1, 0], cell, {flat: true});
+      } else if (p.kind === 'rubble') {
+        const g = new T.IcosahedronGeometry(p.r, 1), pos = g.attributes.position;for (let i = 0; i < pos.count; i++) {const f = .75 + hash(pos.getX(i) * 9, pos.getY(i) * 9, pos.getZ(i) * 9) * .5;pos.setXYZ(i, pos.getX(i) * f, pos.getY(i) * f * .7, pos.getZ(i) * f);}g.computeVertexNormals();
+        addGeometry(key, MAT.quarry, g, M4(p.x, FLOOR_Y + p.r * .25, p.s, rand() * 6), cell, {uvScale: 1});
+      } else if (p.kind === 'prop') {
+        box(key, MAT.wood, p.x, FLOOR_Y, p.s, .2, 3.3, .2, .1, cell);box(key, MAT.wood, p.x, FLOOR_Y + 3.0, p.s, 1.6, .18, .26, .1, cell);
+      } else if (p.kind === 'frame') {
+        const across = p.along === 1;
+        for (const d of [-.82, .82]) box(key, MAT.wood, p.x + (across ? d : 0), FLOOR_Y, p.s + (across ? 0 : d), .16, 2.05, .16, 0, cell);
+        box(key, MAT.wood, p.x, FLOOR_Y + 2.0, p.s, across ? 1.95 : .2, .18, across ? .2 : 1.95, 0, cell);
+      } else if (p.kind === 'table') {
+        box(key, MAT.wood, p.x, FLOOR_Y + .74, p.s, 1.8, .07, .9, 0, cell);for (const [u, v] of [[-.8, -.38], [.8, -.38], [-.8, .38], [.8, .38]]) box(key, MAT.wood, p.x + u, FLOOR_Y, p.s + v, .08, .74, .08, 0, cell);
+        box(key, MAT.iron, p.x - .3, FLOOR_Y + .81, p.s + .1, .16, .22, .16, 0, cell);// an old lantern
+        ch.skulls.push({x: p.x + .45, s: p.s - .12, y: FLOOR_Y + .81, yaw: 2.4, tilt: 0, cell, n: [0, 1, 0], jaw: true});
+      } else if (p.kind === 'barrel') {
+        addGeometry(key, MAT.wood, new T.CylinderGeometry(.3, .3, .9, 14), M4(p.x, FLOOR_Y + .45, p.s), cell);
+      } else if (p.kind === 'web') {
+        // Cobweb across the corner where the dead end's ceiling meets its far wall.
+        const c = p.cell, o = L.open(c), k = o.indexOf(true), back = (k + 2) % 4, E = edgeOf(c, back), y = L.ceilAt(c, (E.a[0] + E.b[0]) / 2, (E.a[1] + E.b[1]) / 2);
+        patch(key, MAT.web, 1, 1, (u, v) => {const x = E.a[0] + (E.b[0] - E.a[0]) * (.15 + .7 * u) + E.n[0] * .45 * v, s = E.a[1] + (E.b[1] - E.a[1]) * (.15 + .7 * u) + E.n[1] * .45 * v;return {p: [x, y - .75 + .7 * v, s], uv: [u, v]};}, [E.n[0], -.5, E.n[1]], c, {flat: true});
+      } else if (p.kind === 'scatter') {
+        const ctr = L.centre(p.cell % NX, Math.floor(p.cell / NX));
+        for (let i = 0; i < 3; i++) ch.skulls.push({x: ctr.x + (rand() - .5) * 1.2, s: ctr.s + (rand() - .5) * 1.2, y: FLOOR_Y, yaw: rand() * 6.3, tilt: (rand() - .5) * 1.2, cell: p.cell, n: [0, 1, 0], jaw: rand() < .5});
+        for (let i = 0; i < 5; i++) ch.femurs.push({x: ctr.x + (rand() - .5) * 1.4, s: ctr.s + (rand() - .5) * 1.4, y: FLOOR_Y + .025, yaw: rand() * 6.3, cell: p.cell});
+      }
+    }
+    // ---------- Torches: iron bracket, wooden stick ----------
+    const flames = [];
+    for (const t of torches) {
+      const key = chunkKey(t.cell), yaw = Math.atan2(t.nx, t.ns), wx = t.x - t.nx * .1, ws = t.s - t.ns * .1;
+      box(key, MAT.iron, wx, t.y - .2, ws, .07, .28, .03, yaw, t.cell);
+      addGeometry(key, MAT.iron, new T.CylinderGeometry(.012, .012, .16, 6).rotateX(Math.PI / 2), M4(wx + t.nx * .08, t.y - .05, ws + t.ns * .08, yaw), t.cell);
+      addGeometry(key, MAT.iron, new T.TorusGeometry(.04, .01, 6, 12).rotateX(Math.PI / 2), M4(t.x, t.y - .05, t.s), t.cell);
+      addGeometry(key, MAT.wood, new T.CylinderGeometry(.03, .022, .5, 8), M4(t.x, t.y, t.s, yaw, 1, 1, 1, .26), t.cell);
+      addGeometry(key, MAT.soot, new T.CylinderGeometry(.045, .034, .12, 8), M4(t.x + t.nx * .06, t.y + .24, t.s + t.ns * .06, yaw, 1, 1, 1, .26), t.cell);
+      flames.push({x: t.x + t.nx * .07, s: t.s + t.ns * .07, y: t.y + .3, size: 1, phase: t.phase + rand()});
+    }
+    for (const c of candles) flames.push({x: c.x, s: c.s, y: c.y, size: .28, phase: c.phase + rand()});
+    // ---------- Engraved tablets: the entrance halls, the rotunda, the crypt and the streets above (like Paris) ----------
+    const tablets = [];
+    function tabletOn(c, k, lines, w = 1.1, h = .42, y = 1.55) {
+      const E = edgeOf(c, k), mid = [(E.a[0] + E.b[0]) / 2, (E.a[1] + E.b[1]) / 2], ux = (E.b[0] - E.a[0]) / CELL, us = (E.b[1] - E.a[1]) / CELL, off = bonesCell(c) ? INSET + .03 : .04, key = chunkKey(c);
+      const mat = bakeMaterial({map: tablet(lines), roughness: .85});tablets.push(mat);
+      patch(key, mat, 1, 1, (u, v) => {const a = (u - .5) * w, x = mid[0] + ux * a + E.n[0] * off, s = mid[1] + us * a + E.n[1] * off;return {p: [x, FLOOR_Y + y + (v - .5) * h, s], uv: [u, v]};}, [E.n[0], 0, E.n[1]], c, {flat: true});
+    }
+    const wallSide = c => [0, 1, 2, 3].find(k => !L.open(c)[k] && !doorEdge.has(c * 4 + k));
+    for (const e of L.entrances) {
+      const hall = room(e.hall.id), cells = roomCells(hall);
+      // On a hall wall facing the stair: where it leads, and the old warning of the Paris catacombs in Norwegian.
+      const back = cells.find(c => {const k = e.alongX ? (e.sign > 0 ? 1 : 3) : (e.sign > 0 ? 2 : 0);return !L.open(c)[k] && Math.abs((c % NX) - (hall.cells[0] + hall.cells[2]) / 2) + Math.abs(Math.floor(c / NX) - (hall.cells[1] + hall.cells[3]) / 2) < 1.1;});
+      if (back !== undefined) tabletOn(back, e.alongX ? (e.sign > 0 ? 1 : 3) : (e.sign > 0 ? 2 : 0), [{text: 'STANS!', size: 70}, {text: 'HER BEGYNNER DØDENS RIKE', size: 58}, {text: `UTGANG ${e.word} – OPP TIL ${e.sted}`, size: 30, bold: false}], 1.5, .56, 1.65);
+    }
+    {const R = room('rotunda'), c = roomCells(R).find(q => wallSide(q) !== undefined);if (c !== undefined) tabletOn(c, wallSide(c), [{text: 'MEMENTO MORI', size: 92}], 1.2, .4, 1.75);}
+    {const C = room('crypt'), c = roomCells(C).find(q => wallSide(q) !== undefined);if (c !== undefined) tabletOn(c, wallSide(c), [{text: 'QUOD TU ES, EGO FUI', size: 62}, {text: 'QUOD EGO SUM, TU ERIS', size: 62}], 1.5, .5, 1.7);}
+    {
+      // Street names: a lit gallery that runs under a named street gets its name carved on the wall, once per street.
+      const named = (world.data.roads || []).filter(r => r.n && !['footway', 'path', 'steps', 'cycleway', 'track', 'pedestrian', 'service'].includes(r.k)), done = new Set();
+      const dist = (x, s, p) => {let best = Infinity;for (let i = 0; i + 3 < p.length; i += 2) {const ax = p[i], as = p[i + 1], dx = p[i + 2] - ax, ds = p[i + 3] - as, L2 = dx * dx + ds * ds || 1, t = Math.max(0, Math.min(1, ((x - ax) * dx + (s - as) * ds) / L2));best = Math.min(best, Math.hypot(x - ax - dx * t, s - as - ds * t));}return best;};
+      for (const r of L.runs) {
+        const c = r.cells[Math.floor(r.cells.length / 2)];if (r.cells.length < 3 || L.isDark(c) || kind[c] !== L.CORRIDOR || L.stairOf[c] >= 0) continue;
+        const p = L.centre(c % NX, Math.floor(c / NX)), road = named.find(q => !done.has(q.n) && dist(p.x, p.s, q.p) < 9);
+        if (road) {done.add(road.n);tabletOn(c, r.side, [{text: road.n.toUpperCase(), size: 74}], 1.0, .3, bonesCell(c) ? 1.7 : 1.55);}
+      }
+    }
+
+    // ---------- Mausoleums on the surface ----------
+    const outside = new T.Group();outside.name = 'Catacomb mausoleums';group.add(outside);
+    const extStone = new T.MeshStandardMaterial({map: TX.masonry.map, normalMap: TX.masonry.normal, roughness: .85, color: 0xd7cdbb}), extIron = lib.metal(0x1e1c1b, .5);
+    const signMat = e => new T.MeshStandardMaterial({map: tablet([{text: 'KATAKOMBENE', size: 104}, {text: `INNGANG ${e.word}`, size: 46, bold: false}]), roughness: .8});
+    function extBox(x0, x1, y0, y1, s0, s1, mat = extStone) {const w = x1 - x0, h = y1 - y0, d = s1 - s0, g = new T.BoxGeometry(w, h, d);boxUVm(g, w, h, d);const m = new T.Mesh(g, mat);m.position.set((x0 + x1) / 2, (y0 + y1) / 2, (s0 + s1) / 2);m.castShadow = m.receiveShadow = true;outside.add(m);return m;}
+    for (const e of L.entrances) {
+      const [x0, s0, x1, s1] = e.rect, top = e.top, wallTop = top + 3.4;let low = Infinity;
+      for (let a = 0; a <= 8; a++) for (const [x, s] of [[x0 + (x1 - x0) * a / 8, s0], [x0 + (x1 - x0) * a / 8, s1], [x0, s0 + (s1 - s0) * a / 8], [x1, s0 + (s1 - s0) * a / 8]]) {const w = world.toWorld(x, s);low = Math.min(low, world.heightWorld(w.x, w.z));}
+      const foot = low - .6, g0 = e.line - e.doorWidth / 2, g1 = e.line + e.doorWidth / 2;
+      // In the stair's frame (t along, w across): walls 1 m thick; the side and back walls stop 10 cm short of the inner faces
+      // (the catacomb's own walls are there), the front wall is whole.
+      const tw = (ta, tb, wa, wb, ya, yb, mat) => {const A = e.toLocal(ta, wa), B = e.toLocal(tb, wb);return extBox(Math.min(A.x, B.x), Math.max(A.x, B.x), ya, yb, Math.min(A.s, B.s), Math.max(A.s, B.s), mat);};
+      tw(0, 8, -2, -1.1, foot, wallTop);tw(0, 8, 1.1, 2, foot, wallTop);tw(7.1, 8, -1.1, 1.1, foot, wallTop);
+      tw(0, 1, -1.1, g0 - e.line, foot, wallTop);tw(0, 1, g1 - e.line, 1.1, foot, wallTop);tw(0, 1, g0 - e.line, g1 - e.line, top + 2.3, wallTop);
+      tw(1, 7.1, -1.1, 1.1, top + 3.0 + .25, wallTop);// above the ceiling
+      tw(-.12, 8.12, -2.12, 2.12, wallTop, wallTop + .22);// cornice
+      // Gabled roof along the stair, with stone pediments.
+      const ridge = wallTop + .22 + 1.15, roofG = new T.BufferGeometry(), P = [], Ia = [];
+      const v = (t, w, y) => {const p = e.toLocal(t, w);P.push(p.x, y, p.s);return P.length / 3 - 1;};
+      const a0 = v(-.3, -2.35, wallTop + .2), a1 = v(8.3, -2.35, wallTop + .2), b0 = v(-.3, 0, ridge), b1 = v(8.3, 0, ridge), c0 = v(-.3, 2.35, wallTop + .2), c1 = v(8.3, 2.35, wallTop + .2);
+      Ia.push(a0, a1, b1, a0, b1, b0, c0, b0, b1, c0, b1, c1);
+      roofG.setAttribute('position', new T.Float32BufferAttribute(P, 3));roofG.setIndex(Ia);roofG.computeVertexNormals();
+      const roof = new T.Mesh(roofG, new T.MeshStandardMaterial({color: 0x56514c, roughness: .8, side: T.DoubleSide}));roof.castShadow = roof.receiveShadow = true;outside.add(roof);
+      for (const t of [-.05, 8.05]) {const ped = new T.BufferGeometry(), q = [], add = (w, y) => {const p = e.toLocal(t, w);q.push(p.x, y, p.s);};add(-2.12, wallTop + .22);add(2.12, wallTop + .22);add(0, ridge - .05);ped.setAttribute('position', new T.Float32BufferAttribute(q, 3));ped.setAttribute('uv', new T.Float32BufferAttribute([0, 0, 4, 0, 2, 1], 2));ped.computeVertexNormals();const m = new T.Mesh(ped, new T.MeshStandardMaterial({map: TX.masonry.map, color: 0xcfc5b3, roughness: .85, side: T.DoubleSide}));m.castShadow = true;outside.add(m);}
+      // The sign over the door, a stone skull in a niche above it, and the iron gate standing open.
+      const face = e.toLocal(-.03, 0), yaw = Math.atan2(-e.dir[0], -e.dir[1]);
+      const sign = new T.Mesh(new T.PlaneGeometry(1.9, .66), signMat(e));sign.position.set(face.x, top + 2.75, face.s);sign.rotation.y = yaw;outside.add(sign);
+      const stoneSkull = new T.Mesh(skullLo, new T.MeshStandardMaterial({color: 0xcfc5b3, roughness: .9}));const sk = e.toLocal(-.02, 0);stoneSkull.position.set(sk.x, wallTop + .32, sk.s);stoneSkull.rotation.y = yaw;stoneSkull.scale.setScalar(1.6);outside.add(stoneSkull);
+      const gate = new T.Group();for (let i = 0; i <= 7; i++) {const b = new T.Mesh(new T.BoxGeometry(.025, 2.2, .025), extIron);b.position.set(i * e.doorWidth / 7, 1.1, 0);gate.add(b);}
+      for (const y of [.12, 1.1, 2.15]) {const b = new T.Mesh(new T.BoxGeometry(e.doorWidth, .04, .03), extIron);b.position.set(e.doorWidth / 2, y, 0);gate.add(b);}
+      const hinge = e.toLocal(-.06, g0 - e.line);gate.position.set(hinge.x, top + .02, hinge.s);gate.rotation.y = yaw - 2.0;outside.add(gate);
+      // Door threshold rising from the ground to the landing (as walked), lit by the day.
+      const tc = L.cellOf(e.toLocal(1.5, 0).x, e.toLocal(1.5, 0).s).idx;
+      patch(chunkKey(tc), MAT.flags, 1, 4, (u, v2) => {const w = (u - .5) * e.doorWidth, t = v2, p = e.toLocal(t, w), d = e.toLocal(0, w), dw = world.toWorld(d.x, d.s), g = world.heightWorld(dw.x, dw.z);return {p: [p.x, g + (top - g) * t, p.s], uv: [w, t]};}, [0, 1, 0], tc, {flat: true, sky: 1});
+      // Iron lanterns either side of the door.
+      for (const w of [-1.45, 1.45]) {const p = e.toLocal(-.18, w), m = new T.Mesh(new T.BoxGeometry(.18, .3, .18), extIron);m.position.set(p.x, top + 2.15, p.s);outside.add(m);}
+    }
+    lib.mergeStatic(outside);
+    const doorGlows = L.entrances.map(e => {
+      const m = new T.Mesh(new T.PlaneGeometry(e.doorWidth + .2, 2.5), new T.MeshBasicMaterial({color: 0xe4ecf2, fog: false})), p = e.toLocal(-.25, 0);
+      m.position.set(p.x, e.top + 1.15, p.s);m.rotation.y = Math.atan2(e.dir[0], e.dir[1]);m.visible = false;group.add(m);return m;
+    });
+
+    // ---------- Build the meshes ----------
+    const chunkGroups = [];
+    for (const ch of chunks.values()) {
+      const g = new T.Group();g.name = 'Catacomb ' + ch.key;const entrance = ch.key[0] === 'e';
+      for (const [mat, b] of ch.mats) {
+        if (!b.idx.length) continue;
+        const geo = new T.BufferGeometry();
+        geo.setAttribute('position', new T.Float32BufferAttribute(b.pos, 3));geo.setAttribute('normal', new T.Float32BufferAttribute(b.nrm, 3));geo.setAttribute('uv', new T.Float32BufferAttribute(b.uv, 2));
+        geo.setAttribute('bake', new T.Float32BufferAttribute(b.bake, 3));geo.setAttribute('bakeDir', new T.Float32BufferAttribute(b.dir, 3));geo.setAttribute('bakeX', new T.Float32BufferAttribute(b.x, 2));
+        geo.setIndex(b.idx);geo.computeBoundingSphere();geo.computeBoundingBox();
+        const m = new T.Mesh(geo, mat);m.castShadow = entrance && !mat.transparent;m.receiveShadow = entrance;m.renderOrder = mat.transparent ? 2 : 0;g.add(m);
+        const bb = geo.boundingBox;for (let i = 0; i < 3; i++) {ch.min[i] = Math.min(ch.min[i], bb.min.getComponent(i));ch.max[i] = Math.max(ch.max[i], bb.max.getComponent(i));}
+      }
+      // Skulls and femurs, instanced in three levels of detail: the HI_CAP nearest within 3.5 m in full detail (picked as you
+      // move; they are hidden in the light set meanwhile), the rest of a near chunk light, far chunks lighter still.
+      const inst = (list, hi, lo, far, place) => {
+        if (!list.length) return null;
+        const n = list.length, ib = new Float32Array(n * 3), id = new Float32Array(n * 3), ix = new Float32Array(n * 2), mats = new Float32Array(n * 16);
+        list.forEach((q, i) => {const l = lightAt(q.x, q.s, q.y + .09, q.n ? q.n[0] : 0, q.n ? q.n[1] : 1, q.n ? q.n[2] : 0, q.cell);ib.set(l.slice(0, 3), i * 3);id.set(l.slice(3, 6), i * 3);ix[i * 2 + 1] = l[6];place(q).toArray(mats, i * 16);});
+        const shared = [new T.InstancedBufferAttribute(ib, 3), new T.InstancedBufferAttribute(id, 3), new T.InstancedBufferAttribute(ix, 2)];
+        const make = (src, cap, attrs) => {
+          const geo = new T.BufferGeometry();for (const [k, a] of Object.entries(src.attributes)) geo.setAttribute(k, a);geo.setIndex(src.index);
+          ['ibake', 'ibakeDir', 'ibakeX'].forEach((k, i) => geo.setAttribute(k, attrs[i]));
+          const im = new T.InstancedMesh(geo, SKULL_MAT, cap);if (cap === n) {im.instanceMatrix.array.set(mats);im.computeBoundingSphere();}im.instanceMatrix.needsUpdate = true;return im;
+        };
+        const lo2 = make(lo, n, shared), far2 = make(far, n, shared), hi2 = make(hi, HI_CAP, [new T.InstancedBufferAttribute(new Float32Array(HI_CAP * 3), 3), new T.InstancedBufferAttribute(new Float32Array(HI_CAP * 3), 3), new T.InstancedBufferAttribute(new Float32Array(HI_CAP * 2), 2)]);
+        hi2.count = 0;hi2.frustumCulled = false;far2.visible = false;g.add(hi2, lo2, far2);
+        return {hi: hi2, lo: lo2, far: far2, list, mats, ib, id, ix, promoted: [], key: ''};
+      };
+      const skullM = q => M4(q.x, q.y, q.s, q.yaw, 1, 1, 1, q.tilt || 0, q.roll || 0);
+      ch.skullSets = [inst(ch.skulls.filter(q => !q.jaw), skullHi, skullLo, skullFar, skullM), inst(ch.skulls.filter(q => q.jaw), jawHi, jawLo, jawFar, skullM), inst(ch.femurs, femurHi, femurLo, femurFar, q => M4(q.x, q.y, q.s, q.yaw))].filter(Boolean);
+      ch.group = g;ch.entrance = entrance;g.visible = false;group.add(g);chunkGroups.push(ch);
+    }
+    // ---------- Flames: one instanced quad per torch and candle, drawn as a flickering flame with a glow ----------
+    const flameGeo = new T.InstancedBufferGeometry();flameGeo.setAttribute('position', new T.Float32BufferAttribute([-.5, -.2, 0, .5, -.2, 0, .5, .8, 0, -.5, .8, 0], 3));flameGeo.setIndex([0, 1, 2, 0, 2, 3]);
+    flameGeo.setAttribute('iPos', new T.InstancedBufferAttribute(new Float32Array(flames.flatMap(f => [f.x, f.y, f.s])), 3));flameGeo.setAttribute('iSize', new T.InstancedBufferAttribute(new Float32Array(flames.map(f => f.size)), 1));flameGeo.setAttribute('iPhase', new T.InstancedBufferAttribute(new Float32Array(flames.map(f => f.phase)), 1));
+    flameGeo.instanceCount = flames.length;
+    const flameMat = new T.ShaderMaterial({transparent: true, depthWrite: false, blending: T.AdditiveBlending, uniforms: {uTime: {value: 0}},
+      vertexShader: `attribute vec3 iPos;attribute float iSize;attribute float iPhase;varying vec2 vUv;varying float vPhase;varying float vFade;
+        void main() {vec4 mv = modelViewMatrix * vec4(iPos, 1.0);float sz = iSize * .42;mv.xy += position.xy * vec2(sz, sz * 1.15);vUv = vec2(position.x * 2.0, (position.y + .2));vPhase = iPhase;vFade = smoothstep(36.0, 22.0, -mv.z);gl_Position = projectionMatrix * mv;}`,
+      fragmentShader: `uniform float uTime;varying vec2 vUv;varying float vPhase;varying float vFade;
+        float h(vec2 p) {return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);}
+        float n(vec2 p) {vec2 i = floor(p), f = fract(p);f = f * f * (3.0 - 2.0 * f);return mix(mix(h(i), h(i + vec2(1, 0)), f.x), mix(h(i + vec2(0, 1)), h(i + vec2(1, 1)), f.x), f.y);}
+        void main() {
+          float t = uTime * 1.0 + vPhase * 9.0, y = vUv.y;
+          float wob = (n(vec2(y * 3.0 - t * 2.2, vPhase * 7.0)) - .5) * .5 * y + (n(vec2(t * 1.3, vPhase)) - .5) * .12;
+          float x = vUv.x + wob, w = .42 * pow(max(1.0 - y / .78, 0.0), .75) * smoothstep(-.02, .12, y);
+          float body = (1.0 - smoothstep(.0, 1.0, abs(x) / max(w, .001))) * smoothstep(.85, .25, y + (n(vec2(x * 4.0, y * 5.0 - t * 4.0)) - .5) * .35);
+          vec3 col = mix(vec3(.9, .22, .03), vec3(1.0, .62, .18), smoothstep(.15, .7, body)) + vec3(1.0, .95, .7) * smoothstep(.65, 1.0, body) * (1.0 - smoothstep(.2, .55, y));
+          float glow = exp(-length(vec2(vUv.x, (y - .22) * 1.3)) * 3.2) * .22;
+          gl_FragColor = vec4((col * body * 1.6 + vec3(1.0, .45, .12) * glow) * vFade, 1.0);
+        }`});
+    const flameMesh = new T.Mesh(flameGeo, flameMat);flameMesh.frustumCulled = false;flameMesh.renderOrder = 3;group.add(flameMesh);
+
+    // ---------- Collision ----------
+    const toWorld = (x, s) => world.toWorld(x, s);
+    const extra = obstaclesLocal.map(o => ({points: o.pts.map(([x, s]) => toWorld(x, s)), minY: o.minY, maxY: o.maxY, kind: 'catacomb'}));
+    const floors = L.floors(toWorld, world.toLocal), obstacles = [...L.obstacles(toWorld), ...extra], vehicleObstacles = L.vehicleObstacles(toWorld);
+    const cutsGround = (x, z) => {const l = world.toLocal(x, z);return L.cutsGround(l.x, l.s);};
+
+    // ---------- Light level per cell (is it dark here?) ----------
+    const cellLight = new Float32Array(NX * NS);for (let c = 0; c < NX * NS; c++) if (L.walkable(c)) {const p = L.centre(c % NX, Math.floor(c / NX)), l = lightAt(p.x, p.s, L.floorAt(c, p.x, p.s) + 1.2, null, 0, 0, c);cellLight[c] = l[0] + l[1] + l[2] + skyAt(c, p.x, p.s) * 6;}
+    // Torch-lit cells are mostly above 0.45, the dark tunnels below 0.04.
+    const DARK_BELOW = .15;
+
+    // ---------- Discovery (the map underground) ----------
+    let saved = null;try {saved = localStorage.getItem(SAVE_KEY);} catch {}
+    const explorer = CL.explorer(L, saved);let savedCount = explorer.count, saveT = 0, revealT = 0, dirty = true;
+    const save = () => {try {localStorage.setItem(SAVE_KEY, explorer.save());} catch {}savedCount = explorer.count;};
+
+    // ---------- Your torch ----------
+    const lamp = {on: false, level: 0};
+    function toggleLamp(on = !lamp.on) {lamp.on = on;if (audio) audio.sfx('click');return lamp.on;}
+
+    // ---------- Sounds: dripping water, a low hum of the earth, torches crackling ----------
+    let snd = null, dripT = 1;
+    function sounds(dt, depth, torchNear) {
+      const ctx = audio && audio.context;if (!ctx) return;
+      if (!snd) {
+        const out = ctx.createGain();out.gain.value = 0;out.connect(ctx.destination);
+        const len = ctx.sampleRate * 2, buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);let b = 0;for (let i = 0; i < len; i++) {b = b * .985 + (Math.random() * 2 - 1) * .1;d[i] = b;}
+        const hum = ctx.createBufferSource();hum.buffer = buf;hum.loop = true;const lp = ctx.createBiquadFilter();lp.type = 'lowpass';lp.frequency.value = 160;const hg = ctx.createGain();hg.gain.value = .5;hum.connect(lp).connect(hg).connect(out);hum.start();
+        const wbuf = ctx.createBuffer(1, len, ctx.sampleRate), w = wbuf.getChannelData(0);for (let i = 0; i < len; i++) w[i] = (Math.random() * 2 - 1) * (Math.random() < .004 ? 1 : .08);
+        const crack = ctx.createBufferSource();crack.buffer = wbuf;crack.loop = true;const bp = ctx.createBiquadFilter();bp.type = 'bandpass';bp.frequency.value = 2400;bp.Q.value = .6;const cg = ctx.createGain();cg.gain.value = 0;crack.connect(bp).connect(cg).connect(out);crack.start();
+        const echo = ctx.createDelay(1);echo.delayTime.value = .19;const fb = ctx.createGain();fb.gain.value = .38;echo.connect(fb).connect(echo);echo.connect(out);
+        snd = {out, cg, echo};
+      }
+      const t = ctx.currentTime;snd.out.gain.setTargetAtTime(depth * .35, t, .4);snd.cg.gain.setTargetAtTime(torchNear * .6, t, .2);
+      if (depth > .5 && (dripT -= dt) <= 0) {
+        dripT = 1.2 + Math.random() * 4;const o = ctx.createOscillator(), g = ctx.createGain(), f = 900 + Math.random() * 1700;
+        o.frequency.setValueAtTime(f, t);o.frequency.exponentialRampToValueAtTime(f * .45, t + .09);g.gain.setValueAtTime(0, t);g.gain.linearRampToValueAtTime(.12 + Math.random() * .1, t + .004);g.gain.exponentialRampToValueAtTime(.001, t + .16);
+        o.connect(g);g.connect(snd.out);g.connect(snd.echo);o.start(t);o.stop(t + .2);
+      }
+    }
+
+    // Full-detail skulls: the nearest ones within 3.5 m of the camera move to the detailed set, and are hidden in the light one.
+    function promote(set, cl, cy) {
+      const near = [];
+      if (cl) for (let i = 0; i < set.list.length; i++) {const q = set.list[i], d = Math.hypot(q.x - cl.x, q.y - cy, q.s - cl.s);if (d < 3.5) near.push([d, i]);}
+      const want = near.sort((a, b) => a[0] - b[0]).slice(0, HI_CAP).map(n => n[1]), key = want.join();if (key === set.key) return;set.key = key;
+      const lo = set.lo.instanceMatrix.array, h = set.hi, ha = h.geometry.attributes;
+      for (const i of set.promoted) lo.set(set.mats.subarray(i * 16, i * 16 + 16), i * 16);
+      for (const i of want) lo.fill(0, i * 16, i * 16 + 16);
+      want.forEach((i, k) => {h.instanceMatrix.array.set(set.mats.subarray(i * 16, i * 16 + 16), k * 16);ha.ibake.array.set(set.ib.subarray(i * 3, i * 3 + 3), k * 3);ha.ibakeDir.array.set(set.id.subarray(i * 3, i * 3 + 3), k * 3);ha.ibakeX.array.set(set.ix.subarray(i * 2, i * 2 + 2), k * 2);});
+      h.count = want.length;set.promoted = want;set.lo.instanceMatrix.needsUpdate = h.instanceMatrix.needsUpdate = ha.ibake.needsUpdate = ha.ibakeDir.needsUpdate = ha.ibakeX.needsUpdate = true;
+    }
+    // ---------- Update ----------
+    let visT = 0, flickT = 0, last = {depth: 0, deep: false, inside: false, dark: false, cell: -1};
+    const fl = [1, 1, 1, 1], flTarget = [1, 1, 1, 1];
+    function update(dt, {camera, player}) {
+      const lp = world.toLocal(player.x, player.z), cell = L.cellOf(lp.x, lp.s), depth = L.depth(lp.x, lp.s, player.feet), deep = L.deep(lp.x, lp.s, player.feet), inside = L.inside(lp.x, lp.s, player.feet);
+      const dark = inside && !!cell && cellLight[cell.idx] < DARK_BELOW;
+      // Flames and their light flicker in four groups.
+      flameMat.uniforms.uTime.value += dt;flickT -= dt;if (flickT <= 0) {flickT = .07;for (let i = 0; i < 4; i++) flTarget[i] = .82 + Math.random() * .3;}
+      for (let i = 0; i < 4; i++) fl[i] += (flTarget[i] - fl[i]) * Math.min(1, dt * 14);U.uFlick.value.set(fl[0], fl[1], fl[2], fl[3]);
+      if (lamp.on && depth <= 0 && !inside) lamp.on = false;
+      lamp.level += ((lamp.on ? 1 : 0) - lamp.level) * Math.min(1, dt * 12);U.uLamp.value.w = lamp.level < .01 ? 0 : lamp.level * 40;
+      // Chunks near the camera are drawn; on the surface only the stairs (they show through the mausoleum doors).
+      visT -= dt;if (visT <= 0) {
+        visT = .25;const cl = world.toLocal(camera.position.x, camera.position.z), cy = camera.position.y, under = L.inside(cl.x, cl.s, cy - 1.5) || depth > 0;
+        for (const ch of chunkGroups) {
+          const dx = Math.max(ch.min[0] - cl.x, 0, cl.x - ch.max[0]), dy = Math.max(ch.min[1] - cy, 0, cy - ch.max[1]), ds = Math.max(ch.min[2] - cl.s, 0, cl.s - ch.max[2]), d = Math.hypot(dx, dy, ds);
+          ch.group.visible = ch.entrance ? d < 70 : under && d < 38;
+          if (ch.group.visible) for (const s of ch.skullSets) {const near = d < 8;s.lo.visible = s.hi.visible = near;s.far.visible = !near;promote(s, d < 5 ? cl : null, cy);}
+        }
+      }
+      // Deep down the world above is not drawn: daylight in the far-off doorways is a bright quad instead.
+      const cl = world.toLocal(camera.position.x, camera.position.z), camDeep = L.deep(cl.x, cl.s, camera.position.y - 1.6);
+      for (const g of doorGlows) g.visible = camDeep;
+      if (inside) {revealT -= dt;if (revealT <= 0) {revealT = .2;const r = !dark ? 13 : lamp.on ? 11 : 3.5;if (explorer.reveal(lp.x, lp.s, r)) dirty = true;}}
+      saveT -= dt;if (saveT <= 0 && explorer.count !== savedCount) {saveT = 2;save();}
+      let torchNear = 0;if (depth > 0) for (const t of torches) {const d = Math.hypot(t.x - lp.x, t.s - lp.s);if (d < 6) torchNear = Math.max(torchNear, 1 - d / 6);}
+      sounds(dt, depth, torchNear);
+      last = {depth, deep, camDeep, inside, dark, cell: cell ? cell.idx : -1};return last;
+    }
+    function prompt() {
+      if (!last.inside || !last.dark || lamp.on) return null;
+      return {text: '□ / L1  Switch on your torch – it is dark down here', act: () => toggleLamp(true)};
+    }
+    function placeName(player) {
+      const lp = world.toLocal(player.x, player.z);if (!L.inside(lp.x, lp.s, player.feet)) return null;
+      const c = L.cellOf(lp.x, lp.s), r = c && L.roomOf[c.idx] >= 0 ? L.rooms[L.roomOf[c.idx]] : null;return r ? `${r.name}, the catacombs under Torshovdalen` : 'The catacombs under Torshovdalen';
+    }
+
+    // ---------- The map underground: only what you have seen ----------
+    let paths = null;
+    function buildPaths() {
+      const lit = new Path2D(), dark = new Path2D(), stair = new Path2D(), walls = new Path2D();
+      for (let c = 0; c < NX * NS; c++) {
+        if (!explorer.seen[c]) continue;const B = cellBox(c), p = L.stairOf[c] >= 0 ? stair : L.isDark(c) ? dark : lit;p.rect(B.x0, B.s0, CELL, CELL);
+        const o = L.open(c);for (let k = 0; k < 4; k++) if (!o[k]) {const E = edgeOf(c, k);walls.moveTo(E.a[0], E.a[1]);walls.lineTo(E.b[0], E.b[1]);}
+      }
+      paths = {lit, dark, stair, walls};dirty = false;
+    }
+    const mapLayer = {
+      draw(ctx, {P, k, w, h, dpr = 1, rotation = 0, player}) {
+        if (dirty || !paths) buildPaths();
+        ctx.fillStyle = '#0d0b09';ctx.fillRect(0, 0, w, h);
+        const o = P(0, 0), ex = P(1, 0), es = P(0, 1);
+        ctx.save();ctx.transform(ex[0] - o[0], ex[1] - o[1], es[0] - o[0], es[1] - o[1], o[0], o[1]);
+        ctx.fillStyle = '#c2ab80';ctx.fill(paths.lit);ctx.fillStyle = '#7d6c55';ctx.fill(paths.dark);ctx.fillStyle = '#9b927f';ctx.fill(paths.stair);
+        ctx.strokeStyle = '#2b2118';ctx.lineWidth = Math.max(.25, 2 * dpr / k);ctx.lineCap = 'round';ctx.stroke(paths.walls);
+        ctx.restore();
+        // Text sits a few pixels above its point on screen (the minimap is turned, so offsets are in pixels, not metres).
+        const label = (x, s, text, color = '#f2e6cc', size = 12, up = 0) => {const [u, v] = P(x, s);ctx.font = `bold ${size * dpr}px system-ui, sans-serif`;ctx.textAlign = 'center';ctx.lineWidth = 3 * dpr;ctx.strokeStyle = '#0d0b09';ctx.strokeText(text, u, v - up * dpr);ctx.fillStyle = color;ctx.fillText(text, u, v - up * dpr);};
+        for (const t of torches) if (explorer.seen[t.cell]) {const [u, v] = P(t.x, t.s);ctx.fillStyle = '#ff8a2a';ctx.beginPath();ctx.arc(u, v, 2.4 * dpr, 0, 7);ctx.fill();}
+        const big = w > 300;// the full map; the minimap gets no names
+        if (big && k > .9 * dpr) for (const r of L.rooms) if (!r.entrance && roomCells(r).some(c => explorer.seen[c])) label(r.cx, r.cs, r.name, '#f2e6cc', 11);
+        // The three ways out are always marked (you know where the mausoleums are).
+        for (const e of L.entrances) {
+          const p = e.toLocal(1.5, 0), [u, v] = P(p.x, p.s);ctx.fillStyle = '#3b2f2f';ctx.beginPath();ctx.arc(u, v, 10 * dpr, 0, 7);ctx.fill();ctx.strokeStyle = '#f2e6cc';ctx.lineWidth = 2 * dpr;ctx.stroke();
+          ctx.fillStyle = '#f2e6cc';ctx.font = `bold ${12 * dpr}px system-ui`;ctx.textAlign = 'center';ctx.textBaseline = 'middle';ctx.fillText('↑', u, v + .5);ctx.textBaseline = 'alphabetic';if (big) label(p.x, p.s, `${e.label} exit`, '#f2e6cc', 12, 15);
+        }
+        const arrow = (x, z, a, color, size, name) => {const l = world.toLocal(x, z), [u, v] = P(l.x, l.s), r = size * dpr;ctx.save();ctx.translate(u, v);ctx.rotate(a + rotation);ctx.fillStyle = color;ctx.beginPath();ctx.moveTo(0, -r * 1.4);ctx.lineTo(r, r);ctx.lineTo(0, r * .45);ctx.lineTo(-r, r);ctx.closePath();ctx.fill();ctx.strokeStyle = '#fff';ctx.lineWidth = 2;ctx.stroke();ctx.restore();if (name) label(l.x, l.s, name, '#fff', 11, 16);};
+        // Other players: only those down here too.
+        for (const p of (player && player.others) || []) {const l = world.toLocal(p.x, p.z);if (p.y !== undefined && L.inside(l.x, l.s, p.y)) arrow(p.x, p.z, p.headingLocal, p.color, 7, p.name);}
+        if (player) arrow(player.x, player.z, player.headingLocal, '#4fa3ff', 8);
+        if (w > 300) {
+          ctx.fillStyle = '#f2e6cc';ctx.font = `bold ${15 * dpr}px Georgia, serif`;ctx.textAlign = 'left';ctx.fillText('The catacombs', 20 * dpr, 30 * dpr);
+          ctx.font = `${12 * dpr}px system-ui`;ctx.fillText(`The map shows only what you have seen down here · ${Math.min(100, Math.round(explorer.count / countWalk * 100))} % explored`, 20 * dpr, 48 * dpr);
+          ctx.fillStyle = '#a89a80';ctx.fillText('Left stick / drag: pan · right stick / wheel: zoom · ○ / M: close', 20 * dpr, 66 * dpr);
+          const bar = 20 * k;ctx.fillRect(20 * dpr, h - 30 * dpr, bar, 4 * dpr);ctx.fillText('20 m', 20 * dpr, h - 38 * dpr);
+        }
+      }
+    };
+    let countWalk = 0;for (let c = 0; c < NX * NS; c++) if (L.walkable(c)) countWalk++;
+    const poi = () => L.entrances.map(e => {const d = e.toLocal(-1.5, 0);return {x: d.x, s: d.s, color: '#3b2f2f', label: `Catacomb (${e.label.toLowerCase()} entrance)`, glyph: '☠'};});
+    return {group, layout: L, floors, obstacles, vehicleObstacles, cutsGround, poi, update, prompt, toggleLamp, lamp, mapLayer, placeName, explorer, cellLight, flames: flameMesh, chunks: chunkGroups,
+      get state() {return last;}, hall: id => {const r = room('hall-' + id);return world.toWorld(r.cx, r.cs);}, FLOOR_Y};
+  }
+  return {create};
 });
 </script><script>/* Key buildings of the district patches (issue #38, 2 Nov 2026: "You have to implement some of the key buildings").
  * Each stands on its real OpenStreetMap footprint (tools/make-district.py):
@@ -11157,7 +12816,9 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
     PB_DATA && {x0: PB_DATA.rect.x0 - 1, s0: PB_DATA.rect.s0 - 1, x1: PB_DATA.rect.x0 + PB_DATA.rect.w + 1, s1: PB_DATA.rect.s0 + PB_DATA.rect.d + 1},
     // The yard's own floor and retaining walls replace the ground there: without this cut the hillside was drawn through the
     // yard, up to 4.6 m above the floor, and players on it looked as if they were under the ground (issue #26).
-    PB_DATA && {x0: PB_DATA.rect.x0, s0: PB_DATA.rect.s0, x1: PB_DATA.rect.x0 + PB_DATA.rect.w, s1: PB_DATA.rect.s0 + PB_DATA.rect.d, cutGround: true}].filter(Boolean);
+    PB_DATA && {x0: PB_DATA.rect.x0, s0: PB_DATA.rect.s0, x1: PB_DATA.rect.x0 + PB_DATA.rect.w, s1: PB_DATA.rect.s0 + PB_DATA.rect.d, cutGround: true},
+    // The catacomb's three mausoleums stand over holes in the ground (their stairs start inside, issue #43).
+    ...(window.CatacombLayout ? window.CatacombLayout.holes() : [])].filter(Boolean);
   // District patches beyond the old square (issue #38): Gamle Oslo, Ensjø and the way there, with its key buildings.
   const DISTRICTS = window.District ? (window.DISTRICTS || []).map(d => window.District.decode(d)) : [];
   // Grünerløkka (issues #44, #45): Deichman Grünerløkka draws its own building, Rathkes gate 1 gets the passage to its
@@ -11168,6 +12829,8 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
   const world = window.Surroundings.create({T, lib, data: D, renderer, holes, districts: DISTRICTS, onStatus: t => {const el = $('imageryStatus');if (el) el.textContent = t;}});
   scene.add(world.near);farScene.add(world.far);world.setSun(sunDir);
   const landmarks = window.GameLandmarks ? window.GameLandmarks.create({T, lib, world}) : {obstacles: [], vehicleObstacles: [], floors: [], poi: []};
+  // The catacomb under Torshovdalen (issue #43): three mausoleums, long stairs, torch-lit bone galleries and dark quarry tunnels.
+  const catacomb = window.GameCatacomb ? window.GameCatacomb.create({T, lib, world, audio}) : null;if (catacomb) scene.add(catacomb.group);
   // Grünerløkka (issues #44, #45, #47): the library with its books and the librarian, table tennis in the park at Schous plass,
   // the gate and backyard of Rathkes gate 1 (for the coming flat 1C) and kayaking down Akerselva from three put-ins.
   const library = window.GameLibrary && DISTRICTS.length ? window.GameLibrary.create({T, lib, world, audio, root: view}) : null;
@@ -11250,10 +12913,11 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
     {const y = gym.ground(x, z);if (y !== null) return y;}// the climbing hall's floor (the terrain model rises through the building)
     return world.heightWorld(x, z);
   }
-  const groundFloors = world.terrainFloors().map(f => ({...f, height: p => groundAt(p.x, p.z)}));
-  const extraObstacles = [...(siteField ? window.GameSite.fenceObstacles(siteField, groundAt) : []), ...(pbRules ? pbRules.obstacles : [])];
+  // Inside a catacomb mausoleum the ground is not walked on: its door threshold, landing and stair take over (far below = no floor).
+  const groundFloors = world.terrainFloors().map(f => ({...f, height: p => catacomb && catacomb.cutsGround(p.x, p.z) ? -1e4 : groundAt(p.x, p.z)}));
+  const extraObstacles = [...(siteField ? window.GameSite.fenceObstacles(siteField, groundAt) : []), ...(pbRules ? pbRules.obstacles : []), ...(catacomb ? catacomb.obstacles : [])];
   const staticObstacles = [...apt.obstacles, ...towers.flatMap(towerObstacles), ...world.obstacles(), ...fire.obstacles, ...stash.obstacles, ...shops.obstacles, ...sculpture.obstacles, ...oksen.obstacles, ...gym.obstacles, ...extraObstacles, ...landmarks.obstacles];
-  const walkFloors = [...apt.floors, ...towers.flatMap(towerFloors), ...shops.floors, ...sculpture.floors, ...oksen.floors, ...landmarks.floors, ...gym.floors, ...groundFloors];
+  const walkFloors = [...apt.floors, ...towers.flatMap(towerFloors), ...shops.floors, ...sculpture.floors, ...oksen.floors, ...landmarks.floors, ...gym.floors, ...(catacomb ? catacomb.floors : []), ...groundFloors];
   staticObstacles.push(...grl.flatMap(m => m.obstacles || []));walkFloors.unshift(...grl.flatMap(m => m.floors || []));
   const walkWorld = collision.createWorld({floors: walkFloors, obstacles: staticObstacles, radius: .18, clearance: .08});
   const vehicleWorlds = new Map();
@@ -11261,7 +12925,7 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
   function worldFor(r) {
     const key = r.toFixed(2);
     if (!vehicleWorlds.has(key)) {
-      const w = collision.createWorld({floors: groundFloors, obstacles: [...grl.flatMap(m => m.obstacles || []), ...landmarks.obstacles, ...landmarks.vehicleObstacles, ...world.obstacles(), ...towers.flatMap(towerObstacles), ...fire.obstacles, ...shops.obstacles, ...sculpture.obstacles, ...oksen.obstacles, ...gym.obstacles, ...extraObstacles], radius: r, clearance: .08});
+      const w = collision.createWorld({floors: groundFloors, obstacles: [...grl.flatMap(m => m.obstacles || []), ...landmarks.obstacles, ...landmarks.vehicleObstacles, ...world.obstacles(), ...towers.flatMap(towerObstacles), ...fire.obstacles, ...shops.obstacles, ...sculpture.obstacles, ...oksen.obstacles, ...gym.obstacles, ...extraObstacles, ...(catacomb ? catacomb.vehicleObstacles : [])], radius: r, clearance: .08});
       // A world made during play (e.g. the bike's on its first ride) gets the other vehicles at once, not one update later.
       if (vehicleBlockers) collision.setDynamic(w, vehicleBlockers);
       vehicleWorlds.set(key, w);
@@ -11467,6 +13131,7 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
     ...landmarks.poi, ...(route ? route.poi() : []),
     ...grl.flatMap(m => m.poi ? m.poi() : []),
     ...DISTRICTS.flatMap(d => d.stations).map(st => ({x: st.x, s: st.s, color: '#e65100', label: `${st.name} T`, glyph: 'T'})),
+    ...(catacomb ? catacomb.poi() : []),
   ]});
   // Wristwatch (D-pad ↑) shares the first-person overlay with the photo camera.
   const watch = window.GameWatch.create({T, lib});overlayScene.add(watch.model);
@@ -11515,6 +13180,7 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
     if (Math.hypot(player.x - MISSION_MARK.x, player.z - MISSION_MARK.z) < 1.6 && Math.abs(player.feet - world.heightWorld(MISSION_MARK.x, MISSION_MARK.z)) < 2) return {text: '□ Start mission: rescue the hostage (4th floor)', act: () => startMission()};
     const cp = gymPrompt();if (cp) return cp;
     {const rp = route && route.prompt(player);if (rp) return rp;}
+    {const cp = catacomb && player.mode === 'foot' ? catacomb.prompt() : null;if (cp) return cp;}
     const shp = shopPrompt();if (shp) return shp;
     const grp = grunerPrompt();if (grp) return grp;
     const fp = firePrompt();if (fp) return fp;
@@ -11935,7 +13601,7 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
     const np = music.position();$('nowPlaying').textContent = np ? `${np.title} (${Math.floor(np.length / 60)}:${String(Math.round(np.length % 60)).padStart(2, '0')} loop)` : '–';
   }
   $('musicVol').oninput = e => {music.setVolume(+e.target.value);renderSettings();};
-  function musicTrack() {if (caseGame?.active) return 'mission';if (player.mode === 'minigame') return player.minigame.music || (discCourses.includes(player.minigame) ? 'discgolf' : 'petanque');return 'main';}
+  function musicTrack() {if (caseGame?.active) return 'mission';if (catacomb?.state.inside) return null;if (player.mode === 'minigame') return player.minigame.music || (discCourses.includes(player.minigame) ? 'discgolf' : 'petanque');return 'main';}
   $('sensPad').oninput = e => {setSens('pad', +e.target.value);renderSettings();};$('sensMouse').oninput = e => {setSens('mouse', +e.target.value);renderSettings();};
   $('minimapOn').onchange = e => {map.minimap = e.target.checked;};
   $('imagery').onchange = e => {try {localStorage.setItem('haarklous-aerial-imagery-v1', e.target.checked ? 'on' : 'off');} catch {}world.setImagery(e.target.checked);};
@@ -11976,6 +13642,7 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
       // The button that left the mission (○, ✕ …) must not also crouch or jump.
       if (!caseGame.active) {player.mode = 'foot';['circle', 'cross', 'square', 'options'].forEach(b => input.pressed.delete(b));}
     }
+    if (catacomb) catacombTick(dt, input);
     if (input.pressed.has('touchpad') && !caseGame?.active) map.toggle(player);
     if (map.open) {
       if (input.pressed.has('circle')) map.toggle();
@@ -12051,7 +13718,7 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
     renderFrame(dt, t);
   }
   // The other players' arrows on the map and the minimap (their slot colour and name).
-  const lobbyArrows = () => mp ? [...mp.remotes.values()].filter(r => r.seen).map(r => ({x: r.pos.x, z: r.pos.z, headingLocal: -(r.yaw - theta), color: window.GameAvatars.slotCss(r.slot), name: r.name})) : [];
+  const lobbyArrows = () => mp ? [...mp.remotes.values()].filter(r => r.seen).map(r => ({x: r.pos.x, z: r.pos.z, y: r.pos.y, headingLocal: -(r.yaw - theta), color: window.GameAvatars.slotCss(r.slot), name: r.name})) : [];
   // Minimap (issue #42) and the waypoint pin (issue #41): centred on you (on the drone while you fly it), turned with the camera.
   const camDir = new T.Vector3();
   function updateGuide(dt) {
@@ -12060,7 +13727,7 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
     const alt = player.mode === 'drone' || player.mode === 'skydive' || player.vehicle?.aircraft ? camera.position.y - groundAt(at.x, at.z) : 0;
     if (map.guide({dt, camera, x: at.x, z: at.z, you: player, heading, view, alt, others: lobbyArrows(), ground: groundAt, show: !photo.active}) === 'reached') notice('Waypoint reached.', 2.5);
   }
-  function placeName() {if (inApartment()) return 'Haarklous plass 17A, 4th floor';{const z = gym.zoneAt(player, player.feet);if (z) return `Klatreverket Torshov, ${gym.ZONE_NAME[z]}`;}const tw = towerAt(player.x, player.z, player.feet);if (tw) return tw.t.own ? 'Stairwell, Haarklous plass 17A' : 'Stairwell, Torshov';
+  function placeName() {if (inApartment()) return 'Haarklous plass 17A, 4th floor';{const c = catacomb && catacomb.placeName(player);if (c) return c;}{const z = gym.zoneAt(player, player.feet);if (z) return `Klatreverket Torshov, ${gym.ZONE_NAME[z]}`;}const tw = towerAt(player.x, player.z, player.feet);if (tw) return tw.t.own ? 'Stairwell, Haarklous plass 17A' : 'Stairwell, Torshov';
     // In a district patch: the nearest mapped neighbourhood (Ensjø, Kampen, Vålerenga, Gamlebyen …).
     const l = world.toLocal(player.x, player.z);if (Math.abs(l.x) > world.playHalf || Math.abs(l.s) > world.playHalf) {const near = DISTRICTS.flatMap(d => d.places).sort((a, b) => Math.hypot(a.x - l.x, a.s - l.s) - Math.hypot(b.x - l.x, b.s - l.s))[0];if (near) return `${near.name}, Oslo`;}
     return 'Torshov, Oslo';}
@@ -12110,7 +13777,7 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
     else if (gym.zoneAt(player, player.feet)) {const f = collision.supportAt(walkWorld, player, player.feet)?.floor;surface = f?.surfaceKind === 'mat' ? 'sand' : f?.surfaceKind === 'metal' ? 'metal' : 'tile';stair = f?.surfaceKind === 'metal';}
     else if (library && library.inside(player.x, player.z, player.feet)) surface = 'wood';
     else if (inApartment()) {const r = roomAt();surface = r === 'bath' ? 'tile' : r ? 'wood' : 'metal';}
-    else if (towerAt(player.x, player.z, player.feet)) {surface = 'stone';stair = true;}
+    else if (towerAt(player.x, player.z, player.feet) || catacomb?.state.depth > 0) {surface = 'stone';stair = true;}
     else {const s = world.surfaceAt(player.x, player.z);surface = s === 'asphalt' ? 'asphalt' : s === 'gravel' ? 'gravel' : s === 'sand' ? 'sand' : 'grass';}
     audio.footstep(surface, stair, soft);
   }
@@ -12583,12 +14250,33 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
     if (r.camera) {camera.position.set(r.camera.x, r.camera.y, r.camera.z);camera.lookAt(r.camera.lookAt);}
     else {camera.position.set(player.x, player.feet + player.eye, player.z);camera.rotation.order = 'YXZ';camera.rotation.set(player.pitch, player.yaw, 0);}
   }
+  // ---------- Catacomb (issue #43) ----------
+  // Underground the map shows only what you have seen down there; L1 / Q is your torch. Deep down (off the stairs) the world
+  // above, the far scene and the sun's shadows are not drawn, and the sun and sky are dimmed for anything not made for the dark.
+  let deepNow = false, deepSaved = null;
+  function catacombTick(dt, input) {
+    const st = catacomb.update(dt, {camera, player}), layer = st.inside ? catacomb.mapLayer : null;
+    // The tunnels are 2 m wide, so the map zooms in down here and back out above.
+    if (map.layer !== layer) {map.layer = layer;if (layer) {map.surfaceScale = map.scale;map.scale = Math.max(map.scale, 6);notice('The catacombs. Your map is blank down here – it fills in with what you see.', 5);} else if (map.surfaceScale) map.scale = map.surfaceScale;}
+    if (input.pressed.has('l1') && st.inside && player.mode === 'foot') notice(catacomb.toggleLamp() ? 'Torch on · L1 / Q switches it off' : 'Torch off', 2);
+    const deep = st.camDeep;
+    if (deep) {
+      if (!deepSaved) deepSaved = {fog: scene.fog.color.clone()};
+      if (sun.intensity > 0) {deepSaved.sun = sun.intensity;deepSaved.sky = sky.intensity;sun.intensity = 0;sky.intensity = deepSaved.sky * .15;}
+      scene.fog.color.setHex(0x0a0807);scene.fog.density = .045;
+    } else if (deepSaved) {
+      if (deepSaved.sun !== undefined) {sun.intensity = deepSaved.sun;sky.intensity = deepSaved.sky;}
+      scene.fog.color.copy(deepSaved.fog);deepSaved = null;applyNearFog();if (weather.state) applyWeather(weather.state);
+    }
+    // Eyes get used to the dark: more exposure deep down.
+    if (deep !== deepNow) {deepNow = deep;world.near.visible = !deep;renderer.shadowMap.autoUpdate = !deep;renderer.shadowMap.needsUpdate = true;renderer.toneMappingExposure = deep ? 1.6 : 1.05;}
+  }
   let weatherIndoor = false;
   function updateAmbience() {
-    const inApt = inFlat(), tw = towerAt(player.x, player.z, player.feet), indoor = inApt || tw || shops.shopAt(player, player.feet) || (library && library.inside(player.x, player.z, player.feet)) || gym.zoneAt(player, player.feet) ? 1 : player.mode === 'jumpseat' ? .6 : player.vehicle && player.vehicle.kind === 'car' ? .7 : player.vehicle && player.vehicle.aircraft ? .4 : 0;
+    const inApt = inFlat(), tw = towerAt(player.x, player.z, player.feet), under = catacomb?.state.depth > .3, indoor = inApt || tw || under || shops.shopAt(player, player.feet) || (library && library.inside(player.x, player.z, player.feet)) || gym.zoneAt(player, player.feet) ? 1 : player.mode === 'jumpseat' ? .6 : player.vehicle && player.vehicle.kind === 'car' ? .7 : player.vehicle && player.vehicle.aircraft ? .4 : 0;
     weatherIndoor = indoor >= 1 && player.mode !== 'drone';
     const skyAir = player.mode === 'skydive' && skyd.jumper ? Math.hypot(skyd.jumper.vel.x, skyd.jumper.vel.y, skyd.jumper.vel.z) : 0;const ws = weather.state, wet = ws && ['rain', 'sleet', 'snow'].includes(ws.kind) ? ws.intensity : 0;
-    audio.ambience({indoor, rain: ws && ws.kind === 'rain' ? wet : ws && ws.kind === 'sleet' ? wet * .6 : 0, windSpeed: Math.max(ws ? ws.wind : 4, skyAir), green: world.greenery(player.x, player.z), traffic: world.trafficDistance(player.x, player.z), height: Math.max(0, player.feet - heightAt(player.x, player.z)) + (inApt ? 10 : 0), stair: Boolean(tw), kitchen: inApt && roomAt() === 'kitchen'});
+    audio.ambience({indoor, rain: ws && ws.kind === 'rain' ? wet : ws && ws.kind === 'sleet' ? wet * .6 : 0, windSpeed: Math.max(ws ? ws.wind : 4, skyAir), green: world.greenery(player.x, player.z), traffic: world.trafficDistance(player.x, player.z), height: Math.max(0, player.feet - heightAt(player.x, player.z)) + (inApt ? 10 : 0), stair: Boolean(tw) || under, kitchen: inApt && roomAt() === 'kitchen'});
     // Stair-tower light follows the player into whichever stairwell they are in.
     if (tw) {const l = tw.t.stair.lampAt({x: tw.l.x, z: tw.l.z}, player.feet - tw.t.matrix.elements[13]);if (l) {const p = new T.Vector3(l.x, l.y, l.z).applyMatrix4(tw.t.matrix);towerLamp.position.copy(p);towerLamp.intensity = 5.5;}} else towerLamp.intensity = 0;
     if (!['vehicle', 'passenger', 'jumpseat', 'skydive', 'kayak'].includes(player.mode)) $('speedo').hidden = true;
@@ -12599,12 +14287,12 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
   const ghost = $('ghost'), gctx = ghost.getContext('2d');
   function renderFrame(dt, t, forPhoto = false) {
     // Sun shadow frustum follows the player (wide outdoors, tight indoors for crisp shadows).
-    const flying = player.mode === 'drone' || player.vehicle?.aircraft, indoor = !flying && (inApartment() || towerAt(player.x, player.z, player.feet) || !!gym.zoneAt(player, player.feet)), reach = indoor ? 16 : 42;
+    const flying = player.mode === 'drone' || player.vehicle?.aircraft, indoor = !flying && (inApartment() || towerAt(player.x, player.z, player.feet) || !!gym.zoneAt(player, player.feet) || catacomb?.state.inside), reach = indoor ? 16 : 42;
     if (flying) {const c = camera.position;sun.target.position.set(c.x, Math.max(heightAt(c.x, c.z), c.y - 25), c.z);} else sun.target.position.set(player.x, player.feet, player.z);sun.position.copy(sun.target.position).addScaledVector(sunDir, indoor ? 45 : 110);sun.target.updateMatrixWorld();
     if (sun.shadow.camera.right !== reach) {Object.assign(sun.shadow.camera, {left: -reach, right: reach, top: reach, bottom: -reach, near: 1, far: indoor ? 100 : 240});sun.shadow.camera.updateProjectionMatrix();}
     camera.updateMatrixWorld();
     farCamera.fov = camera.fov;farCamera.aspect = camera.aspect;farCamera.position.copy(camera.position);farCamera.quaternion.copy(camera.quaternion);farCamera.updateProjectionMatrix();farCamera.updateMatrixWorld();
-    renderer.autoClear = false;renderer.clear();renderer.render(farScene, farCamera);renderer.clearDepth();renderer.render(scene, camera);
+    renderer.autoClear = false;renderer.clear();if (!deepNow) renderer.render(farScene, farCamera);renderer.clearDepth();renderer.render(scene, camera);
     if (!forPhoto) {
       if (caseGame?.active) caseGame.renderOverlay(camera);
       else {const showWatch = watch.update(dt), showPhoto = photo.active && !photo.gallery;photo.model.visible = showPhoto;if (showPhoto || showWatch || paintball?.marker.visible) {renderer.clearDepth();renderer.render(overlayScene, overlayCamera);}}
@@ -12621,7 +14309,7 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
   }
 
   // ---------- Test / inspection handle ----------
-  window.haarklousGame = {player, vehicles, site, paintball, groundAt, heli, plane, drone, watch, fire, stash, shops, gym, startClimb, openGymMenu, startBelay, get belay() {return belay;}, sculpture, oksen, weather, caravan, get skyd() {return skyd;}, get autoPlane() {return autoPlane;}, get jumpFlight() {return jumpFlight;}, boardAuto, boardCaravan, jump, get gp() {return gp;}, callGamePilot, handOver, CARAVAN_HOLD, applyWeather, wallet, get basket() {return basket;}, payAt, takeProduct, useItem, earn, openBag, takeBoost, get boost() {return boost;}, set boost(b) {boost = b;}, get mp() {return mp;}, sitDown, standUp, tryDrive, tryRide, openChat, startDrone, stopDrone, floorBelow, doors, mini, music, photo, map, world, apt, towers, walkWorld, route, landmarks, districts: DISTRICTS, get caseGame() {return caseGame;}, place, toggleDoor, enterVehicle, exitVehicle, startMinigame, startMission, drink, interact, findPrompt, renderFrame, begin, get fps() {return fpsAvg;}, kick: () => requestAnimationFrame(frame), get drunk() {return drunk;}, set drunk(v) {drunk = v;}, setStance, camera, scene};
+  window.haarklousGame = {player, vehicles, site, paintball, catacomb, groundAt, heli, plane, drone, watch, fire, stash, shops, gym, startClimb, openGymMenu, startBelay, get belay() {return belay;}, sculpture, oksen, weather, caravan, get skyd() {return skyd;}, get autoPlane() {return autoPlane;}, get jumpFlight() {return jumpFlight;}, boardAuto, boardCaravan, jump, get gp() {return gp;}, callGamePilot, handOver, CARAVAN_HOLD, applyWeather, wallet, get basket() {return basket;}, payAt, takeProduct, useItem, earn, openBag, takeBoost, get boost() {return boost;}, set boost(b) {boost = b;}, get mp() {return mp;}, sitDown, standUp, tryDrive, tryRide, openChat, startDrone, stopDrone, floorBelow, doors, mini, music, photo, map, world, apt, towers, walkWorld, route, landmarks, districts: DISTRICTS, get caseGame() {return caseGame;}, place, toggleDoor, enterVehicle, exitVehicle, startMinigame, startMission, drink, interact, findPrompt, renderFrame, begin, get fps() {return fpsAvg;}, kick: () => requestAnimationFrame(frame), get drunk() {return drunk;}, set drunk(v) {drunk = v;}, setStance, camera, scene};
   Object.assign(window.haarklousGame, {library, pingpong, rathkes, kayak, startKayak, hushedFor: () => hushed});
   loading.remove();$('start').hidden = false;
   requestAnimationFrame(frame);

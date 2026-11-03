@@ -29,6 +29,48 @@ User goal: open world with normal walking as the base; pistol only in the hostag
 ### Player accounts (branch `feat/accounts`, 1 Nov 2026)
 Optional email + password login in the pause menu (`game-account.js`, wired in `game-main.js` next to the lobby code). Server: Better Auth 1.7 in the Worker (`cloud/src/auth.js`, one `pg` pool per request, passwords bcrypt-hashed by Postgres via pgcrypto to stay inside the Worker CPU limit). Database: Supabase project `sxhqirmecalxcnyojjki` (Ireland), schema `game_auth` (`cloud/sql/accounts.sql`, re-runnable with `npx supabase db query --linked --project-ref sxhqirmecalxcnyojjki -f sql/accounts.sql`). Access: Cloudflare Hyperdrive `haarklous-db` (cache off) as role `haarklous_worker`; `cloud/scripts/set-db-secret.mjs` rotates its password and sets `BETTER_AUTH_SECRET`. Claude Code is not allowed to write Cloudflare secrets, so the user runs that script. No email sending yet (no verification or password reset).
 
+### Catacomb (branch `feat/catacomb`, issue #43, 3 Nov 2026)
+- `catacomb-layout.js` (pure, Node-tested in `tests/catacomb.test.cjs`): local frame (x east, s south), 2 m grid 88 × 84 from (X0 −65, S0 99), floor `FLOOR_Y` −28.5.
+  - `ENTRANCES`: mausoleum footprints on the terrain's 4 m grid (north 64..68 × 132..140, west −28..−20 × 188..192, south 40..44 × 232..240). The stair runs along `dir`, and t = metres from the door's outer face.
+    - Walls are 1 m thick; the landing is at the max terrain over the footprint + 0.12; the ramp starts at t 2.2; a 2 m half landing if deeper than 12 m.
+    - The bottom is snapped to a grid line (odd t), slope 0.57–0.6. The stair ceiling is 2.4 m over the step line; the mausoleum ceiling is the landing + 3 m up to t = 7.
+  - `ROOMS` are placed by hand. `LINKS` are dug by seeded A* (smooth noise, turn cost, +7 per cell next to another gallery, one waypoint per link), plus 70 dark side galleries and niches.
+  - Cells need 5.5 m of terrain above the floor. Stair lanes keep a one-cell buffer.
+  - Ceilings: barrel vaults (springing 1.9 m, crown 2.75 m) on straight runs; flat 2.75 m at bends; rooms are dome / cloister / flat.
+  - `torches` are only in lit styles (masonry, ossuary, rooms, stairs).
+  - Collision:
+    - One floor rectangle at `FLOOR_Y` under the whole grid; walls are merged obstacle runs (ossuary walls 0.22 m inset for the bone stacks).
+    - Per entrance: a door threshold (its height blends from the terrain at t = 0 to the landing at t = 1, so it meets the ground floor exactly), the landing, the flights and the half landing.
+    - `cutsGround` → game-main gives the terrain walk floor −1e4 inside the footprints.
+    - `vehicleObstacles` are the full footprints.
+  - `explorer`: a bit set of seen cells (base64 in localStorage `haarklous-catacomb-map-v1`); `reveal` uses grid line of sight to the cell centre and four points round it.
+- `game-catacomb.js`:
+  - Canvas textures (masonry, rock, earth, flagstones, cobweb, tablets).
+  - Geometry in buckets per 8 × 8-cell chunk (each stair is its own chunk) and per material:
+    - Floors are flat and reach 12 cm under rock edges. Walls go from 12 cm under the floor to 25 cm over the ceiling (overlap instead of exact seams).
+    - Arch faces where a lower ceiling meets a higher one face the higher side.
+    - Walls and ceilings are displaced by one 3D position noise (rough in the dark parts), so they meet without cracks.
+  - Light is baked per vertex: torches and candles (12 m bins, range 11 m, grid line of sight, a 20 % bounce term) go into the attributes `bake`, `bakeDir` and `bakeX` (x = outdoor light 0..1, y = flicker group).
+    - The materials (`bakeMaterial`, onBeforeCompile) multiply three.js's own lighting by `bakeX.x`, so the sun, sky and environment reach only the mausoleum and the top of the stairs.
+    - They add the bake with normal-map relief and four flicker groups (`uFlick`), plus your torch: a spot in view space (`uLamp*`) through `RE_Direct`.
+    - No three.js lights are added (the light count, and so every other shader, stays the same).
+  - Skulls and femurs: per chunk an instanced light set (all), a far set (chunks beyond 8 m) and a detailed set holding the 32 nearest within 3.5 m (`promote`, which also zeroes them in the light set). Instance attributes `ibake…` carry the light.
+  - Flames: one instanced billboard quad per torch or candle (procedural shader, additive, fades 22–36 m).
+  - Mausoleums: lib materials, merged; door glow quads show daylight in the doorways when the world above is not drawn.
+  - `update`:
+    - Chunks are shown within 38 m when you are underground (stairs within 70 m on the surface).
+    - The map is revealed every 0.2 s (radius 13 m lit, 11 m with the torch, 3.5 m dark).
+    - The torch turns off when you surface; sound (drips through a delay echo, hum, crackle) goes to `audio.context.destination`.
+- `game-main.js`:
+  - `catacombTick` runs before the map toggle: it sets `map.layer`, zooms the map in to ≥ 6 px/m underground, and handles L1 / Q.
+  - When the camera is deep (`camDeep`):
+    - `world.near` is hidden and the far scene is skipped.
+    - Shadow maps stop updating, exposure goes to 1.6, and fog to 0x0a0807 at 0.045.
+    - Sun 0, sky × 0.15, restored on the way up (`applyWeather` is re-run).
+  - Footsteps are stone with echo, ambience is indoor plus echo, there is no music, and `placeName` names the room.
+  - `lobbyArrows` carries y, so the catacomb map shows only players who are down there.
+- Verified in the browser: the walk down the north stair, the map layer, the torch prompt and beam, screenshots. Underground ~100 draw calls / 0.8 M triangles.
+
 ### Architecture (all offline; `python build.py` → `haarklous-game.html`)
 - `game-main.js`: renderer (ACES, sun with shadow frustum following the player, `shadow.normalBias = .035` — this removed the striped interior flicker), two-pass render (far scene: sky, hills, district; near scene), input (gamepad via `GamepadControls`, keyboard, pointer-lock mouse), modes foot / vehicle / minigame, prompts (□), doors (animated, dynamic obstacles via `WalkCollision.setDynamic`), drunk effect (CSS blur + ghost canvas + sway + drift), HUD, map/camera toggles, adaptive pixel ratio, test handle `window.haarklousGame` (`kick()` restarts the loop in hidden tabs).
 - `walk-collision.js`: floors may be flat, ramps (`slope`) or terrain (`height(p)`); queries take feet height; support picks the highest floor within a step (walk onto stairs); spatial hash (16 m); `world.dynamic` for moving solids.
