@@ -40,7 +40,54 @@ On branch `feat/klatreverket-torshov` (issue #40, PR #49, not merged yet):
 
 Live site: runs `main` (Worker version ddf8bd0a, deployed 3 Nov 2026 after PR #51; `main` builds byte-for-byte to the live page), so everything above is online.
 
+On branch `feat/catacomb` ([PR #50](https://github.com/jonatsl/haarklous-online/pull/50), not on `main` yet):
+- A large catacomb under Torshovdalen with three entrances about 100 m apart (marked ☠ on the map): torch-lit bone galleries with real-looking skulls, dark quarry tunnels where you use your torch (□ / L1 / Q), and a map that is wiped underground and fills in with what you see (issue #43).
+
 ## Log
+
+### 2026-11-03 · A large catacomb with three entrances (issue #43)
+- **What:**
+  - **Three entrances, about 100 m apart, marked ☠ on the map:**
+    - North: the petanque lawn.
+    - West: the west side of Torshovdalen.
+    - South: the big lawn north of HODET N.N.
+    - The doors are 86–111 m apart.
+    - Each is a small stone mausoleum (sign *KATAKOMBENE*, a stone skull, an open iron gate). A straight stone stair (27–35 m long, about 30°, with a half landing) goes down 14–19 m to an entrance hall.
+  - **The catacomb:** about 1.5 km of galleries on a 2 m grid, 11 rooms and halls, all connected, so every entrance leads everywhere. About half is lit, half dark.
+    - **Lit parts** (85 torches on the walls, with real flickering flames):
+      - Bone galleries: stacked long bones with two rows of skulls set in them and one on top, as in Paris.
+      - The rotunda, with a pillar of bones ringed with skulls.
+      - Two chapels with skull altars and candles, and the hall of skulls with columns.
+      - The crypt, with a sarcophagus and candles.
+      - Carved tablets: *STANS! HER BEGYNNER DØDENS RIKE* in each entrance hall, *MEMENTO MORI*, and the names of the streets above (like the street plaques in Paris).
+    - **Dark parts:** old quarry tunnels with timber props, blind side galleries with loose bones and cobwebs, the collapsed quarry, the quarrymen's room and well.
+  - **Torch:** where it is dark the prompt says "□ / L1 Switch on your torch". L1 / Q switches it on and off anywhere underground. It goes off when you come back up.
+  - **Map:** underground the map is wiped. It shows only the catacomb cells you have seen (line of sight, further where it is lit or your torch is on), the torches you saw, the rooms' names and the three ways out. The minimap shows the same. What you have seen is kept in this browser.
+  - **Sound:** no music underground; dripping water with echo, a low hum, torches crackling, footsteps on stone with echo.
+- **Why:**
+  - The user's issue #43: "a large catacomb with three entrances … 100 meters between the entrances … marked on the map … real-looking skulls … lit up with real fire sticks on the wall, other darker places a button for torch … the map should be wiped, and a new map should form … based on where you have been".
+  - Decided here:
+    - "Torch" for the dark parts is a hand torch (a beam of light).
+    - The explored map is kept between visits.
+    - The entrances stand on open lawns that tests keep clear of paths, trees, lamps, buildings and the other places.
+- **How (in short):**
+  - The torch light is worked out once, at load, for every corner of the walls, with line of sight in the tunnels, and stored in the geometry. The game adds no three.js lights, so nothing changes for the rest of the world's shaders.
+  - Deep down, the world above, the far scene and the sun's shadows are not drawn.
+  - Skulls are instanced in three levels of detail (the 32 nearest in full detail).
+- **Where:**
+  - `catacomb-layout.js`: the plan, stairs, collision, map memory; pure, Node-tested.
+  - `game-catacomb.js`: geometry, textures, light, torch, map layer, sound.
+  - `catacomb-models.js`: skulls, femurs and the bone-wall texture, made by a helper agent.
+  - `game-main.js`: holes in the ground, floors and walls, the prompt, the map layer, the underground rendering.
+  - `game-map.js`: draws the layer instead of the street map.
+  - `index.html`: scripts and the controls text.
+  - `tests/catacomb.test.cjs`.
+- **Checked:**
+  - Node tests 73/73 (9 new). The new tests walk in through each door and down each stair with the game's collision code. They also check the 100 m spacing, rock cover over every gallery, connectivity and the map memory.
+  - In the browser (simulated controller): walked down the north stair to the hall; the map switched; the dark tunnel showed the prompt and □ lit the torch; screenshots of the mausoleum, the ossuary, the rotunda, the crypt and the Sacellum.
+  - Underground about 100 draw calls and 0.8 M triangles. On the surface by the mausoleums it is 1.2 k calls and 1.6 M triangles, as before.
+  - Not checked: frame rate on the user's PC (the browser pane was hidden), and sound by ear.
+- **Status:** branch `feat/catacomb`, [PR #50](https://github.com/jonatsl/haarklous-online/pull/50) (open); not on `main`, not live.
 
 ### 2026-11-03 · `main` is live (PR #51)
 - **What:** Grünerløkka (PR #51: Akerselva kayak, table tennis at Schous plass, Deichman Grünerløkka and its librarian, Rathkes gate 1) is merged into `main` and deployed (Cloudflare Worker version ddf8bd0a). Issues #44, #45 and #47 are closed.
