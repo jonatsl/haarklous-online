@@ -237,7 +237,7 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
 #phone div:not(.ph-bar){padding:7px 10px;border-radius:10px;display:flex;flex-direction:column;background:#ffffff0d}#phone div small{opacity:.75;font-size:12px}
 #phone div.sel{background:#ffd166;color:#111;font-weight:700}#phone div.off{opacity:.45}#phone .ph-keys{opacity:.65;margin-top:4px;padding:0 6px}
 /* Badges, the photo hunt and best scores (issue #58); the question box (issue #54) */
-#badges{z-index:7}#askBox{z-index:8}
+#badges{z-index:7}#askBox{z-index:8}#acctLink{z-index:9}#acctLink .panel{background:#11161c}
 #badges .panel{width:min(760px,calc(100% - 32px))}
 #badges h3{margin:18px 0 8px}#badges h3 small{font-weight:400;font-size:12px;opacity:.75;margin-left:6px}
 #badges ul{list-style:none;margin:0;padding:0;display:grid;gap:8px}
@@ -313,6 +313,17 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
         <div class="mp-join"><button id="askYes" type="button">✕ Move it into my account</button><button id="askNo" type="button">○ No, keep it in this browser</button></div>
       </div>
     </section>
+    <section id="acctLink" class="overlay" hidden>
+      <div class="panel acct"><span class="eyebrow">YOUR ACCOUNT</span><h2 id="acctLinkTitle"></h2><p id="acctLinkText"></p>
+        <form id="acctResetForm" autocomplete="on" hidden>
+          <label>New password <input id="acctNew" type="password" maxlength="72" autocomplete="new-password"></label>
+          <label>The same password again <input id="acctNew2" type="password" maxlength="72" autocomplete="new-password"></label>
+          <div class="mp-join"><button id="acctResetSave" type="submit">Save the new password</button></div>
+        </form>
+        <p id="acctLinkError" class="small acct-error" role="alert"></p>
+        <div class="mp-join"><button id="acctLinkClose" type="button">Close</button></div>
+      </div>
+    </section>
     <section id="pause" class="overlay" hidden>
       <div class="panel">
         <span class="eyebrow">PAUSED</span><h2>Settings</h2>
@@ -331,9 +342,10 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
             <label id="acctNameRow" hidden>Player name <input id="acctName" maxlength="24" autocomplete="nickname"></label>
             <label>Email <input id="acctEmail" type="email" maxlength="254" autocomplete="email" spellcheck="false"></label>
             <label>Password <input id="acctPassword" type="password" maxlength="72" autocomplete="current-password"></label>
-            <div class="mp-join"><button id="acctSubmit" type="submit">Log in</button><button id="acctMode" type="button">New here? Create an account</button></div>
+            <div class="mp-join"><button id="acctSubmit" type="submit">Log in</button><button id="acctMode" type="button">New here? Create an account</button><button id="acctForgot" type="button" hidden>Forgot password?</button></div>
           </form>
-          <div id="acctIn" hidden><button id="acctLogout" type="button">Log out</button></div>
+          <div id="acctIn" hidden><p id="acctConfirmLine" class="small" hidden></p><div class="mp-join"><button id="acctConfirm" type="button" hidden>Send the email again</button><button id="acctLogout" type="button">Log out</button></div></div>
+          <p id="acctNote" class="small" aria-live="polite"></p>
           <p id="acctProgress" class="small" aria-live="polite"></p>
           <p id="acctError" class="small acct-error" role="alert"></p>
         </section>
@@ -3516,11 +3528,15 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
  * in Supabase (cloud/src/auth.js); the session is an HttpOnly cookie on that host, so accounts work only in the online version
  * (https://haarklous-online.server-smoke.workers.dev, or `npx wrangler dev` on localhost). Playing needs no account.
  * When you are logged in, your account name is your name in the lobbies.
+ * Email (issue #55, when the server can send it, see cloud/src/mail.js): sign-up sends a "confirm your email" link, and
+ * "Forgot password?" sends a reset link. Both links open the game again (?verified=1 or ?reset=1&token=…), see link().
  *
- * GameAccount.check({mode, name, email, password}) -> error text | ''   (pure, Node-tested; mode 'signup' | 'login')
+ * GameAccount.check({mode, name, email, password, again}) -> error text | ''   (pure, Node-tested; mode 'signup' | 'login' | 'forgot' | 'reset')
  * GameAccount.available(location) -> true when the page is served by the Worker itself   (pure)
- * GameAccount.create({onChange, timeoutMs = 20000}) -> {user, busy, available, load(), signUp(name, email, password), logIn(email, password), logOut()}
- *   signUp / logIn / logOut resolve to an error text, or '' when it worked.
+ * GameAccount.link(search) -> what an email link brought (pure): {kind: 'verified'|'reset', token?, error?} or null
+ * GameAccount.create({onChange, timeoutMs = 20000}) -> {user, busy, available, email (can the server send email?), load(),
+ *   signUp(name, email, password), logIn(email, password), logOut(), forgot(email), resetPassword(token, password, again), confirmAgain()}
+ *   They resolve to an error text, or '' when it worked.
  */
 (function (root, factory) {
   const api = factory();
@@ -3530,14 +3546,26 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
   'use strict';
   const ONLINE = 'https://haarklous-online.server-smoke.workers.dev';
   const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  function check({mode, name, email, password}) {
+  function check({mode, name, email, password, again}) {
     if (mode === 'signup' && !String(name || '').trim()) return 'Choose a player name.';
     if (mode === 'signup' && String(name).trim().length > 24) return 'The name can be at most 24 characters.';
-    if (!EMAIL.test(String(email || '').trim())) return 'Type a valid email address.';
-    if (!password) return 'Type your password.';
-    if (mode === 'signup' && password.length < 8) return 'The password needs at least 8 characters.';
-    if (mode === 'signup' && new TextEncoder().encode(password).length > 72) return 'The password can be at most 72 characters.';
+    if (mode !== 'reset' && !EMAIL.test(String(email || '').trim())) return 'Type a valid email address.';
+    if (mode === 'forgot') return '';
+    if (!password) return mode === 'reset' ? 'Type a new password.' : 'Type your password.';
+    const fresh = mode === 'signup' || mode === 'reset';
+    if (fresh && password.length < 8) return 'The password needs at least 8 characters.';
+    if (fresh && new TextEncoder().encode(password).length > 72) return 'The password can be at most 72 characters.';
+    if (mode === 'reset' && again !== password) return 'The two passwords are not the same.';
     return '';
+  }
+  // The game's own address an email link comes back to: ?verified=1 (confirmed; Better Auth adds &error=… if the link was bad)
+  // or ?reset=1&token=… (choose a new password; &error=INVALID_TOKEN if the link has run out or was used).
+  const VERIFIED = '/?verified=1', RESET = '/?reset=1';
+  function link(search) {
+    const q = new URLSearchParams(search || ''), error = q.get('error') || undefined;
+    if (q.get('verified') === '1') return {kind: 'verified', ...(error ? {error} : {})};
+    if (q.get('reset') === '1') return error || !q.get('token') ? {kind: 'reset', error: error || 'INVALID_TOKEN'} : {kind: 'reset', token: q.get('token')};
+    return null;
   }
   const available = loc => (loc.protocol === 'https:' && /workers\.dev$/.test(loc.hostname)) || /^(localhost|127\.0\.0\.1)$/.test(loc.hostname);
   // Better Auth's error codes in plain words.
@@ -3547,10 +3575,16 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
     USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL: 'There is already an account with that email – log in instead.',
     PASSWORD_TOO_SHORT: 'The password needs at least 8 characters.',
     PASSWORD_TOO_LONG: 'The password can be at most 72 characters.',
-    INVALID_EMAIL: 'Type a valid email address.'
+    INVALID_EMAIL: 'Type a valid email address.',
+    INVALID_TOKEN: 'This link has run out or was used already – ask for a new one.',
+    TOKEN_EXPIRED: 'This link has run out – ask for a new one.',
+    USER_NOT_FOUND: 'There is no account for this link any more.',
+    EMAIL_ALREADY_VERIFIED: 'Your email is confirmed already.',
+    RESET_PASSWORD_DISABLED: 'This server cannot send emails yet, so a password cannot be reset.',
+    VERIFICATION_EMAIL_NOT_ENABLED: 'This server cannot send emails yet.'
   };
   function create({onChange, timeoutMs = 20000} = {}) {
-    let user = null, busy = false;
+    let user = null, busy = false, email = false;
     const ok = typeof location !== 'undefined' && available(location);
     const changed = () => onChange && onChange();
     async function call(path, body) {
@@ -3574,20 +3608,33 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
       finally {busy = false;changed();}
     }
     return {
-      get user() {return user;}, get busy() {return busy;}, available: ok, onlineUrl: ONLINE,
-      load: () => run(async () => {const j = await call('get-session');user = j && j.user ? j.user : null;}),
+      get user() {return user;}, get busy() {return busy;}, get email() {return email;}, available: ok, onlineUrl: ONLINE,
+      load: () => run(async () => {
+        const j = await call('get-session');user = j && j.user ? j.user : null;
+        try {const f = await fetch('/api/account-features', {credentials: 'same-origin'});email = f.ok && !!(await f.json()).email;} catch {email = false;}
+      }),
       signUp: (name, email, password) => run(async () => {
         const err = check({mode: 'signup', name, email, password});if (err) throw new Error(err);
-        user = (await call('sign-up/email', {name: name.trim(), email: email.trim(), password})).user;
+        user = (await call('sign-up/email', {name: name.trim(), email: email.trim(), password, callbackURL: VERIFIED})).user;
       }),
       logIn: (email, password) => run(async () => {
         const err = check({mode: 'login', email, password});if (err) throw new Error(err);
         user = (await call('sign-in/email', {email: email.trim(), password, rememberMe: true})).user;
       }),
-      logOut: () => run(async () => {await call('sign-out', {});user = null;})
+      logOut: () => run(async () => {await call('sign-out', {});user = null;}),
+      // The answer is the same whether or not there is an account with that email (nobody can test addresses with it).
+      forgot: address => run(async () => {
+        const err = check({mode: 'forgot', email: address});if (err) throw new Error(err);
+        await call('request-password-reset', {email: address.trim(), redirectTo: RESET});
+      }),
+      resetPassword: (token, password, again) => run(async () => {
+        const err = check({mode: 'reset', password, again});if (err) throw new Error(err);
+        await call('reset-password', {newPassword: password, token});user = null;// every session of the account is logged out
+      }),
+      confirmAgain: () => run(async () => {if (user) await call('send-verification-email', {email: user.email, callbackURL: VERIFIED});})
     };
   }
-  return {check, available, create};
+  return {check, available, link, create};
 });
 </script><script>/* Saved progress (issue #54). Without an account the game keeps your progress in this browser as before (localStorage; the
  * photos in IndexedDB). Logged in, the same values are your account's: they come from the server when you log in, on any PC or
@@ -15081,6 +15128,8 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     const dt = Math.min(clock.getDelta(), .05), t = clock.elapsedTime, input = readInput();
     fpsAvg += (1 / Math.max(dt, .001) - fpsAvg) * .05;
     if (asking) {if (input.pressed.has('cross')) answer(true);else if (input.pressed.has('circle')) answer(false);renderFrame(0, t);return;}
+    // An email link's box (issue #55) waits over the start screen: ✕ / ○ closes a message; the password form needs the keyboard.
+    if (!$('acctLink').hidden) {if ($('acctResetForm').hidden && (input.pressed.has('cross') || input.pressed.has('circle'))) closeLink();renderFrame(0, t);return;}
     if (!started) {if (input.pressed.has('cross') || input.pressed.has('options')) begin();renderFrame(dt, t);return;}
     // Global toggles.
     if (input.pressed.has('badges') && !paused && !caseGame?.active && player.mode === 'foot') {setPaused(true);badges.open();input.pressed.delete('badges');}
@@ -15700,15 +15749,56 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     $('acctNameRow').hidden = !signup;$('acctPassword').autocomplete = signup ? 'new-password' : 'current-password';
     $('acctSubmit').textContent = account.busy ? 'Wait…' : signup ? 'Create account' : 'Log in';
     $('acctMode').textContent = signup ? 'I have an account – log in' : 'New here? Create an account';
-    $('acctSubmit').disabled = $('acctLogout').disabled = account.busy;
+    $('acctSubmit').disabled = $('acctLogout').disabled = $('acctForgot').disabled = $('acctConfirm').disabled = account.busy;
+    // Email (issue #55): "Forgot password?" and the reminder to confirm the email, only where the server can send emails.
+    $('acctForgot').hidden = !account.email || signup;
+    const unconfirmed = !!(u && account.email && u.emailVerified === false);
+    $('acctConfirmLine').hidden = $('acctConfirm').hidden = !unconfirmed;
+    if (unconfirmed) $('acctConfirmLine').textContent = `Your email is not confirmed yet: open the link in the email we sent to ${u.email} (it works for an hour).`;
+    $('acctNote').textContent = acctNote;
   }
+  let acctNote = '';
+  const setNote = t => {acctNote = t;$('acctNote').textContent = t;};
   // The account name is the lobby name while you are logged in.
-  const acctDone = err => {$('acctError').textContent = err;if (!err) {$('acctPassword').value = '';if (account.user) {mp.net.setName(account.user.name);renderMp();}progress.userChanged(account.user);}renderAccount();};
-  $('acctMode').onclick = () => {acctMode = acctMode === 'signup' ? 'login' : 'signup';if (!$('acctName').value) $('acctName').value = mp.net.name;$('acctError').textContent = '';renderAccount();};
+  const acctDone = err => {$('acctError').textContent = err;if (err) setNote('');if (!err) {$('acctPassword').value = '';if (account.user) {mp.net.setName(account.user.name);renderMp();}progress.userChanged(account.user);}renderAccount();};
+  $('acctMode').onclick = () => {acctMode = acctMode === 'signup' ? 'login' : 'signup';if (!$('acctName').value) $('acctName').value = mp.net.name;$('acctError').textContent = '';setNote('');renderAccount();};
   $('acctForm').onsubmit = async e => {
-    e.preventDefault();const email = $('acctEmail').value, pw = $('acctPassword').value;
-    const err = acctMode === 'signup' ? await account.signUp($('acctName').value, email, pw) : await account.logIn(email, pw);
+    e.preventDefault();const email = $('acctEmail').value, pw = $('acctPassword').value, signup = acctMode === 'signup';
+    const err = signup ? await account.signUp($('acctName').value, email, pw) : await account.logIn(email, pw);
+    setNote(!err && signup && account.email ? `We have sent a link to ${account.user.email}: open it to confirm your email (look in the spam folder too).` : '');
     acctDone(err);if (!err) notice(`Logged in as ${account.user.name}.`, 3);
+  };
+  $('acctForgot').onclick = async () => {
+    const email = $('acctEmail').value.trim(), err = await account.forgot(email);$('acctError').textContent = err;
+    setNote(err ? '' : `If there is an account for ${email}, we have sent it a link to choose a new password. It works once, for an hour (look in the spam folder too).`);
+  };
+  $('acctConfirm').onclick = async () => {
+    const err = await account.confirmAgain();$('acctError').textContent = err;
+    setNote(err ? '' : `Sent again to ${account.user.email} – the new link works for an hour.`);
+  };
+  // The links in those emails open the game again: ?verified=1 (email confirmed) or ?reset=1&token=… (choose a new password).
+  const acctLink = window.GameAccount.link(location.search);let resetToken = null;
+  function showLink(title, text, form) {
+    $('acctLinkTitle').textContent = title;$('acctLinkText').textContent = text;$('acctResetForm').hidden = !form;$('acctLinkError').textContent = '';
+    $('acctLink').hidden = false;if (form) setTimeout(() => $('acctNew').focus(), 0);
+  }
+  const closeLink = () => {$('acctLink').hidden = true;resetToken = null;};
+  const linkWords = code => ({TOKEN_EXPIRED: 'The link has run out (it works for an hour).', USER_NOT_FOUND: 'There is no account for this link any more.'})[code] || 'The link has run out or was used already.';
+  if (acctLink) {
+    if (acctLink.kind === 'verified') showLink(acctLink.error ? 'This link did not work' : 'Email confirmed ✓', acctLink.error ? `${linkWords(acctLink.error)} Log in in the pause menu (Options / Esc) and press “Send the email again”.` : 'Thanks – your email address is confirmed, and you are logged in on this browser.', false);
+    else if (acctLink.token) {resetToken = acctLink.token;showLink('Choose a new password', 'At least 8 characters. The link works once, for an hour.', true);}
+    else showLink('This link did not work', `${linkWords(acctLink.error)} Ask for a new one with “Forgot password?” under Account in the pause menu (Options / Esc).`, false);
+    // The token is not left in the address bar or the browser's history.
+    const q = new URLSearchParams(location.search);['verified', 'reset', 'token', 'error'].forEach(k => q.delete(k));
+    try {history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '') + location.hash);} catch {}
+  }
+  $('acctLinkClose').onclick = closeLink;
+  $('acctResetForm').onsubmit = async e => {
+    e.preventDefault();if (!resetToken) return;$('acctResetSave').disabled = true;
+    const err = await account.resetPassword(resetToken, $('acctNew').value, $('acctNew2').value);$('acctResetSave').disabled = false;
+    if (err) {$('acctLinkError').textContent = err;return;}
+    $('acctNew').value = $('acctNew2').value = '';resetToken = null;acctDone('');
+    showLink('Password changed ✓', 'Log in with the new password under Account in the pause menu (Options / Esc). Everywhere the account was logged in, it is logged out now.', false);
   };
   // Save once more while the session is still valid; then this browser's own progress comes back.
   $('acctLogout').onclick = async () => {await progress.beforeLogout();const err = await account.logOut();acctDone(err);if (!err) notice('Logged out. This browser’s own progress is back.', 4);};
