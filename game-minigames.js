@@ -1,6 +1,8 @@
 /* Minigames in the open world: disc golf (two par-3 holes about 70 m in Torshovdalen) and petanque (singles, 3 boules,
  * game to 13 points, real scoring) against a CGI opponent who always waits at the court.
- * GameMinigames.create({T, lib, audio, heightAt, toWorld, toLocal, data, hud, muselunden}) -> {discgolf, muselunden, petanque}
+ * GameMinigames.create({T, lib, audio, heightAt, toWorld, toLocal, data, hud, muselunden, onEvent}) -> {discgolf, muselunden, petanque}
+ *   onEvent(kind, data) for the best scores and badges: 'disc-hole' {course, hole, strokes, par}, 'disc-round' {course, total, par,
+ *   holes} (only when every hole was played), 'petanque' {won, you, npc}
  *   discgolf: the two holes in Torshovdalen (data.discgolf); muselunden: the real 12-hole Muselunden DiscGolfPark
  *   (muselunden-data.js, when given). Both are the same disc golf game with their own holes.; GameMinigames.petanqueNext(hold, left)
  * Each game: group (scene objects), near(player) -> prompt text or null, start(player), update(dt, input, view) -> camera override,
@@ -21,7 +23,7 @@
     const other = hold === 'you' ? 'npc' : 'you';
     return left[other] > 0 ? other : left[hold] > 0 ? hold : null;
   }
-  function create({T, lib, audio, heightAt, toWorld, toLocal, data, hud, trees, reward, muselunden}) {
+  function create({T, lib, audio, heightAt, toWorld, toLocal, data, hud, trees, reward, muselunden, onEvent = () => {}}) {
     const V3 = (x, y, z) => new T.Vector3(x, y, z);
     const mesh = (parent, geo, mat, x = 0, y = 0, z = 0) => {const m = new T.Mesh(geo, mat);m.position.set(x, y, z);m.castShadow = m.receiveShadow = true;parent.add(m);return m;};
     const gauss = () => {let u = 0, v = 0;while (!u) u = Math.random();while (!v) v = Math.random();return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);};
@@ -136,6 +138,7 @@
             game.message = `Hull ${h.n}: ${total} kast · ${name}`;if (diff < 0) audio.sfx('cheer');
             // Money: par 50 kr, birdie 100 kr, eagle or better 200 kr.
             if (reward && diff <= 0) reward(diff <= -2 ? 200 : diff === -1 ? 100 : 50, `${name} on ${course.name} hole ${h.n}`);
+            onEvent('disc-hole', {course: course.name, hole: h.n, strokes: total, par: h.par});
             game.pending = {next: true, t: 2.5};D.rest = true;
           } else if (r === 'rest') {D.rest = true;game.landed = true;game.lie = {x: D.pos.x, z: D.pos.z, y: heightAt(D.pos.x, D.pos.z)};game.message = `${Math.round(Math.hypot(h.basket.x - D.pos.x, h.basket.z - D.pos.z))} m to the basket. Throw again from where the disc landed.`;game.pending = {lie: true, t: .8};}
           // Follow camera behind and above the disc.
@@ -150,6 +153,7 @@
               game.pending = null;disc.visible = false;D.rest = false;
               if (game.hole + 1 < holes.length) {game.walk = game.hole + 1;const n = holes[game.walk];game.toTee = Math.hypot(game.lie.x - n.tee.x, game.lie.z - n.tee.z);hud.discgolf(game.state());return {walk: true};}
               const total = game.strokes.reduce((a, b) => a + b, 0), par = holes.reduce((a, b) => a + b.par, 0);game.stop();
+              if (game.strokes.every(s => s > 0)) onEvent('disc-round', {course: course.name, total, par, holes: holes.length});
               return {done: `${course.name} finished: ${total} throws (${total - par >= 0 ? '+' : ''}${total - par} vs par ${par}).`};
             }
             game.pending = null;D.rest = false;
@@ -293,7 +297,7 @@
               if (jd < 6 || jd > 10 || jack.dead) {game.message = `Jack ${jack.dead ? 'out' : 'at ' + jd.toFixed(1) + ' m'}: thrown again (6–10 m).`;jack.alive = false;jack.dead = false;jack.mesh.visible = false;current = thrower;aimingFor = 'jack';}
               else {current = nextThrower();aimingFor = 'boule';}
             } else if (phase === 'jack') {current = thrower;aimingFor = 'jack';}
-            else {current = nextThrower();aimingFor = 'boule';if (current === null) {const winner = endMene();if (game.score.you >= 13 || game.score.npc >= 13) {const won = game.score.you >= 13;game.message = `${won ? 'You win' : game.npcName + ' wins'} ${game.score.you}–${game.score.npc}!`;if (won) {audio.sfx('cheer');if (reward) reward(150, `Petanque win against ${game.npcName}`);}game.finish = 4;} else {waiting = 2.5;game.nextFirst = winner;}}}
+            else {current = nextThrower();aimingFor = 'boule';if (current === null) {const winner = endMene();if (game.score.you >= 13 || game.score.npc >= 13) {const won = game.score.you >= 13;game.message = `${won ? 'You win' : game.npcName + ' wins'} ${game.score.you}–${game.score.npc}!`;onEvent('petanque', {won, you: game.score.you, npc: game.score.npc});if (won) {audio.sfx('cheer');if (reward) reward(150, `Petanque win against ${game.npcName}`);}game.finish = 4;} else {waiting = 2.5;game.nextFirst = winner;}}}
             if (current === 'npc') aiTimer = 1.4;
             game.turnId = (game.turnId || 0) + 1;
           }

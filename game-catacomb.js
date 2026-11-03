@@ -555,6 +555,8 @@
     let saved = null;try {saved = localStorage.getItem(SAVE_KEY);} catch {}
     const explorer = CL.explorer(L, saved);let savedCount = explorer.count, saveT = 0, revealT = 0, dirty = true;
     const save = () => {try {localStorage.setItem(SAVE_KEY, explorer.save());} catch {}savedCount = explorer.count;};
+    // An account's saved map was loaded (issue #54).
+    window.addEventListener('haarklous-progress', () => {let s = null;try {s = localStorage.getItem(SAVE_KEY);} catch {}explorer.load(s);savedCount = explorer.count;dirty = true;});
 
     // ---------- Your torch ----------
     const lamp = {on: false, level: 0};

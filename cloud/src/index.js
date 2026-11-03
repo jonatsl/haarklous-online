@@ -3,9 +3,12 @@
  * lobby code. A lobby holds up to 12 players. It relays player states (~10 Hz), vehicle states from whoever is driving,
  * chat, door and firepit events and WebRTC voice signalling, and it arbitrates vehicle seats (one driver, one passenger).
  * It also remembers where vehicles were left, which doors are open, the fire and the last chat lines for players who join.
- * /api/auth/* is the player accounts (Better Auth + Supabase, see auth.js).
+ * /api/auth/* is the player accounts (Better Auth + Supabase, see auth.js); /api/progress and /api/photos/* are a logged-in
+ * player's saved progress and photos (one Durable Object per account, see progress.js).
  */
 import {handleAuth} from './auth.js';
+import {handleProgress, Profile} from './progress.js';
+export {Profile};
 // A lobby holds 12 players (6 v 6 paintball; the user's decision for the Unreal version, 28 Oct 2026).
 const MAX_PLAYERS = 12, CODE = /^[A-HJ-NP-Z2-9]{4}$/, FIRE_DECAY_MS = 90000, FIRE_MAX = 6;
 const clean = (s, n) => String(s ?? '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, n);
@@ -21,6 +24,7 @@ export default {
     }
     if (url.pathname === '/health') return new Response('ok');
     if (url.pathname.startsWith('/api/auth/')) return handleAuth(request, env, ctx);
+    if (url.pathname === '/api/progress' || url.pathname === '/api/photos' || url.pathname.startsWith('/api/photos/')) return handleProgress(request, env, ctx);
     // Real weather (issue #23): one shared cache of MET Norway's forecast for Haarklous plass.
     if (url.pathname === '/weather') return env.WEATHER.get(env.WEATHER.idFromName('haarklous')).fetch(request);
     return env.ASSETS.fetch(request);

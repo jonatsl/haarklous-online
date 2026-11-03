@@ -27,6 +27,11 @@ class_name = "Lobby"
 name = "WEATHER"
 class_name = "Weather"
 
+# Saved progress and photos of logged-in players (issue #54): one object per account.
+[[durable_objects.bindings]]
+name = "PROFILE"
+class_name = "Profile"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["Lobby"]
@@ -35,3 +40,8 @@ new_sqlite_classes = ["Lobby"]
 [[migrations]]
 tag = "v2"
 new_sqlite_classes = ["Weather"]
+
+# Saved progress (issue #54).
+[[migrations]]
+tag = "v3"
+new_sqlite_classes = ["Profile"]

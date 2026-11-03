@@ -705,7 +705,8 @@
 
     // ---------- Visit state (ticket, rentals, brattkort, the ticks), kept in the browser ----------
     const KEY = 'haarklous-klatreverket-v1';let st = {};
-    try {st = JSON.parse(localStorage.getItem(KEY) || '{}') || {};} catch {st = {};}
+    const loadState = () => {try {st = JSON.parse(localStorage.getItem(KEY) || '{}') || {};} catch {st = {};}st.ticks = st.ticks || {};st.tries = st.tries || {};};
+    loadState();window.addEventListener('haarklous-progress', loadState);// an account's saved progress was loaded (issue #54)
     const save = () => {try {localStorage.setItem(KEY, JSON.stringify(st));} catch {}};
     const today = () => {const d = new Date();return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;};
     const visit = () => {if (st.day !== today()) {st.day = today();st.paid = false;st.shoes = st.harness = st.chalk = false;}return st;};
