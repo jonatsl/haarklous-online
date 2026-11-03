@@ -16,7 +16,7 @@ On `main`:
 - Cars and motorcycles follow gravity (9.81 m/s²) and fly over crests and bumps taken fast (PR #5).
 - FPV drone (hold △), photo camera with gallery (tap △), wristwatch (D-pad ↑), map (touchpad).
 - A waypoint you set on the map (✕ or a click) and a purple pin on screen that leads you there until you are within 7 m (issue #41); an optional round minimap in the bottom-left corner like GTA IV's, turned on in the pause menu (issue #42).
-- Minigames: the real Muselunden DiscGolfPark (12 holes, PR #13) and two disc golf holes in Torshovdalen, petanque against Arne; hostage-rescue mission (start at the red ring by the entrance); stay home after the mission.
+- Minigames: the real Muselunden DiscGolfPark (12 holes, PR #13) and two disc golf holes in Torshovdalen (you walk from hole to hole, and the minimap shows the course, your lie and the way to the next tee, issue #60), petanque against Arne; hostage-rescue mission (start at the red ring by the entrance); stay home after the mission.
 - Firepit with benches, beer crate and woodpile (fire size shared online); beer and aquavit in the apartment (30 s drunk each).
 - Joker and Kiwi shops at their real places with a cashier; money in kroner (start 500 kr, earned from the mission, minigames and bottle deposit), Norwegian beer hours, a bag of bought items (PR #6).
 - Three hidden stashes with 30-second boosts: 3× running speed, 3× jump height or bullet time.
@@ -42,6 +42,31 @@ On `main`:
 Live site: runs `main` (Worker version cfea339d, deployed 3 Nov 2026 after PR #50; `main` builds byte-for-byte to the live page), so everything above is online.
 
 ## Log
+
+### 2026-11-03 · Disc golf course layout on the minimap (issue #60)
+- **What:**
+  - During a disc golf round (Muselunden or Torshovdalen) the round minimap shows the course:
+    - the course outline (Muselunden's own outline; for Torshovdalen, which has none, a line round its tees and baskets),
+    - every hole's tee with its number, its basket (yellow) and a line from tee to basket,
+    - the hole you play bright, the other holes faded,
+    - your lie (where your last throw landed) as a pink dot with the metres to the basket.
+  - The minimap zooms so the whole hole you play fits (tee, basket and your lie).
+  - After each hole you now walk (or run) to the next tee. The minimap shows the way there with a dashed line, and the card counts the metres to the tee. The next hole starts when you are within 3 m of its tee. □ takes you straight there, as the old automatic move did. ○ still ends the round.
+  - The big map (touchpad) shows the same layout while a round is on. The course's normal map icons are hidden then.
+  - If the minimap is switched off in the pause menu, it turns on by itself during the round and off again afterwards. The saved setting does not change.
+  - If you keep R2 held from running when you reach the tee, it does not start a throw; let go of R2 first.
+- **Why:** issue #60 (the user asked to implement it, 3 Nov 2026). Before, the game moved you to the next tee by itself; the issue says you walk there and the minimap shows the way, so walking was added.
+- **Where:**
+  - `game-map.js`: `map.course`, `drawCourse` (minimap and big map), `courseOutline`, `courseRange`; the minimap shows during a round.
+  - `game-minigames.js`: the walk between holes (`walk`, `beginHole`), `layout()` for the map, `toLocal`.
+  - `game-main.js`: `updateMinigame` lets you walk between holes, `updateGuide` gives the map the round's layout, the scorecard text, the course tag on the map icons.
+  - `README.md`, `index.html` (controls text and the minimap setting), `docs/HANDOFF.md`.
+  - Tests: `tests/map.test.cjs` (outline, zoom) and `tests/minigames.test.cjs` (walk to the next tee, □, ○, the last hole, the layout).
+- **Checked:**
+  - `node --test tests/*.cjs`: 107 pass (5 new); 117 pass after merging `main` with the jobs and bikes (PR #62). On the big map the course's icons stay hidden during a round, and the city bike docks keep their zoom labels.
+  - In the browser (simulated controller, offline): a real throw on Muselunden hole 1 landed 68 m short and showed as the pink dot with "68 m"; after the hole the walk to tee 2 showed the dashed line and "43 m to the tee"; running onto the tee started hole 2 without a throw; the big map showed the layout; ○ ended the round and the minimap went off again (setting off) or stayed on (setting on); Torshovdalen showed its drawn outline. No script errors.
+  - Not checked: on the user's own PC and controller.
+- **Status:** branch `feat/disc-golf-minimap`, [PR #61](https://github.com/jonatsl/haarklous-online/pull/61) open; not merged or live yet.
 
 ### 2026-11-03 · Delivery and taxi jobs; e-scooters and Oslo city bikes (issues #56 and #57)
 - **What:**
