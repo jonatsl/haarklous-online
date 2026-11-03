@@ -28,6 +28,7 @@ On `main`:
 - Paintball course on the valley floor between the sculpture and the site (since PR #12): lobby, admin, teams up to 6 v 6, team deathmatch with respawns or in rounds, capture the flag, paint or reball (PR #8).
 - Multiplayer on Cloudflare (lobby codes, up to 12 players), passengers in motorcycle / cars / helicopter / plane, text chat with quick chat, lobby-wide voice chat.
 - Player accounts (optional): create an account or log in with email and password in the pause menu; your account name is your lobby name (PR #34, Better Auth + Supabase).
+- Account emails (issue #55): a "confirm your email" link after sign-up and *Forgot password?* with a reset link that opens the game; both links work for an hour, the reset link once. Sent through Brevo once the user has added its key (until then the button is hidden).
 - Soundtrack: 2.5-minute open-world loop plus one loop per minigame and the mission; ambient sound by location.
 - Gamle Oslo, Ensjø and the way there: real streets, ground heights and about 7,900 buildings south of the old world (3.4 × 3.4 km, down Trondheimsveien to Bjørvika); churches, MUNCH, the Opera (walkable roof) and tall chimneys modelled; a timed Ensjø → Rathkes gate run (PR #48, issue #38).
 - Kayaking down Akerselva from three put-ins (Bjølsen, Sagene, Grünerløkka) to Vaterland: the real river, its falls and bridges (issue #45). Its water shows along the whole river, close up and from far away (issue #63).
@@ -40,8 +41,9 @@ On `main`:
 - A large catacomb under Torshovdalen with three entrances about 100 m apart (marked ☠ on the map): torch-lit bone galleries with real-looking skulls, dark quarry tunnels where you use your torch (□ / L1 / Q), and a map that is wiped underground and fills in with what you see (PR #50, issue #43).
 - Logged in, your progress is your account's and is there on any PC or browser: money and bottles, the bag, photos (an album of up to 60), badges, best scores, Klatreverket ticks, the catacomb map and your settings; it saves by itself. The first log-in on a browser with its own progress asks whether to move it into the account. Without an account it stays in the browser as before (issue #54, PR #70).
 - Badges and a photo hunt in the pause menu (R1 / B): 16 badges from playing and ten places to photograph (Torshovoksen, HODET N.N., Deichman Grünerløkka, Klatreverket, the catacomb's rotunda, Muselunden, MUNCH, the Opera, Rathkes gate 1, your street door); each new badge pays 50–300 kr; best scores for the minigames, the mission, skydiving and the runs; an orange landing target for skydivers at the airstrip (issue #58, PR #70).
+- Helicopter and drone flight closer to the real thing: the rotor's lift tilts with pitch and bank, so tilting takes lift away from climbing and turns it into speed; add collective or thrust to keep your height (issue #73, PR #75).
 
-Live site: runs `main` (Worker version a75a02dc, deployed 3 Nov 2026 after PR #70; `main` builds byte-for-byte to the live page), so everything above is online.
+Live site: runs `main` (Worker version 281119ea, deployed 3 Nov 2026 after PR #75; `main` builds byte-for-byte to the live page), so everything above is online.
 
 ## Log
 
@@ -70,6 +72,58 @@ Live site: runs `main` (Worker version a75a02dc, deployed 3 Nov 2026 after PR #7
   - Cost: +1 draw call and +2,400 triangles (the far ribbon); the near water strips were drawn before too (just upside down). The start takes about 50–80 ms longer (the lowering).
   - Not checked: on the user's own PC; with aerial imagery on.
 - **Status:** branch `fix/akerselva-water`, [PR #78](https://github.com/jonatsl/haarklous-online/pull/78) (not merged yet).
+
+### 2026-11-03 · Forgot password and the email check (issue #55)
+- **What:**
+  - After you create an account, the game sends an email with a **"confirm your email"** link. The link opens the game, confirms the email and logs you in on that browser. The Account box in the pause menu says when the email is not confirmed yet, with a button *Send the email again*.
+  - **Forgot password?** is a new button under the log-in form in the pause menu. Type your email and press it: the email has a link that opens the game with a box *Choose a new password* (type it twice). After that you log in with the new password, and the account is logged out everywhere else.
+  - Both links work for one hour. The reset link works only once; a used or old link opens the game with a short message that says what to do.
+  - The answer to *Forgot password?* is the same whether or not the email has an account, so nobody can test addresses with it. Links can only lead back to the game's own address.
+  - The token is removed from the address bar at once, so it is not left in the browser's history.
+- **Why:** the user's issue #55: "The game should send two kinds of email: a 'confirm your email' link after sign-up, and a 'reset your password' link from a new 'Forgot password?' button on the log-in form in the pause menu. Each link opens the game, lets you finish the step, and works only once and for a short time." The issue says to choose an email service that works without an own domain.
+  - Decided here:
+    - **Brevo** sends the emails. It can send to anyone from one confirmed sender address (for example a Gmail address), without a domain of our own, 300 emails a day for free, and it has a plain HTTP API that works from a Cloudflare Worker. Resend and most others send only to your own address until you own a domain.
+    - Confirming the email is asked for, not required: you can play, log in and save before you confirm it (so a slow or lost email never locks a player out).
+    - "A short time" is one hour for both links.
+    - Until the Brevo key is set, the game hides *Forgot password?* and the confirm reminder, and accounts work as before.
+- **Where:** `cloud/src/mail.js` (new: the two emails and the Brevo call), `cloud/src/auth.js` (Better Auth's email check and password reset, only when mail is set up; emails go out after the answer), `cloud/src/index.js` (`/api/account-features`), `cloud/scripts/set-mail-secret.mjs` (new: the user's setup), `game-account.js` (`forgot`, `resetPassword`, `confirmAgain`, `link`), `game-main.js` (the buttons, the notes and the link box), `index.html`, `style.css`, `README.md`, `docs/HANDOFF.md`; tests `tests/account.test.cjs` (3 new) and `tests/mail.test.cjs` (new, 3). No database change (the email-confirmed column and the table for the links were already there).
+- **Checked:**
+  - `node --test tests/*.cjs`: 134 pass (6 new).
+  - The real Better Auth 1.7.15 with these settings, in memory with a fake Brevo: sign-up sends the confirm email; its link confirms the email, logs in and opens `/?verified=1`; a second click just opens the game; a bad link opens the game with `INVALID_TOKEN`; *Forgot password?* sends the reset email, an unknown address gets the same answer and no email, a link to another site is refused; the reset link opens `/?reset=1&token=…`; the new password is saved, all sessions are logged out, the old password stops working; the same link a second time and an expired link are refused; without the mail settings the reset says it is not enabled.
+  - In the browser (built file, account server stubbed): the link box for a new password (two different passwords are refused, then "Password changed ✓"), the box for an expired confirm link (✕ on the controller closes it, the start screen stays), the token gone from the address bar; in the pause menu the not-confirmed line, *Send the email again*, *Forgot password?* with the note and a bad email refused; *Forgot password?* hidden while creating an account.
+  - Not checked: a real email (needs the user's Brevo account and key), the live server.
+- **Still to do by the user:** make a free Brevo account, add and confirm a sender address, make an API key, then run `node scripts/set-mail-secret.mjs` in `cloud/` (Claude Code may not write Cloudflare secrets).
+- **Status:** branch `feat/account-email`, [PR #76](https://github.com/jonatsl/haarklous-online/pull/76).
+
+### 2026-11-03 · `main` is live (PR #75, helicopter and drone lift)
+- **What:** the helicopter and drone flight change (PR #75, issue #73) is merged into `main` (29057ae) and deployed (Cloudflare Worker version 281119ea).
+  - Deployed from this session's own clean worktree at the merge commit, with `cloud/` packages installed by `npm ci`.
+- **Why:** the user said "implement issue 73 then merge and deploy" (3 Nov 2026).
+- **Checked:**
+  - `node --test tests/*.cjs`: 132 pass on the merged `main`.
+  - `main` builds byte-for-byte to the committed `haarklous-game.html`, and the live page is byte-for-byte the build. `/weather` answers 200.
+  - In the live game: the helicopter at full collective climbs 7.9 m/s level, 3.9 m/s at 30° nose down and −0.2 m/s at 45°. No console errors.
+- **Status:** live.
+
+### 2026-11-03 · Helicopter and drone: tilting costs lift (issue #73)
+- **What:**
+  - **Helicopter:**
+    - Full collective now gives 1.4 × the helicopter's weight in rotor thrust, not 1.85 ×. Level, it climbs about 8 m/s (an H125 climbs 8.5–10 m/s); before it was over 16 m/s.
+    - The thrust tilts with the helicopter, as before, but now the spare lift is small enough that you feel it. Holding W (full collective), the climb drops as you pitch forward: about half at 30°, none at 45°, and steeper it sinks. The lift goes into speed instead. Banking costs the same as pitching.
+    - At centre collective, level, it still hovers; tilted, it sinks unless you add collective.
+    - A little more air drag at speed: the top speed flying level is now about 285 km/h, the H125's never-exceed speed. Before it could reach about 430 km/h.
+  - **FPV drone (angle mode):**
+    - Before, the drone added thrust for the tilt by itself, so it never lost height. Now it doesn't: tilted, only part of the thrust holds it up, so it sinks (about 1.4–1.6 m/s at full tilt) unless you push thrust up. With thrust up it climbs while it flies forward.
+    - Centred and level it still holds its height. Acro mode was already like this.
+  - Help texts (README, start and pause screens, the ANGLE message) say so.
+- **Why:** the user's issue #73: "When changing roll and pitch the helicopter should also lose altitude … when holding down w and pitching forward it should climb less altitude". The user asked to implement it and to merge and deploy (3 Nov 2026).
+  - Decided here: no extra lift from forward speed (a real helicopter gets some, "translational lift"), because the issue asks for pitching forward to climb less.
+- **Where:** `game-aircraft.js` (helicopter lift and drag, drone thrust), `game-main.js` (ANGLE message), `README.md`, `index.html`, `docs/HANDOFF.md`, new test `tests/flight.test.cjs`.
+- **Checked:**
+  - Node tests 132/132 (4 new). Run against the old physics the new tests fail (16.6 m/s climb; the drone did not sink at full tilt).
+  - In the game (simulated controller, frames stepped by hand): the helicopter climbed 7.8 m/s at full collective level; held about 55° nose down it sank 3.1 m/s at full collective and 7.6 m/s at centre, at about 260 km/h; let go, it levelled and stopped sinking. The drone hovered at 0.0 m/s, sank 1.4 m/s at full tilt (69 km/h) and climbed 3.9 m/s with thrust up while tilted. No script errors.
+  - Not checked: a real DualShock 4, mouse flying on the user's PC.
+- **Status:** merged into `main` ([PR #75](https://github.com/jonatsl/haarklous-online/pull/75), 29057ae) and live (Worker version 281119ea, 3 Nov 2026). Issue #73 is closed.
 
 ### 2026-11-03 · `main` is live (PR #70, saved progress, badges and the photo hunt)
 - **What:** saved progress for accounts, badges and the photo hunt (PR #70, issues #54 and #58) are merged into `main` (93d4f27) and deployed (Cloudflare Worker version a75a02dc).
