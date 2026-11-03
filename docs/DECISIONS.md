@@ -41,7 +41,7 @@ On `main`:
 
 Live site: runs `main` (Worker version 4a8eab68, deployed 3 Nov 2026 after PR #61; `main` builds byte-for-byte to the live page), so everything above is online.
 
-On branch `feat/progress-and-badges` (issues #54 and #58, not merged yet):
+On branch `feat/progress-and-badges` ([PR #70](https://github.com/jonatsl/haarklous-online/pull/70), issues #54 and #58, not merged yet):
 - Logged in, your progress is your account's and is there on any PC or browser: money and bottles, the bag, photos (an album of up to 60), badges, best scores, Klatreverket ticks, the catacomb map and your settings; it saves by itself. The first log-in on a browser with its own progress asks whether to move it into the account. Without an account it stays in the browser as before (issue #54).
 - Badges and a photo hunt in the pause menu (R1 / B): 16 badges from playing and ten places to photograph (Torshovoksen, HODET N.N., Deichman Grünerløkka, Klatreverket, the catacomb's rotunda, Muselunden, MUNCH, the Opera, Rathkes gate 1, your street door); each new badge pays 50–300 kr; best scores for the minigames, the mission, skydiving and the runs; an orange landing target for skydivers at the airstrip (issue #58).
 
@@ -85,7 +85,7 @@ On branch `feat/progress-and-badges` (issues #54 and #58, not merged yet):
   - On a local copy of the server (`wrangler dev`, logged in as a test user): saving and loading, bad input refused, the 61st photo refused.
   - In the browser: the question and both answers; 900 + 777 = 1677 kr after moving, the photo moved; a newer save from "another PC" loaded on reload; log-out saved the last change and brought the browser's copy back; deleting a photo in the account album; all ten photo places photographed through the game's own camera path (photos checked by eye); the badges list; a real canopy landing 7.8 m from the target gave "On target" and 150 kr.
   - Not checked: the live server (needs the merge and a deploy), a real DualShock 4, two PCs at the same time (the last save wins).
-- **Status:** branch `feat/progress-and-badges`, not merged, not live.
+- **Status:** branch `feat/progress-and-badges`, [PR #70](https://github.com/jonatsl/haarklous-online/pull/70) for the user's review (not merged, not live).
 
 ### 2026-11-03 · `main` is live (PR #61, the disc golf course on the minimap)
 - **What:** the disc golf course on the minimap and the walk to the next tee (PR #61, issue #60) are merged into `main` (4bfcf20) and deployed (Cloudflare Worker version 4a8eab68).
