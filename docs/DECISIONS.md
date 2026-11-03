@@ -33,17 +33,34 @@ On `main`:
 - Kayaking down Akerselva from three put-ins (Bjølsen, Sagene, Grünerløkka) to Vaterland: the real river, its falls and bridges (issue #45).
 - Schous plass: playable table tennis against Ola; Deichman Grünerløkka with thousands of books, *The Inner Game of Tennis* and a readable *Moby-Dick*, and a librarian who shushes runners and loud voices (issues #44, #47).
 - Rathkes gate 1: the gate, the passage and the backyard with door 1C, ready for the second flat (issue #44, preparation).
-
-On branch `feat/klatreverket-torshov` (issue #40, PR #49, not merged yet):
 - Klatreverket Torshov at its real place (Myrens verksted 3K) in its real building: 14 m hall, 7 m overhanging competition wall, Galleriet, autobelay tower, bouldering on three floors, the training room with the Moonwall; reception with the real prices and rental; climb with L2 / R2 (bouldering, top rope with Siri belaying, lead with clips, autobelay), pump, falls on the rope, the brattkort test and belaying Siri.
 - The ground round Myrens verksted and Akerselva (district patch 'myrens').
+- A large catacomb under Torshovdalen with three entrances about 100 m apart (marked ☠ on the map): torch-lit bone galleries with real-looking skulls, dark quarry tunnels where you use your torch (□ / L1 / Q), and a map that is wiped underground and fills in with what you see (PR #50, issue #43).
 
-Live site: runs `main` (Worker version ddf8bd0a, deployed 3 Nov 2026 after PR #51; `main` builds byte-for-byte to the live page), so everything above is online.
-
-On branch `feat/catacomb` ([PR #50](https://github.com/jonatsl/haarklous-online/pull/50), not on `main` yet):
-- A large catacomb under Torshovdalen with three entrances about 100 m apart (marked ☠ on the map): torch-lit bone galleries with real-looking skulls, dark quarry tunnels where you use your torch (□ / L1 / Q), and a map that is wiped underground and fills in with what you see (issue #43).
+Live site: runs `main` (Worker version cfea339d, deployed 3 Nov 2026 after PR #50; `main` builds byte-for-byte to the live page), so everything above is online.
 
 ## Log
+
+### 2026-11-03 · `main` is live (PR #50, the catacomb)
+- **What:** the catacomb (PR #50, issue #43) is merged into `main` (85841c8) and deployed (Cloudflare Worker version cfea339d).
+  - Deployed from this session's own worktree at the merge commit, with `cloud/` packages installed by `npm ci`.
+  - The first deploy try was blocked by Claude Code's permission check until the user asked for it.
+- **Why:** the user said "Merge 50", then "All merged things should be deployed now" (3 Nov 2026).
+- **Checked:**
+  - `node --test tests/*.cjs`: 102 pass on the merged `main`.
+  - The live page is byte-for-byte the build, and `/weather` answers 200.
+  - The live game loads the catacomb (66 chunks), Klatreverket, the kayak and the Ensjø run, with no console errors.
+- **Status:** live.
+
+### 2026-11-03 · `main` is live (PR #49)
+- **What:** Klatreverket Torshov (PR #49, issue #40) is merged into `main` and deployed (Cloudflare Worker version 6b288cd0).
+  - Deployed from a clean worktree of the merged `main` (102a042), with `cloud/` packages installed by `npm ci`.
+- **Why:** the user said "Merge this then" (3 Nov 2026), answering whether to merge and deploy PR #49.
+- **Checked:**
+  - `node --test tests/*.cjs`: 93 pass on the merged `main`.
+  - The live page is byte-for-byte the build (apart from line endings); `/weather` answers 200.
+  - The live game loads with Klatreverket (112 routes), the Gamle Oslo and Myrens ground and the kayak.
+- **Status:** live.
 
 ### 2026-11-03 · A large catacomb with three entrances (issue #43)
 - **What:**
@@ -87,7 +104,7 @@ On branch `feat/catacomb` ([PR #50](https://github.com/jonatsl/haarklous-online/
   - In the browser (simulated controller): walked down the north stair to the hall; the map switched; the dark tunnel showed the prompt and □ lit the torch; screenshots of the mausoleum, the ossuary, the rotunda, the crypt and the Sacellum.
   - Underground about 100 draw calls and 0.8 M triangles. On the surface by the mausoleums it is 1.2 k calls and 1.6 M triangles, as before.
   - Not checked: frame rate on the user's PC (the browser pane was hidden), and sound by ear.
-- **Status:** branch `feat/catacomb`, [PR #50](https://github.com/jonatsl/haarklous-online/pull/50) (open); not on `main`, not live.
+- **Status:** merged into `main` ([PR #50](https://github.com/jonatsl/haarklous-online/pull/50), 85841c8) and live (Worker version cfea339d, 3 Nov 2026).
 
 ### 2026-11-03 · `main` is live (PR #51)
 - **What:** Grünerløkka (PR #51: Akerselva kayak, table tennis at Schous plass, Deichman Grünerløkka and its librarian, Rathkes gate 1) is merged into `main` and deployed (Cloudflare Worker version ddf8bd0a). Issues #44, #45 and #47 are closed.
@@ -189,7 +206,7 @@ On branch `feat/catacomb` ([PR #50](https://github.com/jonatsl/haarklous-online/
     - the brattkort test passed;
     - walked from the old world over the seam at x -760 into the Myrens patch, and from the street up the ramp into the lobby.
   - Not checked: a real DualShock 4, real frame rate on the user's PC, two real players climbing together online.
-- **Status:** PR https://github.com/jonatsl/haarklous-online/pull/49 (branch `feat/klatreverket-torshov`, not merged). It was built on PR #48, which is now merged; `main` is merged into the branch. Not live.
+- **Status:** on `main` (PR #49, merged 3 Nov 2026 with the user's OK) and live (Worker version 6b288cd0).
 
 ### 2026-11-02 · Gamle Oslo, Ensjø and the way there (issue #38)
 - **What:**
