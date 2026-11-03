@@ -67,7 +67,7 @@
         bubble.tex.needsUpdate = true;bubble.s.visible = true;bubbleT = 7;
       }
       const set = (o, x = 0, y = 0, z = 0) => o.rotation.set(x, y, z);
-      // stance: stand | crouch | prone | sit | drive | ride | pillion | drone ; seat poses put the hip at the group origin.
+      // stance: stand | crouch | prone | sit | drive | ride | pillion | drone | climb | hang | belay ; seat poses put the hip at the group origin.
       function pose({stance = 'stand', speed = 0, dt = 0, beer = false, marker = false}) {
         phase += speed * dt * 3.2;const sw = Math.sin(phase), amp = Math.min(1, speed / 3.6);
         hips.position.set(0, .95, 0);set(hips);set(torso);set(neck);set(head);
@@ -82,6 +82,18 @@
         } else if (stance === 'crouch') {
           hips.position.y = .62;torso.rotation.x = -.35;
           for (const side of [L, R]) {set(side.leg.hip, 1.25 + sw * .25 * amp);set(side.leg.kn, -1.95);side.arm.sh.rotation.x = .5;side.arm.el.rotation.x = .6;}
+        } else if (stance === 'climb') {
+          // On a wall (Klatreverket): arms up to the holds, knees out onto the footholds, swapping sides as the climber moves.
+          const k = Math.sin(phase * .5);neck.rotation.x = .4;torso.rotation.x = -.08;
+          L.arm.sh.rotation.set(2.7 + k * .3, 0, -.25);R.arm.sh.rotation.set(2.7 - k * .3, 0, .25);L.arm.el.rotation.x = R.arm.el.rotation.x = .45;
+          L.leg.hip.rotation.set(.75 + k * .35, 0, -.35);R.leg.hip.rotation.set(.75 - k * .35, 0, .35);L.leg.kn.rotation.x = R.leg.kn.rotation.x = -1.15;
+        } else if (stance === 'hang') {
+          // Sitting in the harness on the rope: feet on the wall, hands on the rope above the knot.
+          torso.rotation.x = .25;neck.rotation.x = .3;
+          for (const side of [L, R]) {side.leg.hip.rotation.x = 1.25;side.leg.kn.rotation.x = -.85;side.arm.el.rotation.x = .5;}L.arm.sh.rotation.x = 2.55;R.arm.sh.rotation.x = 2.35;
+        } else if (stance === 'belay') {
+          // Belaying: guide hand up on the climber's rope, brake hand low, looking up at the climber.
+          neck.rotation.x = .7;torso.rotation.x = .08;L.arm.sh.rotation.x = 1.7;L.arm.el.rotation.x = .9;R.arm.sh.rotation.x = .25;R.arm.el.rotation.x = 1.25;
         } else if (stance === 'prone') {
           hips.position.y = .17;hips.rotation.x = -Math.PI / 2 + .05;neck.rotation.x = .9;
           L.leg.hip.rotation.x = sw * .25 * amp;R.leg.hip.rotation.x = -sw * .25 * amp;
