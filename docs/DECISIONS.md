@@ -64,7 +64,7 @@ Live site: runs `main` (Worker version cfea339d, deployed 3 Nov 2026 after PR #5
   - `node --test tests/*.cjs`: 107 pass (5 new).
   - In the browser (simulated controller, offline): a real throw on Muselunden hole 1 landed 68 m short and showed as the pink dot with "68 m"; after the hole the walk to tee 2 showed the dashed line and "43 m to the tee"; running onto the tee started hole 2 without a throw; the big map showed the layout; ○ ended the round and the minimap went off again (setting off) or stayed on (setting on); Torshovdalen showed its drawn outline. No script errors.
   - Not checked: on the user's own PC and controller.
-- **Status:** branch `feat/disc-golf-minimap`, pull request open; not merged or live yet.
+- **Status:** branch `feat/disc-golf-minimap`, [PR #61](https://github.com/jonatsl/haarklous-online/pull/61) open; not merged or live yet.
 
 ### 2026-11-03 · `main` is live (PR #50, the catacomb)
 - **What:** the catacomb (PR #50, issue #43) is merged into `main` (85841c8) and deployed (Cloudflare Worker version cfea339d).
