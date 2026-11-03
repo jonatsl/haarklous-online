@@ -45,6 +45,15 @@ Live site: runs `main` (Worker version a75a02dc, deployed 3 Nov 2026 after PR #7
 
 ## Log
 
+### 2026-11-03 · A short README
+- **What:** `README.md` is now about 45 lines of short bullet points (it was 146 lines): what the project is, how to play, the basic controls, developer commands and the sources.
+  - The long feature-by-feature text and the full controls table are gone from the README. The start and pause screens in the game still show all of the controls.
+  - The old developer notes and the file-by-file sources moved to the end of `docs/HANDOFF.md`.
+  - `AGENTS.md` now says to keep the README short: at most one bullet for a feature.
+- **Why:** the user said the README was too long and too complicated; players find things out in the game (3 Nov 2026).
+- **Where:** `README.md`, `docs/HANDOFF.md`, `AGENTS.md`.
+- **Status:** branch `docs/short-readme`. Only documents change, so the live game does not need a new deploy.
+
 ### 2026-11-03 · `main` is live (PR #70, saved progress, badges and the photo hunt)
 - **What:** saved progress for accounts, badges and the photo hunt (PR #70, issues #54 and #58) are merged into `main` (93d4f27) and deployed (Cloudflare Worker version a75a02dc).
   - Deployed from this session's own clean worktree at the merge commit, with `cloud/` packages installed by `npm ci`.
