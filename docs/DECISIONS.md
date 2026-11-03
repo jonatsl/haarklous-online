@@ -28,6 +28,7 @@ On `main`:
 - Paintball course on the valley floor between the sculpture and the site (since PR #12): lobby, admin, teams up to 6 v 6, team deathmatch with respawns or in rounds, capture the flag, paint or reball (PR #8).
 - Multiplayer on Cloudflare (lobby codes, up to 12 players), passengers in motorcycle / cars / helicopter / plane, text chat with quick chat, lobby-wide voice chat.
 - Player accounts (optional): create an account or log in with email and password in the pause menu; your account name is your lobby name (PR #34, Better Auth + Supabase).
+- Account emails (issue #55): a "confirm your email" link after sign-up and *Forgot password?* with a reset link that opens the game; both links work for an hour, the reset link once. Sent through Brevo once the user has added its key (until then the button is hidden).
 - Soundtrack: 2.5-minute open-world loop plus one loop per minigame and the mission; ambient sound by location.
 - Gamle Oslo, Ensjø and the way there: real streets, ground heights and about 7,900 buildings south of the old world (3.4 × 3.4 km, down Trondheimsveien to Bjørvika); churches, MUNCH, the Opera (walkable roof) and tall chimneys modelled; a timed Ensjø → Rathkes gate run (PR #48, issue #38).
 - Kayaking down Akerselva from three put-ins (Bjølsen, Sagene, Grünerløkka) to Vaterland: the real river, its falls and bridges (issue #45).
@@ -46,6 +47,28 @@ On branch `feat/progress-and-badges` ([PR #70](https://github.com/jonatsl/haarkl
 - Badges and a photo hunt in the pause menu (R1 / B): 16 badges from playing and ten places to photograph (Torshovoksen, HODET N.N., Deichman Grünerløkka, Klatreverket, the catacomb's rotunda, Muselunden, MUNCH, the Opera, Rathkes gate 1, your street door); each new badge pays 50–300 kr; best scores for the minigames, the mission, skydiving and the runs; an orange landing target for skydivers at the airstrip (issue #58).
 
 ## Log
+
+### 2026-11-03 · Forgot password and the email check (issue #55)
+- **What:**
+  - After you create an account, the game sends an email with a **"confirm your email"** link. The link opens the game, confirms the email and logs you in on that browser. The Account box in the pause menu says when the email is not confirmed yet, with a button *Send the email again*.
+  - **Forgot password?** is a new button under the log-in form in the pause menu. Type your email and press it: the email has a link that opens the game with a box *Choose a new password* (type it twice). After that you log in with the new password, and the account is logged out everywhere else.
+  - Both links work for one hour. The reset link works only once; a used or old link opens the game with a short message that says what to do.
+  - The answer to *Forgot password?* is the same whether or not the email has an account, so nobody can test addresses with it. Links can only lead back to the game's own address.
+  - The token is removed from the address bar at once, so it is not left in the browser's history.
+- **Why:** the user's issue #55: "The game should send two kinds of email: a 'confirm your email' link after sign-up, and a 'reset your password' link from a new 'Forgot password?' button on the log-in form in the pause menu. Each link opens the game, lets you finish the step, and works only once and for a short time." The issue says to choose an email service that works without an own domain.
+  - Decided here:
+    - **Brevo** sends the emails. It can send to anyone from one confirmed sender address (for example a Gmail address), without a domain of our own, 300 emails a day for free, and it has a plain HTTP API that works from a Cloudflare Worker. Resend and most others send only to your own address until you own a domain.
+    - Confirming the email is asked for, not required: you can play, log in and save before you confirm it (so a slow or lost email never locks a player out).
+    - "A short time" is one hour for both links.
+    - Until the Brevo key is set, the game hides *Forgot password?* and the confirm reminder, and accounts work as before.
+- **Where:** `cloud/src/mail.js` (new: the two emails and the Brevo call), `cloud/src/auth.js` (Better Auth's email check and password reset, only when mail is set up; emails go out after the answer), `cloud/src/index.js` (`/api/account-features`), `cloud/scripts/set-mail-secret.mjs` (new: the user's setup), `game-account.js` (`forgot`, `resetPassword`, `confirmAgain`, `link`), `game-main.js` (the buttons, the notes and the link box), `index.html`, `style.css`, `README.md`, `docs/HANDOFF.md`; tests `tests/account.test.cjs` (3 new) and `tests/mail.test.cjs` (new, 3). No database change (the email-confirmed column and the table for the links were already there).
+- **Checked:**
+  - `node --test tests/*.cjs`: 134 pass (6 new).
+  - The real Better Auth 1.7.15 with these settings, in memory with a fake Brevo: sign-up sends the confirm email; its link confirms the email, logs in and opens `/?verified=1`; a second click just opens the game; a bad link opens the game with `INVALID_TOKEN`; *Forgot password?* sends the reset email, an unknown address gets the same answer and no email, a link to another site is refused; the reset link opens `/?reset=1&token=…`; the new password is saved, all sessions are logged out, the old password stops working; the same link a second time and an expired link are refused; without the mail settings the reset says it is not enabled.
+  - In the browser (built file, account server stubbed): the link box for a new password (two different passwords are refused, then "Password changed ✓"), the box for an expired confirm link (✕ on the controller closes it, the start screen stays), the token gone from the address bar; in the pause menu the not-confirmed line, *Send the email again*, *Forgot password?* with the note and a bad email refused; *Forgot password?* hidden while creating an account.
+  - Not checked: a real email (needs the user's Brevo account and key), the live server.
+- **Still to do by the user:** make a free Brevo account, add and confirm a sender address, make an API key, then run `node scripts/set-mail-secret.mjs` in `cloud/` (Claude Code may not write Cloudflare secrets).
+- **Status:** branch `feat/account-email`.
 
 ### 2026-11-03 · Accounts save your progress; badges and a photo hunt (issues #54 and #58)
 - **What:**

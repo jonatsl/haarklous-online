@@ -58,6 +58,17 @@
         <div class="mp-join"><button id="askYes" type="button">✕ Move it into my account</button><button id="askNo" type="button">○ No, keep it in this browser</button></div>
       </div>
     </section>
+    <section id="acctLink" class="overlay" hidden>
+      <div class="panel acct"><span class="eyebrow">YOUR ACCOUNT</span><h2 id="acctLinkTitle"></h2><p id="acctLinkText"></p>
+        <form id="acctResetForm" autocomplete="on" hidden>
+          <label>New password <input id="acctNew" type="password" maxlength="72" autocomplete="new-password"></label>
+          <label>The same password again <input id="acctNew2" type="password" maxlength="72" autocomplete="new-password"></label>
+          <div class="mp-join"><button id="acctResetSave" type="submit">Save the new password</button></div>
+        </form>
+        <p id="acctLinkError" class="small acct-error" role="alert"></p>
+        <div class="mp-join"><button id="acctLinkClose" type="button">Close</button></div>
+      </div>
+    </section>
     <section id="pause" class="overlay" hidden>
       <div class="panel">
         <span class="eyebrow">PAUSED</span><h2>Settings</h2>
@@ -76,9 +87,10 @@
             <label id="acctNameRow" hidden>Player name <input id="acctName" maxlength="24" autocomplete="nickname"></label>
             <label>Email <input id="acctEmail" type="email" maxlength="254" autocomplete="email" spellcheck="false"></label>
             <label>Password <input id="acctPassword" type="password" maxlength="72" autocomplete="current-password"></label>
-            <div class="mp-join"><button id="acctSubmit" type="submit">Log in</button><button id="acctMode" type="button">New here? Create an account</button></div>
+            <div class="mp-join"><button id="acctSubmit" type="submit">Log in</button><button id="acctMode" type="button">New here? Create an account</button><button id="acctForgot" type="button" hidden>Forgot password?</button></div>
           </form>
-          <div id="acctIn" hidden><button id="acctLogout" type="button">Log out</button></div>
+          <div id="acctIn" hidden><p id="acctConfirmLine" class="small" hidden></p><div class="mp-join"><button id="acctConfirm" type="button" hidden>Send the email again</button><button id="acctLogout" type="button">Log out</button></div></div>
+          <p id="acctNote" class="small" aria-live="polite"></p>
           <p id="acctProgress" class="small" aria-live="polite"></p>
           <p id="acctError" class="small acct-error" role="alert"></p>
         </section>
