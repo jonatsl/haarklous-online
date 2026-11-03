@@ -73,7 +73,7 @@ Live site: runs `main` (Worker version cfea339d, deployed 3 Nov 2026 after PR #5
   - Online with two players on a local lobby server: a scooter left by one is exactly there for the other (live and after joining); the other sees the taxi light and the passenger in the back seat; the friend riding along got half of the fare (44 of 87 kr); a locked city bike cannot be taken by the other.
   - Cost: about 6 draw calls per scooter or bike in view (with shadows), 3 per dock.
 - **Not checked:** a real DualShock 4, the look and sound on a real screen, real players in different homes.
-- **Status:** branch `feat/jobs-and-bikes`, pull request for the user's review (not merged, not deployed).
+- **Status:** branch `feat/jobs-and-bikes`, PR #62 (https://github.com/jonatsl/haarklous-online/pull/62) for the user's review (not merged, not deployed).
 
 ### 2026-11-03 · `main` is live (PR #50, the catacomb)
 - **What:** the catacomb (PR #50, issue #43) is merged into `main` (85841c8) and deployed (Cloudflare Worker version cfea339d).
