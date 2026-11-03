@@ -4,7 +4,9 @@
  * collisions); switching the microphone on or off just swaps the track on that channel, so it never needs renegotiation.
  * Signalling (offer/answer/ICE) goes through the lobby server; Cloudflare's public STUN server finds a direct route.
  * GameVoice.create({send(to, data), you()}) -> {setMic(on) -> Promise<bool>, mic, onSignal(from, data), peerJoined(id),
- *   peerLeft(id), setVolume(id, v), reset(), peers}
+ *   peerLeft(id), setVolume(id, v), reset(), peers, levels() -> {me, [id]: dBFS}}
+ * levels(): how loud each voice is right now (RMS in dB full scale, -100 when silent or unknown) – the librarian in Deichman
+ * Grünerløkka shushes players who talk loudly there (issue #47).
  */
 (function (root, factory) {
   root.GameVoice = factory();
@@ -54,12 +56,26 @@
       } catch {}
     }
     function peerJoined(id) {peer(id);}
-    function peerLeft(id) {const p = peers.get(id);if (!p) return;try {p.pc.close();} catch {}p.audio.srcObject = null;peers.delete(id);}
+    function peerLeft(id) {meters.delete(id);const p = peers.get(id);if (!p) return;try {p.pc.close();} catch {}p.audio.srcObject = null;peers.delete(id);}
     function setVolume(id, v) {const p = peers.get(id);if (p) p.audio.volume = Math.max(0, Math.min(1, v));}
     function reset() {for (const id of [...peers.keys()]) peerLeft(id);}
+    // Voice levels: an analyser per stream (not connected to the speakers; the <audio> element plays the voice).
+    let actx = null;const meters = new Map();
+    function meter(key, src) {
+      if (!src) {meters.delete(key);return null;}
+      let m = meters.get(key);if (m && m.src === src) return m;
+      try {actx = actx || new (window.AudioContext || window.webkitAudioContext)();const node = actx.createMediaStreamSource(src), an = actx.createAnalyser();an.fftSize = 1024;node.connect(an);m = {src, node, an, buf: new Float32Array(an.fftSize)};meters.set(key, m);return m;} catch {return null;}
+    }
+    function level(m) {if (!m) return -100;m.an.getFloatTimeDomainData(m.buf);let s = 0;for (let i = 0; i < m.buf.length; i++) s += m.buf[i] * m.buf[i];return 10 * Math.log10(s / m.buf.length + 1e-12);}
+    function levels() {
+      if (actx && actx.state === 'suspended') actx.resume().catch(() => {});
+      const out = {me: stream ? level(meter('me', stream)) : -100};
+      for (const [id, p] of peers) out[id] = p.audio.srcObject ? level(meter(id, p.audio.srcObject)) : -100;
+      return out;
+    }
     // If the browser held back autoplay of someone's voice, keep retrying (any later click, key or controller input unlocks it).
     setInterval(() => {for (const p of peers.values()) if (p.audio.srcObject && p.audio.paused) p.audio.play().catch(() => {});}, 1500);
-    return {setMic, onSignal, peerJoined, peerLeft, setVolume, reset, get mic() {return !!stream;}, peers};
+    return {setMic, onSignal, peerJoined, peerLeft, setVolume, reset, levels, get mic() {return !!stream;}, peers};
   }
   return {create};
 });

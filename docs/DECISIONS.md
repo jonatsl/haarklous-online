@@ -30,6 +30,9 @@ On `main`:
 - Player accounts (optional): create an account or log in with email and password in the pause menu; your account name is your lobby name (PR #34, Better Auth + Supabase).
 - Soundtrack: 2.5-minute open-world loop plus one loop per minigame and the mission; ambient sound by location.
 - Gamle Oslo, Ensjø and the way there: real streets, ground heights and about 7,900 buildings south of the old world (3.4 × 3.4 km, down Trondheimsveien to Bjørvika); churches, MUNCH, the Opera (walkable roof) and tall chimneys modelled; a timed Ensjø → Rathkes gate run (PR #48, issue #38).
+- Kayaking down Akerselva from three put-ins (Bjølsen, Sagene, Grünerløkka) to Vaterland: the real river, its falls and bridges (issue #45).
+- Schous plass: playable table tennis against Ola; Deichman Grünerløkka with thousands of books, *The Inner Game of Tennis* and a readable *Moby-Dick*, and a librarian who shushes runners and loud voices (issues #44, #47).
+- Rathkes gate 1: the gate, the passage and the backyard with door 1C, ready for the second flat (issue #44, preparation).
 
 Live site: runs `main` (Worker version ea397923, deployed 3 Nov 2026 after PR #48; `main` builds byte-for-byte to the live page), so everything above is online.
 
@@ -81,6 +84,23 @@ On branch `feat/catacomb` ([PR #50](https://github.com/jonatsl/haarklous-online/
   - Underground about 100 draw calls and 0.8 M triangles. On the surface by the mausoleums it is 1.2 k calls and 1.6 M triangles, as before.
   - Not checked: frame rate on the user's PC (the browser pane was hidden), and sound by ear.
 - **Status:** branch `feat/catacomb`, [PR #50](https://github.com/jonatsl/haarklous-online/pull/50) (open); not on `main`, not live.
+
+### 2026-11-03 · Grünerløkka: Akerselva kayak, Schous plass, Deichman, Rathkes gate 1 (issues #44, #45, #47)
+- **What:**
+  - **Kayak on Akerselva (#45):** three racks (Bjølsen 4.7 km, Sagene 2.6 km, Grünerløkka 0.9 km to go). Left stick ↑ / W paddle, ↓ / S back, ←→ / A D turn (the user's wish); look with the right stick / mouse; R3 / V view from behind; □ out on a bank. The real river from OpenStreetMap and Kartverket: course, width, water level, 81 m of drop with ten falls (white water, splash, shake), 46 bridges you can paddle under and walk or drive over. The run ends at Vaterland before the culvert; best times kept; 40 kr a finish, 80 kr a new best. Other players see you in your kayak.
+  - **Table tennis at Schous plass (#44):** an outdoor concrete table in the park, played against Ola: real rules (to 11, two serves each, win by two, serve bounces on your side first, net, out, double bounce); R2 swings with timing, the camera aims, L2 smashes; 60 kr for a win. OpenStreetMap has no table mapped there, so the place in the park is my choice.
+  - **Deichman Grünerløkka (#44):** the 1914 library hall at its real place (white plaster, small-paned windows, black tiled hip roof, entrance gable with steps, after a photo on Wikimedia Commons), with wall shelves, rows of shelves, about 12,600 plain books, reading tables, Serieteket's comics corner and the librarian's desk. *The Inner Game of Tennis* (W. Timothy Gallwey) is the one book with a printed spine; □ shows its front cover and a short summary. *Moby-Dick* lies on a reading table as a green cloth-bound book; □ opens it at chapter 1: "Call me Ishmael." (public domain text).
+  - **The librarian (#47):** glasses, curly hair, a scarf. Run inside – or talk loudly on voice chat there – and she comes at you, shushes you ("Hysj! Ikke løp i biblioteket!") and walks back to her desk; after a shush you can only walk for 5 s. Other players' running and voices count too.
+  - **Rathkes gate 1C (#44, preparation):** checked on Google Street View: the way into the backyard is the iron gate under the "1" at the east end of the façade. In the game: that gate (□ opens both leaves), the passage under the building, the backyard and the doors 1B and 1C ("5. etg · kommer"). What the photos are needed for is in `docs/RATHKES-1C.md`.
+- **Why:** issues #44, #45 and #47 (the user, 2 Nov 2026), done together at the user's request (3 Nov 2026: "implement issue 44-47 … make sure you note the other ongoing workflows to not collude with them"). #46 is not an issue but the waypoint/minimap PR from another session (already merged).
+- **Not copied:** the real cover art of *The Inner Game of Tennis* belongs to its publisher, so the game draws a look-alike typographic cover (title, author, a tennis ball). A photo of the user's own copy can replace it.
+- **Working beside the other sessions:** all places are in the Gamle Oslo patch (PR #48), so this branch was built on it and uses its prepare hook (drop or change a decoded building, lower the ground) without touching its files. The river also runs through the Myrens patch of the Klatreverket session (PR #49, widened to x −1200…−688, s −176…560 for this, agreed by message); until that patch is on `main` the kayak draws simple banks there. The river bed stays 6 m and more from the climbing hall.
+- **Where:** `game-kayak.js`, `akerselva-data.js`, `tools/make-akerselva.py`, `assets/osm/akerselva-*`, `game-library.js`, `game-tabletennis.js`, `game-rathkes.js`, `game-main.js` (prepare step, modules, `kayak` mode, prompts, `grunerTick`, online state), `game-voice.js` (voice levels), `game-audio.js` (new sounds), `index.html`, `README.md`, `docs/HANDOFF.md`, `docs/RATHKES-1C.md`, `tests/grunerlokka.test.cjs`.
+- **Checked:**
+  - Node tests 84/84 (13 new): all three runs paddled to Vaterland inside the banks, bed lowering, library paths, the librarian's chase / shush / return, serve order and legal serves, the net, the Rathkes split.
+  - In the browser: the library outside and inside, both books (cover; "Call me Ishmael."), the librarian chasing and shushing a runner and walking back, a table-tennis rally with Ola, kayaking from Sagene and Grünerløkka (water, banks, bridges, HUD), the gate opening, the passage and the 1C prompt. No script errors.
+- **Not checked:** a real DualShock 4, a real microphone for the loudness check, two real players online.
+- **Status:** branch `feat/grunerlokka`, PR #51 (https://github.com/jonatsl/haarklous-online/pull/51).
 
 ### 2026-11-03 · `main` is live (PR #48)
 - **What:** Gamle Oslo, Ensjø and the way there (PR #48) is merged into `main` and deployed (Cloudflare Worker version ea397923).
