@@ -34,9 +34,17 @@ On `main`:
 - Schous plass: playable table tennis against Ola; Deichman Grünerløkka with thousands of books, *The Inner Game of Tennis* and a readable *Moby-Dick*, and a librarian who shushes runners and loud voices (issues #44, #47).
 - Rathkes gate 1: the gate, the passage and the backyard with door 1C, ready for the second flat (issue #44, preparation).
 
-Live site: runs `main` (Worker version ea397923, deployed 3 Nov 2026 after PR #48; `main` builds byte-for-byte to the live page), so everything above is online.
+Live site: runs `main` (Worker version ddf8bd0a, deployed 3 Nov 2026 after PR #51; `main` builds byte-for-byte to the live page), so everything above is online.
 
 ## Log
+
+### 2026-11-03 · `main` is live (PR #51)
+- **What:** Grünerløkka (PR #51: Akerselva kayak, table tennis at Schous plass, Deichman Grünerløkka and its librarian, Rathkes gate 1) is merged into `main` and deployed (Cloudflare Worker version ddf8bd0a). Issues #44, #45 and #47 are closed.
+  - Deployed from this session's own worktree at the merge commit (131d8e5). `main` had not moved since PR #48, so the merge holds only PR #51.
+- **Why:** the user asked to make a PR and merge it when done (3 Nov 2026); `AGENTS.md` asks for a redeploy after game changes.
+- **Other open PRs:** #49 (Klatreverket, the Myrens patch) and #50 (catacomb) need a routine merge of `main`: PR #51 added lines next to theirs in `game-main.js` (right after the districts are decoded, the floor and obstacle lists, findPrompt, the test handle), `index.html`, `README.md` and this log. When #49 is in, the kayak uses its ground on the Sagene stretch by itself.
+- **Checked:** the live page is byte-for-byte the build; `/weather` answers 200; the live game loads the library (12,580 books), the table, the gate and the three kayak racks, with no console errors.
+- **Status:** live.
 
 ### 2026-11-03 · Grünerløkka: Akerselva kayak, Schous plass, Deichman, Rathkes gate 1 (issues #44, #45, #47)
 - **What:**
@@ -53,7 +61,7 @@ Live site: runs `main` (Worker version ea397923, deployed 3 Nov 2026 after PR #4
   - Node tests 84/84 (13 new): all three runs paddled to Vaterland inside the banks, bed lowering, library paths, the librarian's chase / shush / return, serve order and legal serves, the net, the Rathkes split.
   - In the browser: the library outside and inside, both books (cover; "Call me Ishmael."), the librarian chasing and shushing a runner and walking back, a table-tennis rally with Ola, kayaking from Sagene and Grünerløkka (water, banks, bridges, HUD), the gate opening, the passage and the 1C prompt. No script errors.
 - **Not checked:** a real DualShock 4, a real microphone for the loudness check, two real players online.
-- **Status:** branch `feat/grunerlokka`, PR #51 (https://github.com/jonatsl/haarklous-online/pull/51).
+- **Status:** PR #51 (https://github.com/jonatsl/haarklous-online/pull/51), merged into `main` and live (Worker version ddf8bd0a).
 
 ### 2026-11-03 · `main` is live (PR #48)
 - **What:** Gamle Oslo, Ensjø and the way there (PR #48) is merged into `main` and deployed (Cloudflare Worker version ea397923).
