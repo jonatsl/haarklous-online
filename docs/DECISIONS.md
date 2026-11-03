@@ -43,7 +43,51 @@ Live site: runs `main` (Worker version ddf8bd0a, deployed 3 Nov 2026 after PR #5
 On branch `feat/catacomb` ([PR #50](https://github.com/jonatsl/haarklous-online/pull/50), not on `main` yet):
 - A large catacomb under Torshovdalen with three entrances about 100 m apart (marked ☠ on the map): torch-lit bone galleries with real-looking skulls, dark quarry tunnels where you use your torch (□ / L1 / Q), and a map that is wiped underground and fills in with what you see (issue #43).
 
+On branch `feat/progress-and-badges` (issues #54 and #58, not merged yet):
+- Logged in, your progress is your account's and is there on any PC or browser: money and bottles, the bag, photos (an album of up to 60), badges, best scores, Klatreverket ticks, the catacomb map and your settings; it saves by itself. The first log-in on a browser with its own progress asks whether to move it into the account. Without an account it stays in the browser as before (issue #54).
+- Badges and a photo hunt in the pause menu (R1 / B): 16 badges from playing and ten places to photograph (Torshovoksen, HODET N.N., Deichman Grünerløkka, Klatreverket, the catacomb's rotunda, Muselunden, MUNCH, the Opera, Rathkes gate 1, your street door); each new badge pays 50–300 kr; best scores for the minigames, the mission, skydiving and the runs; an orange landing target for skydivers at the airstrip (issue #58).
+
 ## Log
+
+### 2026-11-03 · Accounts save your progress; badges and a photo hunt (issues #54 and #58)
+- **What:**
+  - **Saved progress (issue #54):**
+    - Logged in, these are saved to your account: money and empty bottles, the bag, your photos, badges, best scores (disc golf, petanque, table tennis, paintball, the mission, skydiving, kayak, the run, Klatreverket), the catacomb map and your settings (look sensitivity, music volume, minimap).
+    - Log in on another PC or browser and everything is there.
+    - It saves by itself every 20 s when something changed, when the tab is hidden and when it closes. The account box in the pause menu says when it last saved.
+    - The first time you log in on a browser that has progress of its own, the game asks whether to move it into the account. Yes: money, bottles and the bag add up, the better best score wins, and badges, climbing ticks, the catacomb map and photos join. No: it stays in the browser and comes back when you log out, and you are not asked again.
+    - Logging out saves once more and brings back the browser's own progress.
+    - Photos go to the account's own album, at most 60 per player. A full album says so; delete old photos in the gallery (✕ / Delete twice, which also works without an account).
+    - Without an account nothing changes: everything stays in the browser.
+  - **Badges and the photo hunt (issue #58):**
+    - A list in the pause menu (button *Badges and best scores*, R1 on the controller, B on the keyboard; B while walking opens it directly).
+    - 16 badges from playing: the hostage mission, a hole in one, all 12 holes at Muselunden, beating Arne at petanque, winning a paintball game against other players, landing within 10 m of the skydiving target, climbing a route and passing the brattkort at Klatreverket, kayaking down Akerselva, beating Ola at table tennis, the Ensjø → Rathkes gate run, going down into the catacomb, opening Moby-Dick, throwing a log on the firepit, flying 50 m up, and finding every photo-hunt place.
+    - The photo hunt: Torshovoksen, HODET N.N., Deichman Grünerløkka, Klatreverket Torshov, the Rotunda of bones in the catacomb, Muselunden (the basket of hole 1), MUNCH, the Opera, Rathkes gate 1 and your own street door. A photo counts when the place is in the picture (not at the very edge), big enough (go closer or zoom in) and nothing solid is in the way; the street door counts only from the front. Otherwise the game says what was wrong. The list shows your photo, or a hint.
+    - Each new badge shows a short message with its icon or photo and pays 50–300 kr.
+    - Best scores in the same list.
+    - A landing target for skydivers (orange and white circles, 21 m across) on the grass 180 m down the airstrip, ◎ on the map. After landing the game says how far from it you were.
+- **Why:** the user's issues #54 ("the game should remember your progress on the server … money and bottle deposit, the items in your bag, your photos, your best scores … your settings … asks if you want to move it into your account … Photos … their own storage, with a limit") and #58 ("achievements … photo hunt … the list shows the photo you took, and a hint … short message on screen and some kroner … saved with your account"). The user asked to implement both (3 Nov 2026).
+  - Decided here:
+    - Photos and progress live in one Cloudflare Durable Object per account (SQLite storage, free plan), not in the Supabase database, so photos do not fill the 500 MB database and no database change is needed.
+    - The photo limit is 60 per player.
+    - Graphics quality and aerial imagery stay per PC (they depend on the computer).
+    - The street door is the tenth photo place; the "On target" badge needed a target, so one was added at the airstrip.
+    - Badges are checked from what is saved (best scores, ticks, times), so progress moved into an account gets its badges too.
+- **Where:**
+  - `game-progress.js` (new): what progress is, how two copies join, the sync with the server, the account's photo album.
+  - `game-badges.js` (new): badges, photo hunt places, the photo check, best scores, the list and the message.
+  - `cloud/src/progress.js` (new): the server side; `cloud/src/auth.js` (who is logged in); `cloud/src/index.js` (routes); `cloud/wrangler.toml` (Durable Object `Profile`, migration v3).
+  - `game-camera.js`: the album can be the browser's or the account's; delete in the gallery.
+  - `game-main.js`: wiring, the question box, the badge checks, the photo hunt places and sight line, the skydiving target, the pause menu.
+  - `game-shops.js`, `game-music.js`, `game-map.js`, `game-catacomb.js`, `catacomb-layout.js`, `game-climbing.js`, `game-kayak.js`, `game-route.js`: read their saved value again when an account's progress is loaded.
+  - `game-minigames.js`, `game-tabletennis.js`, `case-game.js`: report results for the best scores.
+  - `index.html`, `style.css`, `README.md`, `docs/HANDOFF.md`; tests `tests/progress.test.cjs`, `tests/badges.test.cjs`.
+- **Checked:**
+  - Node tests 113/113 (11 new).
+  - On a local copy of the server (`wrangler dev`, logged in as a test user): saving and loading, bad input refused, the 61st photo refused.
+  - In the browser: the question and both answers; 900 + 777 = 1677 kr after moving, the photo moved; a newer save from "another PC" loaded on reload; log-out saved the last change and brought the browser's copy back; deleting a photo in the account album; all ten photo places photographed through the game's own camera path (photos checked by eye); the badges list; a real canopy landing 7.8 m from the target gave "On target" and 150 kr.
+  - Not checked: the live server (needs the merge and a deploy), a real DualShock 4, two PCs at the same time (the last save wins).
+- **Status:** branch `feat/progress-and-badges`, not merged, not live.
 
 ### 2026-11-03 · A large catacomb with three entrances (issue #43)
 - **What:**

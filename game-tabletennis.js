@@ -204,7 +204,7 @@
       // Aim: where the camera points across the far half.
       const fwd = camera ? camera.getWorldDirection(new T.Vector3()) : new T.Vector3(ux, 0, uz), fu = fwd.x * ux + fwd.z * uz, fv = fwd.x * vx + fwd.z * vz, aimV = clamp(fv / Math.max(.2, fu) * (TABLE.L / 2 + .7) + me.v * .3, -.75, .75);
       if (pause > 0) {
-        pause -= dt;if (pause <= 0) {if (match.winner) {const won = match.winner === 'you', m = `${won ? 'You win' : npcName + ' wins'} ${match.score.you}–${match.score.npc}!`;game.stop();if (won && game.onWin) game.onWin();return {done: m};}newRally();msg = match.server === 'you' ? 'Your serve: R2 / left mouse' : `${npcName} serves`;}
+        pause -= dt;if (pause <= 0) {if (match.winner) {const won = match.winner === 'you', m = `${won ? 'You win' : npcName + ' wins'} ${match.score.you}–${match.score.npc}!`;game.stop();if (won && game.onWin) game.onWin();if (game.onEnd) game.onEnd(won, {...match.score});return {done: m};}newRally();msg = match.server === 'you' ? 'Your serve: R2 / left mouse' : `${npcName} serves`;}
       } else if (rally) {
         if (!rally.ball && match.server === 'you') {msg = 'Your serve: R2 / left mouse (aim with the camera)';if (pressed) serve('you', aimV, input.alt);}
         else if (!rally.ball && match.server === 'npc') {serveWait -= dt;if (serveWait <= 0) serve('npc', (Math.random() - .5) * 1.1);}

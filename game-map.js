@@ -153,6 +153,7 @@
     const mini = document.createElement('canvas');mini.id = 'minimap';mini.hidden = true;mini.setAttribute('aria-hidden', 'true');root.append(mini);
     const mg = mini.getContext('2d');
     let miniOn = false;try {miniOn = localStorage.getItem('haarklous-minimap-v1') === 'on';} catch {}
+    window.addEventListener('haarklous-progress', () => {let on = false;try {on = localStorage.getItem('haarklous-minimap-v1') === 'on';} catch {}if (on !== miniOn) map.minimap = on;});
     Object.defineProperty(map, 'minimap', {get: () => miniOn, set: on => {miniOn = !!on;try {localStorage.setItem('haarklous-minimap-v1', miniOn ? 'on' : 'off');} catch {}if (!miniOn) {mini.hidden = true;root.classList.remove('has-minimap');}}});
     // Which roads, areas and buildings touch each tile (built the first time the minimap is drawn).
     let index = null;const tiles = new Map();let budget = 0;

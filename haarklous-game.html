@@ -226,6 +226,29 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
 #waypoint.edge b{top:20px}
 #waypoint.edge .wp-arrow{display:block}
 .lg.wp{background:#a83dff;border-radius:50% 50% 50% 0;transform:rotate(-45deg)}
+/* Badges, the photo hunt and best scores (issue #58); the question box (issue #54) */
+#badges{z-index:7}#askBox{z-index:8}
+#badges .panel{width:min(760px,calc(100% - 32px))}
+#badges h3{margin:18px 0 8px}#badges h3 small{font-weight:400;font-size:12px;opacity:.75;margin-left:6px}
+#badges ul{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+#badges .bd-spots{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+#badges .bd-spots li{display:grid;gap:3px;padding:6px;border-radius:8px;background:#ffffff0d;opacity:.75}
+#badges .bd-spots li img,#badges .bd-spots li i{width:100%;aspect-ratio:16/9;border-radius:5px;object-fit:cover;display:grid;place-items:center;background:#0008;font-style:normal;font-size:28px;color:#fff6}
+#badges .bd-list{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
+#badges .bd-list li{display:grid;grid-template-columns:34px 1fr;gap:0 8px;padding:7px 8px;border-radius:8px;background:#ffffff0d;opacity:.6;filter:grayscale(1)}
+#badges .bd-list li i{grid-row:span 2;font-style:normal;font-size:24px;line-height:34px;text-align:center}
+#badges li.got{opacity:1;filter:none;background:#ffd54f1f;outline:1px solid #ffd54f66}
+#badges li small{font-size:11.5px;opacity:.8}
+#badges .bd-records{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin:0}#badges .bd-records dt{color:var(--accent)}#badges .bd-records dd{margin:0}
+#badgeToast{position:absolute;left:50%;top:31%;transform:translateX(-50%);display:flex;align-items:center;gap:12px;padding:10px 18px 10px 10px;border-radius:12px;background:#1b1607ee;outline:2px solid #ffd54f;box-shadow:0 8px 30px #000a;pointer-events:none;z-index:4}
+#badgeToast[hidden]{display:none}
+#badgeToast.in{animation:badgeIn .5s ease-out}
+@keyframes badgeIn{from{transform:translate(-50%,-14px) scale(.9);opacity:0}to{transform:translate(-50%,0) scale(1);opacity:1}}
+#badgeToast img{width:96px;height:54px;border-radius:6px;object-fit:cover}
+#badgeToast i{font-style:normal;font-size:34px;width:46px;text-align:center}
+#badgeToast span{display:grid;gap:1px}#badgeToast small{font:600 10px/1 ui-monospace,Consolas,monospace;letter-spacing:.14em;color:#ffd54f;text-transform:uppercase}
+#badgeToast b{font-size:18px}#badgeToast em{font-style:normal;color:#9ff0a8;font-weight:700}
+#askBox p{line-height:1.5}
 </style>
 </head>
 <body>
@@ -261,16 +284,21 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
           <dt>✕ / Space</dt><dd>Jump</dd>
           <dt>○ / C · hold ○ / Z</dt><dd>Crouch · lie prone</dd>
           <dt>□ / E</dt><dd>Use: doors, drinks, vehicles, games, mission</dd>
-          <dt>△ / F</dt><dd>Tap: photo camera (R2 / left mouse takes a photo, □ / G gallery) · hold: choose camera or FPV drone</dd>
+          <dt>△ / F</dt><dd>Tap: photo camera (R2 / left mouse takes a photo, □ / G gallery, ✕ / Delete twice deletes a photo) · hold: choose camera or FPV drone</dd>
           <dt>D-pad ↑ / ↑</dt><dd>Check the time on your wristwatch</dd>
           <dt>Touchpad / M</dt><dd>Map · ✕ / click sets a waypoint (a purple pin shows the way until you are within 7 m) · □ / Delete removes it</dd>
           <dt>Share / Enter or T</dt><dd>Chat with the other players (quick chat on the controller)</dd>
           <dt>R2 / L3 / Shift</dt><dd>Run</dd>
           <dt>L2 / R2 · mouse buttons</dt><dd>Climbing at Klatreverket: hold to grip with the left / right hand, let go and look at the next hold to reach it</dd>
           <dt>L1 / Q</dt><dd>Torch on / off in the catacombs (□ too, where it is dark)</dd>
-          <dt>Options / Esc</dt><dd>Pause and settings</dd>
+          <dt>Options / Esc</dt><dd>Pause and settings · R1 / B there: badges, the photo hunt and your best scores</dd>
         </dl>
         <button id="startButton">Click or press ✕ to start</button>
+      </div>
+    </section>
+    <section id="askBox" class="overlay" hidden>
+      <div class="panel"><span class="eyebrow">YOUR PROGRESS</span><p id="askText"></p>
+        <div class="mp-join"><button id="askYes" type="button">✕ Move it into my account</button><button id="askNo" type="button">○ No, keep it in this browser</button></div>
       </div>
     </section>
     <section id="pause" class="overlay" hidden>
@@ -279,6 +307,7 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
         <label>Controller look sensitivity <output id="sensPadOut"></output><input id="sensPad" type="range" min="0.25" max="3" step="0.05"></label>
         <label>Mouse look sensitivity <output id="sensMouseOut"></output><input id="sensMouse" type="range" min="0.25" max="3" step="0.05"></label>
         <p id="walletLine" class="small"></p>
+        <p><button id="badgesOpen" type="button">Badges and best scores</button> <span class="small">Controller: R1 · keyboard: B</span></p>
         <label>Music volume <output id="musicOut"></output><input id="musicVol" type="range" min="0" max="1" step="0.05"></label>
         <p class="small">Controller: D-pad ←/→ changes the music volume. Now playing: <span id="nowPlaying">–</span></p>
         <label class="row"><input id="minimapOn" type="checkbox"> Minimap – round, in the bottom-left corner, turns with you (controller: D-pad ↓)</label>
@@ -293,6 +322,7 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
             <div class="mp-join"><button id="acctSubmit" type="submit">Log in</button><button id="acctMode" type="button">New here? Create an account</button></div>
           </form>
           <div id="acctIn" hidden><button id="acctLogout" type="button">Log out</button></div>
+          <p id="acctProgress" class="small" aria-live="polite"></p>
           <p id="acctError" class="small acct-error" role="alert"></p>
         </section>
         <section class="mp">
@@ -331,6 +361,8 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
           <dt>Kayak (Akerselva)</dt><dd>□ at a kayak rack (Bjølsen, Sagene, Grünerløkka) · left stick ↑ / W paddle, ↓ / S back-paddle, ←→ / A D turn · right stick / mouse look around · R3 / V view from behind · □ get out on a bank when slow · the run ends at Vaterland, before the culvert</dd>
           <dt>Table tennis</dt><dd>Schous plass, against Ola: R2 / left mouse swing (early = cross-court, late = down the line) · aim with the camera · L2 smash · left stick / A D move · R2 serves · first to 11 · ○ quit</dd>
           <dt>Deichman Grünerløkka</dt><dd>□ on a real book: “The Inner Game of Tennis” on the sports shelf, Moby-Dick on the reading table (○ closes it) · don’t run or talk loudly on voice chat inside – the librarian will shush you</dd>
+          <dt>Badges and photo hunt</dt><dd>R1 / B in this menu: your badges, the photo hunt and your best scores · photo hunt: take a good photo of each known place (in the picture, big enough – go closer or zoom in with L2 and the right stick – and nothing in the way) · every new badge pays some kroner · skydiving: land on the orange target 180 m down the airstrip (◎ on the map)</dd>
+          <dt>Account progress</dt><dd>Logged in, your money, bag, photos, badges, best scores and settings are saved to your account by themselves and are there on any PC; without an account they stay in this browser</dd>
           <dt>Rathkes gate 1</dt><dd>□ opens the iron gate under the “1” on Rathkes gate · the passage leads to the backyard and the doors 1B and 1C (the flat on the 5th floor comes later)</dd>
         </dl>
         <p class="small">Map data © OpenStreetMap contributors (ODbL) · Height data © Kartverket (CC BY 4.0) · Aerial imagery, when online: Esri World Imagery.</p>
@@ -2881,7 +2913,8 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
 
   function create() {
     let ctx = null, kit = null, out = null, current = null, volume = .5;
-    try {const v = localStorage.getItem('haarklous-music-volume-v1');if (v !== null && v !== '') volume = Math.max(0, Math.min(1, +v));} catch {}
+    const loadVolume = () => {try {const v = localStorage.getItem('haarklous-music-volume-v1');if (v !== null && v !== '') volume = Math.max(0, Math.min(1, +v));} catch {}};
+    loadVolume();
     const lanes = {};
     const level = () => volume * .8;
     function attach(c) {
@@ -2916,6 +2949,7 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
       if (out) out.master.gain.setTargetAtTime(level(), ctx.currentTime, .1);
     }
     // Where the current track is: bar, seconds into the loop, loop length.
+    if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('haarklous-progress', () => {loadVolume();if (out) out.master.gain.setTargetAtTime(level(), ctx.currentTime, .1);});
     function position() {const L = current && lanes[current];if (!L) return null;const i = info[current];return {track: current, title: i.title, bar: L.bar, seconds: L.bar * i.seconds / i.bars, length: i.seconds};}
     return {attach, play, setVolume, position, get volume() {return volume;}, get current() {return current;}, tracks: info};
   }
@@ -3526,6 +3560,231 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
   }
   return {check, available, create};
 });
+</script><script>/* Saved progress (issue #54). Without an account the game keeps your progress in this browser as before (localStorage; the
+ * photos in IndexedDB). Logged in, the same values are your account's: they come from the server when you log in, on any PC or
+ * browser, and are saved there by themselves – every 20 s when something changed, and when the tab is hidden or closed.
+ * The first time you log in on a browser that has progress of its own, the game asks whether to move it into the account:
+ * money, bottles and the bag add up, the better best score wins, badges, climbing ticks, the catacomb map and the photos join.
+ * If you say no, it stays in this browser and comes back when you log out (and you are not asked again for that account).
+ * Photos go to the account's own album on the server (at most 60, cloud/src/progress.js). Graphics settings stay per device.
+ *
+ * Pure (Node-tested):
+ *   KEYS, SETTINGS                 the localStorage keys that are your progress (SETTINGS: the ones that are settings)
+ *   collect(store) -> {key: text}  apply(store, data, keep) writes data and removes the other KEYS except those in keep
+ *   hasProgress(data) -> bool      more than a fresh start (settings do not count)
+ *   merge(account, browser, rules, mode) -> data   mode 'move' (log in: add the browser's) | 'sync' (the account was saved elsewhere)
+ *   hashes(data) -> {key: hash}    diff(data, hashes) -> {set, del}    describe(data) -> {money, badges}
+ * GameProgress.create({account, store, camera, ask(text) -> Promise<bool>, notice(text), rules, onApplied()}) -> sync:
+ *   sync.userChanged(user)   after a log-in, a successful session check, or a log-out (user null)
+ *   sync.beforeLogout()      saves while the session is still valid
+ *   sync.save({keepalive})   sync.status (text for the pause menu)   sync.user
+ */
+(function (root, factory) {
+  const api = factory();
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  else root.GameProgress = api;
+})(typeof window === 'undefined' ? globalThis : window, function () {
+  'use strict';
+  const SETTINGS = ['haarklous-look-sensitivity-v1', 'haarklous-music-volume-v1', 'haarklous-minimap-v1'];
+  const KEYS = ['haarklous-wallet-v1', 'haarklous-records-v1', 'haarklous-badges-v1', 'haarklous-kayak-v1', 'haarklous-route-v1',
+    'haarklous-klatreverket-v1', 'haarklous-catacomb-map-v1', ...SETTINGS];
+  const META = 'haarklous-progress-sync-v1', GUEST = 'haarklous-progress-guest-v1', DECLINED = 'haarklous-progress-declined-v1';
+  const START_MONEY = 500, SAVE_EVERY = 20, KEEPALIVE_MAX = 60000;
+
+  const J = t => {try {return JSON.parse(t);} catch {return null;}};
+  const obj = t => {const v = J(t);return v && typeof v === 'object' && !Array.isArray(v) ? v : {};};
+  const num = v => Number.isFinite(+v) ? +v : 0;
+  const hash = s => {let h = 0x811c9dc5;for (let i = 0; i < s.length; i++) {h ^= s.charCodeAt(i);h = Math.imul(h, 0x01000193);}return (h >>> 0).toString(36) + ':' + s.length;};
+
+  function collect(store) {const out = {};for (const k of KEYS) {const v = store.getItem(k);if (v !== null && v !== undefined) out[k] = String(v);}return out;}
+  function apply(store, data, keep = []) {
+    for (const k of KEYS) {if (data && typeof data[k] === 'string') store.setItem(k, data[k]);else if (!keep.includes(k)) store.removeItem(k);}
+  }
+  const pick = (data, keys) => Object.fromEntries(Object.entries(data || {}).filter(([k]) => keys.includes(k)));
+  const bitsSet = t => {try {return [...atob(String(t))].some(c => c.charCodeAt(0) !== 0);} catch {return false;}};
+  function hasProgress(data) {
+    for (const [k, t] of Object.entries(data || {})) {
+      if (SETTINGS.includes(k) || !KEYS.includes(k)) continue;
+      if (k === 'haarklous-wallet-v1') {const w = obj(t);if (num(w.money) !== START_MONEY || num(w.pant) > 0 || Object.values(w.bag || {}).some(n => num(n) > 0)) return true;continue;}
+      if (k === 'haarklous-catacomb-map-v1') {if (bitsSet(t)) return true;continue;}
+      if (k === 'haarklous-badges-v1') {if (Object.keys(obj(t).got || {}).length) return true;continue;}
+      if (k === 'haarklous-route-v1') {const r = obj(t);if (r.best !== null && r.best !== undefined || num(r.runs) > 0) return true;continue;}
+      if (Object.keys(obj(t)).length) return true;
+    }
+    return false;
+  }
+  function describe(data) {
+    const w = obj((data || {})['haarklous-wallet-v1']), b = obj((data || {})['haarklous-badges-v1']);
+    return {money: (data || {})['haarklous-wallet-v1'] ? num(w.money) : START_MONEY, badges: Object.keys(b.got || {}).length};
+  }
+
+  // How two copies of one value join (texts in, text out). 'move': a browser's progress goes into an account (amounts add up);
+  // 'sync': the account was saved from another PC while this one had changes too (the account's amounts, the better of the rest).
+  const minEach = (a, b) => {const o = {...b, ...a};for (const k of Object.keys(b)) if (k in a) o[k] = Math.min(num(a[k]), num(b[k]));return o;};
+  const maxEach = (a, b) => {const o = {...b, ...a};for (const k of Object.keys(b)) if (k in a) o[k] = Math.max(num(a[k]), num(b[k]));return o;};
+  const addEach = (a, b) => {const o = {...b, ...a};for (const k of Object.keys(b)) if (k in a) o[k] = num(a[k]) + num(b[k]);return o;};
+  const better = (a, b, low) => a === null || a === undefined ? b ?? null : b === null || b === undefined ? a : low ? Math.min(a, b) : Math.max(a, b);
+  const RULES = {
+    'haarklous-wallet-v1': (a, b, mode) => {
+      if (mode !== 'move') return a;const x = obj(a), y = obj(b);
+      return JSON.stringify({money: num(x.money) + num(y.money), pant: num(x.pant) + num(y.pant), bag: addEach(x.bag || {}, y.bag || {})});
+    },
+    'haarklous-kayak-v1': (a, b) => JSON.stringify(minEach(obj(a), obj(b))),
+    'haarklous-route-v1': (a, b, mode) => {const x = obj(a), y = obj(b);return JSON.stringify({...y, ...x, best: better(x.best, y.best, true), runs: mode === 'move' ? num(x.runs) + num(y.runs) : Math.max(num(x.runs), num(y.runs))});},
+    'haarklous-klatreverket-v1': (a, b) => {
+      const x = obj(a), y = obj(b);
+      return JSON.stringify({...y, ...x, ticks: {...(y.ticks || {}), ...(x.ticks || {})}, tries: maxEach(x.tries || {}, y.tries || {}),
+        bestHang: Math.max(num(x.bestHang), num(y.bestHang)), brattkort: x.brattkort || y.brattkort || undefined});
+    },
+    'haarklous-catacomb-map-v1': (a, b) => {
+      let p, q;try {p = atob(a);q = atob(b);} catch {return a;}
+      let out = '';for (let i = 0; i < Math.max(p.length, q.length); i++) out += String.fromCharCode((p.charCodeAt(i) || 0) | (q.charCodeAt(i) || 0));
+      return btoa(out);
+    }
+  };
+  function merge(account, browser, rules = {}, mode = 'move') {
+    const out = {...(account || {})};
+    for (const [k, v] of Object.entries(browser || {})) {
+      if (!KEYS.includes(k)) continue;
+      if (!(k in out)) {out[k] = v;continue;}
+      if (SETTINGS.includes(k)) {if (mode === 'move') out[k] = v;continue;}
+      const rule = rules[k] || RULES[k];
+      if (rule) try {out[k] = rule(out[k], v, mode);} catch {}
+    }
+    return out;
+  }
+  const hashes = data => Object.fromEntries(Object.entries(data || {}).map(([k, v]) => [k, hash(v)]));
+  function diff(data, synced = {}) {
+    const set = {}, del = [];
+    for (const [k, v] of Object.entries(data)) if (synced[k] !== hash(v)) set[k] = v;
+    for (const k of Object.keys(synced)) if (!(k in data) && KEYS.includes(k)) del.push(k);
+    return {set, del};
+  }
+
+  // ---------- The account's album: photos on the server ----------
+  function accountAlbum(call) {
+    return {
+      remote: true,
+      list: async () => (await call('GET', '/api/photos')).photos.map(p => ({id: p.id, place: p.place, src: `/api/photos/${p.id}`})),
+      add: async p => {
+        const blob = p.blob || await (await fetch(p.data)).blob();
+        return call('PUT', `/api/photos/${p.id}?place=${encodeURIComponent(p.place || '')}`, blob);
+      },
+      remove: id => call('DELETE', `/api/photos/${id}`)
+    };
+  }
+
+  function create({account, store, camera, ask, notice = () => {}, rules = {}, onApplied = () => {}}) {
+    const read = k => J(store.getItem(k)), write = (k, v) => {try {if (v === null) store.removeItem(k);else store.setItem(k, JSON.stringify(v));} catch {}};
+    let meta = read(META), user = null, saving = null, status = '', queue = Promise.resolve(), stopped = false;
+    async function call(method, path, body, {keepalive = false} = {}) {
+      const opts = {method, credentials: 'same-origin', keepalive, headers: {}};
+      if (body instanceof Blob) {opts.body = body;opts.headers['Content-Type'] = 'image/jpeg';}
+      else if (body !== undefined) {opts.body = JSON.stringify(body);opts.headers['Content-Type'] = 'application/json';}
+      const r = await fetch(path, opts);let j = null;try {j = await r.json();} catch {}
+      if (!r.ok) {const e = new Error((j && j.error) || `The server answered ${r.status}`);e.status = r.status;e.body = j;throw e;}
+      return j;
+    }
+    const album = accountAlbum(call);
+    const setStatus = s => {status = s;};
+    function applyData(data, keep) {apply(store, data, keep);onApplied();}
+    const clock = () => new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+
+    async function save({keepalive = false} = {}) {
+      if (!user || !meta || meta.user !== user.id || stopped) return;
+      if (saving) return saving;
+      const data = collect(store), {set, del} = diff(data, meta.h);
+      if (!Object.keys(set).length && !del.length) return;
+      const body = {set, del};keepalive = keepalive && JSON.stringify(body).length < KEEPALIVE_MAX;
+      saving = (async () => {
+        try {
+          const r = await call('PUT', '/api/progress', body, {keepalive});
+          for (const [k, v] of Object.entries(set)) meta.h[k] = hash(v);for (const k of del) delete meta.h[k];
+          meta.at = r.at;write(META, meta);setStatus(`Progress saved to your account at ${clock()}.`);
+        } catch (e) {
+          if (e.status === 401) {stopped = true;setStatus('Your login ran out – log in again to keep saving to your account.');}
+          else setStatus(`Could not save to your account (${e.message}) – trying again soon.`);
+        } finally {saving = null;}
+      })();
+      return saving;
+    }
+
+    // A browser's own progress meets the account (first log-in here, or after another account used this browser).
+    async function join(u) {
+      const server = await call('GET', '/api/progress'), local = collect(store);
+      let photos = [];try {photos = await camera.local.all();} catch {}
+      const browserHas = hasProgress(local) || photos.length > 0, declined = read(DECLINED) || [];
+      let move = false;
+      if (browserHas && !declined.includes(u.id)) {
+        const d = describe(local), have = [d.money !== START_MONEY && `${d.money} kr`, d.badges && `${d.badges} badge${d.badges === 1 ? '' : 's'}`, photos.length && `${photos.length} photo${photos.length === 1 ? '' : 's'}`].filter(Boolean);
+        move = await ask(`This browser has progress of its own${have.length ? ` (${have.join(', ')})` : ''}. Move it into your account “${u.name}”? ` +
+          'Money, bottles and the bag add up, the better best scores win, and badges, climbing ticks, the catacomb map and photos join the account’s. ' +
+          'If you keep it here, it comes back when you log out.');
+      }
+      // One synchronous block, so a tab closed in the middle can never leave the browser's copy marked as the account's.
+      if (move) {
+        write(GUEST, {data: pick(local, SETTINGS)});
+        meta = {user: u.id, at: server.at, h: {}};write(META, meta);
+        applyData(merge(server.data, local, rules, 'move'));
+      } else {
+        if (browserHas && !declined.includes(u.id)) write(DECLINED, [...declined, u.id].slice(-20));
+        write(GUEST, {data: local});
+        meta = {user: u.id, at: server.at, h: hashes(server.data)};write(META, meta);
+        applyData({...pick(local, SETTINGS), ...server.data});
+      }
+      user = u;stopped = false;await save();
+      await camera.useAlbum(album).catch(() => {});
+      if (move && photos.length) await movePhotos(photos);
+      setStatus(move ? 'This browser’s progress is now in your account and saves by itself.' : 'Your progress is saved to your account by itself.');
+    }
+    async function movePhotos(photos) {
+      let moved = 0, full = false;
+      for (const p of photos.sort((a, b) => a.id - b.id)) {
+        try {await album.add(p);moved++;await camera.local.remove(p.id);}
+        catch (e) {if (e.status === 409) {full = true;break;}}
+      }
+      await camera.useAlbum(album).catch(() => {});
+      if (moved || full) notice(`${moved} photo${moved === 1 ? '' : 's'} moved into your account${full ? ` – the album is full (${album.limit || 60}); the rest stay in this browser` : ''}.`, 6);
+    }
+    // The browser already holds this account's progress (a reload while logged in): load newer saves made elsewhere.
+    async function resume(u) {
+      const server = await call('GET', '/api/progress'), local = collect(store);user = u;stopped = false;
+      if (server.at > (meta.at || 0)) {
+        const {set, del} = diff(local, meta.h), changed = Object.keys(set).length || del.length;
+        const data = changed ? merge(server.data, pick(local, Object.keys(set)), rules, 'sync') : server.data;
+        meta = {user: u.id, at: server.at, h: hashes(server.data)};write(META, meta);
+        applyData({...pick(local, SETTINGS.filter(k => !(k in server.data))), ...data});
+      }
+      await save();await camera.useAlbum(album).catch(() => {});
+      if (!status) setStatus('Your progress is saved to your account by itself.');
+    }
+    // Logged out: the browser's own progress comes back (or a fresh start with this browser's settings, if it was moved).
+    function leave() {
+      const g = read(GUEST);
+      applyData(g && g.data ? g.data : pick(collect(store), SETTINGS));
+      write(GUEST, null);write(META, null);meta = null;user = null;stopped = false;
+      camera.useAlbum(null).catch(() => {});setStatus('');
+    }
+    function step(u) {
+      if (!u) {if (meta) leave();return Promise.resolve();}
+      if (meta && meta.user !== u.id) leave();
+      return (meta ? resume(u) : join(u)).catch(e => {setStatus(`Could not load your progress (${e.message}).`);});
+    }
+    const sync = {
+      userChanged: u => (queue = queue.then(() => step(u && u.id ? u : null))),
+      beforeLogout: () => (queue = queue.then(() => save())),
+      save, album,
+      get user() {return user;}, get status() {return status;}, get linked() {return !!meta;}
+    };
+    if (typeof window !== 'undefined') {
+      setInterval(() => {save();}, SAVE_EVERY * 1000);
+      document.addEventListener('visibilitychange', () => {if (document.visibilityState === 'hidden') save({keepalive: true});});
+      window.addEventListener('pagehide', () => save({keepalive: true}));
+    }
+    return sync;
+  }
+  return {KEYS, SETTINGS, START_MONEY, collect, apply, hasProgress, describe, merge, hashes, diff, hash, create, RULES};
+});
 </script><script>/* Lobby voice chat: peer-to-peer WebRTC audio between the players in the lobby.
  * Everybody in the lobby hears everybody at full volume, wherever they are on the map (no distance fall-off).
  * Each pair of players has one two-way audio channel. Only the player with the lower id makes the offer (no offer
@@ -4088,8 +4347,10 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
 
   // ---------- Wallet: money (kr), empty bottles, bag of items; saved in the browser ----------
   function makeWallet() {
-    const KEY = 'haarklous-wallet-v1';let st = {money: 500, pant: 0, bag: {}};
-    try {const s = JSON.parse(localStorage.getItem(KEY) || 'null');if (s && Number.isFinite(s.money)) st = {money: s.money, pant: s.pant | 0, bag: s.bag || {}};} catch {}
+    const KEY = 'haarklous-wallet-v1';let st;
+    const load = () => {st = {money: 500, pant: 0, bag: {}};try {const s = JSON.parse(localStorage.getItem(KEY) || 'null');if (s && Number.isFinite(s.money)) st = {money: s.money, pant: s.pant | 0, bag: s.bag || {}};} catch {}};
+    // An account's saved progress was loaded (or the browser's came back on log-out): read it again (issue #54).
+    load();if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('haarklous-progress', load);
     const save = () => {try {localStorage.setItem(KEY, JSON.stringify(st));} catch {}};
     const round = v => Math.round(v * 100) / 100;
     return {
@@ -4958,7 +5219,8 @@ window.KLATREVERKET={"attribution":"Building: OpenStreetMap way 1031709261 (ODbL
 
     // ---------- Visit state (ticket, rentals, brattkort, the ticks), kept in the browser ----------
     const KEY = 'haarklous-klatreverket-v1';let st = {};
-    try {st = JSON.parse(localStorage.getItem(KEY) || '{}') || {};} catch {st = {};}
+    const loadState = () => {try {st = JSON.parse(localStorage.getItem(KEY) || '{}') || {};} catch {st = {};}st.ticks = st.ticks || {};st.tries = st.tries || {};};
+    loadState();window.addEventListener('haarklous-progress', loadState);// an account's saved progress was loaded (issue #54)
     const save = () => {try {localStorage.setItem(KEY, JSON.stringify(st));} catch {}};
     const today = () => {const d = new Date();return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;};
     const visit = () => {if (st.day !== today()) {st.day = today();st.paid = false;st.shoes = st.harness = st.chalk = false;}return st;};
@@ -5731,7 +5993,9 @@ window.KLATREVERKET={"attribution":"Building: OpenStreetMap way 1031709261 (ODbL
 window.MUSELUNDEN={"name":"Muselunden DiscGolfPark","layout":"Muselunden 12 hull (2022)","par":36,"outline":[598.8,-274.3,665.6,-310.8,670.0,-361.4,679.1,-419.5,686.8,-439.1,649.1,-446.1,621.1,-473.7,617.2,-519.1,601.4,-518.7,569.1,-467.6,521.3,-439.7,518.7,-430.7,469.0,-411.9,381.7,-442.7,318.3,-489.3,316.1,-480.7,332.0,-429.8,358.4,-346.3,409.2,-276.7,431.7,-195.9,472.5,-180.4,537.6,-239.6,598.8,-274.3],"sources":"UDisc layout \"Muselunden 12 hull (2022)\" (lengths, par); Muselunden Frisbeeklubb \"Midlertidig banekart 2021\" (places), georeferenced to the OSM pitches 172317127 / 172317126; OSM way 785654764 (course).","holes":[{"n":1,"par":3,"tee":[655.1,-359.0],"basket":[552.7,-387.3],"length":106.3,"mapLength":108.6,"moved":1.2},{"n":2,"par":3,"tee":[539.4,-364.1],"basket":[589.4,-346.5],"length":53.0,"mapLength":47.5,"moved":2.7},{"n":3,"par":3,"tee":[506.2,-242.5],"basket":[438.7,-234.6],"length":68.0,"mapLength":75.4,"moved":3.7},{"n":4,"par":3,"tee":[422.1,-279.5],"basket":[384.8,-330.3],"length":63.0,"mapLength":78.6,"moved":7.8},{"n":5,"par":3,"tee":[393.4,-438.9],"basket":[359.0,-445.3],"length":35.0,"mapLength":26.6,"moved":4.2},{"n":6,"par":3,"tee":[327.6,-479.4],"basket":[344.9,-432.5],"length":50.0,"mapLength":57.8,"moved":6.9},{"n":7,"par":3,"tee":[352.4,-364.0],"basket":[401.2,-407.0],"length":65.0,"mapLength":61.9,"moved":1.5},{"n":8,"par":3,"tee":[459.3,-370.1],"basket":[521.6,-355.4],"length":64.0,"mapLength":64.6,"moved":0.3},{"n":9,"par":3,"tee":[458.7,-392.4],"basket":[530.3,-417.9],"length":76.0,"mapLength":68.8,"moved":3.6},{"n":10,"par":3,"tee":[544.9,-440.7],"basket":[619.3,-420.9],"length":77.0,"mapLength":87.5,"moved":5.3},{"n":11,"par":3,"tee":[630.8,-469.7],"basket":[608.5,-516.6],"length":52.0,"mapLength":43.5,"moved":4.3},{"n":12,"par":3,"tee":[591.9,-489.0],"basket":[614.0,-447.6],"length":47.0,"mapLength":62.1,"moved":7.6}]};
 </script><script>/* Minigames in the open world: disc golf (two par-3 holes about 70 m in Torshovdalen) and petanque (singles, 3 boules,
  * game to 13 points, real scoring) against a CGI opponent who always waits at the court.
- * GameMinigames.create({T, lib, audio, heightAt, toWorld, data, hud, muselunden}) -> {discgolf, muselunden, petanque}
+ * GameMinigames.create({T, lib, audio, heightAt, toWorld, data, hud, muselunden, onEvent}) -> {discgolf, muselunden, petanque}
+ *   onEvent(kind, data) for the best scores and badges: 'disc-hole' {course, hole, strokes, par}, 'disc-round' {course, total, par,
+ *   holes} (only when every hole was played), 'petanque' {won, you, npc}
  *   discgolf: the two holes in Torshovdalen (data.discgolf); muselunden: the real 12-hole Muselunden DiscGolfPark
  *   (muselunden-data.js, when given). Both are the same disc golf game with their own holes.; GameMinigames.petanqueNext(hold, left)
  * Each game: group (scene objects), near(player) -> prompt text or null, start(player), update(dt, input, view) -> camera override,
@@ -5748,7 +6012,7 @@ window.MUSELUNDEN={"name":"Muselunden DiscGolfPark","layout":"Muselunden 12 hull
     const other = hold === 'you' ? 'npc' : 'you';
     return left[other] > 0 ? other : left[hold] > 0 ? hold : null;
   }
-  function create({T, lib, audio, heightAt, toWorld, data, hud, trees, reward, muselunden}) {
+  function create({T, lib, audio, heightAt, toWorld, data, hud, trees, reward, muselunden, onEvent = () => {}}) {
     const V3 = (x, y, z) => new T.Vector3(x, y, z);
     const mesh = (parent, geo, mat, x = 0, y = 0, z = 0) => {const m = new T.Mesh(geo, mat);m.position.set(x, y, z);m.castShadow = m.receiveShadow = true;parent.add(m);return m;};
     const gauss = () => {let u = 0, v = 0;while (!u) u = Math.random();while (!v) v = Math.random();return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);};
@@ -5850,6 +6114,7 @@ window.MUSELUNDEN={"name":"Muselunden DiscGolfPark","layout":"Muselunden 12 hull
             game.message = `Hull ${h.n}: ${total} kast · ${name}`;if (diff < 0) audio.sfx('cheer');
             // Money: par 50 kr, birdie 100 kr, eagle or better 200 kr.
             if (reward && diff <= 0) reward(diff <= -2 ? 200 : diff === -1 ? 100 : 50, `${name} on ${course.name} hole ${h.n}`);
+            onEvent('disc-hole', {course: course.name, hole: h.n, strokes: total, par: h.par});
             game.pending = {next: true, t: 2.5};D.rest = true;
           } else if (r === 'rest') {D.rest = true;game.lie ={x: D.pos.x, z: D.pos.z, y: heightAt(D.pos.x, D.pos.z)};game.message = `${Math.round(Math.hypot(h.basket.x - D.pos.x, h.basket.z - D.pos.z))} m to the basket. Throw again from where the disc landed.`;game.pending = {lie: true, t: .8};}
           // Follow camera behind and above the disc.
@@ -5864,6 +6129,7 @@ window.MUSELUNDEN={"name":"Muselunden DiscGolfPark","layout":"Muselunden 12 hull
               game.pending = null;disc.visible = false;D.rest = false;
               if (game.hole + 1 < holes.length) {game.hole++;const n = holes[game.hole];game.lie = {x: n.tee.x, z: n.tee.z, y: n.tee.y};game.message = `Hull ${n.n} · Par ${n.par}`;hud.discgolf(game.state());return {teleport: {x: n.tee.x, z: n.tee.z, yaw: Math.atan2(-(n.basket.x - n.tee.x), -(n.basket.z - n.tee.z))}};}
               const total = game.strokes.reduce((a, b) => a + b, 0), par = holes.reduce((a, b) => a + b.par, 0);game.stop();
+              if (game.strokes.every(s => s > 0)) onEvent('disc-round', {course: course.name, total, par, holes: holes.length});
               return {done: `${course.name} finished: ${total} throws (${total - par >= 0 ? '+' : ''}${total - par} vs par ${par}).`};
             }
             game.pending = null;D.rest = false;
@@ -5996,7 +6262,7 @@ window.MUSELUNDEN={"name":"Muselunden DiscGolfPark","layout":"Muselunden 12 hull
               if (jd < 6 || jd > 10 || jack.dead) {game.message = `Jack ${jack.dead ? 'out' : 'at ' + jd.toFixed(1) + ' m'}: thrown again (6–10 m).`;jack.alive = false;jack.dead = false;jack.mesh.visible = false;current = thrower;aimingFor = 'jack';}
               else {current = nextThrower();aimingFor = 'boule';}
             } else if (phase === 'jack') {current = thrower;aimingFor = 'jack';}
-            else {current = nextThrower();aimingFor = 'boule';if (current === null) {const winner = endMene();if (game.score.you >= 13 || game.score.npc >= 13) {const won = game.score.you >= 13;game.message = `${won ? 'You win' : game.npcName + ' wins'} ${game.score.you}–${game.score.npc}!`;if (won) {audio.sfx('cheer');if (reward) reward(150, `Petanque win against ${game.npcName}`);}game.finish = 4;} else {waiting = 2.5;game.nextFirst = winner;}}}
+            else {current = nextThrower();aimingFor = 'boule';if (current === null) {const winner = endMene();if (game.score.you >= 13 || game.score.npc >= 13) {const won = game.score.you >= 13;game.message = `${won ? 'You win' : game.npcName + ' wins'} ${game.score.you}–${game.score.npc}!`;onEvent('petanque', {won, you: game.score.you, npc: game.score.npc});if (won) {audio.sfx('cheer');if (reward) reward(150, `Petanque win against ${game.npcName}`);}game.finish = 4;} else {waiting = 2.5;game.nextFirst = winner;}}}
             if (current === 'npc') aiTimer = 1.4;
             game.turnId = (game.turnId || 0) + 1;
           }
@@ -8497,24 +8763,38 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
 });
 </script><script>/* Photo camera: take it out (△ / F), raise it to the eye (L2 / right mouse) for the viewfinder and zoom,
  * take a photo (R2 / left mouse), browse the photos (□ / G opens the gallery, ←/→ or the left stick to scroll,
- * ○ / Esc closes). Photos are kept in this browser (IndexedDB), so they are still there next time.
- * GameCamera.create({T, lib, audio, root}) -> {active, raised, gallery, toggle(), capture(canvas, place), ...}
+ * ✕ / Delete twice deletes the photo shown, ○ / Esc closes). Without an account the photos are kept in this browser
+ * (IndexedDB), so they are still there next time; logged in, they are in the account's album on the server (issue #54).
+ * GameCamera.create({T, lib, audio, root, notice}) -> {active, raised, gallery, photos, toggle(), capture(canvas, place), ...,
+ *   local: {all(), remove(id)} (this browser's photos), useAlbum(album | null) -> Promise (null = this browser's photos)}
+ *   album: {remote: true, list() -> [{id, place, src}], add({id, data, place}), remove(id)}, see GameProgress.
  */
 (function (root, factory) {
   root.GameCamera = factory();
 })(typeof window === 'undefined' ? globalThis : window, function () {
   'use strict';
-  function create({T, lib, audio, root}) {
-    const photos = [];let db = null;
-    try {
-      const req = indexedDB.open('haarklous-photos', 1);
-      req.onupgradeneeded = () => req.result.createObjectStore('photos', {keyPath: 'id'});
-      req.onsuccess = () => {db = req.result;const tx = db.transaction('photos', 'readonly').objectStore('photos').getAll();tx.onsuccess = () => {photos.push(...tx.result.sort((a, b) => a.id - b.id));render();};};
-    } catch {}
-    const save = p => {try {if (db) db.transaction('photos', 'readwrite').objectStore('photos').put(p);} catch {}};
+  function create({T, lib, audio, root, notice = () => {}}) {
+    const photos = [];let db = null, album = null, deleteArm = 0;
+    // This browser's photos (IndexedDB 'haarklous-photos'): always kept, also while an account's album is shown.
+    const ready = new Promise(resolve => {
+      try {
+        const req = indexedDB.open('haarklous-photos', 1);
+        req.onupgradeneeded = () => req.result.createObjectStore('photos', {keyPath: 'id'});
+        req.onsuccess = () => {db = req.result;resolve();};req.onerror = () => resolve();
+      } catch {resolve();}
+    });
+    const store = mode => db.transaction('photos', mode).objectStore('photos');
+    const asPromise = req => new Promise((ok, no) => {req.onsuccess = () => ok(req.result);req.onerror = () => no(req.error);});
+    const local = {
+      all: async () => {await ready;return db ? (await asPromise(store('readonly').getAll())).sort((a, b) => a.id - b.id) : [];},
+      put: async p => {await ready;if (db) await asPromise(store('readwrite').put({id: p.id, data: p.data, place: p.place}));},
+      remove: async id => {await ready;if (db) await asPromise(store('readwrite').delete(id));}
+    };
+    const show = list => {photos.splice(0, photos.length, ...list);render();};
+    local.all().then(list => {if (!album) show(list);}).catch(() => {});
     // Overlay: viewfinder frame and gallery.
     const el = document.createElement('div');el.id = 'photoCam';el.hidden = true;
-    el.innerHTML = '<div class="vf"><i></i><i></i><i></i><i></i><b class="focus"></b><span class="vf-info"></span></div><div class="flash"></div><img class="preview" alt=""><div class="gallery" hidden><img alt=""><div class="g-bar"><span class="g-pos"></span><span class="g-date"></span><span class="g-help">←/→ browse · ○ close</span></div></div><div class="cam-help"></div>';
+    el.innerHTML = '<div class="vf"><i></i><i></i><i></i><i></i><b class="focus"></b><span class="vf-info"></span></div><div class="flash"></div><img class="preview" alt=""><div class="gallery" hidden><img alt=""><div class="g-bar"><span class="g-pos"></span><span class="g-date"></span><span class="g-help"></span></div></div><div class="cam-help"></div>';
     root.append(el);
     const $ = s => el.querySelector(s);
     const cam = {active: false, raised: 0, zoom: 1, gallery: false, index: 0, photos};
@@ -8531,23 +8811,40 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
       el.hidden = !cam.active;el.classList.toggle('raised', cam.raised > .5);model.visible = cam.active && cam.raised < .5 && !cam.gallery;
       $('.vf-info').textContent = `${photos.length} photo${photos.length === 1 ? '' : 's'} · ${cam.zoom.toFixed(1)}×`;
       $('.cam-help').textContent = cam.gallery ? '' : 'R2 / left mouse: take photo · L2 / right mouse: viewfinder · right stick up/down: zoom · □ / G: gallery · △ / F: put away';
+      $('.g-help').textContent = deleteArm > performance.now() ? 'Press ✕ / Delete again to delete this photo · ○ keep it' : `←/→ browse · ✕ / Delete: delete · ○ close${album ? ' · in your account' : ''}`;
       const g = $('.gallery');g.hidden = !cam.gallery;
       if (cam.gallery) {
         if (!photos.length) {$('.g-pos').textContent = 'No photos yet';$('.gallery img').removeAttribute('src');$('.g-date').textContent = '';return;}
         cam.index = Math.max(0, Math.min(photos.length - 1, cam.index));const p = photos[cam.index];
-        $('.gallery img').src = p.data;$('.g-pos').textContent = `${cam.index + 1} / ${photos.length}`;$('.g-date').textContent = `${new Date(p.id).toLocaleString()}${p.place ? ' · ' + p.place : ''}`;
+        $('.gallery img').src = p.data || p.src;$('.g-pos').textContent = `${cam.index + 1} / ${photos.length}`;$('.g-date').textContent = `${new Date(p.id).toLocaleString()}${p.place ? ' · ' + p.place : ''}`;
       }
     }
     cam.model = model;
     cam.toggle = () => {cam.active = !cam.active;cam.gallery = false;cam.raised = 0;cam.zoom = 1;render();};
     cam.openGallery = (open = !cam.gallery) => {cam.gallery = open;if (open) cam.index = photos.length - 1;render();};
-    cam.browse = d => {if (!cam.gallery) return;cam.index += d;render();};
+    cam.browse = d => {if (!cam.gallery) return;cam.index += d;deleteArm = 0;render();};
+    // ✕ / Delete in the gallery: the first press asks, a second one within 3 s deletes (here or in the account's album).
+    cam.deleteShown = () => {
+      if (!cam.gallery || !photos.length) return;
+      if (deleteArm < performance.now()) {deleteArm = performance.now() + 3000;render();setTimeout(render, 3100);return;}
+      deleteArm = 0;const p = photos[cam.index];photos.splice(cam.index, 1);render();
+      (album ? album.remove(p.id) : local.remove(p.id)).catch(() => {photos.push(p);photos.sort((a, b) => a.id - b.id);render();notice('Could not delete the photo – try again.', 3);});
+    };
+    cam.cancelDelete = () => {const was = deleteArm > performance.now();deleteArm = 0;render();return was;};
+    cam.local = local;
+    cam.useAlbum = async a => {album = a || null;deleteArm = 0;cam.index = 0;show(album ? await album.list() : await local.all());};
+    Object.defineProperty(cam, 'album', {get: () => album});
     cam.setRaised = r => {const before = cam.raised > .5;cam.raised = r;if (before !== r > .5) render();};
     cam.setZoom = z => {cam.zoom = Math.max(1, Math.min(4, z));render();};
     // Grab the frame that was just rendered (call right after rendering, without the HUD overlays).
     cam.capture = (canvas, place) => {
       const w = 1280, h = Math.round(1280 * canvas.height / canvas.width), c = document.createElement('canvas');c.width = w;c.height = h;c.getContext('2d').drawImage(canvas, 0, 0, w, h);
-      const p = {id: Date.now(), data: c.toDataURL('image/jpeg', .86), place};photos.push(p);save(p);audio.sfx('shutter');
+      const p = {id: Date.now(), data: c.toDataURL('image/jpeg', .86), place};photos.push(p);audio.sfx('shutter');
+      const into = album;
+      (into ? into.add(p) : local.put(p)).catch(e => {
+        const i = photos.indexOf(p);if (i >= 0 && into) photos.splice(i, 1);render();
+        notice(e && e.status === 409 ? `Your account's album is full (${(e.body && e.body.limit) || 60} photos) – delete some in the gallery (□, then ✕).` : 'The photo could not be saved.', 6);
+      });
       const f = $('.flash');f.classList.remove('on');void f.offsetWidth;f.classList.add('on');
       const pv = $('.preview');pv.src = p.data;pv.classList.remove('show');void pv.offsetWidth;pv.classList.add('show');render();
     };
@@ -8555,6 +8852,212 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
     return cam;
   }
   return {create};
+});
+</script><script>/* Badges, the photo hunt (issue #58) and your best scores (issue #54).
+ * Badges come from playing (finish the mission, a hole in one, win at paintball, land on the skydiving target, climb at
+ * Klatreverket, kayak down Akerselva …) and from the photo hunt: find the known places and take a good photo of each –
+ * the place in the picture (not at the very edge), big enough (close, or zoomed in) and nothing solid in the way.
+ * Each new badge shows a short message and pays some kroner. The list (pause menu: R1 / B) shows the photo you took and a
+ * hint for the places not found yet, and your best scores. Kept in localStorage 'haarklous-badges-v1' / 'haarklous-records-v1',
+ * which are part of an account's saved progress (GameProgress).
+ *
+ * Pure (Node-tested):
+ *   BADGES [{id, icon, name, how, kr, test(facts)}]   facts = {records, gym, kayak, route, got}
+ *   SPOTS  [{id, name, hint, kr, size, r, maxDist}]   size = the subject's height (m), r = its own radius (the sight line
+ *                                                    stops r before its centre), maxDist = how close you must be; the game
+ *                                                    adds at = {x, y, z} and, for a door, face = {x, z} (the way it faces)
+ *   judge(spot, shot) -> {ok, why: 'far' | 'side' | 'frame' | 'small' | 'blocked', d}
+ *        shot = {cam: {x, y, z}, fovY (degrees), ndc(p) -> {x, y, z} (projected, -1..1), blocked(from, to, stopShort) -> bool}
+ *   record(records, kind, data) -> {best: bool}  updates records in place
+ *   MERGE: how two copies of the two keys join (GameProgress.merge)
+ * GameBadges.create({root, pay(kr, why), sound(name), read(key), labels}) -> badges:
+ *   check(), record(kind, data), photo(shot, spots, canvas) -> text | null, open / close / toggle / scroll(dy), isOpen,
+ *   reload(), count, total, records, got
+ */
+(function (root, factory) {
+  const api = factory();
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  else root.GameBadges = api;
+})(typeof window === 'undefined' ? globalThis : window, function () {
+  'use strict';
+  const KEY = 'haarklous-badges-v1', RECORDS = 'haarklous-records-v1', TARGET_R = 10, MIN_FRAC = .15, EDGE = .8;
+  const n = v => Number.isFinite(+v) ? +v : 0;
+  const keys = o => Object.keys(o || {});
+
+  const SPOTS = [
+    {id: 'photo-oksen', name: 'Torshovoksen', hint: 'A bronze bull in a fountain on Hegermanns plass, about 550 m west of home.', size: 4.5, r: 6.5, maxDist: 40},
+    {id: 'photo-hodet', name: 'HODET N.N.', hint: 'A 7 m bronze doll’s head at the north end of Torshovdalen.', size: 7, r: 3, maxDist: 60},
+    {id: 'photo-deichman', name: 'Deichman Grünerløkka', hint: 'The library at Schous plass in Grünerløkka – full of books, and a librarian who hates noise.', size: 9, r: 16, maxDist: 70},
+    {id: 'photo-klatreverket', name: 'Klatreverket Torshov', hint: 'The climbing centre in the old Myrens verksted workshops by Akerselva, about 1 km west.', size: 13, r: 22, maxDist: 90},
+    {id: 'photo-rotunda', name: 'The Rotunda of bones', hint: 'Deep in the catacomb under Torshovdalen: a pillar of bones ringed with skulls.', size: 2.6, r: 1.2, maxDist: 14},
+    {id: 'photo-muselunden', name: 'Muselunden', hint: 'The disc golf park east of Torshov: the basket of hole 1.', size: 1.6, r: .4, maxDist: 12},
+    {id: 'photo-munch', name: 'MUNCH', hint: 'The leaning museum tower in Bjørvika, by the fjord.', size: 58, r: 30, maxDist: 350},
+    {id: 'photo-opera', name: 'The Opera', hint: 'The white roof you can walk on, in Bjørvika.', size: 24, r: 55, maxDist: 300},
+    {id: 'photo-rathkes', name: 'Rathkes gate 1', hint: 'The iron gate under the “1” on Rathkes gate in Grünerløkka.', size: 3.5, r: .6, maxDist: 20},
+    {id: 'photo-home', name: 'Haarklous plass 17A', hint: 'Your own street door. Step back across the street to get it all in.', size: 7, r: 1, maxDist: 40}
+  ].map(s => ({kr: 50, ...s}));
+
+  const BADGES = [
+    {id: 'mission', icon: '🎯', name: 'Hostage rescued', how: 'Finish the hostage-rescue mission (the red ring by the street door of 17A).', kr: 250, test: f => n(f.records.mission?.done) > 0},
+    {id: 'ace', icon: '🥏', name: 'Hole in one', how: 'Hole a disc golf throw with the first throw.', kr: 200, test: f => n(f.records.aces) > 0},
+    {id: 'muselunden', icon: '🌳', name: 'A full round at Muselunden', how: 'Play all 12 holes of Muselunden DiscGolfPark.', kr: 100,
+      test: f => Object.entries(f.records.disc || {}).some(([c, r]) => /Muselunden/.test(c) && n(r.holes) >= 12)},
+    {id: 'petanque', icon: '⚪', name: 'Beat Arne', how: 'Win a game of petanque against Arne in Torshovdalen.', kr: 100, test: f => n(f.records.petanque?.won) > 0},
+    {id: 'paintball', icon: '🎨', name: 'Paintball winner', how: 'Win a paintball game against other players.', kr: 150, test: f => n(f.records.paintball?.won) > 0},
+    {id: 'skydive', icon: '🪂', name: 'On target', how: `Land within ${TARGET_R} m of the landing target at the airstrip after a skydive.`, kr: 150,
+      test: f => f.records.skydive?.best != null && f.records.skydive.best <= TARGET_R},
+    {id: 'climb', icon: '🧗', name: 'Top out', how: 'Climb a route or a boulder problem at Klatreverket Torshov.', kr: 100, test: f => keys(f.gym.ticks).length > 0},
+    {id: 'brattkort', icon: '🪢', name: 'Brattkort', how: 'Pass the belay test at Klatreverket.', kr: 100, test: f => !!f.gym.brattkort},
+    {id: 'kayak', icon: '🛶', name: 'Down Akerselva', how: 'Paddle a kayak down Akerselva to Vaterland.', kr: 150, test: f => keys(f.kayak).length > 0},
+    {id: 'pingpong', icon: '🏓', name: 'Beat Ola', how: 'Win a table tennis match against Ola at Schous plass.', kr: 100, test: f => n(f.records.pingpong?.won) > 0},
+    {id: 'run', icon: '🏃', name: 'Ensjø → Rathkes gate', how: 'Finish the timed run from Ensjø T-bane to Rathkes gate.', kr: 100, test: f => f.route.best != null},
+    {id: 'catacomb', icon: '💀', name: 'Into the dark', how: 'Go down into the catacomb under Torshovdalen.', kr: 50, test: f => !!f.records.marks?.catacomb},
+    {id: 'moby', icon: '📖', name: 'Call me Ishmael', how: 'Open Moby-Dick at Deichman Grünerløkka.', kr: 50, test: f => !!f.records.marks?.moby},
+    {id: 'fire', icon: '🔥', name: 'Keeper of the fire', how: 'Throw a log on the firepit in the park.', kr: 50, test: f => !!f.records.marks?.fire},
+    {id: 'airborne', icon: '🚁', name: 'Airborne', how: 'Fly the helicopter or the plane 50 m above the ground.', kr: 100, test: f => !!f.records.marks?.airborne},
+    {id: 'hunter', icon: '📷', name: 'Photo hunter', how: 'Find and photograph every place in the photo hunt.', kr: 300, test: f => SPOTS.every(s => f.got[s.id])}
+  ];
+
+  function judge(spot, shot) {
+    const c = shot.cam, a = spot.at, d = Math.hypot(a.x - c.x, a.y - c.y, a.z - c.z);
+    if (d > spot.maxDist) return {ok: false, why: 'far', d};
+    // A door counts from the front only (within 65° of the way it faces), not along the wall.
+    if (spot.face) {const dx = c.x - a.x, dz = c.z - a.z;if ((dx * spot.face.x + dz * spot.face.z) / (Math.hypot(dx, dz) || 1) < Math.cos(65 * Math.PI / 180)) return {ok: false, why: 'side', d};}
+    const p = shot.ndc(a);
+    if (!(p.z > -1 && p.z < 1) || Math.abs(p.x) > EDGE || Math.abs(p.y) > EDGE) return {ok: false, why: 'frame', d};
+    const frac = spot.size / (2 * Math.max(d, .1) * Math.tan(shot.fovY * Math.PI / 360));
+    if (frac < MIN_FRAC) return {ok: false, why: 'small', d};
+    if (shot.blocked(c, a, spot.r)) return {ok: false, why: 'blocked', d};
+    return {ok: true, d, frac};
+  }
+
+  // Best scores. counts add up; best = the better one.
+  function record(R, kind, x = {}) {
+    const g = (k, init) => R[k] && typeof R[k] === 'object' ? R[k] : (R[k] = init);
+    let best = false;
+    if (kind === 'disc-hole') {if (x.strokes === 1) R.aces = n(R.aces) + 1;}
+    else if (kind === 'disc-round') {
+      const c = g('disc', {})[x.course] || (R.disc[x.course] = {});c.rounds = n(c.rounds) + 1;c.par = x.par;c.holes = Math.max(n(c.holes), x.holes);
+      if (c.best == null || x.total < c.best) {c.best = x.total;best = true;}
+    } else if (kind === 'petanque') {
+      const p = g('petanque', {});if (x.won) p.won = n(p.won) + 1;else p.lost = n(p.lost) + 1;
+      if (x.won && (!p.best || x.you - x.npc > p.best.you - p.best.npc)) {p.best = {you: x.you, npc: x.npc};best = true;}
+    } else if (kind === 'paintball') {const p = g('paintball', {});p.played = n(p.played) + 1;if (x.won) p.won = n(p.won) + 1;}
+    else if (kind === 'mission') {
+      const m = g('mission', {});if (!x.success) {m.failed = n(m.failed) + 1;return {best};}
+      m.done = n(m.done) + 1;if (x.time > 0 && (m.best == null || x.time < m.best)) {m.best = Math.round(x.time * 10) / 10;best = true;}
+    } else if (kind === 'skydive') {
+      const s = g('skydive', {});s.jumps = n(s.jumps) + 1;if (x.landing === 'soft') s.soft = n(s.soft) + 1;
+      if (x.landing !== 'crash' && (s.best == null || x.dist < s.best)) {s.best = Math.round(x.dist * 10) / 10;best = true;}
+    } else if (kind === 'pingpong') {const p = g('pingpong', {});if (x.won) p.won = n(p.won) + 1;else p.lost = n(p.lost) + 1;}
+    else if (kind === 'mark') {g('marks', {})[x.id] = 1;}
+    return {best};
+  }
+
+  const parse = t => {try {const v = JSON.parse(t);return v && typeof v === 'object' ? v : {};} catch {return {};}};
+  const lower = (a, b) => a == null ? b ?? null : b == null ? a : Math.min(a, b);
+  function mergeRecords(A, B, mode) {
+    const a = parse(A), b = parse(B), out = {...b, ...a}, count = (x, y) => mode === 'move' ? n(x) + n(y) : Math.max(n(x), n(y));
+    out.aces = count(a.aces, b.aces);
+    const disc = {...(b.disc || {}), ...(a.disc || {})};
+    for (const [c, y] of Object.entries(b.disc || {})) {const x = (a.disc || {})[c];if (x) disc[c] = {...y, ...x, rounds: count(x.rounds, y.rounds), holes: Math.max(n(x.holes), n(y.holes)), best: lower(x.best, y.best)};}
+    out.disc = disc;
+    for (const k of ['petanque', 'pingpong']) {
+      const x = a[k] || {}, y = b[k] || {};out[k] = {...y, ...x, won: count(x.won, y.won), lost: count(x.lost, y.lost)};
+      if (x.best || y.best) out[k].best = !x.best ? y.best : !y.best ? x.best : (x.best.you - x.best.npc >= y.best.you - y.best.npc ? x.best : y.best);
+    }
+    {const x = a.paintball || {}, y = b.paintball || {};out.paintball = {won: count(x.won, y.won), played: count(x.played, y.played)};}
+    {const x = a.mission || {}, y = b.mission || {};out.mission = {done: count(x.done, y.done), failed: count(x.failed, y.failed), best: lower(x.best, y.best)};}
+    {const x = a.skydive || {}, y = b.skydive || {};out.skydive = {jumps: count(x.jumps, y.jumps), soft: count(x.soft, y.soft), best: lower(x.best, y.best)};}
+    out.marks = {...(b.marks || {}), ...(a.marks || {})};
+    return JSON.stringify(out);
+  }
+  function mergeBadges(A, B) {
+    const a = parse(A), b = parse(B), got = {...(b.got || {})};
+    for (const [id, x] of Object.entries(a.got || {})) {const y = got[id];got[id] = !y ? x : {...y, ...x, at: Math.min(n(x.at) || Infinity, n(y.at) || Infinity), thumb: x.thumb || y.thumb};}
+    return JSON.stringify({...b, ...a, got});
+  }
+  const MERGE = {[RECORDS]: mergeRecords, [KEY]: mergeBadges};
+
+  // ---------- In the game ----------
+  const clock = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+  function create({root, pay = () => {}, sound = () => {}, read, labels = {}}) {
+    const load = (k) => {try {return parse(localStorage.getItem(k));} catch {return {};}};
+    const store = (k, v) => {try {localStorage.setItem(k, JSON.stringify(v));} catch {}};
+    read = read || load;
+    let state = load(KEY), records = load(RECORDS);state.got = state.got || {};
+    const toast = document.createElement('div');toast.id = 'badgeToast';toast.hidden = true;root.append(toast);
+    const panel = document.createElement('section');panel.id = 'badges';panel.className = 'overlay';panel.hidden = true;root.append(panel);
+    const queue = [];let toastT = 0;
+    function showNext() {
+      const b = queue.shift();if (!b) {toast.hidden = true;return;}
+      toast.innerHTML = `${b.thumb ? `<img src="${b.thumb}" alt="">` : `<i>${b.icon || '🏅'}</i>`}<span><small>New badge</small><b>${esc(b.name)}</b><em>+${b.kr} kr</em></span>`;
+      toast.hidden = false;toast.classList.remove('in');void toast.offsetWidth;toast.classList.add('in');clearTimeout(toastT);toastT = setTimeout(showNext, 4500);
+    }
+    function award(b, extra = {}) {
+      if (state.got[b.id]) return false;
+      state.got[b.id] = {at: Date.now(), ...extra};store(KEY, state);
+      pay(b.kr, `New badge: ${b.name}`);sound('cheer');queue.push({...b, ...extra});if (toast.hidden) showNext();
+      if (!panel.hidden) render();
+      return true;
+    }
+    const facts = () => ({records, gym: read('haarklous-klatreverket-v1'), kayak: read('haarklous-kayak-v1'), route: read('haarklous-route-v1'), got: state.got});
+    function check() {const f = facts();for (const b of BADGES) if (!state.got[b.id] && b.test(f)) award(b);}
+    function addRecord(kind, data) {const r = record(records, kind, data);store(RECORDS, records);check();return r;}
+    function thumbOf(canvas) {
+      try {
+        const c = document.createElement('canvas');c.width = 128;c.height = 72;const k = Math.max(128 / canvas.width, 72 / canvas.height), w = canvas.width * k, h = canvas.height * k;
+        c.getContext('2d').drawImage(canvas, (128 - w) / 2, (72 - h) / 2, w, h);return c.toDataURL('image/jpeg', .6);
+      } catch {return '';}
+    }
+    // A photo was just taken: does it count for a place in the photo hunt? Returns a message, or null far from every place.
+    function photo(shot, spots, canvas) {
+      const near = spots.filter(s => s.at).map(s => ({s, j: judge(s, shot)})).filter(x => x.j.d < x.s.maxDist * 1.6).sort((a, b) => a.j.d / a.s.maxDist - b.j.d / b.s.maxDist);
+      const good = near.find(x => x.j.ok);
+      if (good) {
+        if (state.got[good.s.id]) return `Photo hunt: ${good.s.name} is already in your list.`;
+        award({...good.s, icon: '📷'}, {thumb: thumbOf(canvas)});check();return null;
+      }
+      const x = near.find(x => !state.got[x.s.id]);if (!x) return null;
+      return `Photo hunt · ${x.s.name}: ${{far: `come closer (within ${x.s.maxDist} m)`, side: 'take it from the front', frame: 'it is not in the picture – aim at it', small: 'it is too small in the picture – go closer or zoom in (L2, right stick)', blocked: 'something is in the way'}[x.j.why]}.`;
+    }
+    function render() {
+      const R = records, f = facts(), all = [...SPOTS, ...BADGES], have = all.filter(b => state.got[b.id]).length;
+      const when = id => {const g = state.got[id];return g && g.at ? new Date(g.at).toLocaleDateString() : '';};
+      const spotsHtml = SPOTS.map(s => {const g = state.got[s.id];return `<li class="${g ? 'got' : ''}">${g && g.thumb ? `<img src="${g.thumb}" alt="">` : `<i>${g ? '📷' : '?'}</i>`}<b>${esc(s.name)}</b><small>${g ? `Found ${when(s.id)}` : esc(s.hint)}</small></li>`;}).join('');
+      const badgesHtml = BADGES.map(b => `<li class="${state.got[b.id] ? 'got' : ''}"><i>${b.icon}</i><b>${esc(b.name)}</b><small>${esc(b.how)}${state.got[b.id] ? ` · ${when(b.id)}` : ` · ${b.kr} kr`}</small></li>`).join('');
+      const rows = [];
+      for (const [c, r] of Object.entries(R.disc || {})) rows.push([`Disc golf · ${c}`, `best ${r.best} throws (${r.best - r.par >= 0 ? '+' : ''}${r.best - r.par}) · ${r.rounds} round${r.rounds === 1 ? '' : 's'}`]);
+      if (R.aces) rows.push(['Holes in one', String(R.aces)]);
+      if (n(R.petanque?.won) + n(R.petanque?.lost)) rows.push(['Petanque against Arne', `${n(R.petanque.won)} won, ${n(R.petanque.lost)} lost${R.petanque.best ? ` · best ${R.petanque.best.you}–${R.petanque.best.npc}` : ''}`]);
+      if (n(R.paintball?.played)) rows.push(['Paintball', `${n(R.paintball.won)} won of ${n(R.paintball.played)}`]);
+      if (n(R.mission?.done) + n(R.mission?.failed)) rows.push(['Hostage rescue', `${n(R.mission.done)} rescued${R.mission.best != null ? ` · best time ${clock(R.mission.best)}` : ''}`]);
+      if (n(R.skydive?.jumps)) rows.push(['Skydiving', `${n(R.skydive.jumps)} jumps, ${n(R.skydive.soft)} soft landings${R.skydive.best != null ? ` · closest to the target ${R.skydive.best} m` : ''}`]);
+      if (n(R.pingpong?.won) + n(R.pingpong?.lost)) rows.push(['Table tennis against Ola', `${n(R.pingpong.won)} won, ${n(R.pingpong.lost)} lost`]);
+      for (const [i, t] of Object.entries(f.kayak)) rows.push([`Kayak · ${(labels.kayak || [])[i] || `put-in ${+i + 1}`} → Vaterland`, clock(t)]);
+      if (f.route.best != null) rows.push(['Ensjø → Rathkes gate', `${clock(f.route.best)} · ${n(f.route.runs)} runs`]);
+      if (keys(f.gym.ticks).length || f.gym.bestHang) rows.push(['Klatreverket', `${keys(f.gym.ticks).length} routes and problems sent · hangboard ${n(f.gym.bestHang).toFixed(1)} s`]);
+      panel.innerHTML = `<div class="panel"><span class="eyebrow">BADGES · ${have} OF ${all.length}</span><h2>Badges and best scores</h2>
+        <h3>Photo hunt <small>${SPOTS.filter(s => state.got[s.id]).length} of ${SPOTS.length} · take a good photo of each place: in the picture, big enough, nothing in the way</small></h3><ul class="bd-spots">${spotsHtml}</ul>
+        <h3>Badges <small>${BADGES.filter(b => state.got[b.id]).length} of ${BADGES.length}</small></h3><ul class="bd-list">${badgesHtml}</ul>
+        <h3>Best scores</h3>${rows.length ? `<dl class="bd-records">${rows.map(([a, b]) => `<dt>${esc(a)}</dt><dd>${esc(b)}</dd>`).join('')}</dl>` : '<p class="small">Nothing yet – play a minigame, the mission or a run.</p>'}
+        <p class="small">Left stick / ↑↓ scroll · ○ / Esc / R1 / B close</p><button id="badgesClose">Close</button></div>`;
+      panel.querySelector('#badgesClose').onclick = () => api.close();
+    }
+    const api = {
+      check, record: addRecord, photo, render, MERGE,
+      open() {render();panel.hidden = false;panel.querySelector('.panel').scrollTop = 0;},
+      close() {panel.hidden = true;},
+      toggle() {if (panel.hidden) api.open();else api.close();},
+      scroll(dy) {const p = panel.querySelector('.panel');if (p) p.scrollTop += dy;},
+      reload() {state = load(KEY);state.got = state.got || {};records = load(RECORDS);if (!panel.hidden) render();},
+      get isOpen() {return !panel.hidden;}, get records() {return records;}, get got() {return state.got;},
+      get count() {return [...SPOTS, ...BADGES].filter(b => state.got[b.id]).length;}, total: SPOTS.length + BADGES.length
+    };
+    return api;
+  }
+  return {BADGES, SPOTS, judge, record, mergeRecords, mergeBadges, MERGE, TARGET_R, create};
 });
 </script><script>/* Skydiving (issue #22): jump from the Cessna 208 Caravan jump plane, fall, open the canopy, fly it down and land.
  * Two ways up: a scheduled jump flight that everybody in the lobby can board (no pilot needed; its path is a function of
@@ -8991,6 +9494,7 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
     const mini = document.createElement('canvas');mini.id = 'minimap';mini.hidden = true;mini.setAttribute('aria-hidden', 'true');root.append(mini);
     const mg = mini.getContext('2d');
     let miniOn = false;try {miniOn = localStorage.getItem('haarklous-minimap-v1') === 'on';} catch {}
+    window.addEventListener('haarklous-progress', () => {let on = false;try {on = localStorage.getItem('haarklous-minimap-v1') === 'on';} catch {}if (on !== miniOn) map.minimap = on;});
     Object.defineProperty(map, 'minimap', {get: () => miniOn, set: on => {miniOn = !!on;try {localStorage.setItem('haarklous-minimap-v1', miniOn ? 'on' : 'off');} catch {}if (!miniOn) {mini.hidden = true;root.classList.remove('has-minimap');}}});
     // Which roads, areas and buildings touch each tile (built the first time the minimap is drawn).
     let index = null;const tiles = new Map();let budget = 0;
@@ -9101,7 +9605,7 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
  * CatacombLayout.build({heightLocal}) -> layout   heightLocal(x, s) -> terrain y
  *   layout: {kind, style, room (per cell), rooms, entrances, torches, cellOf(x, s), centre(i, j), floorAt(idx, x, s), ceilAt(idx, x, s),
  *            walkable(idx), los(x0, s0, x1, s1), floors(), obstacles(), vehicleObstacles(), cutsGround(x, s), inside(x, s, y), depth(x, s, y)}
- * CatacombLayout.explorer(layout, saved) -> {seen, reveal(x, s, radius), count, save()}   (what the map shows)
+ * CatacombLayout.explorer(layout, saved) -> {seen, reveal(x, s, radius), count, save(), load(saved)}   (what the map shows)
  * CatacombLayout.ENTRANCES, holes() (terrain cuts for Surroundings.create)
  */
 (function (root, factory) {
@@ -9404,9 +9908,13 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
 
   // What you have seen down there (the map shows only this). Saved in localStorage by the caller as a base64 bit set.
   function explorer(L, saved) {
-    const n = L.NX * L.NS, seen = new Uint8Array(n);
-    if (saved) {try {const bin = typeof atob === 'function' ? atob(saved) : Buffer.from(saved, 'base64').toString('binary');for (let i = 0; i < n; i++) seen[i] = (bin.charCodeAt(i >> 3) >> (i & 7)) & 1;} catch {}}
-    let count = seen.reduce((a, b) => a + b, 0);
+    const n = L.NX * L.NS, seen = new Uint8Array(n);let count = 0;
+    function load(saved) {
+      seen.fill(0);
+      if (saved) {try {const bin = typeof atob === 'function' ? atob(saved) : Buffer.from(saved, 'base64').toString('binary');for (let i = 0; i < n; i++) seen[i] = (bin.charCodeAt(i >> 3) >> (i & 7)) & 1;} catch {}}
+      count = seen.reduce((a, b) => a + b, 0);
+    }
+    load(saved);
     function reveal(x, s, radius) {
       const c = L.cellOf(x, s);if (!c) return 0;let added = 0;const r = Math.ceil(radius / L.CELL);
       for (let dj = -r; dj <= r; dj++) for (let di = -r; di <= r; di++) {
@@ -9419,7 +9927,7 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
       count += added;return added;
     }
     function save() {const bytes = new Uint8Array(Math.ceil(n / 8));for (let i = 0; i < n; i++) if (seen[i]) bytes[i >> 3] |= 1 << (i & 7);let bin = '';for (const b of bytes) bin += String.fromCharCode(b);return typeof btoa === 'function' ? btoa(bin) : Buffer.from(bin, 'binary').toString('base64');}
-    return {seen, reveal, save, get count() {return count;}};
+    return {seen, reveal, save, load, get count() {return count;}};
   }
 
   // Terrain sampler for Node tests and tools: the same bilinear 4 m grid as Surroundings (relative decimetres + ground).
@@ -10623,6 +11131,8 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
     let saved = null;try {saved = localStorage.getItem(SAVE_KEY);} catch {}
     const explorer = CL.explorer(L, saved);let savedCount = explorer.count, saveT = 0, revealT = 0, dirty = true;
     const save = () => {try {localStorage.setItem(SAVE_KEY, explorer.save());} catch {}savedCount = explorer.count;};
+    // An account's saved map was loaded (issue #54).
+    window.addEventListener('haarklous-progress', () => {let s = null;try {s = localStorage.getItem(SAVE_KEY);} catch {}explorer.load(s);savedCount = explorer.count;dirty = true;});
 
     // ---------- Your torch ----------
     const lamp = {on: false, level: 0};
@@ -10964,8 +11474,9 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
     }
     marker(A, 0x2e9d4b, [['ENSJØ → RATHKES GATE', 40], ['Stand in the ring', 34], ['□ start the clock', 34]], '#1d6b34');
     marker(B, 0xf2f2f2, [['RATHKES GATE', 54], ['Finish of the run', 34], ['from Ensjø T-bane', 34]], '#222', true);
-    let saved = {best: null, runs: 0};
-    try {saved = {...saved, ...JSON.parse(localStorage.getItem(KEY) || '{}')};} catch {}
+    let saved;
+    const load = () => {saved = {best: null, runs: 0};try {saved = {...saved, ...JSON.parse(localStorage.getItem(KEY) || '{}')};} catch {}};
+    load();window.addEventListener('haarklous-progress', load);// an account's saved progress was loaded (issue #54)
     const save = () => {try {localStorage.setItem(KEY, JSON.stringify(saved));} catch {}};
     const hud = document.createElement('div');hud.id = 'routeHud';hud.className = 'game-card';hud.hidden = true;root.append(hud);
     const api = {group, running: false, t: 0, get best() {return saved.best;}, get runs() {return saved.runs;}, start: {...A}, finish: {...B}};
@@ -11327,7 +11838,9 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
     // ---------- Playing ----------
     const boat = new Boat(R);
     let active = false, run = null, view = 0, shake = 0, splashT = 0, pose = null;
-    const KEY = 'haarklous-kayak-v1';let best = {};try {best = JSON.parse(localStorage.getItem(KEY) || '{}') || {};} catch {}
+    const KEY = 'haarklous-kayak-v1';let best = {};
+    const loadBest = () => {try {best = JSON.parse(localStorage.getItem(KEY) || '{}') || {};} catch {best = {};}};
+    loadBest();window.addEventListener('haarklous-progress', loadBest);// an account's saved progress was loaded (issue #54)
     const saveBest = () => {try {localStorage.setItem(KEY, JSON.stringify(best));} catch {}};
     const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
     const worldYaw = () => {const a = toW(boat.x, boat.s), b = toW(boat.x + Math.sin(boat.h), boat.s + Math.cos(boat.h));return Math.atan2(-(b.x - a.x), -(b.z - a.z));};
@@ -11396,7 +11909,7 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
     // A tick for the water's flow animation (always, so the river moves when you walk past).
     function tick(dt) {tex.offset.y -= dt * .1;ripples.offset.y -= dt * .12;foamTex.offset.y -= dt * .6;}
     const poi = () => racks.map(r => {const l = world.toLocal(r.x, r.z);return {x: l.x, s: l.s, color: '#1d5f7a', label: `Kayak: ${r.name.replace(/ \(.*\)/, '')}`, glyph: '🛶'};});
-    return {group, obstacles, groundAt, racks, bridges, prompt, start, stop, update, hud, tick, exitPoint, remoteBoat: () => boatMesh(), poi, riverModel: R, boat, get active() {return active;}, get view() {return view;}, get pose() {return active ? pose : null;}, canExit, best};
+    return {group, obstacles, groundAt, racks, bridges, prompt, start, stop, update, hud, tick, exitPoint, remoteBoat: () => boatMesh(), poi, riverModel: R, boat, get active() {return active;}, get view() {return view;}, get pose() {return active ? pose : null;}, canExit, get best() {return best;}};
   }
 
   return {river, Boat, bedQuads, lowerGrid, prepare, create, HULL};
@@ -12069,7 +12582,7 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
       // Aim: where the camera points across the far half.
       const fwd = camera ? camera.getWorldDirection(new T.Vector3()) : new T.Vector3(ux, 0, uz), fu = fwd.x * ux + fwd.z * uz, fv = fwd.x * vx + fwd.z * vz, aimV = clamp(fv / Math.max(.2, fu) * (TABLE.L / 2 + .7) + me.v * .3, -.75, .75);
       if (pause > 0) {
-        pause -= dt;if (pause <= 0) {if (match.winner) {const won = match.winner === 'you', m = `${won ? 'You win' : npcName + ' wins'} ${match.score.you}–${match.score.npc}!`;game.stop();if (won && game.onWin) game.onWin();return {done: m};}newRally();msg = match.server === 'you' ? 'Your serve: R2 / left mouse' : `${npcName} serves`;}
+        pause -= dt;if (pause <= 0) {if (match.winner) {const won = match.winner === 'you', m = `${won ? 'You win' : npcName + ' wins'} ${match.score.you}–${match.score.npc}!`;game.stop();if (won && game.onWin) game.onWin();if (game.onEnd) game.onEnd(won, {...match.score});return {done: m};}newRally();msg = match.server === 'you' ? 'Your serve: R2 / left mouse' : `${npcName} serves`;}
       } else if (rally) {
         if (!rally.ball && match.server === 'you') {msg = 'Your serve: R2 / left mouse (aim with the camera)';if (pressed) serve('you', aimV, input.alt);}
         else if (!rally.ball && match.server === 'npc') {serveWait -= dt;if (serveWait <= 0) serve('npc', (Math.random() - .5) * 1.1);}
@@ -12513,7 +13026,7 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
         [{action: 'resume', label: 'Options / ✕ · Resume'}, {action: 'restart', label: 'Touchpad / R · New case'}, {action: 'quit', label: '○ / Esc · Leave'}]);
     }
     function finish(result) {
-      state = result;triggerHeld = false;if (ctx.onFinish) ctx.onFinish(result);
+      state = result;triggerHeld = false;if (ctx.onFinish) ctx.onFinish(result, {time: elapsed});
       const hostiles = plan.actors.filter(a => a.role === 'hostile'), down = hostiles.filter(a => !actors.get(a.id).alive).length;
       const hostageActor = plan.actors.find(a => a.role === 'hostage'), hostageDown = !!hostageActor && !actors.get(hostageActor.id).alive;
       const hostage = plan.hasHostage ? (hostageDown ? '<b class="fail">Shot</b>' : 'Safe') : 'None present';
@@ -12955,6 +13468,19 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
   heli.onCrash = plane.onCrash = a => {if (player.vehicle === a) notice('Crashed! The aircraft is put back on its pad in a moment.', 3);};
   vehicles.push(heli, plane);
   const drone = new AC.Drone();
+  // The skydivers' landing target (issue #58, badge "On target"): a painted circle on the grass, 180 m down the airstrip.
+  const SKY_TARGET = {x: AIR.plane.x - Math.sin(AIR.plane.yaw) * 180, z: AIR.plane.z - Math.cos(AIR.plane.yaw) * 180};
+  {
+    const R = 10.5, c = document.createElement('canvas');c.width = c.height = 256;const g = c.getContext('2d');
+    for (const [r, col] of [[10.5, '#ff6d00'], [9.7, '#f4f4f4'], [5, '#ff6d00'], [4.2, '#f4f4f4'], [1.5, '#e53935']]) {g.fillStyle = col;g.beginPath();g.arc(128, 128, r / R * 127, 0, Math.PI * 2);g.fill();}
+    const tex = new T.CanvasTexture(c);tex.colorSpace = T.SRGBColorSpace;tex.anisotropy = 4;
+    // A small grid laid on the ground (it follows the slope) with the circle cut out by alphaTest.
+    const geo = new T.PlaneGeometry(2 * R, 2 * R, 14, 14);geo.rotateX(-Math.PI / 2);const pos = geo.attributes.position;
+    for (let i = 0; i < pos.count; i++) {const x = SKY_TARGET.x + pos.getX(i), z = SKY_TARGET.z + pos.getZ(i);pos.setXYZ(i, x, groundAt(x, z) + .05, z);}
+    geo.computeVertexNormals();
+    const m = new T.Mesh(geo, new T.MeshLambertMaterial({map: tex, alphaTest: .5, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2}));
+    m.name = 'Skydiving target';m.receiveShadow = true;scene.add(m);
+  }
   // More parked cars and motorcycles along the streets within about 330 m. Generated deterministically (seeded random,
   // same checks), so in multiplayer every player has the same vehicles with the same numbers.
   {
@@ -13072,7 +13598,8 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
 
   // ---------- Mission (hostage rescue) ----------
   const sensitivity = {pad: 1, mouse: 1};
-  try {const saved = JSON.parse(localStorage.getItem('haarklous-look-sensitivity-v1') || 'null');if (saved) Object.assign(sensitivity, saved);} catch {}
+  const loadSens = () => {Object.assign(sensitivity, {pad: 1, mouse: 1});try {const saved = JSON.parse(localStorage.getItem('haarklous-look-sensitivity-v1') || 'null');if (saved) Object.assign(sensitivity, saved);} catch {}};
+  loadSens();
   const setSens = (k, v) => {sensitivity[k] = Math.round(Math.min(3, Math.max(.25, v)) * 100) / 100;try {localStorage.setItem('haarklous-look-sensitivity-v1', JSON.stringify(sensitivity));} catch {}};
   if (window.CaseGame) {
     const stairSpawns = () => ownStair.floors().filter(f => !f.slope && f.name !== 'Street door threshold' && !/Half landing 0/.test(f.name)).map(f => ({name: f.name, points: f.points, y: f.y}));
@@ -13083,16 +13610,17 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
       spawnAreas: () => apt.spawnAreas, stairSpawns, missionStart,
       entrance: () => {const d = apt.doors.find(d => d.name === 'Entrance door');return d ? d.leaf.getWorldPosition(new T.Vector3()) : {x: 1.66, z: 5.83};},
       timeScale: () => worldScale(),
-      onFinish: result => {if (result === 'success') earn(400, 'Reward for rescuing the hostage');},
+      onFinish: (result, info) => {if (result === 'success') earn(400, 'Reward for rescuing the hostage');badges.record('mission', {success: result === 'success', time: info && info.time});},
       setPose: (x, z, yaw, tilt, y) => place(x, z, yaw, y), enterWalk: () => {}, enterImmersive: () => {},
       leave: () => {const yaw = player.yaw;place(player.x, player.z, yaw, player.feet);updateDynamic();notice(inApartment() ? 'Mission over – you are home. Make yourself comfortable.' : 'Mission over.', 4);}});
   }
 
   // ---------- Minigames, photo camera, map ----------
-  const mini = window.GameMinigames.create({T, lib, audio, heightAt, toWorld, data: D, hud, trees: world.trees, reward: (v, why) => earn(v, why), muselunden: window.MUSELUNDEN});
+  const mini = window.GameMinigames.create({T, lib, audio, heightAt, toWorld, data: D, hud, trees: world.trees, reward: (v, why) => earn(v, why), muselunden: window.MUSELUNDEN,
+    onEvent: (kind, data) => badges.record(kind, data)});
   const discCourses = [mini.discgolf, mini.muselunden].filter(Boolean);
   scene.add(...discCourses.map(g => g.group), mini.petanque.group);
-  const photo = window.GameCamera.create({T, lib, audio, root: view});
+  const photo = window.GameCamera.create({T, lib, audio, root: view, notice});
   const overlayScene = new T.Scene(), overlayCamera = new T.PerspectiveCamera(55, 1, .01, 5);overlayScene.add(new T.HemisphereLight(0xf1f5ff, 0x4a4540, 2.2));
   const ovSun = new T.DirectionalLight(0xffffff, 1.8);ovSun.position.set(.6, 1, .5);overlayScene.add(ovSun);overlayScene.environment = lib.environment();
   overlayScene.add(photo.model);photo.model.position.set(.08, -.13, -.32);photo.model.rotation.set(.1, -.15, 0);
@@ -13120,6 +13648,7 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
     ...(D.petanque ? [{x: D.petanque.x, s: D.petanque.s, color: '#00838f', label: 'Petanque', glyph: '●'}] : []),
     {...world.toLocal(AIR.heli.x, AIR.heli.z), color: '#1565c0', label: 'Helipad', glyph: 'H'},
     {...world.toLocal(AIR.plane.x, AIR.plane.z), color: '#1565c0', label: 'Airstrip', glyph: '✈'},
+    {...world.toLocal(SKY_TARGET.x, SKY_TARGET.z), color: '#ff6d00', label: 'Skydiving target', glyph: '◎'},
     {...world.toLocal(FIRE_POS.x, FIRE_POS.z), color: '#e65100', label: 'Firepit', glyph: '🔥'},
     ...shops.shops.map(s => {const L = s.local;return {x: L.P0[0] + L.u[0] * L.W / 2 + L.n[0] * L.depth / 2, s: L.P0[1] + L.u[1] * L.W / 2 + L.n[1] * L.depth / 2, color: s.id === 'kiwi' ? '#2e9a3f' : '#d0021b', label: s.name, glyph: '🛒'};}),
     ...(SITE_DATA ? [{x: SITE_DATA.rect.x0 + SITE_DATA.rect.w / 2, s: SITE_DATA.rect.s0 + SITE_DATA.rect.d / 2, color: '#f9a825', label: 'Construction site', glyph: '⛏'}] : []),
@@ -13253,6 +13782,10 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
   const wallet = shops.wallet, KR = shops.kr, GREET = ['Hei! Velkommen inn.', 'Hei hei!', 'God dag!', 'Hei, si fra om du trenger hjelp.'];
   let basket = [], walletT = 0, lastShop = null, bag = null;
   function earn(amount, why) {if (!(amount > 0)) return;wallet.earn(amount);walletT = 6;audio.sfx('coin');notice(`+${KR(amount)} · ${why}`, 4);}
+  // ---------- Badges, the photo hunt and best scores (issue #58) ----------
+  const badges = window.GameBadges.create({root: view, pay: kr => {wallet.earn(kr);walletT = 6;audio.sfx('coin');}, sound: n => audio.sfx(n),
+    labels: {kayak: kayak ? kayak.racks.map(r => r.name.replace(/ \(.*\)/, '')) : []}});
+  const markBadge = id => {if (!(badges.records.marks || {})[id]) badges.record('mark', {id});};
   function shopPrompt() {
     if (player.mode !== 'foot') return null;
     const s = shops.shopAt(player, player.feet), o = lookTarget(), u = (o && o.userData) || {};
@@ -13308,7 +13841,7 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
   function useItem(p) {
     if (p.use === 'wood') {
       if (Math.hypot(player.x - FIRE_POS.x, player.z - FIRE_POS.z) > 8) {notice('Take the firewood to the firepit in the park first.', 3);return;}
-      for (let i = 0; i < 3; i++) setTimeout(() => {fire.throwLog({x: player.x, y: player.feet + 1.3, z: player.z});mp.addWood();}, i * 350);notice('You empty the sack of firewood onto the fire.', 3);
+      for (let i = 0; i < 3; i++) setTimeout(() => {fire.throwLog({x: player.x, y: player.feet + 1.3, z: player.z});mp.addWood();}, i * 350);notice('You empty the sack of firewood onto the fire.', 3);markBadge('fire');
     } else if (p.use === 'beer') {audio.sfx('bottleOpen');audio.sfx('gulp');drunk += 30;beerT = 20;wallet.addPant(1);notice(`You drink a ${p.name}. (+30 s drunk, +1 bottle for the deposit)`, 3);}
     else if (p.use === 'soda') {audio.sfx('bottleOpen');audio.sfx('gulp');drunk = Math.max(0, drunk - 10);wallet.addPant(1);notice(`${p.name} – refreshing. (+1 bottle for the deposit)`, 3);}
     else if (p.use === 'energy') {audio.sfx('bottleOpen');audio.sfx('gulp');boost = {kind: 'speed', t: 15};wallet.addPant(1);notice(`${p.name}: 15 s of 3× speed! (+1 can for the deposit)`, 3);}
@@ -13487,7 +14020,7 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
     if (best) return {text: '□ Sit down by the fire', act: () => sitDown(best)};
     return null;
   }
-  function addLog() {fire.throwLog({x: player.x, y: player.feet + 1.3, z: player.z});audio.sfx('throw');setTimeout(() => {audio.sfx('thud', {gain: .4});}, 600);mp.addWood();notice('You throw a log on the fire.', 2);}
+  function addLog() {fire.throwLog({x: player.x, y: player.feet + 1.3, z: player.z});audio.sfx('throw');setTimeout(() => {audio.sfx('thud', {gain: .4});}, 600);mp.addWood();notice('You throw a log on the fire.', 2);markBadge('fire');}
   function drinkBeer() {audio.sfx('bottleOpen');audio.sfx('gulp');drunk += 30;beerT = 20;wallet.addPant(1);notice('Skål! A beer from the crate. (+30 s drunk, +1 bottle for the deposit)', 3);}
   function sitDown(spot) {watch.hide();if (photo.active) photo.toggle();player.mode = 'sit';player.sitSpot = spot;player.lookYaw = 0;player.lookPitch = -.32;notice('Sitting by the fire · R2 / left mouse: have a beer · □ stand up', 4);}
   function standUp() {const sp = player.sitSpot;player.mode = 'foot';player.sitSpot = null;const dx = fire.center.x - sp.x, dz = fire.center.z - sp.z, l = Math.hypot(dx, dz) || 1;place(sp.x + dx / l * .7, sp.z + dz / l * .7, sp.yaw);}
@@ -13541,7 +14074,7 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
     for (const r of remotes) people.push({id: r.id, x: r.pos.x, z: r.pos.z, feet: r.pos.y, running: !!r.st.rn, loud: loud(r.id)});
     for (const e of library.update(dt, people, camera)) if (e.kind === 'shush' && e.id === 'me') {hushed = 5;player.run = false;notice(e.why === 'run' ? '🤫 The librarian shushes you: no running in the library! (You walk for a while.)' : '🤫 The librarian shushes you: talk quietly in the library!', 4);}
   }
-  if (pingpong) pingpong.onWin = () => earn(60, 'You beat Ola at table tennis');
+  if (pingpong) {pingpong.onWin = () => earn(60, 'You beat Ola at table tennis');pingpong.onEnd = won => badges.record('pingpong', {won});}
 
   // ---------- Minigames and mission start ----------
   function startMinigame(g) {const s = g.start({x: player.x, z: player.z, y: player.feet});player.mode = 'minigame';player.minigame = g;if (s) place(s.x, s.z, s.yaw);}
@@ -13572,7 +14105,7 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
       held: Object.assign({}, st?.buttons || {}), pressed: new Set(edges), released: new Set(released), r2: st ? st.run : 0, l2: st ? st.aim : 0, gamepad: Boolean(gp), mouse: {...mouse}
     };
     if (kx || ky) {input.move.x = kx;input.move.y = ky;}
-    const map = {Space: 'cross', KeyC: 'circle', KeyE: 'square', KeyF: 'triangle', Escape: 'options', KeyM: 'touchpad', KeyG: 'gallery', KeyZ: 'prone', KeyR: 'reload', ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down', ShiftLeft: 'l3', KeyQ: 'l1', KeyV: 'view', KeyY: 'share'};
+    const map = {Space: 'cross', KeyC: 'circle', KeyE: 'square', KeyF: 'triangle', Escape: 'options', KeyM: 'touchpad', KeyG: 'gallery', KeyZ: 'prone', KeyR: 'reload', ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down', ShiftLeft: 'l3', KeyQ: 'l1', KeyV: 'view', KeyY: 'share', KeyB: 'badges', Delete: 'delete'};
     for (const [code, name] of Object.entries(map)) {if (ke(code)) input.pressed.add(name);if (k(code)) input.held[name] = true;}
     // Flying (helicopter, plane, drone): hold Shift or the right mouse button to look around (Battlefield's free look, issue #16).
     const flying = player.mode === 'drone' || (player.mode === 'vehicle' && !!player.vehicle?.aircraft);
@@ -13593,8 +14126,10 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
   $('startButton').onclick = begin;
   function setPaused(p) {paused = p;$('pause').hidden = !p;if (p && document.pointerLockElement === canvas) document.exitPointerLock();if (!p) lockPointer();renderSettings();}
   $('resume').onclick = () => setPaused(false);
+  $('badgesOpen').onclick = () => badges.open();
   function renderSettings() {
     $('walletLine').textContent = `Money: ${shops.kr(wallet.money)} · empty bottles: ${wallet.pant} (${shops.kr(wallet.pant * shops.PANT)} at the bottle return)`;
+    $('badgesOpen').textContent = `Badges and best scores (${badges.count} of ${badges.total})`;
     $('sensPad').value = sensitivity.pad;$('sensMouse').value = sensitivity.mouse;$('sensPadOut').textContent = sensitivity.pad.toFixed(2) + '×';$('sensMouseOut').textContent = sensitivity.mouse.toFixed(2) + '×';
     $('imagery').checked = imageryWanted();$('quality').value = String(quality);$('minimapOn').checked = map.minimap;
     $('musicVol').value = music.volume;$('musicOut').textContent = music.volume ? Math.round(music.volume * 100) + ' %' : 'off';
@@ -13617,16 +14152,24 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
     requestAnimationFrame(frame);
     const dt = Math.min(clock.getDelta(), .05), t = clock.elapsedTime, input = readInput();
     fpsAvg += (1 / Math.max(dt, .001) - fpsAvg) * .05;
+    if (asking) {if (input.pressed.has('cross')) answer(true);else if (input.pressed.has('circle')) answer(false);renderFrame(0, t);return;}
     if (!started) {if (input.pressed.has('cross') || input.pressed.has('options')) begin();renderFrame(dt, t);return;}
     // Global toggles.
+    if (input.pressed.has('badges') && !paused && !caseGame?.active && player.mode === 'foot') {setPaused(true);badges.open();input.pressed.delete('badges');}
+    if (input.pressed.has('options') && badges.isOpen) {badges.close();input.pressed.delete('options');}
     if (input.pressed.has('options') && !caseGame?.active) {if (map.open) map.toggle();else if (photo.gallery) photo.openGallery(false);else if (library && library.reading) {library.closeBook();input.pressed.delete('options');}else setPaused(!paused);}
     if (paused) {
-      if (codePad) codePadInput(input);
+      if (badges.isOpen) {
+        if (input.pressed.has('circle') || input.pressed.has('r1') || input.pressed.has('badges')) badges.close();
+        badges.scroll((input.pressed.has('down') ? 120 : 0) - (input.pressed.has('up') ? 120 : 0) + (input.move.y + input.look.y) * 900 * dt);
+      } else if (codePad) codePadInput(input);
+      else if (input.pressed.has('r1') || input.pressed.has('badges')) badges.open();
       else {
         if (input.pressed.has('left') || input.pressed.has('right')) {music.setVolume(music.volume + (input.pressed.has('right') ? .1 : -.1));renderSettings();}
         if (input.pressed.has('triangle')) openCodePad();if (input.pressed.has('square') && mp.net.code !== mp.net.ownCode) {mp.net.home();notice('Back in your own lobby.', 3);}
         if (input.pressed.has('down')) {map.minimap = !map.minimap;renderSettings();}
       }
+      if (progress.status !== $('acctProgress').textContent) $('acctProgress').textContent = progress.status;
       renderFrame(0, t);return;
     }
     // Chat: the controller's Share button opens quick chat; keyboard Enter / T opens the text box.
@@ -13643,6 +14186,7 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
       if (!caseGame.active) {player.mode = 'foot';['circle', 'cross', 'square', 'options'].forEach(b => input.pressed.delete(b));}
     }
     if (catacomb) catacombTick(dt, input);
+    badgeTick(dt);
     if (input.pressed.has('touchpad') && !caseGame?.active) map.toggle(player);
     if (map.open) {
       if (input.pressed.has('circle')) map.toggle();
@@ -13670,10 +14214,10 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
     if (photo.active || player.mode !== 'foot') watch.hide();
     if (photo.active) {
       if (input.pressed.has('square') || input.pressed.has('gallery')) photo.openGallery();
-      if (photo.gallery) {if (input.pressed.has('left')) photo.browse(-1);if (input.pressed.has('right')) photo.browse(1);if (input.move.x > .6 && !photo.stick) {photo.browse(1);photo.stick = true;} else if (input.move.x < -.6 && !photo.stick) {photo.browse(-1);photo.stick = true;} else if (Math.abs(input.move.x) < .3) photo.stick = false;if (input.pressed.has('circle')) photo.openGallery(false);renderFrame(dt, t);return;}
+      if (photo.gallery) {if (input.pressed.has('left')) photo.browse(-1);if (input.pressed.has('right')) photo.browse(1);if (input.move.x > .6 && !photo.stick) {photo.browse(1);photo.stick = true;} else if (input.move.x < -.6 && !photo.stick) {photo.browse(-1);photo.stick = true;} else if (Math.abs(input.move.x) < .3) photo.stick = false;if (input.pressed.has('cross') || input.pressed.has('delete')) photo.deleteShown();if (input.pressed.has('circle') && !photo.cancelDelete()) photo.openGallery(false);renderFrame(dt, t);return;}
       if (input.pressed.has('circle')) photo.toggle();
       photo.setRaised(input.l2 > .4 ? 1 : 0);if (photo.raised > .5 && input.look.y) photo.setZoom(photo.zoom * Math.exp(-input.look.y * dt * 1.5));
-      if (input.r2 > .6 && !photo.shutterHeld) {photo.shutterHeld = true;renderFrame(0, t, true);photo.capture(canvas, placeName());renderFrame(dt, t);return;}
+      if (input.r2 > .6 && !photo.shutterHeld) {photo.shutterHeld = true;renderFrame(0, t, true);photo.capture(canvas, placeName());huntPhoto();renderFrame(dt, t);return;}
       if (input.r2 < .3) photo.shutterHeld = false;
     }
     // Drunk effect: decays in real time.
@@ -13976,8 +14520,10 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
     {const b = skyd.body.group;b.visible = skyd.chase;b.position.set(J.pos.x, J.pos.y, J.pos.z);b.rotation.set(0, J.yaw, 0);if (J.state === 'freefall') {b.rotateX(-Math.PI / 2);b.translateY(-.9);}skyd.body.pose({stance: 'stand', speed: 0, dt});}
     if (skyd.canopy.visible) {const k = J.state === 'opening' ? Math.min(1, J.openT / 3) : 1;skyd.canopy.position.set(J.pos.x, J.pos.y + 1.2, J.pos.z);skyd.canopy.rotation.set(0, J.yaw, 0);skyd.canopy.scale.set(.3 + .7 * k, .3 + .7 * k, .3 + .7 * k);}
     if (ev === 'land') {
+      const off = Math.hypot(J.pos.x - SKY_TARGET.x, J.pos.z - SKY_TARGET.z), rec = badges.record('skydive', {landing: J.landing, dist: off});
       const msg = {soft: 'Nice soft landing!', hard: 'Hard landing – flare a little earlier next time (S just before the ground).', crash: 'Ouch! You hit the ground hard (no flare).'}[J.landing];
-      audio.sfx(J.landing === 'soft' ? 'thud' : 'hit', {gain: J.landing === 'soft' ? .3 : .7});notice(msg, 5);
+      const aim = off < 400 && J.landing !== 'crash' ? ` ${off.toFixed(1)} m from the target${rec.best ? ' – your closest yet' : ''}.` : '';
+      audio.sfx(J.landing === 'soft' ? 'thud' : 'hit', {gain: J.landing === 'soft' ? .3 : .7});notice(msg + aim, 5);
       skyd.canopy.visible = false;skyd.body.group.visible = false;const p = {x: J.pos.x, z: J.pos.z};skyd.jumper = null;player.mode = 'foot';
       const spn = collision.findSafeSpawn(walkWorld, p, player.eye, {y: groundAt(p.x, p.z), maxDistance: 8});place(spn ? spn.x : p.x, spn ? spn.z : p.z, J.yaw, spn ? spn.y : undefined);setClip(.05, 450);return;
     }
@@ -14198,10 +14744,22 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
   // ---------- Account (pause menu, optional): email + password through the Worker (Better Auth + Supabase) ----------
   let acctMode = 'login';
   const account = window.GameAccount.create({onChange: renderAccount});
+  // Saved progress (issue #54): logged in, your progress is the account's – loaded when you log in and saved by itself.
+  const safeStore = {getItem: k => {try {return localStorage.getItem(k);} catch {return null;}}, setItem: (k, v) => {try {localStorage.setItem(k, v);} catch {}}, removeItem: k => {try {localStorage.removeItem(k);} catch {}}};
+  const progress = window.GameProgress.create({account, store: safeStore, camera: photo, ask, notice, rules: badges.MERGE,
+    onApplied: () => window.dispatchEvent(new Event('haarklous-progress'))});
+  window.addEventListener('haarklous-progress', () => {loadSens();badges.reload();renderSettings();});
+  // A yes / no question over everything (✕ / ○ on the controller, or the buttons).
+  let asking = null;
+  function ask(text) {
+    return new Promise(resolve => {asking = resolve;$('askText').textContent = text;$('askBox').hidden = false;if (document.pointerLockElement === canvas) document.exitPointerLock();});
+  }
+  function answer(yes) {const r = asking;asking = null;$('askBox').hidden = true;if (started && !paused) lockPointer();if (r) r(yes);}
+  $('askYes').onclick = () => answer(true);$('askNo').onclick = () => answer(false);
   function renderAccount() {
     const u = account.user, signup = acctMode === 'signup';
     $('acctStatus').textContent = !account.available ? `Accounts work in the online version (${account.onlineUrl}) – you can play without one.` :
-      u ? `Logged in as ${u.name} (${u.email}). Your account name is your name in the lobbies.` : signup ? 'Create an account: player name, email and a password of at least 8 characters.' : 'You are not logged in – you can play without an account.';
+      u ? `Logged in as ${u.name} (${u.email}). Your account name is your name in the lobbies, and your progress (money, bag, photos, badges, best scores, settings) is saved to the account.` : signup ? 'Create an account: player name, email and a password of at least 8 characters.' : 'You are not logged in – you can play without an account.';
     $('acctForm').hidden = !account.available || !!u;$('acctIn').hidden = !u;
     $('acctNameRow').hidden = !signup;$('acctPassword').autocomplete = signup ? 'new-password' : 'current-password';
     $('acctSubmit').textContent = account.busy ? 'Wait…' : signup ? 'Create account' : 'Log in';
@@ -14209,14 +14767,15 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
     $('acctSubmit').disabled = $('acctLogout').disabled = account.busy;
   }
   // The account name is the lobby name while you are logged in.
-  const acctDone = err => {$('acctError').textContent = err;if (!err) {$('acctPassword').value = '';if (account.user) {mp.net.setName(account.user.name);renderMp();}}renderAccount();};
+  const acctDone = err => {$('acctError').textContent = err;if (!err) {$('acctPassword').value = '';if (account.user) {mp.net.setName(account.user.name);renderMp();}progress.userChanged(account.user);}renderAccount();};
   $('acctMode').onclick = () => {acctMode = acctMode === 'signup' ? 'login' : 'signup';if (!$('acctName').value) $('acctName').value = mp.net.name;$('acctError').textContent = '';renderAccount();};
   $('acctForm').onsubmit = async e => {
     e.preventDefault();const email = $('acctEmail').value, pw = $('acctPassword').value;
     const err = acctMode === 'signup' ? await account.signUp($('acctName').value, email, pw) : await account.logIn(email, pw);
     acctDone(err);if (!err) notice(`Logged in as ${account.user.name}.`, 3);
   };
-  $('acctLogout').onclick = async () => {const err = await account.logOut();acctDone(err);if (!err) notice('Logged out.', 3);};
+  // Save once more while the session is still valid; then this browser's own progress comes back.
+  $('acctLogout').onclick = async () => {await progress.beforeLogout();const err = await account.logOut();acctDone(err);if (!err) notice('Logged out. This browser’s own progress is back.', 4);};
   renderAccount();if (account.available) account.load().then(acctDone);
   function applyDoor(id, open, instant) {
     const d = doors.find(x => x.id === id);if (!d) return;
@@ -14309,8 +14868,64 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
   }
 
   // ---------- Test / inspection handle ----------
+  // ---------- Photo hunt places, badge checks (issue #58) ----------
+  const huntSpots = (() => {
+    const W = (x, s) => world.toWorld(x, s), up = (p, h) => p && {x: p.x, y: (p.y ?? world.heightWorld(p.x, p.z)) + h, z: p.z};
+    const pairs = r => Array.isArray(r[0]) ? r : r.reduce((o, v, i) => (i % 2 ? o[o.length - 1].push(v) : o.push([v]), o), []);
+    const mid = r => {const p = pairs(r), c = p.reduce((a, [x, s]) => [a[0] + x / p.length, a[1] + s / p.length], [0, 0]);return W(c[0], c[1]);};
+    const mark = kind => {const l = DISTRICTS.flatMap(d => d.landmarks).find(l => l.kind === kind);return l && mid(l.ring);};
+    const room = catacomb && catacomb.layout.rooms.find(r => r.id === 'rotunda');
+    const door = ownStair.floors().find(f => f.name === 'Street door threshold');
+    const at = {
+      'photo-oksen': {...W(OKSEN_AT.x, OKSEN_AT.s), y: oksen.base + 2.4},
+      'photo-hodet': {...W(SCULPTURE_AT.x, SCULPTURE_AT.s), y: sculpture.base + 3.5},
+      'photo-deichman': library && {...library.centre, y: library.floorY + 4},
+      'photo-klatreverket': window.KLATREVERKET && up(mid(window.KLATREVERKET.ring), 6.5),
+      'photo-rotunda': room && {...W(room.cx, room.cs), y: catacomb.FLOOR_Y + 1.3},
+      'photo-muselunden': mini.muselunden && (() => {const b = mini.muselunden.holes[0].basket;return {x: b.x, y: b.y + .8, z: b.z};})(),
+      'photo-munch': up(mark('munch'), 29),
+      'photo-opera': up(mark('opera'), 12),
+      'photo-rathkes': rathkes && up(rathkes.gate, 1.8),
+      'photo-home': door && (() => {const p = door.points, c = p.reduce((a, q) => ({x: a.x + q.x / p.length, z: a.z + q.z / p.length}), {x: 0, z: 0});return {...c, y: (door.y ?? world.heightWorld(c.x, c.z)) + 2.5};})()
+    };
+    // The street door faces across its threshold (the short side), toward the street where the mission ring is.
+    const face = {};
+    if (door) {
+      const p = door.points, e = p.map((q, i) => ({x: p[(i + 1) % p.length].x - q.x, z: p[(i + 1) % p.length].z - q.z})).sort((a, b) => Math.hypot(b.x, b.z) - Math.hypot(a.x, a.z))[0], L = Math.hypot(e.x, e.z);
+      let n = {x: -e.z / L, z: e.x / L};const h = at['photo-home'];if ((MISSION_MARK.x - h.x) * n.x + (MISSION_MARK.z - h.z) * n.z < 0) n = {x: -n.x, z: -n.z};face['photo-home'] = n;
+    }
+    return window.GameBadges.SPOTS.map(s => ({...s, at: at[s.id] || null, face: face[s.id]})).filter(s => s.at && [s.at.x, s.at.y, s.at.z].every(Number.isFinite));
+  })();
+  // Is the line from the camera to a place blocked by a wall, a tree, a vehicle or a hill? (stops `stop` metres before it)
+  function sightBlocked(a, b, stop) {
+    const d = Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z), steps = Math.floor((d - stop) / .5), under = a.y < groundAt(a.x, a.z) - 2;
+    for (let i = 1; i <= steps; i++) {
+      const k = i * .5 / d, x = a.x + (b.x - a.x) * k, y = a.y + (b.y - a.y) * k, z = a.z + (b.z - a.z) * k;
+      if (collision.hitsSolid(walkWorld, {x, z}, y - .05, y + .05) || (!under && y < groundAt(x, z) - .3)) return true;
+    }
+    return false;
+  }
+  function huntPhoto() {
+    const shot = {cam: camera.position.clone(), fovY: camera.fov, ndc: p => new T.Vector3(p.x, p.y, p.z).project(camera), blocked: sightBlocked};
+    const msg = badges.photo(shot, huntSpots, canvas);if (msg) notice(msg, 5);
+  }
+  // Badges that come from what you do: checked twice a second (the rest come from the best scores and saved states).
+  let badgeT = 0, pbSeen = 0;
+  function badgeTick(dt) {
+    badgeT -= dt;if (badgeT > 0) return;badgeT = .5;
+    if (catacomb && catacomb.state.inside) markBadge('catacomb');
+    if (library && library.reading && library.reading.which === 'moby') markBadge('moby');
+    const v = player.vehicle;if (player.mode === 'vehicle' && v && v.aircraft && v.y - groundAt(v.x, v.z) > 50) markBadge('airborne');
+    // A paintball game you played in ended: won or lost (a win counts only with somebody on the other team).
+    if (pbRules && pbRules.inGame() && pbRules.ses.state === 'end' && pbRules.ses.id !== pbSeen) {
+      const S = pbRules.ses, me = pbRules.myTeam();pbSeen = S.id;
+      if (me >= 0 && Object.values(S.team).some(t => t === 1 - me)) badges.record('paintball', {won: S.winner === me});
+    }
+    badges.check();
+  }
   window.haarklousGame = {player, vehicles, site, paintball, catacomb, groundAt, heli, plane, drone, watch, fire, stash, shops, gym, startClimb, openGymMenu, startBelay, get belay() {return belay;}, sculpture, oksen, weather, caravan, get skyd() {return skyd;}, get autoPlane() {return autoPlane;}, get jumpFlight() {return jumpFlight;}, boardAuto, boardCaravan, jump, get gp() {return gp;}, callGamePilot, handOver, CARAVAN_HOLD, applyWeather, wallet, get basket() {return basket;}, payAt, takeProduct, useItem, earn, openBag, takeBoost, get boost() {return boost;}, set boost(b) {boost = b;}, get mp() {return mp;}, sitDown, standUp, tryDrive, tryRide, openChat, startDrone, stopDrone, floorBelow, doors, mini, music, photo, map, world, apt, towers, walkWorld, route, landmarks, districts: DISTRICTS, get caseGame() {return caseGame;}, place, toggleDoor, enterVehicle, exitVehicle, startMinigame, startMission, drink, interact, findPrompt, renderFrame, begin, get fps() {return fpsAvg;}, kick: () => requestAnimationFrame(frame), get drunk() {return drunk;}, set drunk(v) {drunk = v;}, setStance, camera, scene};
   Object.assign(window.haarklousGame, {library, pingpong, rathkes, kayak, startKayak, hushedFor: () => hushed});
+  Object.assign(window.haarklousGame, {badges, huntSpots, huntPhoto, sightBlocked, SKY_TARGET, progress, account});
   loading.remove();$('start').hidden = false;
   requestAnimationFrame(frame);
 })();

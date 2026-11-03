@@ -64,8 +64,10 @@
 
   // ---------- Wallet: money (kr), empty bottles, bag of items; saved in the browser ----------
   function makeWallet() {
-    const KEY = 'haarklous-wallet-v1';let st = {money: 500, pant: 0, bag: {}};
-    try {const s = JSON.parse(localStorage.getItem(KEY) || 'null');if (s && Number.isFinite(s.money)) st = {money: s.money, pant: s.pant | 0, bag: s.bag || {}};} catch {}
+    const KEY = 'haarklous-wallet-v1';let st;
+    const load = () => {st = {money: 500, pant: 0, bag: {}};try {const s = JSON.parse(localStorage.getItem(KEY) || 'null');if (s && Number.isFinite(s.money)) st = {money: s.money, pant: s.pant | 0, bag: s.bag || {}};} catch {}};
+    // An account's saved progress was loaded (or the browser's came back on log-out): read it again (issue #54).
+    load();if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('haarklous-progress', load);
     const save = () => {try {localStorage.setItem(KEY, JSON.stringify(st));} catch {}};
     const round = v => Math.round(v * 100) / 100;
     return {

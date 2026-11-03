@@ -35,8 +35,9 @@
     }
     marker(A, 0x2e9d4b, [['ENSJØ → RATHKES GATE', 40], ['Stand in the ring', 34], ['□ start the clock', 34]], '#1d6b34');
     marker(B, 0xf2f2f2, [['RATHKES GATE', 54], ['Finish of the run', 34], ['from Ensjø T-bane', 34]], '#222', true);
-    let saved = {best: null, runs: 0};
-    try {saved = {...saved, ...JSON.parse(localStorage.getItem(KEY) || '{}')};} catch {}
+    let saved;
+    const load = () => {saved = {best: null, runs: 0};try {saved = {...saved, ...JSON.parse(localStorage.getItem(KEY) || '{}')};} catch {}};
+    load();window.addEventListener('haarklous-progress', load);// an account's saved progress was loaded (issue #54)
     const save = () => {try {localStorage.setItem(KEY, JSON.stringify(saved));} catch {}};
     const hud = document.createElement('div');hud.id = 'routeHud';hud.className = 'game-card';hud.hidden = true;root.append(hud);
     const api = {group, running: false, t: 0, get best() {return saved.best;}, get runs() {return saved.runs;}, start: {...A}, finish: {...B}};

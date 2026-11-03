@@ -7,7 +7,7 @@
  * CatacombLayout.build({heightLocal}) -> layout   heightLocal(x, s) -> terrain y
  *   layout: {kind, style, room (per cell), rooms, entrances, torches, cellOf(x, s), centre(i, j), floorAt(idx, x, s), ceilAt(idx, x, s),
  *            walkable(idx), los(x0, s0, x1, s1), floors(), obstacles(), vehicleObstacles(), cutsGround(x, s), inside(x, s, y), depth(x, s, y)}
- * CatacombLayout.explorer(layout, saved) -> {seen, reveal(x, s, radius), count, save()}   (what the map shows)
+ * CatacombLayout.explorer(layout, saved) -> {seen, reveal(x, s, radius), count, save(), load(saved)}   (what the map shows)
  * CatacombLayout.ENTRANCES, holes() (terrain cuts for Surroundings.create)
  */
 (function (root, factory) {
@@ -310,9 +310,13 @@
 
   // What you have seen down there (the map shows only this). Saved in localStorage by the caller as a base64 bit set.
   function explorer(L, saved) {
-    const n = L.NX * L.NS, seen = new Uint8Array(n);
-    if (saved) {try {const bin = typeof atob === 'function' ? atob(saved) : Buffer.from(saved, 'base64').toString('binary');for (let i = 0; i < n; i++) seen[i] = (bin.charCodeAt(i >> 3) >> (i & 7)) & 1;} catch {}}
-    let count = seen.reduce((a, b) => a + b, 0);
+    const n = L.NX * L.NS, seen = new Uint8Array(n);let count = 0;
+    function load(saved) {
+      seen.fill(0);
+      if (saved) {try {const bin = typeof atob === 'function' ? atob(saved) : Buffer.from(saved, 'base64').toString('binary');for (let i = 0; i < n; i++) seen[i] = (bin.charCodeAt(i >> 3) >> (i & 7)) & 1;} catch {}}
+      count = seen.reduce((a, b) => a + b, 0);
+    }
+    load(saved);
     function reveal(x, s, radius) {
       const c = L.cellOf(x, s);if (!c) return 0;let added = 0;const r = Math.ceil(radius / L.CELL);
       for (let dj = -r; dj <= r; dj++) for (let di = -r; di <= r; di++) {
@@ -325,7 +329,7 @@
       count += added;return added;
     }
     function save() {const bytes = new Uint8Array(Math.ceil(n / 8));for (let i = 0; i < n; i++) if (seen[i]) bytes[i >> 3] |= 1 << (i & 7);let bin = '';for (const b of bytes) bin += String.fromCharCode(b);return typeof btoa === 'function' ? btoa(bin) : Buffer.from(bin, 'binary').toString('base64');}
-    return {seen, reveal, save, get count() {return count;}};
+    return {seen, reveal, save, load, get count() {return count;}};
   }
 
   // Terrain sampler for Node tests and tools: the same bilinear 4 m grid as Surroundings (relative decimetres + ground).

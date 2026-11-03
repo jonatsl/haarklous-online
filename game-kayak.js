@@ -328,7 +328,9 @@
     // ---------- Playing ----------
     const boat = new Boat(R);
     let active = false, run = null, view = 0, shake = 0, splashT = 0, pose = null;
-    const KEY = 'haarklous-kayak-v1';let best = {};try {best = JSON.parse(localStorage.getItem(KEY) || '{}') || {};} catch {}
+    const KEY = 'haarklous-kayak-v1';let best = {};
+    const loadBest = () => {try {best = JSON.parse(localStorage.getItem(KEY) || '{}') || {};} catch {best = {};}};
+    loadBest();window.addEventListener('haarklous-progress', loadBest);// an account's saved progress was loaded (issue #54)
     const saveBest = () => {try {localStorage.setItem(KEY, JSON.stringify(best));} catch {}};
     const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
     const worldYaw = () => {const a = toW(boat.x, boat.s), b = toW(boat.x + Math.sin(boat.h), boat.s + Math.cos(boat.h));return Math.atan2(-(b.x - a.x), -(b.z - a.z));};
@@ -397,7 +399,7 @@
     // A tick for the water's flow animation (always, so the river moves when you walk past).
     function tick(dt) {tex.offset.y -= dt * .1;ripples.offset.y -= dt * .12;foamTex.offset.y -= dt * .6;}
     const poi = () => racks.map(r => {const l = world.toLocal(r.x, r.z);return {x: l.x, s: l.s, color: '#1d5f7a', label: `Kayak: ${r.name.replace(/ \(.*\)/, '')}`, glyph: '🛶'};});
-    return {group, obstacles, groundAt, racks, bridges, prompt, start, stop, update, hud, tick, exitPoint, remoteBoat: () => boatMesh(), poi, riverModel: R, boat, get active() {return active;}, get view() {return view;}, get pose() {return active ? pose : null;}, canExit, best};
+    return {group, obstacles, groundAt, racks, bridges, prompt, start, stop, update, hud, tick, exitPoint, remoteBoat: () => boatMesh(), poi, riverModel: R, boat, get active() {return active;}, get view() {return view;}, get pose() {return active ? pose : null;}, canExit, get best() {return best;}};
   }
 
   return {river, Boat, bedQuads, lowerGrid, prepare, create, HULL};

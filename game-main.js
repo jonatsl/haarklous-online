@@ -178,6 +178,19 @@
   heli.onCrash = plane.onCrash = a => {if (player.vehicle === a) notice('Crashed! The aircraft is put back on its pad in a moment.', 3);};
   vehicles.push(heli, plane);
   const drone = new AC.Drone();
+  // The skydivers' landing target (issue #58, badge "On target"): a painted circle on the grass, 180 m down the airstrip.
+  const SKY_TARGET = {x: AIR.plane.x - Math.sin(AIR.plane.yaw) * 180, z: AIR.plane.z - Math.cos(AIR.plane.yaw) * 180};
+  {
+    const R = 10.5, c = document.createElement('canvas');c.width = c.height = 256;const g = c.getContext('2d');
+    for (const [r, col] of [[10.5, '#ff6d00'], [9.7, '#f4f4f4'], [5, '#ff6d00'], [4.2, '#f4f4f4'], [1.5, '#e53935']]) {g.fillStyle = col;g.beginPath();g.arc(128, 128, r / R * 127, 0, Math.PI * 2);g.fill();}
+    const tex = new T.CanvasTexture(c);tex.colorSpace = T.SRGBColorSpace;tex.anisotropy = 4;
+    // A small grid laid on the ground (it follows the slope) with the circle cut out by alphaTest.
+    const geo = new T.PlaneGeometry(2 * R, 2 * R, 14, 14);geo.rotateX(-Math.PI / 2);const pos = geo.attributes.position;
+    for (let i = 0; i < pos.count; i++) {const x = SKY_TARGET.x + pos.getX(i), z = SKY_TARGET.z + pos.getZ(i);pos.setXYZ(i, x, groundAt(x, z) + .05, z);}
+    geo.computeVertexNormals();
+    const m = new T.Mesh(geo, new T.MeshLambertMaterial({map: tex, alphaTest: .5, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2}));
+    m.name = 'Skydiving target';m.receiveShadow = true;scene.add(m);
+  }
   // More parked cars and motorcycles along the streets within about 330 m. Generated deterministically (seeded random,
   // same checks), so in multiplayer every player has the same vehicles with the same numbers.
   {
@@ -295,7 +308,8 @@
 
   // ---------- Mission (hostage rescue) ----------
   const sensitivity = {pad: 1, mouse: 1};
-  try {const saved = JSON.parse(localStorage.getItem('haarklous-look-sensitivity-v1') || 'null');if (saved) Object.assign(sensitivity, saved);} catch {}
+  const loadSens = () => {Object.assign(sensitivity, {pad: 1, mouse: 1});try {const saved = JSON.parse(localStorage.getItem('haarklous-look-sensitivity-v1') || 'null');if (saved) Object.assign(sensitivity, saved);} catch {}};
+  loadSens();
   const setSens = (k, v) => {sensitivity[k] = Math.round(Math.min(3, Math.max(.25, v)) * 100) / 100;try {localStorage.setItem('haarklous-look-sensitivity-v1', JSON.stringify(sensitivity));} catch {}};
   if (window.CaseGame) {
     const stairSpawns = () => ownStair.floors().filter(f => !f.slope && f.name !== 'Street door threshold' && !/Half landing 0/.test(f.name)).map(f => ({name: f.name, points: f.points, y: f.y}));
@@ -306,16 +320,17 @@
       spawnAreas: () => apt.spawnAreas, stairSpawns, missionStart,
       entrance: () => {const d = apt.doors.find(d => d.name === 'Entrance door');return d ? d.leaf.getWorldPosition(new T.Vector3()) : {x: 1.66, z: 5.83};},
       timeScale: () => worldScale(),
-      onFinish: result => {if (result === 'success') earn(400, 'Reward for rescuing the hostage');},
+      onFinish: (result, info) => {if (result === 'success') earn(400, 'Reward for rescuing the hostage');badges.record('mission', {success: result === 'success', time: info && info.time});},
       setPose: (x, z, yaw, tilt, y) => place(x, z, yaw, y), enterWalk: () => {}, enterImmersive: () => {},
       leave: () => {const yaw = player.yaw;place(player.x, player.z, yaw, player.feet);updateDynamic();notice(inApartment() ? 'Mission over – you are home. Make yourself comfortable.' : 'Mission over.', 4);}});
   }
 
   // ---------- Minigames, photo camera, map ----------
-  const mini = window.GameMinigames.create({T, lib, audio, heightAt, toWorld, data: D, hud, trees: world.trees, reward: (v, why) => earn(v, why), muselunden: window.MUSELUNDEN});
+  const mini = window.GameMinigames.create({T, lib, audio, heightAt, toWorld, data: D, hud, trees: world.trees, reward: (v, why) => earn(v, why), muselunden: window.MUSELUNDEN,
+    onEvent: (kind, data) => badges.record(kind, data)});
   const discCourses = [mini.discgolf, mini.muselunden].filter(Boolean);
   scene.add(...discCourses.map(g => g.group), mini.petanque.group);
-  const photo = window.GameCamera.create({T, lib, audio, root: view});
+  const photo = window.GameCamera.create({T, lib, audio, root: view, notice});
   const overlayScene = new T.Scene(), overlayCamera = new T.PerspectiveCamera(55, 1, .01, 5);overlayScene.add(new T.HemisphereLight(0xf1f5ff, 0x4a4540, 2.2));
   const ovSun = new T.DirectionalLight(0xffffff, 1.8);ovSun.position.set(.6, 1, .5);overlayScene.add(ovSun);overlayScene.environment = lib.environment();
   overlayScene.add(photo.model);photo.model.position.set(.08, -.13, -.32);photo.model.rotation.set(.1, -.15, 0);
@@ -343,6 +358,7 @@
     ...(D.petanque ? [{x: D.petanque.x, s: D.petanque.s, color: '#00838f', label: 'Petanque', glyph: '●'}] : []),
     {...world.toLocal(AIR.heli.x, AIR.heli.z), color: '#1565c0', label: 'Helipad', glyph: 'H'},
     {...world.toLocal(AIR.plane.x, AIR.plane.z), color: '#1565c0', label: 'Airstrip', glyph: '✈'},
+    {...world.toLocal(SKY_TARGET.x, SKY_TARGET.z), color: '#ff6d00', label: 'Skydiving target', glyph: '◎'},
     {...world.toLocal(FIRE_POS.x, FIRE_POS.z), color: '#e65100', label: 'Firepit', glyph: '🔥'},
     ...shops.shops.map(s => {const L = s.local;return {x: L.P0[0] + L.u[0] * L.W / 2 + L.n[0] * L.depth / 2, s: L.P0[1] + L.u[1] * L.W / 2 + L.n[1] * L.depth / 2, color: s.id === 'kiwi' ? '#2e9a3f' : '#d0021b', label: s.name, glyph: '🛒'};}),
     ...(SITE_DATA ? [{x: SITE_DATA.rect.x0 + SITE_DATA.rect.w / 2, s: SITE_DATA.rect.s0 + SITE_DATA.rect.d / 2, color: '#f9a825', label: 'Construction site', glyph: '⛏'}] : []),
@@ -476,6 +492,10 @@
   const wallet = shops.wallet, KR = shops.kr, GREET = ['Hei! Velkommen inn.', 'Hei hei!', 'God dag!', 'Hei, si fra om du trenger hjelp.'];
   let basket = [], walletT = 0, lastShop = null, bag = null;
   function earn(amount, why) {if (!(amount > 0)) return;wallet.earn(amount);walletT = 6;audio.sfx('coin');notice(`+${KR(amount)} · ${why}`, 4);}
+  // ---------- Badges, the photo hunt and best scores (issue #58) ----------
+  const badges = window.GameBadges.create({root: view, pay: kr => {wallet.earn(kr);walletT = 6;audio.sfx('coin');}, sound: n => audio.sfx(n),
+    labels: {kayak: kayak ? kayak.racks.map(r => r.name.replace(/ \(.*\)/, '')) : []}});
+  const markBadge = id => {if (!(badges.records.marks || {})[id]) badges.record('mark', {id});};
   function shopPrompt() {
     if (player.mode !== 'foot') return null;
     const s = shops.shopAt(player, player.feet), o = lookTarget(), u = (o && o.userData) || {};
@@ -531,7 +551,7 @@
   function useItem(p) {
     if (p.use === 'wood') {
       if (Math.hypot(player.x - FIRE_POS.x, player.z - FIRE_POS.z) > 8) {notice('Take the firewood to the firepit in the park first.', 3);return;}
-      for (let i = 0; i < 3; i++) setTimeout(() => {fire.throwLog({x: player.x, y: player.feet + 1.3, z: player.z});mp.addWood();}, i * 350);notice('You empty the sack of firewood onto the fire.', 3);
+      for (let i = 0; i < 3; i++) setTimeout(() => {fire.throwLog({x: player.x, y: player.feet + 1.3, z: player.z});mp.addWood();}, i * 350);notice('You empty the sack of firewood onto the fire.', 3);markBadge('fire');
     } else if (p.use === 'beer') {audio.sfx('bottleOpen');audio.sfx('gulp');drunk += 30;beerT = 20;wallet.addPant(1);notice(`You drink a ${p.name}. (+30 s drunk, +1 bottle for the deposit)`, 3);}
     else if (p.use === 'soda') {audio.sfx('bottleOpen');audio.sfx('gulp');drunk = Math.max(0, drunk - 10);wallet.addPant(1);notice(`${p.name} – refreshing. (+1 bottle for the deposit)`, 3);}
     else if (p.use === 'energy') {audio.sfx('bottleOpen');audio.sfx('gulp');boost = {kind: 'speed', t: 15};wallet.addPant(1);notice(`${p.name}: 15 s of 3× speed! (+1 can for the deposit)`, 3);}
@@ -710,7 +730,7 @@
     if (best) return {text: '□ Sit down by the fire', act: () => sitDown(best)};
     return null;
   }
-  function addLog() {fire.throwLog({x: player.x, y: player.feet + 1.3, z: player.z});audio.sfx('throw');setTimeout(() => {audio.sfx('thud', {gain: .4});}, 600);mp.addWood();notice('You throw a log on the fire.', 2);}
+  function addLog() {fire.throwLog({x: player.x, y: player.feet + 1.3, z: player.z});audio.sfx('throw');setTimeout(() => {audio.sfx('thud', {gain: .4});}, 600);mp.addWood();notice('You throw a log on the fire.', 2);markBadge('fire');}
   function drinkBeer() {audio.sfx('bottleOpen');audio.sfx('gulp');drunk += 30;beerT = 20;wallet.addPant(1);notice('Skål! A beer from the crate. (+30 s drunk, +1 bottle for the deposit)', 3);}
   function sitDown(spot) {watch.hide();if (photo.active) photo.toggle();player.mode = 'sit';player.sitSpot = spot;player.lookYaw = 0;player.lookPitch = -.32;notice('Sitting by the fire · R2 / left mouse: have a beer · □ stand up', 4);}
   function standUp() {const sp = player.sitSpot;player.mode = 'foot';player.sitSpot = null;const dx = fire.center.x - sp.x, dz = fire.center.z - sp.z, l = Math.hypot(dx, dz) || 1;place(sp.x + dx / l * .7, sp.z + dz / l * .7, sp.yaw);}
@@ -764,7 +784,7 @@
     for (const r of remotes) people.push({id: r.id, x: r.pos.x, z: r.pos.z, feet: r.pos.y, running: !!r.st.rn, loud: loud(r.id)});
     for (const e of library.update(dt, people, camera)) if (e.kind === 'shush' && e.id === 'me') {hushed = 5;player.run = false;notice(e.why === 'run' ? '🤫 The librarian shushes you: no running in the library! (You walk for a while.)' : '🤫 The librarian shushes you: talk quietly in the library!', 4);}
   }
-  if (pingpong) pingpong.onWin = () => earn(60, 'You beat Ola at table tennis');
+  if (pingpong) {pingpong.onWin = () => earn(60, 'You beat Ola at table tennis');pingpong.onEnd = won => badges.record('pingpong', {won});}
 
   // ---------- Minigames and mission start ----------
   function startMinigame(g) {const s = g.start({x: player.x, z: player.z, y: player.feet});player.mode = 'minigame';player.minigame = g;if (s) place(s.x, s.z, s.yaw);}
@@ -795,7 +815,7 @@
       held: Object.assign({}, st?.buttons || {}), pressed: new Set(edges), released: new Set(released), r2: st ? st.run : 0, l2: st ? st.aim : 0, gamepad: Boolean(gp), mouse: {...mouse}
     };
     if (kx || ky) {input.move.x = kx;input.move.y = ky;}
-    const map = {Space: 'cross', KeyC: 'circle', KeyE: 'square', KeyF: 'triangle', Escape: 'options', KeyM: 'touchpad', KeyG: 'gallery', KeyZ: 'prone', KeyR: 'reload', ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down', ShiftLeft: 'l3', KeyQ: 'l1', KeyV: 'view', KeyY: 'share'};
+    const map = {Space: 'cross', KeyC: 'circle', KeyE: 'square', KeyF: 'triangle', Escape: 'options', KeyM: 'touchpad', KeyG: 'gallery', KeyZ: 'prone', KeyR: 'reload', ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down', ShiftLeft: 'l3', KeyQ: 'l1', KeyV: 'view', KeyY: 'share', KeyB: 'badges', Delete: 'delete'};
     for (const [code, name] of Object.entries(map)) {if (ke(code)) input.pressed.add(name);if (k(code)) input.held[name] = true;}
     // Flying (helicopter, plane, drone): hold Shift or the right mouse button to look around (Battlefield's free look, issue #16).
     const flying = player.mode === 'drone' || (player.mode === 'vehicle' && !!player.vehicle?.aircraft);
@@ -816,8 +836,10 @@
   $('startButton').onclick = begin;
   function setPaused(p) {paused = p;$('pause').hidden = !p;if (p && document.pointerLockElement === canvas) document.exitPointerLock();if (!p) lockPointer();renderSettings();}
   $('resume').onclick = () => setPaused(false);
+  $('badgesOpen').onclick = () => badges.open();
   function renderSettings() {
     $('walletLine').textContent = `Money: ${shops.kr(wallet.money)} · empty bottles: ${wallet.pant} (${shops.kr(wallet.pant * shops.PANT)} at the bottle return)`;
+    $('badgesOpen').textContent = `Badges and best scores (${badges.count} of ${badges.total})`;
     $('sensPad').value = sensitivity.pad;$('sensMouse').value = sensitivity.mouse;$('sensPadOut').textContent = sensitivity.pad.toFixed(2) + '×';$('sensMouseOut').textContent = sensitivity.mouse.toFixed(2) + '×';
     $('imagery').checked = imageryWanted();$('quality').value = String(quality);$('minimapOn').checked = map.minimap;
     $('musicVol').value = music.volume;$('musicOut').textContent = music.volume ? Math.round(music.volume * 100) + ' %' : 'off';
@@ -840,16 +862,24 @@
     requestAnimationFrame(frame);
     const dt = Math.min(clock.getDelta(), .05), t = clock.elapsedTime, input = readInput();
     fpsAvg += (1 / Math.max(dt, .001) - fpsAvg) * .05;
+    if (asking) {if (input.pressed.has('cross')) answer(true);else if (input.pressed.has('circle')) answer(false);renderFrame(0, t);return;}
     if (!started) {if (input.pressed.has('cross') || input.pressed.has('options')) begin();renderFrame(dt, t);return;}
     // Global toggles.
+    if (input.pressed.has('badges') && !paused && !caseGame?.active && player.mode === 'foot') {setPaused(true);badges.open();input.pressed.delete('badges');}
+    if (input.pressed.has('options') && badges.isOpen) {badges.close();input.pressed.delete('options');}
     if (input.pressed.has('options') && !caseGame?.active) {if (map.open) map.toggle();else if (photo.gallery) photo.openGallery(false);else if (library && library.reading) {library.closeBook();input.pressed.delete('options');}else setPaused(!paused);}
     if (paused) {
-      if (codePad) codePadInput(input);
+      if (badges.isOpen) {
+        if (input.pressed.has('circle') || input.pressed.has('r1') || input.pressed.has('badges')) badges.close();
+        badges.scroll((input.pressed.has('down') ? 120 : 0) - (input.pressed.has('up') ? 120 : 0) + (input.move.y + input.look.y) * 900 * dt);
+      } else if (codePad) codePadInput(input);
+      else if (input.pressed.has('r1') || input.pressed.has('badges')) badges.open();
       else {
         if (input.pressed.has('left') || input.pressed.has('right')) {music.setVolume(music.volume + (input.pressed.has('right') ? .1 : -.1));renderSettings();}
         if (input.pressed.has('triangle')) openCodePad();if (input.pressed.has('square') && mp.net.code !== mp.net.ownCode) {mp.net.home();notice('Back in your own lobby.', 3);}
         if (input.pressed.has('down')) {map.minimap = !map.minimap;renderSettings();}
       }
+      if (progress.status !== $('acctProgress').textContent) $('acctProgress').textContent = progress.status;
       renderFrame(0, t);return;
     }
     // Chat: the controller's Share button opens quick chat; keyboard Enter / T opens the text box.
@@ -866,6 +896,7 @@
       if (!caseGame.active) {player.mode = 'foot';['circle', 'cross', 'square', 'options'].forEach(b => input.pressed.delete(b));}
     }
     if (catacomb) catacombTick(dt, input);
+    badgeTick(dt);
     if (input.pressed.has('touchpad') && !caseGame?.active) map.toggle(player);
     if (map.open) {
       if (input.pressed.has('circle')) map.toggle();
@@ -893,10 +924,10 @@
     if (photo.active || player.mode !== 'foot') watch.hide();
     if (photo.active) {
       if (input.pressed.has('square') || input.pressed.has('gallery')) photo.openGallery();
-      if (photo.gallery) {if (input.pressed.has('left')) photo.browse(-1);if (input.pressed.has('right')) photo.browse(1);if (input.move.x > .6 && !photo.stick) {photo.browse(1);photo.stick = true;} else if (input.move.x < -.6 && !photo.stick) {photo.browse(-1);photo.stick = true;} else if (Math.abs(input.move.x) < .3) photo.stick = false;if (input.pressed.has('circle')) photo.openGallery(false);renderFrame(dt, t);return;}
+      if (photo.gallery) {if (input.pressed.has('left')) photo.browse(-1);if (input.pressed.has('right')) photo.browse(1);if (input.move.x > .6 && !photo.stick) {photo.browse(1);photo.stick = true;} else if (input.move.x < -.6 && !photo.stick) {photo.browse(-1);photo.stick = true;} else if (Math.abs(input.move.x) < .3) photo.stick = false;if (input.pressed.has('cross') || input.pressed.has('delete')) photo.deleteShown();if (input.pressed.has('circle') && !photo.cancelDelete()) photo.openGallery(false);renderFrame(dt, t);return;}
       if (input.pressed.has('circle')) photo.toggle();
       photo.setRaised(input.l2 > .4 ? 1 : 0);if (photo.raised > .5 && input.look.y) photo.setZoom(photo.zoom * Math.exp(-input.look.y * dt * 1.5));
-      if (input.r2 > .6 && !photo.shutterHeld) {photo.shutterHeld = true;renderFrame(0, t, true);photo.capture(canvas, placeName());renderFrame(dt, t);return;}
+      if (input.r2 > .6 && !photo.shutterHeld) {photo.shutterHeld = true;renderFrame(0, t, true);photo.capture(canvas, placeName());huntPhoto();renderFrame(dt, t);return;}
       if (input.r2 < .3) photo.shutterHeld = false;
     }
     // Drunk effect: decays in real time.
@@ -1199,8 +1230,10 @@
     {const b = skyd.body.group;b.visible = skyd.chase;b.position.set(J.pos.x, J.pos.y, J.pos.z);b.rotation.set(0, J.yaw, 0);if (J.state === 'freefall') {b.rotateX(-Math.PI / 2);b.translateY(-.9);}skyd.body.pose({stance: 'stand', speed: 0, dt});}
     if (skyd.canopy.visible) {const k = J.state === 'opening' ? Math.min(1, J.openT / 3) : 1;skyd.canopy.position.set(J.pos.x, J.pos.y + 1.2, J.pos.z);skyd.canopy.rotation.set(0, J.yaw, 0);skyd.canopy.scale.set(.3 + .7 * k, .3 + .7 * k, .3 + .7 * k);}
     if (ev === 'land') {
+      const off = Math.hypot(J.pos.x - SKY_TARGET.x, J.pos.z - SKY_TARGET.z), rec = badges.record('skydive', {landing: J.landing, dist: off});
       const msg = {soft: 'Nice soft landing!', hard: 'Hard landing – flare a little earlier next time (S just before the ground).', crash: 'Ouch! You hit the ground hard (no flare).'}[J.landing];
-      audio.sfx(J.landing === 'soft' ? 'thud' : 'hit', {gain: J.landing === 'soft' ? .3 : .7});notice(msg, 5);
+      const aim = off < 400 && J.landing !== 'crash' ? ` ${off.toFixed(1)} m from the target${rec.best ? ' – your closest yet' : ''}.` : '';
+      audio.sfx(J.landing === 'soft' ? 'thud' : 'hit', {gain: J.landing === 'soft' ? .3 : .7});notice(msg + aim, 5);
       skyd.canopy.visible = false;skyd.body.group.visible = false;const p = {x: J.pos.x, z: J.pos.z};skyd.jumper = null;player.mode = 'foot';
       const spn = collision.findSafeSpawn(walkWorld, p, player.eye, {y: groundAt(p.x, p.z), maxDistance: 8});place(spn ? spn.x : p.x, spn ? spn.z : p.z, J.yaw, spn ? spn.y : undefined);setClip(.05, 450);return;
     }
@@ -1421,10 +1454,22 @@
   // ---------- Account (pause menu, optional): email + password through the Worker (Better Auth + Supabase) ----------
   let acctMode = 'login';
   const account = window.GameAccount.create({onChange: renderAccount});
+  // Saved progress (issue #54): logged in, your progress is the account's – loaded when you log in and saved by itself.
+  const safeStore = {getItem: k => {try {return localStorage.getItem(k);} catch {return null;}}, setItem: (k, v) => {try {localStorage.setItem(k, v);} catch {}}, removeItem: k => {try {localStorage.removeItem(k);} catch {}}};
+  const progress = window.GameProgress.create({account, store: safeStore, camera: photo, ask, notice, rules: badges.MERGE,
+    onApplied: () => window.dispatchEvent(new Event('haarklous-progress'))});
+  window.addEventListener('haarklous-progress', () => {loadSens();badges.reload();renderSettings();});
+  // A yes / no question over everything (✕ / ○ on the controller, or the buttons).
+  let asking = null;
+  function ask(text) {
+    return new Promise(resolve => {asking = resolve;$('askText').textContent = text;$('askBox').hidden = false;if (document.pointerLockElement === canvas) document.exitPointerLock();});
+  }
+  function answer(yes) {const r = asking;asking = null;$('askBox').hidden = true;if (started && !paused) lockPointer();if (r) r(yes);}
+  $('askYes').onclick = () => answer(true);$('askNo').onclick = () => answer(false);
   function renderAccount() {
     const u = account.user, signup = acctMode === 'signup';
     $('acctStatus').textContent = !account.available ? `Accounts work in the online version (${account.onlineUrl}) – you can play without one.` :
-      u ? `Logged in as ${u.name} (${u.email}). Your account name is your name in the lobbies.` : signup ? 'Create an account: player name, email and a password of at least 8 characters.' : 'You are not logged in – you can play without an account.';
+      u ? `Logged in as ${u.name} (${u.email}). Your account name is your name in the lobbies, and your progress (money, bag, photos, badges, best scores, settings) is saved to the account.` : signup ? 'Create an account: player name, email and a password of at least 8 characters.' : 'You are not logged in – you can play without an account.';
     $('acctForm').hidden = !account.available || !!u;$('acctIn').hidden = !u;
     $('acctNameRow').hidden = !signup;$('acctPassword').autocomplete = signup ? 'new-password' : 'current-password';
     $('acctSubmit').textContent = account.busy ? 'Wait…' : signup ? 'Create account' : 'Log in';
@@ -1432,14 +1477,15 @@
     $('acctSubmit').disabled = $('acctLogout').disabled = account.busy;
   }
   // The account name is the lobby name while you are logged in.
-  const acctDone = err => {$('acctError').textContent = err;if (!err) {$('acctPassword').value = '';if (account.user) {mp.net.setName(account.user.name);renderMp();}}renderAccount();};
+  const acctDone = err => {$('acctError').textContent = err;if (!err) {$('acctPassword').value = '';if (account.user) {mp.net.setName(account.user.name);renderMp();}progress.userChanged(account.user);}renderAccount();};
   $('acctMode').onclick = () => {acctMode = acctMode === 'signup' ? 'login' : 'signup';if (!$('acctName').value) $('acctName').value = mp.net.name;$('acctError').textContent = '';renderAccount();};
   $('acctForm').onsubmit = async e => {
     e.preventDefault();const email = $('acctEmail').value, pw = $('acctPassword').value;
     const err = acctMode === 'signup' ? await account.signUp($('acctName').value, email, pw) : await account.logIn(email, pw);
     acctDone(err);if (!err) notice(`Logged in as ${account.user.name}.`, 3);
   };
-  $('acctLogout').onclick = async () => {const err = await account.logOut();acctDone(err);if (!err) notice('Logged out.', 3);};
+  // Save once more while the session is still valid; then this browser's own progress comes back.
+  $('acctLogout').onclick = async () => {await progress.beforeLogout();const err = await account.logOut();acctDone(err);if (!err) notice('Logged out. This browser’s own progress is back.', 4);};
   renderAccount();if (account.available) account.load().then(acctDone);
   function applyDoor(id, open, instant) {
     const d = doors.find(x => x.id === id);if (!d) return;
@@ -1532,8 +1578,64 @@
   }
 
   // ---------- Test / inspection handle ----------
+  // ---------- Photo hunt places, badge checks (issue #58) ----------
+  const huntSpots = (() => {
+    const W = (x, s) => world.toWorld(x, s), up = (p, h) => p && {x: p.x, y: (p.y ?? world.heightWorld(p.x, p.z)) + h, z: p.z};
+    const pairs = r => Array.isArray(r[0]) ? r : r.reduce((o, v, i) => (i % 2 ? o[o.length - 1].push(v) : o.push([v]), o), []);
+    const mid = r => {const p = pairs(r), c = p.reduce((a, [x, s]) => [a[0] + x / p.length, a[1] + s / p.length], [0, 0]);return W(c[0], c[1]);};
+    const mark = kind => {const l = DISTRICTS.flatMap(d => d.landmarks).find(l => l.kind === kind);return l && mid(l.ring);};
+    const room = catacomb && catacomb.layout.rooms.find(r => r.id === 'rotunda');
+    const door = ownStair.floors().find(f => f.name === 'Street door threshold');
+    const at = {
+      'photo-oksen': {...W(OKSEN_AT.x, OKSEN_AT.s), y: oksen.base + 2.4},
+      'photo-hodet': {...W(SCULPTURE_AT.x, SCULPTURE_AT.s), y: sculpture.base + 3.5},
+      'photo-deichman': library && {...library.centre, y: library.floorY + 4},
+      'photo-klatreverket': window.KLATREVERKET && up(mid(window.KLATREVERKET.ring), 6.5),
+      'photo-rotunda': room && {...W(room.cx, room.cs), y: catacomb.FLOOR_Y + 1.3},
+      'photo-muselunden': mini.muselunden && (() => {const b = mini.muselunden.holes[0].basket;return {x: b.x, y: b.y + .8, z: b.z};})(),
+      'photo-munch': up(mark('munch'), 29),
+      'photo-opera': up(mark('opera'), 12),
+      'photo-rathkes': rathkes && up(rathkes.gate, 1.8),
+      'photo-home': door && (() => {const p = door.points, c = p.reduce((a, q) => ({x: a.x + q.x / p.length, z: a.z + q.z / p.length}), {x: 0, z: 0});return {...c, y: (door.y ?? world.heightWorld(c.x, c.z)) + 2.5};})()
+    };
+    // The street door faces across its threshold (the short side), toward the street where the mission ring is.
+    const face = {};
+    if (door) {
+      const p = door.points, e = p.map((q, i) => ({x: p[(i + 1) % p.length].x - q.x, z: p[(i + 1) % p.length].z - q.z})).sort((a, b) => Math.hypot(b.x, b.z) - Math.hypot(a.x, a.z))[0], L = Math.hypot(e.x, e.z);
+      let n = {x: -e.z / L, z: e.x / L};const h = at['photo-home'];if ((MISSION_MARK.x - h.x) * n.x + (MISSION_MARK.z - h.z) * n.z < 0) n = {x: -n.x, z: -n.z};face['photo-home'] = n;
+    }
+    return window.GameBadges.SPOTS.map(s => ({...s, at: at[s.id] || null, face: face[s.id]})).filter(s => s.at && [s.at.x, s.at.y, s.at.z].every(Number.isFinite));
+  })();
+  // Is the line from the camera to a place blocked by a wall, a tree, a vehicle or a hill? (stops `stop` metres before it)
+  function sightBlocked(a, b, stop) {
+    const d = Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z), steps = Math.floor((d - stop) / .5), under = a.y < groundAt(a.x, a.z) - 2;
+    for (let i = 1; i <= steps; i++) {
+      const k = i * .5 / d, x = a.x + (b.x - a.x) * k, y = a.y + (b.y - a.y) * k, z = a.z + (b.z - a.z) * k;
+      if (collision.hitsSolid(walkWorld, {x, z}, y - .05, y + .05) || (!under && y < groundAt(x, z) - .3)) return true;
+    }
+    return false;
+  }
+  function huntPhoto() {
+    const shot = {cam: camera.position.clone(), fovY: camera.fov, ndc: p => new T.Vector3(p.x, p.y, p.z).project(camera), blocked: sightBlocked};
+    const msg = badges.photo(shot, huntSpots, canvas);if (msg) notice(msg, 5);
+  }
+  // Badges that come from what you do: checked twice a second (the rest come from the best scores and saved states).
+  let badgeT = 0, pbSeen = 0;
+  function badgeTick(dt) {
+    badgeT -= dt;if (badgeT > 0) return;badgeT = .5;
+    if (catacomb && catacomb.state.inside) markBadge('catacomb');
+    if (library && library.reading && library.reading.which === 'moby') markBadge('moby');
+    const v = player.vehicle;if (player.mode === 'vehicle' && v && v.aircraft && v.y - groundAt(v.x, v.z) > 50) markBadge('airborne');
+    // A paintball game you played in ended: won or lost (a win counts only with somebody on the other team).
+    if (pbRules && pbRules.inGame() && pbRules.ses.state === 'end' && pbRules.ses.id !== pbSeen) {
+      const S = pbRules.ses, me = pbRules.myTeam();pbSeen = S.id;
+      if (me >= 0 && Object.values(S.team).some(t => t === 1 - me)) badges.record('paintball', {won: S.winner === me});
+    }
+    badges.check();
+  }
   window.haarklousGame = {player, vehicles, site, paintball, catacomb, groundAt, heli, plane, drone, watch, fire, stash, shops, gym, startClimb, openGymMenu, startBelay, get belay() {return belay;}, sculpture, oksen, weather, caravan, get skyd() {return skyd;}, get autoPlane() {return autoPlane;}, get jumpFlight() {return jumpFlight;}, boardAuto, boardCaravan, jump, get gp() {return gp;}, callGamePilot, handOver, CARAVAN_HOLD, applyWeather, wallet, get basket() {return basket;}, payAt, takeProduct, useItem, earn, openBag, takeBoost, get boost() {return boost;}, set boost(b) {boost = b;}, get mp() {return mp;}, sitDown, standUp, tryDrive, tryRide, openChat, startDrone, stopDrone, floorBelow, doors, mini, music, photo, map, world, apt, towers, walkWorld, route, landmarks, districts: DISTRICTS, get caseGame() {return caseGame;}, place, toggleDoor, enterVehicle, exitVehicle, startMinigame, startMission, drink, interact, findPrompt, renderFrame, begin, get fps() {return fpsAvg;}, kick: () => requestAnimationFrame(frame), get drunk() {return drunk;}, set drunk(v) {drunk = v;}, setStance, camera, scene};
   Object.assign(window.haarklousGame, {library, pingpong, rathkes, kayak, startKayak, hushedFor: () => hushed});
+  Object.assign(window.haarklousGame, {badges, huntSpots, huntPhoto, sightBlocked, SKY_TARGET, progress, account});
   loading.remove();$('start').hidden = false;
   requestAnimationFrame(frame);
 })();

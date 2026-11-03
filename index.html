@@ -39,16 +39,21 @@
           <dt>✕ / Space</dt><dd>Jump</dd>
           <dt>○ / C · hold ○ / Z</dt><dd>Crouch · lie prone</dd>
           <dt>□ / E</dt><dd>Use: doors, drinks, vehicles, games, mission</dd>
-          <dt>△ / F</dt><dd>Tap: photo camera (R2 / left mouse takes a photo, □ / G gallery) · hold: choose camera or FPV drone</dd>
+          <dt>△ / F</dt><dd>Tap: photo camera (R2 / left mouse takes a photo, □ / G gallery, ✕ / Delete twice deletes a photo) · hold: choose camera or FPV drone</dd>
           <dt>D-pad ↑ / ↑</dt><dd>Check the time on your wristwatch</dd>
           <dt>Touchpad / M</dt><dd>Map · ✕ / click sets a waypoint (a purple pin shows the way until you are within 7 m) · □ / Delete removes it</dd>
           <dt>Share / Enter or T</dt><dd>Chat with the other players (quick chat on the controller)</dd>
           <dt>R2 / L3 / Shift</dt><dd>Run</dd>
           <dt>L2 / R2 · mouse buttons</dt><dd>Climbing at Klatreverket: hold to grip with the left / right hand, let go and look at the next hold to reach it</dd>
           <dt>L1 / Q</dt><dd>Torch on / off in the catacombs (□ too, where it is dark)</dd>
-          <dt>Options / Esc</dt><dd>Pause and settings</dd>
+          <dt>Options / Esc</dt><dd>Pause and settings · R1 / B there: badges, the photo hunt and your best scores</dd>
         </dl>
         <button id="startButton">Click or press ✕ to start</button>
+      </div>
+    </section>
+    <section id="askBox" class="overlay" hidden>
+      <div class="panel"><span class="eyebrow">YOUR PROGRESS</span><p id="askText"></p>
+        <div class="mp-join"><button id="askYes" type="button">✕ Move it into my account</button><button id="askNo" type="button">○ No, keep it in this browser</button></div>
       </div>
     </section>
     <section id="pause" class="overlay" hidden>
@@ -57,6 +62,7 @@
         <label>Controller look sensitivity <output id="sensPadOut"></output><input id="sensPad" type="range" min="0.25" max="3" step="0.05"></label>
         <label>Mouse look sensitivity <output id="sensMouseOut"></output><input id="sensMouse" type="range" min="0.25" max="3" step="0.05"></label>
         <p id="walletLine" class="small"></p>
+        <p><button id="badgesOpen" type="button">Badges and best scores</button> <span class="small">Controller: R1 · keyboard: B</span></p>
         <label>Music volume <output id="musicOut"></output><input id="musicVol" type="range" min="0" max="1" step="0.05"></label>
         <p class="small">Controller: D-pad ←/→ changes the music volume. Now playing: <span id="nowPlaying">–</span></p>
         <label class="row"><input id="minimapOn" type="checkbox"> Minimap – round, in the bottom-left corner, turns with you (controller: D-pad ↓)</label>
@@ -71,6 +77,7 @@
             <div class="mp-join"><button id="acctSubmit" type="submit">Log in</button><button id="acctMode" type="button">New here? Create an account</button></div>
           </form>
           <div id="acctIn" hidden><button id="acctLogout" type="button">Log out</button></div>
+          <p id="acctProgress" class="small" aria-live="polite"></p>
           <p id="acctError" class="small acct-error" role="alert"></p>
         </section>
         <section class="mp">
@@ -109,6 +116,8 @@
           <dt>Kayak (Akerselva)</dt><dd>□ at a kayak rack (Bjølsen, Sagene, Grünerløkka) · left stick ↑ / W paddle, ↓ / S back-paddle, ←→ / A D turn · right stick / mouse look around · R3 / V view from behind · □ get out on a bank when slow · the run ends at Vaterland, before the culvert</dd>
           <dt>Table tennis</dt><dd>Schous plass, against Ola: R2 / left mouse swing (early = cross-court, late = down the line) · aim with the camera · L2 smash · left stick / A D move · R2 serves · first to 11 · ○ quit</dd>
           <dt>Deichman Grünerløkka</dt><dd>□ on a real book: “The Inner Game of Tennis” on the sports shelf, Moby-Dick on the reading table (○ closes it) · don’t run or talk loudly on voice chat inside – the librarian will shush you</dd>
+          <dt>Badges and photo hunt</dt><dd>R1 / B in this menu: your badges, the photo hunt and your best scores · photo hunt: take a good photo of each known place (in the picture, big enough – go closer or zoom in with L2 and the right stick – and nothing in the way) · every new badge pays some kroner · skydiving: land on the orange target 180 m down the airstrip (◎ on the map)</dd>
+          <dt>Account progress</dt><dd>Logged in, your money, bag, photos, badges, best scores and settings are saved to your account by themselves and are there on any PC; without an account they stay in this browser</dd>
           <dt>Rathkes gate 1</dt><dd>□ opens the iron gate under the “1” on Rathkes gate · the passage leads to the backyard and the doors 1B and 1C (the flat on the 5th floor comes later)</dd>
         </dl>
         <p class="small">Map data © OpenStreetMap contributors (ODbL) · Height data © Kartverket (CC BY 4.0) · Aerial imagery, when online: Esri World Imagery.</p>
@@ -116,12 +125,12 @@
       </div>
     </section>
   </main>
-  <script src="vendor/three.min.js"></script><script src="apartment-data.js"></script><script src="walk-collision.js"></script><script src="gamepad-controls.js"></script><script src="materials.js"></script><script src="furnishings.js"></script><script src="stairwell.js"></script><script src="surroundings-data.js"></script><script src="district.js"></script><script src="gamle-oslo-data.js"></script><script src="myrens-data.js"></script><script src="surroundings.js"></script><script src="viewmodel.js"></script><script src="game-apartment.js"></script><script src="game-audio.js"></script><script src="game-music.js"></script><script src="game-vehicles.js"></script><script src="game-net.js"></script><script src="game-account.js"></script><script src="game-voice.js"></script><script src="game-avatars.js"></script><script src="game-multiplayer.js"></script><script src="game-fire.js"></script><script src="game-stash.js"></script><script src="game-shops.js"></script><script src="climbing-data.js"></script><script src="game-climbing.js"></script><script src="game-sculpture.js"></script><script src="game-aircraft.js"></script><script src="game-watch.js"></script><script src="muselunden-data.js"></script><script src="game-minigames.js"></script>
+  <script src="vendor/three.min.js"></script><script src="apartment-data.js"></script><script src="walk-collision.js"></script><script src="gamepad-controls.js"></script><script src="materials.js"></script><script src="furnishings.js"></script><script src="stairwell.js"></script><script src="surroundings-data.js"></script><script src="district.js"></script><script src="gamle-oslo-data.js"></script><script src="myrens-data.js"></script><script src="surroundings.js"></script><script src="viewmodel.js"></script><script src="game-apartment.js"></script><script src="game-audio.js"></script><script src="game-music.js"></script><script src="game-vehicles.js"></script><script src="game-net.js"></script><script src="game-account.js"></script><script src="game-progress.js"></script><script src="game-voice.js"></script><script src="game-avatars.js"></script><script src="game-multiplayer.js"></script><script src="game-fire.js"></script><script src="game-stash.js"></script><script src="game-shops.js"></script><script src="climbing-data.js"></script><script src="game-climbing.js"></script><script src="game-sculpture.js"></script><script src="game-aircraft.js"></script><script src="game-watch.js"></script><script src="muselunden-data.js"></script><script src="game-minigames.js"></script>
 <script src="site-data.js"></script>
 <script src="site-models.js"></script>
 <script src="game-site.js"></script>
 <script src="paintball-data.js"></script>
 <script src="paintball-models.js"></script>
-<script src="game-paintball.js"></script><script src="game-camera.js"></script><script src="game-skydive.js"></script><script src="game-weather.js"></script><script src="game-map.js"></script><script src="catacomb-layout.js"></script><script src="catacomb-models.js"></script><script src="game-catacomb.js"></script><script src="game-landmarks.js"></script><script src="game-route.js"></script><script src="akerselva-data.js"></script><script src="game-kayak.js"></script><script src="game-library.js"></script><script src="game-tabletennis.js"></script><script src="game-rathkes.js"></script><script src="case-game.js"></script><script src="game-main.js"></script>
+<script src="game-paintball.js"></script><script src="game-camera.js"></script><script src="game-badges.js"></script><script src="game-skydive.js"></script><script src="game-weather.js"></script><script src="game-map.js"></script><script src="catacomb-layout.js"></script><script src="catacomb-models.js"></script><script src="game-catacomb.js"></script><script src="game-landmarks.js"></script><script src="game-route.js"></script><script src="akerselva-data.js"></script><script src="game-kayak.js"></script><script src="game-library.js"></script><script src="game-tabletennis.js"></script><script src="game-rathkes.js"></script><script src="case-game.js"></script><script src="game-main.js"></script>
 </body>
 </html>

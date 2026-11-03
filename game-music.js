@@ -251,7 +251,8 @@
 
   function create() {
     let ctx = null, kit = null, out = null, current = null, volume = .5;
-    try {const v = localStorage.getItem('haarklous-music-volume-v1');if (v !== null && v !== '') volume = Math.max(0, Math.min(1, +v));} catch {}
+    const loadVolume = () => {try {const v = localStorage.getItem('haarklous-music-volume-v1');if (v !== null && v !== '') volume = Math.max(0, Math.min(1, +v));} catch {}};
+    loadVolume();
     const lanes = {};
     const level = () => volume * .8;
     function attach(c) {
@@ -286,6 +287,7 @@
       if (out) out.master.gain.setTargetAtTime(level(), ctx.currentTime, .1);
     }
     // Where the current track is: bar, seconds into the loop, loop length.
+    if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('haarklous-progress', () => {loadVolume();if (out) out.master.gain.setTargetAtTime(level(), ctx.currentTime, .1);});
     function position() {const L = current && lanes[current];if (!L) return null;const i = info[current];return {track: current, title: i.title, bar: L.bar, seconds: L.bar * i.seconds / i.bars, length: i.seconds};}
     return {attach, play, setVolume, position, get volume() {return volume;}, get current() {return current;}, tracks: info};
   }
