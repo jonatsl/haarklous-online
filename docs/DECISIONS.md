@@ -43,16 +43,39 @@ On `main`:
 
 Live site: runs `main` (Worker version a75a02dc, deployed 3 Nov 2026 after PR #70; `main` builds byte-for-byte to the live page), so everything above is online.
 
+On branch `feat/heli-drone-physics` ([PR #75](https://github.com/jonatsl/haarklous-online/pull/75), issue #73, not merged yet):
+- Helicopter and drone flight closer to the real thing: the rotor's lift tilts with pitch and bank, so tilting takes lift away from climbing and turns it into speed; add collective or thrust to keep your height (issue #73).
+
 ## Log
 
 ### 2026-11-03 · A short README
-- **What:** `README.md` is now about 45 lines of short bullet points (it was 146 lines): what the project is, how to play, the basic controls, developer commands and the sources.
+- **What:** `README.md` is now 42 lines of short bullet points (it was 146 lines): what the project is, how to play, the basic controls, developer commands and the sources.
   - The long feature-by-feature text and the full controls table are gone from the README. The start and pause screens in the game still show all of the controls.
   - The old developer notes and the file-by-file sources moved to the end of `docs/HANDOFF.md`.
   - `AGENTS.md` now says to keep the README short: at most one bullet for a feature.
 - **Why:** the user said the README was too long and too complicated; players find things out in the game (3 Nov 2026).
 - **Where:** `README.md`, `docs/HANDOFF.md`, `AGENTS.md`.
-- **Status:** branch `docs/short-readme`. Only documents change, so the live game does not need a new deploy.
+- **Status:** branch `docs/short-readme`, [PR #74](https://github.com/jonatsl/haarklous-online/pull/74), not merged. Only documents change, so the live game does not need a new deploy.
+
+### 2026-11-03 · Helicopter and drone: tilting costs lift (issue #73)
+- **What:**
+  - **Helicopter:**
+    - Full collective now gives 1.4 × the helicopter's weight in rotor thrust, not 1.85 ×. Level, it climbs about 8 m/s (an H125 climbs 8.5–10 m/s); before it was over 16 m/s.
+    - The thrust tilts with the helicopter, as before, but now the spare lift is small enough that you feel it. Holding W (full collective), the climb drops as you pitch forward: about half at 30°, none at 45°, and steeper it sinks. The lift goes into speed instead. Banking costs the same as pitching.
+    - At centre collective, level, it still hovers; tilted, it sinks unless you add collective.
+    - A little more air drag at speed: the top speed flying level is now about 285 km/h, the H125's never-exceed speed. Before it could reach about 430 km/h.
+  - **FPV drone (angle mode):**
+    - Before, the drone added thrust for the tilt by itself, so it never lost height. Now it doesn't: tilted, only part of the thrust holds it up, so it sinks (about 1.4–1.6 m/s at full tilt) unless you push thrust up. With thrust up it climbs while it flies forward.
+    - Centred and level it still holds its height. Acro mode was already like this.
+  - Help texts (README, start and pause screens, the ANGLE message) say so.
+- **Why:** the user's issue #73: "When changing roll and pitch the helicopter should also lose altitude … when holding down w and pitching forward it should climb less altitude". The user asked to implement it and to merge and deploy (3 Nov 2026).
+  - Decided here: no extra lift from forward speed (a real helicopter gets some, "translational lift"), because the issue asks for pitching forward to climb less.
+- **Where:** `game-aircraft.js` (helicopter lift and drag, drone thrust), `game-main.js` (ANGLE message), `README.md`, `index.html`, `docs/HANDOFF.md`, new test `tests/flight.test.cjs`.
+- **Checked:**
+  - Node tests 132/132 (4 new). Run against the old physics the new tests fail (16.6 m/s climb; the drone did not sink at full tilt).
+  - In the game (simulated controller, frames stepped by hand): the helicopter climbed 7.8 m/s at full collective level; held about 55° nose down it sank 3.1 m/s at full collective and 7.6 m/s at centre, at about 260 km/h; let go, it levelled and stopped sinking. The drone hovered at 0.0 m/s, sank 1.4 m/s at full tilt (69 km/h) and climbed 3.9 m/s with thrust up while tilted. No script errors.
+  - Not checked: a real DualShock 4, mouse flying on the user's PC.
+- **Status:** branch `feat/heli-drone-physics`, [PR #75](https://github.com/jonatsl/haarklous-online/pull/75), not merged, not live.
 
 ### 2026-11-03 · `main` is live (PR #70, saved progress, badges and the photo hunt)
 - **What:** saved progress for accounts, badges and the photo hunt (PR #70, issues #54 and #58) are merged into `main` (93d4f27) and deployed (Cloudflare Worker version a75a02dc).
