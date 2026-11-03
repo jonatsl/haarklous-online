@@ -35,6 +35,8 @@ On `main`:
 - Rathkes gate 1: the gate, the passage and the backyard with door 1C, ready for the second flat (issue #44, preparation).
 - Klatreverket Torshov at its real place (Myrens verksted 3K) in its real building: 14 m hall, 7 m overhanging competition wall, Galleriet, autobelay tower, bouldering on three floors, the training room with the Moonwall; reception with the real prices and rental; climb with L2 / R2 (bouldering, top rope with Siri belaying, lead with clips, autobelay), pump, falls on the rope, the brattkort test and belaying Siri.
 - The ground round Myrens verksted and Akerselva (district patch 'myrens').
+- Jobs that earn money, from a phone (D-pad → / P) or the JOBB signs by Joker and Kiwi: food delivery from real cafés, restaurants and the shops to real street doors, and taxi with passengers who tip for smooth, fast driving; a friend riding along gets half (issue #56).
+- E-scooters on the pavements (10 kr + 3 kr a minute, 20 km/h, left where you get off – for everyone online) and Oslo city bikes and e-bikes in the 40 real Oslo Bysykkel docks around Torshov, Myrens and Grünerløkka, at the real prices; the map shows the free bikes at each dock (issue #57).
 - A large catacomb under Torshovdalen with three entrances about 100 m apart (marked ☠ on the map): torch-lit bone galleries with real-looking skulls, dark quarry tunnels where you use your torch (□ / L1 / Q), and a map that is wiped underground and fills in with what you see (PR #50, issue #43).
 
 Live site: runs `main` (Worker version cfea339d, deployed 3 Nov 2026 after PR #50; `main` builds byte-for-byte to the live page), so everything above is online.
@@ -61,10 +63,42 @@ Live site: runs `main` (Worker version cfea339d, deployed 3 Nov 2026 after PR #5
   - `README.md`, `index.html` (controls text and the minimap setting), `docs/HANDOFF.md`.
   - Tests: `tests/map.test.cjs` (outline, zoom) and `tests/minigames.test.cjs` (walk to the next tee, □, ○, the last hole, the layout).
 - **Checked:**
-  - `node --test tests/*.cjs`: 107 pass (5 new).
+  - `node --test tests/*.cjs`: 107 pass (5 new); 117 pass after merging `main` with the jobs and bikes (PR #62). On the big map the course's icons stay hidden during a round, and the city bike docks keep their zoom labels.
   - In the browser (simulated controller, offline): a real throw on Muselunden hole 1 landed 68 m short and showed as the pink dot with "68 m"; after the hole the walk to tee 2 showed the dashed line and "43 m to the tee"; running onto the tee started hole 2 without a throw; the big map showed the layout; ○ ended the round and the minimap went off again (setting off) or stayed on (setting on); Torshovdalen showed its drawn outline. No script errors.
   - Not checked: on the user's own PC and controller.
 - **Status:** branch `feat/disc-golf-minimap`, [PR #61](https://github.com/jonatsl/haarklous-online/pull/61) open; not merged or live yet.
+
+### 2026-11-03 · Delivery and taxi jobs; e-scooters and Oslo city bikes (issues #56 and #57)
+- **What:**
+  - **Phone:** D-pad → (keyboard → or P) opens a phone on foot or in a vehicle: start or stop a delivery shift, turn taxi on or off, and see the nearest e-scooter and city bike dock (✕ sets the waypoint). □ at the *JOBB* signs beside Joker and Kiwi opens it too.
+  - **Delivery (#56):**
+    - An order comes in from a real café, restaurant or takeaway near Torshov (22 places from OpenStreetMap) or from Joker / Kiwi. The waypoint, the minimap and a yellow ring show where to go.
+    - □ there picks up the order. Then it must go to a real street door: one of 881 OpenStreetMap addresses, with the door on the side that faces its own street. A door with the house number appears on the building.
+    - Pay: 35 kr + 7 kr per 100 m, up to 50 % more for being fast, 40 % when the time has run out. On foot, running, by bike, scooter, motorcycle or car.
+  - **Taxi (#56):**
+    - In a car as the driver, turn on taxi: the roof light comes on. A passenger calls from a street address and waits at the kerb; stop beside them and they get in the back seat and ask for an address in the neighbourhood.
+    - Fare 65 kr + 20 kr per km. Smooth and fast driving gives a tip up to a quarter of the fare. Crashes, hard braking and swerving, wrong turns (driving 45 m away from the destination) and drunk driving make the passenger angry (a bar on the job card, comments in a speech bubble) and the tip smaller or nothing.
+    - Getting out ends the taxi shift; a passenger in the back leaves without paying.
+  - **With friends online (#56):** others see your taxi light and your passenger. A friend who rides along (passenger seat or pillion) sees your job, follows your waypoint and gets half of each payment.
+  - **E-scooters (#57):** 48 on the pavements around Torshov and Grünerløkka. □ unlocks one: 10 kr, then 3 kr every started minute. Ride standing, alone, at up to 20 km/h. Getting off ends the ride; the scooter stays there, for the other players too.
+  - **City bikes and e-bikes (#57):**
+    - The 40 real Oslo Bysykkel docks around Torshov, Myrens and Grünerløkka, from the operator's open data (GBFS, 3 Nov 2026), each with up to 10 of its slots, a name totem and about half full (a third e-bikes).
+    - The real prices: 8 kr, then 1 kr (e-bike 2 kr) for every started minute after the first.
+    - R2 pedals: about 22 km/h on the flat, 13 km/h up a 3.6 % hill, 7 km/h up 8 %; the e-bike keeps 23 km/h up 3.6 % and 16 km/h up 8 % (its motor stops helping at 25 km/h).
+    - Return it to any dock with a free slot (□). Elsewhere □ locks it and the trip goes on; after 15 minutes outside a dock you pay a 250 kr fee for not returning it (the game's own rule). Nobody else can take a bike you have locked.
+    - The map shows every dock with the number of free bikes; zoomed in, its name and how many are bikes and e-bikes.
+  - **A fix for everyone online:** when a player got off a vehicle, the others dropped the last position update, so the vehicle could stand a little wrong for them. Now it stands exactly where it was left.
+- **Why:** the user's issues #56 ("Delivery and taxi jobs") and #57 ("E-scooters and city bikes", with the comment "include some e-bikes too"); the user asked to implement both (3 Nov 2026).
+  - The e-scooter price is a typical Oslo price, not one company's, and no company names or logos are used. The 250 kr fee and the 15 minutes are the game's own choice (the issue asks that keeping the bike too long or not returning it costs more).
+  - The waiting passenger stands at the kerb, not at their door: some buildings stand 20 m back from the street.
+- **Where:** `game-jobs.js`, `jobs-data.js`, `game-rentals.js`, `rides-data.js`, `tools/make-jobs-rides.cjs`, `assets/gbfs/oslo-bysykkel-2026-11-03.json`, `assets/osm/jobs-osm-2026-11-03.json`, `game-main.js` (docks and signs, vehicles, prompts, phone, job card, crew share, online state), `game-vehicles.js` (`onHit`, shared model parts), `game-multiplayer.js` (last position on getting off, cycling speed), `game-avatars.js` (scooter and cycling poses), `game-audio.js` (e-motor, unlock, bell), `game-map.js` (dock labels when zoomed in, legend), `index.html`, `style.css`, `README.md`, `docs/HANDOFF.md`, `tests/jobs-rides.test.cjs`.
+- **Checked:**
+  - Node tests 112/112 (10 new): prices, dock counting, the docks clear of buildings and streets, seeded scooter places, delivery pay, taxi fare / mood / tip, wrong turns, orders, doors on the street side of their building.
+  - In the browser (simulated controller): scooter unlocked (10 kr), top speed exactly 20 km/h, ride ended and paid; city bike taken from a dock (count 7 → 6, map label updated), rolled out of the slot, locked outside a dock (250 kr after 15 min), e-bike returned into a free slot with the right price (3:20 → 14 kr); delivery from the phone: order at Kiwi, door with its number on Siloveien 2, paid 103 kr; taxi: call, boarding, a crash (mood 82 → 48, tip 7 kr), payment, getting out ends the shift. No script errors.
+  - Online with two players on a local lobby server: a scooter left by one is exactly there for the other (live and after joining); the other sees the taxi light and the passenger in the back seat; the friend riding along got half of the fare (44 of 87 kr); a locked city bike cannot be taken by the other.
+  - Cost: about 6 draw calls per scooter or bike in view (with shadows), 3 per dock.
+- **Not checked:** a real DualShock 4, the look and sound on a real screen, real players in different homes.
+- **Status:** branch `feat/jobs-and-bikes`, PR #62 (https://github.com/jonatsl/haarklous-online/pull/62) for the user's review (not merged, not deployed).
 
 ### 2026-11-03 · `main` is live (PR #50, the catacomb)
 - **What:** the catacomb (PR #50, issue #43) is merged into `main` (85841c8) and deployed (Cloudflare Worker version cfea339d).

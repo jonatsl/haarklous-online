@@ -159,6 +159,8 @@
         case 'pingHit': tone(1400, 900, .16, .001, .05, 'triangle');burst(2800, 4, .25, .001, .025);break;
         case 'pingBounce': tone(1900, 1500, .14, .001, .04, 'triangle');burst(4200, 5, .12, .001, .015);break;
         case 'splash': burst(500, .6, .55, .01, .7, 'lowpass');for (let i = 0; i < 8; i++) burst(rand(1500, 5000), 1.5, .18, .002, rand(.05, .2), 'bandpass', t + .03 + i * rand(.02, .07));break;
+        case 'unlock': tone(1700, 1700, .07, .004, .07, 'square');tone(2300, 2300, .07, .004, .09, 'square', t + .1);burst(1200, 3, .25, .002, .06, 'bandpass', t + .25);break;
+        case 'bell': for (let i = 0; i < 2; i++) {tone(3100, 3080, .12, .002, .6, 'sine', t + i * .14);tone(4650, 4600, .05, .002, .4, 'sine', t + i * .14);}break;
         case 'paddle': burst(900, .8, .12, .04, .28);burst(2600, 1.2, .05, .02, .15, 'bandpass', t + .05);break;
       }
     }
@@ -168,6 +170,7 @@
       if (!init()) return {set() {}, stop() {}};
       if (kind === 'heli') return heliEngine();
       if (kind === 'drone') return droneMotors();
+      if (kind === 'emotor') return eMotor();
       const spec = {bike: {cyl: 4, idle: 1300, max: 11500, tone: 1, gain: .22}, car: {cyl: 4, idle: 800, max: 6200, tone: .6, gain: .16}, excavator: {cyl: 4, idle: 900, max: 2100, tone: .45, gain: .2}, plane: {cyl: 4, idle: 700, max: 2750, tone: .85, gain: .22}, diesel: {cyl: 6, idle: 650, max: 2200, tone: .4, gain: .22}}[kind] || {cyl: 4, idle: 800, max: 6200, tone: .6, gain: .16};
       const t = now(), saw = ctx.createOscillator(), sq = ctx.createOscillator(), sub = ctx.createOscillator();saw.type = 'sawtooth';sq.type = 'square';sub.type = 'sine';
       const shaper = ctx.createWaveShaper(), curve = new Float32Array(1024);for (let i = 0; i < 1024; i++) {const x = i / 512 - 1;curve[i] = Math.tanh(x * 3);}shaper.curve = curve;
@@ -217,6 +220,16 @@
       };
     }
     // FPV quad: four slightly detuned motors (whine) plus propeller wash. set(thrust 0..1, level 0..1 = distance from the pilot)
+    // E-scooter / e-bike hub motor (issue #57): a soft whine rising with the speed, louder under power, and a little tyre hiss.
+    function eMotor() {
+      const t = now(), o = ctx.createOscillator(), o2 = ctx.createOscillator(), bp = ctx.createBiquadFilter(), g = ctx.createGain();o.type = 'triangle';o2.type = 'sine';bp.type = 'bandpass';bp.frequency.value = 900;bp.Q.value = 1.2;g.gain.value = 0;
+      o.connect(bp);o2.connect(bp);bp.connect(g);out(g);o.start(t);o2.start(t);
+      const hiss = noise(), hf = ctx.createBiquadFilter(), hG = ctx.createGain();hf.type = 'highpass';hf.frequency.value = 2500;hG.gain.value = 0;hiss.connect(hf).connect(hG);out(hG);hiss.start(t);
+      return {
+        set(level, power = 0) {const tt = now(), l = Math.max(0, Math.min(1.4, level));o.frequency.setTargetAtTime(180 + 900 * l, tt, .05);o2.frequency.setTargetAtTime(360 + 1800 * l, tt, .05);bp.frequency.setTargetAtTime(500 + 1400 * l, tt, .08);g.gain.setTargetAtTime((.004 + .03 * power) * Math.min(1, l * 3 + .2), tt, .06);hG.gain.setTargetAtTime(.012 * Math.min(1, l), tt, .1);},
+        stop() {const tt = now();g.gain.setTargetAtTime(0, tt, .1);hG.gain.setTargetAtTime(0, tt, .1);setTimeout(() => {try {o.stop();o2.stop();hiss.stop();} catch {}}, 800);}
+      };
+    }
     function droneMotors() {
       const t = now(), bp = ctx.createBiquadFilter(), g = ctx.createGain();bp.type = 'bandpass';bp.frequency.value = 1400;bp.Q.value = .5;g.gain.value = 0;bp.connect(g);out(g);
       const motors = [1, 1.013, .987, 1.021].map(k => {const o = ctx.createOscillator();o.type = 'sawtooth';o.connect(bp);o.start(t);return {o, k};});
