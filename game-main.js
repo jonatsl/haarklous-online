@@ -1103,6 +1103,8 @@
     const dt = Math.min(clock.getDelta(), .05), t = clock.elapsedTime, input = readInput();
     fpsAvg += (1 / Math.max(dt, .001) - fpsAvg) * .05;
     if (asking) {if (input.pressed.has('cross')) answer(true);else if (input.pressed.has('circle')) answer(false);renderFrame(0, t);return;}
+    // An email link's box (issue #55) waits over the start screen: ✕ / ○ closes a message; the password form needs the keyboard.
+    if (!$('acctLink').hidden) {if ($('acctResetForm').hidden && (input.pressed.has('cross') || input.pressed.has('circle'))) closeLink();renderFrame(0, t);return;}
     if (!started) {if (input.pressed.has('cross') || input.pressed.has('options')) begin();renderFrame(dt, t);return;}
     // Global toggles.
     if (input.pressed.has('badges') && !paused && !caseGame?.active && player.mode === 'foot') {setPaused(true);badges.open();input.pressed.delete('badges');}
@@ -1374,7 +1376,7 @@
   let osdT = 0;
   function updateDrone(dt, input, dl) {
     if (input.pressed.has('circle') || input.pressed.has('triangle')) {stopDrone();notice('Drone packed away.', 2);return;}
-    if (input.pressed.has('l1')) {drone.setMode(drone.mode === 'angle' ? 'acro' : 'angle');notice(drone.mode === 'acro' ? 'ACRO: the right stick sets rotation rates – nothing self-levels. Flips and rolls!' : 'ANGLE: the drone levels itself and holds altitude with the stick centred.', 4);}
+    if (input.pressed.has('l1')) {drone.setMode(drone.mode === 'angle' ? 'acro' : 'angle');notice(drone.mode === 'acro' ? 'ACRO: the right stick sets rotation rates – nothing self-levels. Flips and rolls!' : 'ANGLE: the drone levels itself and holds altitude with the stick centred – tilted it sinks unless you add thrust.', 4);}
     if (input.pressed.has('cross') && (drone.crashed || !drone.armed)) {if (drone.battery > 0) drone.reset();else notice('Battery empty – ○ to pack the drone away, then launch it again with a fresh pack.', 4);}
     drone.update(dt, flightSticks(input, dl, dt, drone.mode === 'acro' ? .3 : 1), {floor: floorBelow, solid: (p, a, b) => collision.hitsSolid(walkWorld, p, a, b), listener: {x: player.x, y: player.feet + 1.6, z: player.z}});
     const pose = drone.cameraPose();camera.position.copy(pose.position);camera.quaternion.copy(pose.quaternion);flightLook(input, dt);
@@ -1725,15 +1727,56 @@
     $('acctNameRow').hidden = !signup;$('acctPassword').autocomplete = signup ? 'new-password' : 'current-password';
     $('acctSubmit').textContent = account.busy ? 'Wait…' : signup ? 'Create account' : 'Log in';
     $('acctMode').textContent = signup ? 'I have an account – log in' : 'New here? Create an account';
-    $('acctSubmit').disabled = $('acctLogout').disabled = account.busy;
+    $('acctSubmit').disabled = $('acctLogout').disabled = $('acctForgot').disabled = $('acctConfirm').disabled = account.busy;
+    // Email (issue #55): "Forgot password?" and the reminder to confirm the email, only where the server can send emails.
+    $('acctForgot').hidden = !account.email || signup;
+    const unconfirmed = !!(u && account.email && u.emailVerified === false);
+    $('acctConfirmLine').hidden = $('acctConfirm').hidden = !unconfirmed;
+    if (unconfirmed) $('acctConfirmLine').textContent = `Your email is not confirmed yet: open the link in the email we sent to ${u.email} (it works for an hour).`;
+    $('acctNote').textContent = acctNote;
   }
+  let acctNote = '';
+  const setNote = t => {acctNote = t;$('acctNote').textContent = t;};
   // The account name is the lobby name while you are logged in.
-  const acctDone = err => {$('acctError').textContent = err;if (!err) {$('acctPassword').value = '';if (account.user) {mp.net.setName(account.user.name);renderMp();}progress.userChanged(account.user);}renderAccount();};
-  $('acctMode').onclick = () => {acctMode = acctMode === 'signup' ? 'login' : 'signup';if (!$('acctName').value) $('acctName').value = mp.net.name;$('acctError').textContent = '';renderAccount();};
+  const acctDone = err => {$('acctError').textContent = err;if (err) setNote('');if (!err) {$('acctPassword').value = '';if (account.user) {mp.net.setName(account.user.name);renderMp();}progress.userChanged(account.user);}renderAccount();};
+  $('acctMode').onclick = () => {acctMode = acctMode === 'signup' ? 'login' : 'signup';if (!$('acctName').value) $('acctName').value = mp.net.name;$('acctError').textContent = '';setNote('');renderAccount();};
   $('acctForm').onsubmit = async e => {
-    e.preventDefault();const email = $('acctEmail').value, pw = $('acctPassword').value;
-    const err = acctMode === 'signup' ? await account.signUp($('acctName').value, email, pw) : await account.logIn(email, pw);
+    e.preventDefault();const email = $('acctEmail').value, pw = $('acctPassword').value, signup = acctMode === 'signup';
+    const err = signup ? await account.signUp($('acctName').value, email, pw) : await account.logIn(email, pw);
+    setNote(!err && signup && account.email ? `We have sent a link to ${account.user.email}: open it to confirm your email (look in the spam folder too).` : '');
     acctDone(err);if (!err) notice(`Logged in as ${account.user.name}.`, 3);
+  };
+  $('acctForgot').onclick = async () => {
+    const email = $('acctEmail').value.trim(), err = await account.forgot(email);$('acctError').textContent = err;
+    setNote(err ? '' : `If there is an account for ${email}, we have sent it a link to choose a new password. It works once, for an hour (look in the spam folder too).`);
+  };
+  $('acctConfirm').onclick = async () => {
+    const err = await account.confirmAgain();$('acctError').textContent = err;
+    setNote(err ? '' : `Sent again to ${account.user.email} – the new link works for an hour.`);
+  };
+  // The links in those emails open the game again: ?verified=1 (email confirmed) or ?reset=1&token=… (choose a new password).
+  const acctLink = window.GameAccount.link(location.search);let resetToken = null;
+  function showLink(title, text, form) {
+    $('acctLinkTitle').textContent = title;$('acctLinkText').textContent = text;$('acctResetForm').hidden = !form;$('acctLinkError').textContent = '';
+    $('acctLink').hidden = false;if (form) setTimeout(() => $('acctNew').focus(), 0);
+  }
+  const closeLink = () => {$('acctLink').hidden = true;resetToken = null;};
+  const linkWords = code => ({TOKEN_EXPIRED: 'The link has run out (it works for an hour).', USER_NOT_FOUND: 'There is no account for this link any more.'})[code] || 'The link has run out or was used already.';
+  if (acctLink) {
+    if (acctLink.kind === 'verified') showLink(acctLink.error ? 'This link did not work' : 'Email confirmed ✓', acctLink.error ? `${linkWords(acctLink.error)} Log in in the pause menu (Options / Esc) and press “Send the email again”.` : 'Thanks – your email address is confirmed, and you are logged in on this browser.', false);
+    else if (acctLink.token) {resetToken = acctLink.token;showLink('Choose a new password', 'At least 8 characters. The link works once, for an hour.', true);}
+    else showLink('This link did not work', `${linkWords(acctLink.error)} Ask for a new one with “Forgot password?” under Account in the pause menu (Options / Esc).`, false);
+    // The token is not left in the address bar or the browser's history.
+    const q = new URLSearchParams(location.search);['verified', 'reset', 'token', 'error'].forEach(k => q.delete(k));
+    try {history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '') + location.hash);} catch {}
+  }
+  $('acctLinkClose').onclick = closeLink;
+  $('acctResetForm').onsubmit = async e => {
+    e.preventDefault();if (!resetToken) return;$('acctResetSave').disabled = true;
+    const err = await account.resetPassword(resetToken, $('acctNew').value, $('acctNew2').value);$('acctResetSave').disabled = false;
+    if (err) {$('acctLinkError').textContent = err;return;}
+    $('acctNew').value = $('acctNew2').value = '';resetToken = null;acctDone('');
+    showLink('Password changed ✓', 'Log in with the new password under Account in the pause menu (Options / Esc). Everywhere the account was logged in, it is logged out now.', false);
   };
   // Save once more while the session is still valid; then this browser's own progress comes back.
   $('acctLogout').onclick = async () => {await progress.beforeLogout();const err = await account.logOut();acctDone(err);if (!err) notice('Logged out. This browser’s own progress is back.', 4);};
