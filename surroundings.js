@@ -40,9 +40,20 @@
       if (!r) continue;
       let ok = true;
       for (let a = 0; a <= 4 && ok; a++) for (let c = 0; c <= 4 && ok; c++) {const x = r.x0 + (r.x1 - r.x0) * a / 4, s = r.s0 + (r.s1 - r.s0) * c / 4;ok = inBox(x, s, A.data) || inBox(x, s, B.data);}
-      if (ok) seams.push({name: `Seam ${A.name.replace('District ', '')} / ${B.name.replace('District ', '')}`, ...r});
+      if (ok) seams.push({name: `Seam ${A.name.replace('District ', '')} / ${B.name.replace('District ', '')}`, ...r, gap: os1 < os0 ? 's' : 'x'});
     }
-    return [...regions.map(({name, x0, s0, x1, s1}) => ({name, x0, s0, x1, s1})), ...seams];
+    // Where three patches meet (Løren, Økern and Gamle Oslo at x 1792, s 560, issue #85) a gap-in-x seam and a gap-in-s seam
+    // leave the square between their ends unwalkable: add it when map data covers it.
+    const near = (a, b) => Math.abs(a - b) < 1e-6, corners = [];
+    for (const X of seams.filter(q => q.gap === 'x')) for (const S of seams.filter(q => q.gap === 's')) {
+      const r = {x0: X.x0, x1: X.x1, s0: S.s0, s1: S.s1};
+      if (!(near(X.s0, r.s1) || near(X.s1, r.s0)) || !(near(S.x0, r.x1) || near(S.x1, r.x0))) continue;
+      if (corners.some(q => near(q.x0, r.x0) && near(q.s0, r.s0))) continue;
+      let ok = true;
+      for (let a = 0; a <= 4 && ok; a++) for (let c = 0; c <= 4 && ok; c++) {const x = r.x0 + (r.x1 - r.x0) * a / 4, s = r.s0 + (r.s1 - r.s0) * c / 4;ok = regions.some(R => inBox(x, s, R.data));}
+      if (ok) corners.push({name: `Corner ${X.name.replace('Seam ', '')} · ${S.name.replace('Seam ', '')}`, ...r});
+    }
+    return [...regions.map(({name, x0, s0, x1, s1}) => ({name, x0, s0, x1, s1})), ...seams.map(({name, x0, s0, x1, s1}) => ({name, x0, s0, x1, s1})), ...corners];
   }
   // The edges of a union of axis-aligned rectangles that no other rectangle continues: where the walkable world ends.
   // -> [{a: [x, s], b: [x, s]}], each piece once.
@@ -539,21 +550,42 @@
       return c;
     }
     // Ground on a regular grid with normals from the height data itself, so neighbouring tiles light the same at their seams.
+    // d.cuts: map polygons ([[x, s], ...]) where a modelled building draws its own ground (Construction City, issue #85): cells
+    // wholly inside are left out, cells their outline crosses are drawn in 0.5 m pieces (near ground only) without the inside ones.
     function patchGround(d, x0, s0, x1, s1, res, material, name, drop, skip) {
-      const ni = Math.round((x1 - x0) / res), nj = Math.round((s1 - s0) / res), count = (ni + 1) * (nj + 1);
-      const pos = new Float32Array(count * 3), nor = new Float32Array(count * 3), uv = new Float32Array(count * 2), index = [];
-      for (let j = 0; j <= nj; j++) for (let i = 0; i <= ni; i++) {
-        const x = x0 + i * res, s = s0 + j * res, k = j * (ni + 1) + i, gx = (yLocal(x + 2, s) - yLocal(x - 2, s)) / 4, gs = (yLocal(x, s + 2) - yLocal(x, s - 2)) / 4, l = Math.hypot(gx, 1, gs);
-        pos[k * 3] = x;pos[k * 3 + 1] = yLocal(x, s) - drop;pos[k * 3 + 2] = s;nor[k * 3] = -gx / l;nor[k * 3 + 1] = 1 / l;nor[k * 3 + 2] = -gs / l;
-        uv[k * 2] = (x - d.x0) / (d.x1 - d.x0);uv[k * 2 + 1] = 1 - (s - d.s0) / (d.s1 - d.s0);
-      }
+      const ni = Math.round((x1 - x0) / res), nj = Math.round((s1 - s0) / res);
+      const pos = [], nor = [], uv = [], index = [];
+      const vertex = (x, s) => {
+        const gx = (yLocal(x + 2, s) - yLocal(x - 2, s)) / 4, gs = (yLocal(x, s + 2) - yLocal(x, s - 2)) / 4, l = Math.hypot(gx, 1, gs);
+        pos.push(x, yLocal(x, s) - drop, s);nor.push(-gx / l, 1 / l, -gs / l);uv.push((x - d.x0) / (d.x1 - d.x0), 1 - (s - d.s0) / (d.s1 - d.s0));return pos.length / 3 - 1;
+      };
+      for (let j = 0; j <= nj; j++) for (let i = 0; i <= ni; i++) vertex(x0 + i * res, s0 + j * res);
+      const cuts = (d.cuts || []).map(p => ({p, x0: Math.min(...p.map(q => q[0])), x1: Math.max(...p.map(q => q[0])), s0: Math.min(...p.map(q => q[1])), s1: Math.max(...p.map(q => q[1]))}));
+      const inCut = (c, x, s) => {let r = false;for (let i = 0, k = c.p.length - 1; i < c.p.length; k = i++) {const a = c.p[i], b = c.p[k];if ((a[1] > s) !== (b[1] > s) && x < (b[0] - a[0]) * (s - a[1]) / (b[1] - a[1]) + a[0]) r = !r;}return r;};
       for (let j = 0; j < nj; j++) for (let i = 0; i < ni; i++) {
         const cx = x0 + i * res, cs = s0 + j * res;
         if (cx >= -skip - 1e-6 && cx + res <= skip + 1e-6 && cs >= -skip - 1e-6 && cs + res <= skip + 1e-6) continue;// the old square draws this cell
-        const a = j * (ni + 1) + i, b = a + 1, c = a + ni + 1, e = c + 1;index.push(a, c, b, b, c, e);
+        const a = j * (ni + 1) + i, b = a + 1, c = a + ni + 1, e = c + 1;
+        const hit = cuts.filter(q => q.x1 > cx && q.x0 < cx + res && q.s1 > cs && q.s0 < cs + res);
+        if (hit.length) {
+          const corners = [[cx, cs], [cx + res, cs], [cx, cs + res], [cx + res, cs + res]], inAny = (x, s) => hit.some(q => inCut(q, x, s));
+          const whole = corners.every(([x, s]) => inAny(x, s)) && !hit.some(q => q.p.some(([x, s]) => x > cx && x < cx + res && s > cs && s < cs + res));
+          if (whole) continue;
+          if (corners.some(([x, s]) => inAny(x, s)) || hit.some(q => q.p.some(([x, s]) => x > cx && x < cx + res && s > cs && s < cs + res)) || inAny(cx + res / 2, cs + res / 2)) {
+            if (res > 8) {index.push(a, c, b, b, c, e);continue;}// the far ground keeps the cell (the near pass draws over it)
+            const n = Math.round(res / .5), st = res / n, ids = [];
+            for (let q = 0; q <= n; q++) for (let p = 0; p <= n; p++) ids.push(vertex(cx + p * st, cs + q * st));
+            for (let q = 0; q < n; q++) for (let p = 0; p < n; p++) {
+              if (inAny(cx + (p + .5) * st, cs + (q + .5) * st)) continue;
+              const A = ids[q * (n + 1) + p], B2 = A + 1, C2 = A + n + 1, E = C2 + 1;index.push(A, C2, B2, B2, C2, E);
+            }
+            continue;
+          }
+        }
+        index.push(a, c, b, b, c, e);
       }
       if (!index.length) return null;
-      const g = new T.BufferGeometry();g.setAttribute('position', new T.BufferAttribute(pos, 3));g.setAttribute('normal', new T.BufferAttribute(nor, 3));g.setAttribute('uv', new T.BufferAttribute(uv, 2));g.setIndex(index);g.computeBoundingSphere();
+      const g = new T.BufferGeometry();g.setAttribute('position', new T.Float32BufferAttribute(pos, 3));g.setAttribute('normal', new T.Float32BufferAttribute(nor, 3));g.setAttribute('uv', new T.Float32BufferAttribute(uv, 2));g.setIndex(index);g.computeBoundingSphere();
       const m = new T.Mesh(g, material);m.receiveShadow = true;m.name = name;m.userData.noMerge = true;m.userData.grid = {x0, s0, step: res, nx: ni + 1, ns: nj + 1, ownNormals: true};return m;
     }
     const patchMats = {water: new T.MeshStandardMaterial({color: 0x3e5d70, roughness: .15, metalness: .2, side: T.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2})};// always in front of the sea-level ground under it

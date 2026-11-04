@@ -1,6 +1,7 @@
 /* Drivable vehicles for the open world: a 2005 Honda CBF600S (blue-grey half fairing, Scorpion silencer,
  * no top box), parked hatchbacks, and a tracked excavator with a working boom, stick and bucket.
- * World (model) coordinates; vehicles follow the terrain via heightAt(x, z) and collide via a collision world.
+ * World (model) coordinates; vehicles follow the terrain via heightAt(x, z, y) (y = the vehicle's own height, so stacked floors such as
+ * Construction City's garage levels give the one it is on) and collide via a collision world.
  * GameVehicles.create({T, lib, audio, heightAt, collision}) -> {Motorcycle, Car, Excavator}
  * Each vehicle: group, x, z, yaw, speed, update(dt, input, active), seat() -> {position, yaw, pitch, roll},
  *   footprint() (obstacle for walkers), enter(), exit() -> exit point.
@@ -85,18 +86,18 @@
       forward() {return {x: -Math.sin(this.yaw), z: -Math.cos(this.yaw)};}
       // Two circles (front and rear) must be clear of buildings, trees and hedges.
       clear(x, z) {
-        const w = worldFor(this.radius), f = {x: -Math.sin(this.yaw), z: -Math.cos(this.yaw)}, h = this.length / 2 - this.radius, y = heightAt(x, z);
+        const w = worldFor(this.radius), f = {x: -Math.sin(this.yaw), z: -Math.cos(this.yaw)}, h = this.length / 2 - this.radius, y = heightAt(x, z, this.y);
         // In the air only solids at the vehicle's own height count (it can fly over a hedge); a slope face ahead stops it.
         if (this.airborne) {
-          for (const k of h > 0 ? [-h, h] : [0]) {const p = {x: x + f.x * k, z: z + f.z * k};if (collision.hitsSolid(w, p, this.y + .25, this.y + this.height) || heightAt(p.x, p.z) > this.y + .5) return false;}
+          for (const k of h > 0 ? [-h, h] : [0]) {const p = {x: x + f.x * k, z: z + f.z * k};if (collision.hitsSolid(w, p, this.y + .25, this.y + this.height) || heightAt(p.x, p.z, this.y) > this.y + .5) return false;}
           return true;
         }
-        for (const k of h > 0 ? [-h, h] : [0]) {const p = {x: x + f.x * k, z: z + f.z * k};if (!collision.canStand(w, p, 1.2, heightAt(p.x, p.z))) return false;}
+        for (const k of h > 0 ? [-h, h] : [0]) {const p = {x: x + f.x * k, z: z + f.z * k};if (!collision.canStand(w, p, 1.2, heightAt(p.x, p.z, this.y))) return false;}
         return Math.abs(y - this.y) < 1.5;
       }
       settle(dt) {
         const f = this.forward(), r = {x: -f.z, z: f.x}, L = this.length * .4, W = .6;
-        const hf = heightAt(this.x + f.x * L, this.z + f.z * L), hb = heightAt(this.x - f.x * L, this.z - f.z * L), hl = heightAt(this.x - r.x * W, this.z - r.z * W), hr = heightAt(this.x + r.x * W, this.z + r.z * W);
+        const y = this.y, hf = heightAt(this.x + f.x * L, this.z + f.z * L, y), hb = heightAt(this.x - f.x * L, this.z - f.z * L, y), hl = heightAt(this.x - r.x * W, this.z - r.z * W, y), hr = heightAt(this.x + r.x * W, this.z + r.z * W, y);
         const g0 = (hf + hb) / 2, k = Math.min(1, dt * 8), slope = Math.atan2(hf - hb, 2 * L);this.terrainRoll = Math.atan2(hl - hr, 2 * W);
         if (!this.flies) {this.y = g0;this.pitch += (slope - this.pitch) * k;return;}
         // Cars and motorcycles: the wheels follow the ground as long as gravity (9.81 m/s²) can keep them on it. Where the
