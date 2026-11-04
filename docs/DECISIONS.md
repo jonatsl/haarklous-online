@@ -81,7 +81,7 @@ Live site: runs `main` (Worker version 645c84cc, deployed 4 Nov 2026 after PR #8
   - In the browser (headless Chrome, the built file, offline): the building, hall, offices, garage, terrace, auditorium and ramp portal look right. In the real world: walked in through all entrances and up the ramp; the lift prompt shows in a cabin; a garage car can be driven and stays on its level; a car passes both ramps with nothing in the way.
   - Draw calls and triangles: at home unchanged (1,424 / 1.49 M). At Construction City 50–100 more draw calls and 0.2–0.35 M more triangles than before, still below the home view (outside 981 / 0.81 M, in the hall 1,055 / 1.38 M, in an office 1,107 / 1.43 M, in the garage 1,018 / 1.34 M).
   - Not checked: the frame rate on the user's PC (other sessions share the GPU here) and a real controller.
-- **Status:** branch `feat/construction-city`.
+- **Status:** branch `feat/construction-city`, [PR #86](https://github.com/jonatsl/haarklous-online/pull/86), merged at the user's request (the goal for issue #85: implement, merge and deploy).
 
 ### 2026-11-03 · A short README
 - **What:** `README.md` is now 42 lines of short bullet points (it was 146 lines): what the project is, how to play, the basic controls, developer commands and the sources.
