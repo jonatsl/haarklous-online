@@ -466,7 +466,8 @@
         const ring = b.ring;if (ring.length < 3) return;
         let cx = 0, cs = 0, gm = Infinity;for (const p of ring) {cx += p[0];cs += p[1];gm = Math.min(gm, relLocal(p[0], p[1]));}cx /= ring.length;cs /= ring.length;
         const g0 = ground + relLocal(cx, cs), bottom = ground + gm - .6, top = g0 + b.h, set = nearSet(b.tile), f = farSet(b.tile);
-        Object.assign(b, {cx, cs, base: g0, bottom, top});
+        // tint: the wall colour (a shop cut into the building rebuilds the wall above it in the same material, game-shops.js).
+        Object.assign(b, {cx, cs, base: g0, bottom, top, tint: tint[b.style] ? pick(tint[b.style], i).getHex() : null});
         if (b.style === 'brick') {
           walls(set.plinth, ring, bottom, Math.min(g0 + data.plinth, top), g0);if (top > g0 + data.plinth) walls(set.facade, ring, g0 + data.plinth, top, g0 + data.plinth);
           if (b.hip) hipRoof(set.roof, b.hip, top);else cap(set.roof, ring, null, top);
@@ -652,7 +653,7 @@
     }
 
     return {near, far, setImagery, setSun, setOvercast, get imageryState() {return imageryState;}, attribution: data.attribution, ground, heightWorld, toLocal, toWorld, terrainFloor, terrainFloors, obstacles, surfaceAt, trafficDistance, greenery, data, playHalf: PLAY_HALF, trees: allTrees,
-      districts: patches.map(P => P.d), get districtImagery() {return patches.map(P => P.nearImagery);}, update, yLocal, geoNear, geoFar};
+      districts: patches.map(P => P.d), get districtImagery() {return patches.map(P => P.nearImagery);}, update, yLocal, geoNear, geoFar, patchMaterials: {...patchMats, facade: facadeMat, plinth: plinthMat, roof: roofMat}};
   }
   return {create};
 });
