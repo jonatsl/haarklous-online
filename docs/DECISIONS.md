@@ -78,7 +78,7 @@ Live site: runs `main` (Worker version a75a02dc, deployed 3 Nov 2026 after PR #7
   - Tasks and powers were still there after a reload; `GameProgress.collect` includes them.
   - Performance at Kiwi Storgata: +58 draw calls (shadow pass included) and +46,000 triangles while you are within 170 m; nothing elsewhere. No light was added in total.
   - Not checked: a real DualShock 4, sounds by ear, the remote players' orb and a pushed vehicle online with two players (no lobby server here), saving to a real account on the live server.
-- **Status:** branch `feat/kiwi-storgata`, pull request open.
+- **Status:** branch `feat/kiwi-storgata`, [PR #79](https://github.com/jonatsl/haarklous-online/pull/79) open (not merged, not deployed).
 
 ### 2026-11-03 · `main` is live (PR #70, saved progress, badges and the photo hunt)
 - **What:** saved progress for accounts, badges and the photo hunt (PR #70, issues #54 and #58) are merged into `main` (93d4f27) and deployed (Cloudflare Worker version a75a02dc).
