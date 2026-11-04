@@ -1,14 +1,15 @@
-/* Rathkes gate 1C (issue #44): preparation for a second home, like Haarklous plass 17A – the flat on the 5th floor of
- * Rathkes gate 1, reached through the gate and the backyard (bakgården). The user sends photos of the backyard and the flat
- * later (see docs/RATHKES-1C.md); until then the way in is ready: the wrought-iron gate with the "1" over it at the east end of
- * the façade on Rathkes gate (as on Google Street View), the passage under the building, the backyard and the stair doors 1B and
- * 1C (1C carries the sign for the coming flat).
+/* Rathkes gate 1 (issues #44, #72): the second place you can go besides Haarklous plass 17A – flat 501 on the 5th floor of
+ * stair 1C, reached through the gate and the backyard (bakgården): the wrought-iron gate with the "1" over it at the east end of
+ * the façade on Rathkes gate (as on Google Street View), the passage under the building, the backyard, the stair doors 1B and
+ * 1C, and behind 1C the stair and the flat from the user's video (game-rathkes-501.js with rathkes-501-data.js).
  * The building is OSM way 113875904 (18.2 m, brick, in the Gamle Oslo patch). prepare(districts) replaces it with its two
- * parts either side of the passage (so the walls, collision and maps stay the patch's own), and create() adds the storeys
- * over the passage, the gate (a normal game door: □ opens it, shared online), the doors and the signs.
+ * parts either side of the passage and cuts out the part the flat model draws itself (so the other walls, collision and maps
+ * stay the patch's own; every piece keeps the building's roof height), and create() adds the storeys over the passage, the gate
+ * (a normal game door: □ opens it, shared online), the doors, the signs and the flat.
  * GameRathkes.split(ring, a, b, width) (pure, Node-tested) cuts a ring with a straight passage from a to b.
- * GameRathkes.prepare(districts) -> number of buildings replaced; GameRathkes.create({T, lib, world}) -> {group, doors, hitboxes,
- *   prompt(look), poi(), data}
+ * GameRathkes.prepare(districts, heightOf) -> number of buildings replaced; GameRathkes.create({T, lib, world}) -> {group, doors,
+ *   hitboxes, floors, obstacles, prompt(look), poi(), inside(x, z, feet), lampAt(x, z, feet), placeName(x, z, feet), tick(camera),
+ *   far, flat, data}; GameRathkes.mapBuildings() -> the flat's part for the map.
  */
 (function (root, factory) {
   const api = factory();
@@ -44,18 +45,27 @@
     const area = r => Math.abs(r.reduce((s, p, i) => {const q = r[(i + 1) % r.length];return s + p[0] * q[1] - q[0] * p[1];}, 0) / 2);
     return [left, right].filter(r => r.length >= 3 && area(r) > 1);
   }
-  function prepare(districts) {
+  const centroid = r => r.reduce((a, p) => [a[0] + p[0] / r.length, a[1] + p[1] / r.length], [0, 0]);
+  const flatApi = () => (typeof window !== 'undefined' && window.GameRathkes501) || (typeof module === 'object' && (() => {try {return require('./game-rathkes-501.js');} catch (e) {return null;}})());
+  const flatData = () => (typeof window !== 'undefined' && window.RATHKES_501) || (typeof module === 'object' && (() => {try {return require('./rathkes-501-data.js');} catch (e) {return null;}})());
+  // heightOf(d, x, s) -> ground height of the patch (District.height); with it every piece keeps the building's own roof height.
+  function prepare(districts, heightOf) {
     let n = 0;
+    const F = flatApi(), FD = flatData();
     for (const d of districts || []) {
       if (!d || !Array.isArray(d.buildings)) continue;
       const i = d.buildings.findIndex(b => b.id === DATA.osm);if (i < 0) continue;
-      const b = d.buildings[i], parts = split(b.ring, DATA.passage.from, DATA.passage.to, DATA.passage.width);
+      const b = d.buildings[i], passage = split(b.ring, DATA.passage.from, DATA.passage.to, DATA.passage.width);
       DATA.height = b.h || DATA.height;
-      d.buildings.splice(i, 1, ...parts.map((ring, k) => ({...b, id: `${DATA.osm}-${k}`, ring, hip: null})));
+      const parts = F && FD ? passage.flatMap(r => F.cut(r, FD)) : passage, g = heightOf ? (x, s) => heightOf(d, x, s) : null, top = g ? g(...centroid(b.ring)) + b.h : 0;
+      DATA.parts = parts.map((ring, k) => ({...b, id: `${DATA.osm}-${k}`, ring, hip: null, h: g ? top - g(...centroid(ring)) : b.h}));
+      d.buildings.splice(i, 1, ...DATA.parts);
       n++;
     }
     return n;
   }
+  // The flat's part of the building for the map (the patch no longer has it).
+  function mapBuildings() {const F = flatApi(), FD = flatData();if (!F || !FD || !DATA.parts) return [];const fr = F.frame(FD);return [{r: {o: FD.outline.flatMap(([a, b]) => fr.toLocal(a, b))}, s: 'brick'}];}
 
   // ---------- Browser ----------
   function create({T, lib, world}) {
@@ -94,12 +104,15 @@
     };
     const one = sign('1', .35, .35, '#1f3b6e', '#fff', 'bold 200px Segoe UI, Arial');one.position.set(0, gh + .35, .25);frame.add(one);
     const plate = sign('RATHKES GATE', .9, .22, '#1f3b6e', '#fff', 'bold 40px Segoe UI, Arial');plate.position.set(gw / 2 + .9, 3.2, .3);frame.add(plate);
-    // Stair doors in the backyard: 1B (locked: someone lives there) and 1C (the coming flat on the 5th floor).
+    // Stair doors in the backyard: 1B (locked: someone lives there) and 1C (the stair to flat 501, built by game-rathkes-501.js).
     const wood = lib.wood(0x5b3a24, .6), glassM = new T.MeshStandardMaterial({color: 0x24323b, roughness: .1, metalness: .3});
-    const ring = DATA.yard;
+    const ring = DATA.yard, F = flatApi(), FD = flatData();
     function doorAt(key) {
       const p = DATA.address[key];let best = null;
-      for (let i = 0; i < ring.length; i++) {const a = ring[i], b = ring[(i + 1) % ring.length], ex = b[0] - a[0], es = b[1] - a[1], l2 = ex * ex + es * es, t = Math.max(.15, Math.min(.85, ((p[0] - a[0]) * ex + (p[1] - a[1]) * es) / l2)), q = [a[0] + ex * t, a[1] + es * t], d = Math.hypot(q[0] - p[0], q[1] - p[1]);if (!best || d < best.d) best = {d, q, ex, es, l: Math.sqrt(l2)};}
+      if (F && FD && key === '1B') {
+        // 1B is on the corner's face toward the yard (the flat model stands where the nearest yard edge used to be).
+        const fr = F.frame(FD), q = fr.toLocal(FD.cut.a - .02, 12.4), e = fr.toLocal(FD.cut.a - .02, 13.4);best = {q, ex: e[0] - q[0], es: e[1] - q[1], l: 1};
+      } else for (let i = 0; i < ring.length; i++) {const a = ring[i], b = ring[(i + 1) % ring.length], ex = b[0] - a[0], es = b[1] - a[1], l2 = ex * ex + es * es, t = Math.max(.15, Math.min(.85, ((p[0] - a[0]) * ex + (p[1] - a[1]) * es) / l2)), q = [a[0] + ex * t, a[1] + es * t], d = Math.hypot(q[0] - p[0], q[1] - p[1]);if (!best || d < best.d) best = {d, q, ex, es, l: Math.sqrt(l2)};}
       // Face the door into the yard (toward its centre), its local +z along that normal.
       const {q, ex, es, l} = best, y = yAt(...q), cx = ring.reduce((a, p) => a + p[0], 0) / ring.length, cs = ring.reduce((a, p) => a + p[1], 0) / ring.length;
       let fx = -es / l, fs = ex / l;if (fx * (cx - q[0]) + fs * (cs - q[1]) < 0) {fx = -fx;fs = -fs;}
@@ -111,17 +124,29 @@
       leaf.userData.rathkes = key;hitboxes.push(leaf);
       const w = W(q[0], q[1]);return {key, x: w.x, z: w.z, y};
     }
-    const stairDoors = ['1B', '1C'].map(doorAt);
+    // Flat 501 and stair 1C (issue #72). Without the model the old 1C door with its "coming" sign stays.
+    let flat = null;
+    if (F && FD && DATA.parts) {
+      const tops = DATA.parts.map(b => b.top).filter(Number.isFinite);
+      flat = F.build({T, lib, world, data: FD, top: tops.length ? Math.max(...tops) : null});
+      group.add(flat.group);doors.push(...flat.doors);hitboxes.push(...flat.hitboxes);
+      if (world.far && flat.far) world.far.add(flat.far);
+    }
+    const stairDoors = (flat ? ['1B'] : ['1B', '1C']).map(doorAt);
     function prompt(look) {
-      if (look && look.userData && look.userData.rathkesGate) {const open = doors.some(d => d.open);return {text: `□ ${open ? 'Close' : 'Open'} the gate to the backyard`, act: () => ({doors: doors.filter(d => d.open === open).map(d => d.id)})};}
+      if (look && look.userData && look.userData.rathkesGate) {const open = doors.some(d => d.id.startsWith('rathkes-gate') && d.open);return {text: `□ ${open ? 'Close' : 'Open'} the gate to the backyard`, act: () => ({doors: doors.filter(d => d.id.startsWith('rathkes-gate') && d.open === open).map(d => d.id)})};}
       const k = look && look.userData && look.userData.rathkes;
       if (k === '1C') return {text: '□ Rathkes gate 1C', act: () => ({notice: 'Rathkes gate 1C · the stairs to the flat on the 5th floor open when the photos of the backyard and the flat arrive.'})};
       if (k === '1B') return {text: '□ Try the door (1B)', act: () => ({notice: 'Locked. Someone lives here.', sound: 'locked'})};
       return null;
     }
-    const poi = () => [{x: DATA.address['1C'][0], s: DATA.address['1C'][1], color: '#1f3b6e', label: 'Rathkes gate 1C', glyph: '⌂'}];
-    return {group, doors, hitboxes, prompt, poi, data: DATA, stairDoors, gate: W(...P.from)};
+    const at1C = flat ? world.toLocal(flat.yardDoor.x, flat.yardDoor.z) : {x: DATA.address['1C'][0], s: DATA.address['1C'][1]};
+    const poi = () => [{x: at1C.x, s: at1C.s, color: '#1f3b6e', label: flat ? 'Rathkes gate 1C · flat 501' : 'Rathkes gate 1C', glyph: '⌂'}];
+    const none = () => null;
+    return {group, doors, hitboxes, prompt, poi, data: DATA, stairDoors, gate: W(...P.from), flat,
+      floors: flat ? flat.floors : [], obstacles: flat ? flat.obstacles : [],
+      inside: flat ? flat.inside : none, lampAt: flat ? flat.lampAt : none, placeName: flat ? flat.placeName : none, tick: flat ? flat.tick : () => {}};
   }
 
-  return {DATA, split, clipHalf, prepare, create};
+  return {DATA, split, clipHalf, prepare, create, mapBuildings};
 });
