@@ -51,6 +51,15 @@ Live site: runs `main` (Worker version 645c84cc, deployed 4 Nov 2026 after PR #8
 
 ## Log
 
+### 2026-11-03 · A short README
+- **What:** `README.md` is now 42 lines of short bullet points (it was 146 lines): what the project is, how to play, the basic controls, developer commands and the sources.
+  - The long feature-by-feature text and the full controls table are gone from the README. The start and pause screens in the game still show all of the controls.
+  - The old developer notes and the file-by-file sources moved to the end of `docs/HANDOFF.md`.
+  - `AGENTS.md` now says to keep the README short: at most one bullet for a feature.
+- **Why:** the user said the README was too long and too complicated; players find things out in the game (3 Nov 2026).
+- **Where:** `README.md`, `docs/HANDOFF.md`, `AGENTS.md`.
+- **Status:** branch `docs/short-readme`, [PR #74](https://github.com/jonatsl/haarklous-online/pull/74), not merged. Only documents change, so the live game does not need a new deploy.
+
 ### 2026-11-04 · `main` is live (issues #55, #59, #63, #64, #65, #67, #68 and #72)
 - **What:** seven pull requests are merged into `main` (a27f7a8) and deployed (Cloudflare Worker version 645c84cc):
   - [PR #76](https://github.com/jonatsl/haarklous-online/pull/76): confirm your email and forgot password (issue #55).
