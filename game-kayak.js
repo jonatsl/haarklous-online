@@ -290,6 +290,40 @@
     return {pos, uv, idx};
   }
 
+  // ---------- Bridge decks (pure; issue #64) ----------
+  // A bridge's profile along its axis, u = metres from the river's centre line (negative toward the left bank). Each end goes
+  // out from the bank (at least 1 m) until the ground T(u) comes up to the deck height D (within 0.25 m), or the ground has
+  // levelled out (less than 0.1 m rise over 2 m) where a ramp up to the clearance over the water would be no steeper than 30 %,
+  // or `reach` metres. Between its ends the deck is straight, but never lower than `clear` over the water.
+  // -> [[-eA, T(-eA)], [-bankA, y], [bankB, y], [eB, T(eB)]]: both ends meet the ground.
+  function deckProfile(D, clear, bankA, bankB, reach, T) {
+    const end = (bank, sign) => {
+      const hist = [];
+      for (let u = bank + 1; u <= bank + reach + 1e-6; u += .5) {
+        const y = T(sign * u);hist.push(y);
+        if (y >= D - .25) return [u, y];
+        if (hist.length >= 5 && y - hist[hist.length - 5] < .1 && (clear - y) / (u - bank) <= .3) return [u, y];
+      }
+      return [bank + reach, T(sign * (bank + reach))];
+    };
+    const [eA, yA] = end(bankA, -1), [eB, yB] = end(bankB, 1), line = u => yA + (yB - yA) * (u + eA) / (eA + eB);
+    return [[-eA, yA], [-bankA, Math.max(clear, line(-bankA))], [bankB, Math.max(clear, line(bankB))], [eB, yB]];
+  }
+  // A box from p to q ([x, y, z]) with a w x h cross-section, `side` the horizontal direction across it ([x, z]), added to a
+  // {pos, nor, idx} buffer with flat faces turned outward.
+  function box(B, p, q, w, h, side) {
+    const d = [q[0] - p[0], q[1] - p[1], q[2] - p[2]];let sd = [side[0] * w / 2, 0, side[1] * w / 2];
+    const cr = () => [sd[1] * d[2] - sd[2] * d[1], sd[2] * d[0] - sd[0] * d[2], sd[0] * d[1] - sd[1] * d[0]];
+    let up = cr();if (up[1] < 0) {sd = sd.map(v => -v);up = cr();}// keep "up" upward without mirroring the box
+    const ul = Math.hypot(...up) || 1;up = up.map(v => v / ul * h / 2);
+    const c = (e, a, b) => [e[0] + sd[0] * a + up[0] * b, e[1] + sd[1] * a + up[1] * b, e[2] + sd[2] * a + up[2] * b];
+    const nrm = v => {const n = Math.hypot(...v) || 1;return v.map(x => x / n);}, neg = v => v.map(x => -x), dn = nrm(d);
+    const face = (v, n) => {const b0 = B.pos.length / 3;v.forEach(x => B.pos.push(...x));for (let k = 0; k < 4; k++) B.nor.push(...n);B.idx.push(b0, b0 + 1, b0 + 2, b0, b0 + 2, b0 + 3);};
+    face([c(p, 1, -1), c(q, 1, -1), c(q, 1, 1), c(p, 1, 1)], nrm(sd));face([c(q, -1, -1), c(p, -1, -1), c(p, -1, 1), c(q, -1, 1)], neg(nrm(sd)));
+    face([c(p, 1, 1), c(q, 1, 1), c(q, -1, 1), c(p, -1, 1)], nrm(up));face([c(p, -1, -1), c(q, -1, -1), c(q, 1, -1), c(p, 1, -1)], neg(nrm(up)));
+    face([c(q, 1, -1), c(q, -1, -1), c(q, -1, 1), c(q, 1, 1)], dn);face([c(p, -1, -1), c(p, 1, -1), c(p, 1, 1), c(p, -1, 1)], neg(dn));
+  }
+
   // ---------- Browser: water, banks, bridges, racks, the kayak and its paddle ----------
   function create({T, lib, data, world, audio, districts = []}) {
     const R = river(data), toW = (x, s) => world.toWorld(x, s), G = window.SURROUNDINGS ? window.SURROUNDINGS.ground : 0;
@@ -375,30 +409,63 @@
       }
     }
 
-    // Bridges: a deck from bank to bank at the ground height of its ends (never lower than 1.8 m above the water), railings.
+    // Bridges (issue #64): each deck reaches out until it meets the ground at both ends (`deckProfile`: up to the real bridge's
+    // height, the data's `deck`, or the top of the bank), so you walk and drive on and off, and it clears the water by 1.8 m
+    // (2.2 m for roads). Before, the deck stopped 3.5 m beyond the banks, where the lowered river bed had pulled the ground down,
+    // so 43 of the 46 decks ended in a ledge you could not step onto, and the whole rectangle counted as the ground: along the
+    // banks the bridges stood as invisible walls, up to 3.6 m high.
+    // Now each deck is its own walk floor (`floor`, the ground stays under it, so you walk on along the bank under a bridge),
+    // and its railings and underside are obstacles one 2 m piece at a time. All decks are one mesh, all railings another.
     const bridges = [], obstacles = [];
-    const deckMat = lib.concrete(0x8d8a84), railMat = lib.metal(0x2f3437, .5);
+    const deckMat = lib.concrete(0x8d8a84), railMat = lib.metal(0x2f3437, .5), deckB = {pos: [], nor: [], idx: []}, railB = {pos: [], nor: [], idx: []};
     for (const b of data.bridges || []) {
       const c = R.at(b.t);let dx = b.dir[0], ds = b.dir[1];const l = Math.hypot(dx, ds) || 1;dx /= l;ds /= l;
       const across = Math.max(.35, Math.abs(dx * -c.ds + ds * c.dx)), sgn = Math.sign(dx * -c.ds + ds * c.dx) || 1;
-      const ha = (c.wl + 3.5) / across, hb = (c.wr + 3.5) / across;// along the bridge to each bank (left first)
-      const A = [c.x - dx * ha * sgn, c.s - ds * ha * sgn], B = [c.x + dx * hb * sgn, c.s + ds * hb * sgn];
-      const wa = toW(...A), wb = toW(...B), clear = yOf(c.level) + (b.kind === 'foot' ? 1.8 : 2.2);
-      const ya = Math.max(world.heightWorld(wa.x, wa.z), clear), yb = Math.max(world.heightWorld(wb.x, wb.z), clear);
-      const len = Math.hypot(wb.x - wa.x, wb.z - wa.z), w = Math.min(14, b.w), thick = b.kind === 'foot' ? .35 : .7;
-      const g = new T.Group();g.position.set((wa.x + wb.x) / 2, (ya + yb) / 2, (wa.z + wb.z) / 2);g.rotation.order = 'YXZ';g.rotation.y = Math.atan2(-(wb.x - wa.x), -(wb.z - wa.z));g.rotation.x = Math.atan2(yb - ya, len);group.add(g);
-      const deck = new T.Mesh(new T.BoxGeometry(w, thick, len + .6), deckMat);deck.position.y = -thick / 2 - .02;deck.castShadow = deck.receiveShadow = true;g.add(deck);
-      for (const s of [-1, 1]) {const rail = new T.Mesh(new T.BoxGeometry(.06, 1.05, len), railMat);rail.position.set(s * (w / 2 - .05), .52, 0);rail.castShadow = true;g.add(rail);}
-      // Walkable: the deck is the ground inside its rectangle (groundAt), the railings are walls.
-      const ux = (wb.x - wa.x) / len, uz = (wb.z - wa.z) / len, vx = -uz, vz = ux;
-      bridges.push({name: b.name, kind: b.kind, wa, ux, uz, vx, vz, len, w, ya, yb});
-      for (const s of [-1, 1]) obstacles.push({points: [[s * w / 2 - .08 * s, 0], [s * w / 2, 0], [s * w / 2, len], [s * w / 2 - .08 * s, len]].map(([q, p]) => ({x: wa.x + ux * p + vx * q, z: wa.z + uz * p + vz * q})), minY: Math.min(ya, yb) - .5, maxY: Math.max(ya, yb) + 1.1, kind: 'railing'});
+      const at = u => toW(c.x + dx * u * sgn, c.s + ds * u * sgn), T = u => {const w = at(u);return world.heightWorld(w.x, w.z);};// u < 0: the left bank's side
+      const bankA = c.wl / across, bankB = c.wr / across, clear = yOf(c.level + (b.kind === 'foot' ? 1.8 : 2.2)), D = Math.max(clear, b.deck === undefined ? -Infinity : yOf(b.deck));
+      const thick = b.kind === 'foot' ? .35 : .7, w = Math.min(14, b.w);
+      const P = deckProfile(D, clear, bankA, bankB, Math.min(30, Math.max(6, l)), T);
+      const wa = at(P[0][0]), wb = at(P[3][0]), len = Math.hypot(wb.x - wa.x, wb.z - wa.z), ux = (wb.x - wa.x) / len, uz = (wb.z - wa.z) / len, vx = -uz, vz = ux;
+      const prof = P.map(([u, y]) => [u - P[0][0], y]);// metres from end A, deck height
+      const deckAt = p => {const q = Math.max(0, Math.min(len, p));for (let i = 0; i < 3; i++) if (q <= prof[i + 1][0] || i === 2) {const [p0, y0] = prof[i], [p1, y1] = prof[i + 1];return y0 + (y1 - y0) * (p1 > p0 ? Math.min(1, (q - p0) / (p1 - p0)) : 0);}};
+      const pt = (p, q, y) => [wa.x + ux * p + vx * q, y, wa.z + uz * p + vz * q];
+      for (let i = 0; i < 3; i++) {
+        const [p0, y0] = prof[i], [p1, y1] = prof[i + 1];if (p1 - p0 < .01) continue;
+        box(deckB, pt(p0, 0, y0 - thick / 2), pt(p1, 0, y1 - thick / 2), w, thick, [vx, vz]);
+        for (const s of [-1, 1]) box(railB, pt(p0, s * (w / 2 - .05), y0 + .52), pt(p1, s * (w / 2 - .05), y1 + .52), .06, 1.05, [vx, vz]);
+      }
+      const corners = [[0, -w / 2], [len, -w / 2], [len, w / 2], [0, w / 2]].map(([p, q]) => ({x: wa.x + ux * p + vx * q, z: wa.z + uz * p + vz * q}));
+      // The walkable surface: the deck, which over its last 1.5 m at each end bends to the ground across its whole width, so its
+      // end lines join the ground exactly and you step on and off anywhere along them.
+      const surface = (x, z) => {
+        const p = (x - wa.x) * ux + (z - wa.z) * uz;let y = deckAt(p);
+        for (const [d, Te] of [[p, prof[0][1]], [len - p, prof[3][1]]]) if (d < 1.5) y += (world.heightWorld(x, z) - Te) * (1 - Math.max(0, d) / 1.5);
+        return y;
+      };
+      const bridge = {name: b.name, kind: b.kind, wa, ux, uz, vx, vz, len, w, deckAt, surface, deck: D, ends: [prof[0][1], prof[3][1]],
+        floor: {name: `Bridge${b.name ? ' ' + b.name : ''}`, points: corners, height: p => surface(p.x, p.z), ceilingHeight: Infinity, surfaceKind: 'stone'}};
+      bridges.push(bridge);
+      // Pieces of at most 2 m: the railings (from the deck's underside to 1.1 m over it) and, away from the ends where it bends to
+      // the ground, the deck itself (its underside up to just under its top, so a head under a low deck stops, while people on
+      // the deck are free).
+      const n = Math.max(1, Math.ceil(len / 2));
+      for (let k = 0; k < n; k++) {
+        const p0 = len * k / n, p1 = len * (k + 1) / n, lo = Math.min(deckAt(p0), deckAt(p1)), hi = Math.max(deckAt(p0), deckAt(p1));
+        const poly = (q0, q1) => [[p0, q0], [p1, q0], [p1, q1], [p0, q1]].map(([p, q]) => ({x: wa.x + ux * p + vx * q, z: wa.z + uz * p + vz * q}));
+        for (const s of [-1, 1]) obstacles.push({points: poly(s * (w / 2 - .08), s * w / 2), minY: lo - thick, maxY: hi + 1.1, kind: 'railing'});
+        if (p0 >= 1.5 && p1 <= len - 1.5) obstacles.push({points: poly(-w / 2 + .08, w / 2 - .08), minY: lo - thick, maxY: lo - .05, kind: 'bridge deck'});
+      }
     }
-    // The bridge deck under (x, z), or null: lets you walk and drive across where the river bed was lowered.
+    for (const [B, mat, name] of [[deckB, deckMat, 'Akerselva bridges (decks)'], [railB, railMat, 'Akerselva bridges (railings)']]) {
+      if (!B.idx.length) continue;
+      const g = new T.BufferGeometry();g.setAttribute('position', new T.Float32BufferAttribute(B.pos, 3));g.setAttribute('normal', new T.Float32BufferAttribute(B.nor, 3));g.setIndex(B.idx);g.computeBoundingSphere();
+      const m = new T.Mesh(g, mat);m.castShadow = m.receiveShadow = true;m.name = name;group.add(m);
+    }
+    // The bridge deck under (x, z), or null: for vehicles and anything placed on the ground (walking uses the decks' floors).
     function groundAt(x, z) {
       for (const b of bridges) {
         const dx = x - b.wa.x, dz = z - b.wa.z, p = dx * b.ux + dz * b.uz, q = dx * b.vx + dz * b.vz;
-        if (p >= -.3 && p <= b.len + .3 && Math.abs(q) <= b.w / 2) return b.ya + (b.yb - b.ya) * clamp(p / b.len, 0, 1);
+        if (p >= 0 && p <= b.len && Math.abs(q) <= b.w / 2) return b.surface(x, z);
       }
       return null;
     }
@@ -530,5 +597,5 @@
     return {group, obstacles, groundAt, racks, bridges, farWater, prompt, start, stop, update, hud, tick, exitPoint, remoteBoat: () => boatMesh(), poi, riverModel: R, boat, get active() {return active;}, get view() {return view;}, get pose() {return active ? pose : null;}, canExit, get best() {return best;}};
   }
 
-  return {river, Boat, bedQuads, lowerGrid, waterSamples, cellWeights, sinkGrid, waterStrip, prepare, create, HULL};
+  return {river, Boat, bedQuads, lowerGrid, waterSamples, cellWeights, sinkGrid, waterStrip, deckProfile, box, prepare, create, HULL};
 });

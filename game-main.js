@@ -133,13 +133,18 @@
   const pbRules = PB_DATA && window.GamePaintball ? new window.GamePaintball.Rules(PB_DATA, pbCtx) : null;
   function groundAt(x, z) {
     if (kayak) {const y = kayak.groundAt(x, z);if (y !== null) return y;}// bridge decks over Akerselva
+    return terrainAt(x, z);
+  }
+  // The ground without the bridge decks: walking has the decks as floors of their own, so you also walk under them (issue #64).
+  function terrainAt(x, z) {
     if (siteField) {const y = siteField.surface(x, z);if (y !== null) return y;}
     if (pbRules) {const y = pbRules.ground(x, z);if (y !== null) return y;}
     {const y = gym.ground(x, z);if (y !== null) return y;}// the climbing hall's floor (the terrain model rises through the building)
     return world.heightWorld(x, z);
   }
   // Inside a catacomb mausoleum the ground is not walked on: its door threshold, landing and stair take over (far below = no floor).
-  const groundFloors = world.terrainFloors().map(f => ({...f, height: p => catacomb && catacomb.cutsGround(p.x, p.z) ? -1e4 : groundAt(p.x, p.z)}));
+  const floorsOver = ground => world.terrainFloors().map(f => ({...f, height: p => catacomb && catacomb.cutsGround(p.x, p.z) ? -1e4 : ground(p.x, p.z)}));
+  const groundFloors = floorsOver(groundAt), walkGroundFloors = floorsOver(terrainAt);// vehicles drive on the decks as ground
   // Oslo city bike docks (issue #57) at their real places, from the operator's open data: posts and a totem with the name.
   const rides = window.GameRentals && window.RIDES ? window.GameRentals.create({T, lib, audio, data: window.RIDES, toWorld: world.toWorld, heightAt: groundAt}) : null;
   if (rides) scene.add(rides.group);
@@ -162,8 +167,8 @@
   const signObstacles = JOB_SIGNS.map(j => {const y = groundAt(j.x, j.z);return {points: [[-.5, -.15], [.5, -.15], [.5, .15], [-.5, .15]].map(([a, b]) => ({x: j.x + Math.cos(j.yaw) * a + Math.sin(j.yaw) * b, z: j.z - Math.sin(j.yaw) * a + Math.cos(j.yaw) * b})), minY: y - .3, maxY: y + 2.2, kind: 'sign'};});
   const extraObstacles = [...(siteField ? window.GameSite.fenceObstacles(siteField, groundAt) : []), ...(pbRules ? pbRules.obstacles : []), ...(catacomb ? catacomb.obstacles : []), ...(rides ? rides.obstacles : []), ...signObstacles, ...(storgata ? storgata.obstacles : [])];
   const staticObstacles = [...apt.obstacles, ...towers.flatMap(towerObstacles), ...world.obstacles(), ...fire.obstacles, ...stash.obstacles, ...shops.obstacles, ...sculpture.obstacles, ...oksen.obstacles, ...gym.obstacles, ...extraObstacles, ...landmarks.obstacles];
-  const walkFloors = [...apt.floors, ...towers.flatMap(towerFloors), ...shops.floors, ...sculpture.floors, ...oksen.floors, ...landmarks.floors, ...gym.floors, ...(catacomb ? catacomb.floors : []), ...groundFloors];
-  staticObstacles.push(...grl.flatMap(m => m.obstacles || []));walkFloors.unshift(...grl.flatMap(m => m.floors || []));
+  const walkFloors = [...apt.floors, ...towers.flatMap(towerFloors), ...shops.floors, ...sculpture.floors, ...oksen.floors, ...landmarks.floors, ...gym.floors, ...(catacomb ? catacomb.floors : []), ...walkGroundFloors];
+  staticObstacles.push(...grl.flatMap(m => m.obstacles || []));walkFloors.unshift(...grl.flatMap(m => m.floors || []), ...(kayak ? kayak.bridges.map(b => b.floor) : []));
   const walkWorld = collision.createWorld({floors: walkFloors, obstacles: staticObstacles, radius: .18, clearance: .08});
   const vehicleWorlds = new Map();
   let vehicleBlockers = null;// the other vehicles' footprints from the last updateDynamic()
