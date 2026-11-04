@@ -24,8 +24,9 @@
 })(typeof window === 'undefined' ? globalThis : window, function () {
   'use strict';
   const SETTINGS = ['haarklous-look-sensitivity-v1', 'haarklous-music-volume-v1', 'haarklous-minimap-v1'];
+  // haarklous-storgata-v1 (issue #65): the quests of the people at Kiwi Storgata and the magic powers you have learned.
   const KEYS = ['haarklous-wallet-v1', 'haarklous-records-v1', 'haarklous-badges-v1', 'haarklous-kayak-v1', 'haarklous-route-v1',
-    'haarklous-klatreverket-v1', 'haarklous-catacomb-map-v1', ...SETTINGS];
+    'haarklous-klatreverket-v1', 'haarklous-catacomb-map-v1', 'haarklous-storgata-v1', ...SETTINGS];
   const META = 'haarklous-progress-sync-v1', GUEST = 'haarklous-progress-guest-v1', DECLINED = 'haarklous-progress-declined-v1';
   const START_MONEY = 500, SAVE_EVERY = 20, KEEPALIVE_MAX = 60000;
 
@@ -47,6 +48,7 @@
       if (k === 'haarklous-catacomb-map-v1') {if (bitsSet(t)) return true;continue;}
       if (k === 'haarklous-badges-v1') {if (Object.keys(obj(t).got || {}).length) return true;continue;}
       if (k === 'haarklous-route-v1') {const r = obj(t);if (r.best !== null && r.best !== undefined || num(r.runs) > 0) return true;continue;}
+      if (k === 'haarklous-storgata-v1') {const g = obj(t);if (['q', 'powers', 'got'].some(f => Object.keys(g[f] || {}).length)) return true;continue;}
       if (Object.keys(obj(t)).length) return true;
     }
     return false;

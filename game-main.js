@@ -44,6 +44,8 @@
     ...(window.CatacombLayout ? window.CatacombLayout.holes() : [])].filter(Boolean);
   // District patches beyond the old square (issue #38): Gamle Oslo, Ensjø and the way there, with its key buildings.
   const DISTRICTS = window.District ? (window.DISTRICTS || []).map(d => window.District.decode(d)) : [];
+  // Kiwi Storgata 33 (issue #65) is cut into its office building in the Gamle Oslo patch, like Joker and Kiwi in the old square.
+  window.GameShops.applyDistrictNotches(DISTRICTS);
   // Grünerløkka (issues #44, #45): Deichman Grünerløkka draws its own building, Rathkes gate 1 gets the passage to its
   // backyard, and Akerselva's bed is lowered along the river so its water shows in the ground grids.
   if (window.GameLibrary) window.GameLibrary.prepare(DISTRICTS);if (window.GameRathkes) window.GameRathkes.prepare(DISTRICTS);if (window.GameKayak && window.AKERSELVA) window.GameKayak.prepare(DISTRICTS, D);
@@ -141,14 +143,24 @@
   // Oslo city bike docks (issue #57) at their real places, from the operator's open data: posts and a totem with the name.
   const rides = window.GameRentals && window.RIDES ? window.GameRentals.create({T, lib, audio, data: window.RIDES, toWorld: world.toWorld, heightAt: groundAt}) : null;
   if (rides) scene.add(rides.group);
+  // KIWI Storgata (issue #65): the regulars outside Kiwi Storgata 33, Sopp-Sigvald the mushroom wizard on the corner, and Rolf on a
+  // bench at Schous plass (OSM-free spot beside the footway, 11 m from the table tennis table), facing the table.
+  const storgataShop = shops.shops.find(sh => sh.id === 'kiwi-storgata');
+  const storgata = storgataShop && window.GameStorgata ? window.GameStorgata.create({T, lib, avatars: window.GameAvatars.create({T, lib}), world, groundAt, front: storgataShop.local, root: view, audio,
+    rolf: (() => {const p = world.toWorld(-909.5, 1763.5), t = world.toWorld(-901.5, 1771.5);return {x: p.x, z: p.z, yaw: Math.atan2(-(t.x - p.x), -(t.z - p.z))};})()}) : null;
+  if (storgata) scene.add(storgata.group);
+  // Sopp-Sigvald's magic (GameMagic): the powers you have learned, mana and cooldowns; the particles and the light orb.
+  const magic = new window.GameMagic.Magic(storgata ? Object.keys(storgata.state.powers) : []), fx = window.GameMagic.effects({T, scene});
+  let magicKick = 0, questWp = null;// the blink's short widening of the view; the waypoint a quest set
+  window.addEventListener('haarklous-progress', () => {if (!storgata) return;magic.known = new Set();magic.sel = null;for (const id of Object.keys(storgata.state.powers)) magic.learn(id);if (!magic.knows('orb')) {magic.orb = false;fx.orb.on = false;}});
   // Job signs (issue #56) beside the doors of Joker and Kiwi; □ there opens the jobs phone. Their doors are delivery pickups too.
-  const JOB_SIGNS = shops.shops.map(sh => {
+  const JOB_SIGNS = shops.shops.filter(sh => sh.jobs !== false).map(sh => {
     const L = sh.local, at = (a, b) => world.toWorld(L.P0[0] + L.u[0] * a + L.n[0] * b, L.P0[1] + L.u[1] * a + L.n[1] * b), door = L.W - 2;
     const p = at(door - 2.3, -1.3), q = at(door - 2.3, -.3), pick = world.toLocal(at(door, -1.4).x, at(door, -1.4).z);
     return {shop: sh, x: p.x, z: p.z, yaw: Math.atan2(-(q.x - p.x), -(q.z - p.z)), pickup: {name: sh.name, kind: 'shop', shop: true, x: pick.x, s: pick.s}};
   });
   const signObstacles = JOB_SIGNS.map(j => {const y = groundAt(j.x, j.z);return {points: [[-.5, -.15], [.5, -.15], [.5, .15], [-.5, .15]].map(([a, b]) => ({x: j.x + Math.cos(j.yaw) * a + Math.sin(j.yaw) * b, z: j.z - Math.sin(j.yaw) * a + Math.cos(j.yaw) * b})), minY: y - .3, maxY: y + 2.2, kind: 'sign'};});
-  const extraObstacles = [...(siteField ? window.GameSite.fenceObstacles(siteField, groundAt) : []), ...(pbRules ? pbRules.obstacles : []), ...(catacomb ? catacomb.obstacles : []), ...(rides ? rides.obstacles : []), ...signObstacles];
+  const extraObstacles = [...(siteField ? window.GameSite.fenceObstacles(siteField, groundAt) : []), ...(pbRules ? pbRules.obstacles : []), ...(catacomb ? catacomb.obstacles : []), ...(rides ? rides.obstacles : []), ...signObstacles, ...(storgata ? storgata.obstacles : [])];
   const staticObstacles = [...apt.obstacles, ...towers.flatMap(towerObstacles), ...world.obstacles(), ...fire.obstacles, ...stash.obstacles, ...shops.obstacles, ...sculpture.obstacles, ...oksen.obstacles, ...gym.obstacles, ...extraObstacles, ...landmarks.obstacles];
   const walkFloors = [...apt.floors, ...towers.flatMap(towerFloors), ...shops.floors, ...sculpture.floors, ...oksen.floors, ...landmarks.floors, ...gym.floors, ...(catacomb ? catacomb.floors : []), ...groundFloors];
   staticObstacles.push(...grl.flatMap(m => m.obstacles || []));walkFloors.unshift(...grl.flatMap(m => m.floors || []));
@@ -169,7 +181,7 @@
   const shootTargets = [];[apt.group, ownStair.group].forEach(g => g.traverse(o => {if (o.isMesh && !(o.material.transparent) && o.visible) shootTargets.push(o);}));
   const interactables = [];[apt.group, ...towers.map(t => t.stair.group)].forEach(g => g.traverse(o => {if (o.isMesh && (o.userData.doorId || o.userData.lockedDoor)) interactables.push(o);}));
   apt.drinks.forEach(d => d.object.traverse(o => {if (o.isMesh) {o.userData.drink = d;interactables.push(o);}}));
-  interactables.push(...stash.hitboxes, ...shops.hitboxes, ...gym.hitboxes);
+  interactables.push(...stash.hitboxes, ...shops.hitboxes, ...gym.hitboxes, ...(storgata ? storgata.hitboxes : []));
   interactables.push(...grl.flatMap(m => m.hitboxes || []));
 
   // ---------- Vehicles ----------
@@ -274,7 +286,7 @@
   const stanceSpeed = () => player.stance === 'prone' ? .28 : player.stance === 'crouch' ? .55 : 1;
   function place(x, z, yaw, y) {
     const sp = collision.findSafeSpawn(walkWorld, {x, z}, stanceEye('stand'), {y: y ?? heightAt(x, z), maxDistance: 6});
-    player.x = sp ? sp.x : x;player.z = sp ? sp.z : z;player.feet = sp ? sp.y : (y ?? heightAt(x, z));if (yaw !== undefined) player.yaw = yaw;player.pitch = 0;player.stance = 'stand';player.eyeNow = player.eye;player.jumpY = player.jumpV = 0;
+    player.x = sp ? sp.x : x;player.z = sp ? sp.z : z;player.feet = sp ? sp.y : (y ?? heightAt(x, z));if (yaw !== undefined) player.yaw = yaw;player.pitch = 0;player.stance = 'stand';player.eyeNow = player.eye;player.jumpY = player.jumpV = 0;player.floating = false;
   }
   // The hostage mission starts from its own marker on the grass beside the entrance, so the street door is a normal door.
   const MISSION_MARK = {x: 4.8, z: 14.2};
@@ -322,7 +334,7 @@
     if (caseGame?.active) list.push(...caseGame.actorObstacles());
     collision.setDynamic(walkWorld, list);
     // Other vehicles block the one being driven; it must never collide with its own (parked) footprint.
-    const vlist = vehicles.filter(v => v !== player.vehicle).flatMap(v => [].concat(v.footprint()));
+    const vlist = vehicles.filter(v => v !== player.vehicle && !v.pushed).flatMap(v => [].concat(v.footprint()));
     vehicleBlockers = vlist;vehicleWorlds.forEach(w => collision.setDynamic(w, vlist));
   }
   updateDynamic();
@@ -382,7 +394,8 @@
     {...world.toLocal(AIR.plane.x, AIR.plane.z), color: '#1565c0', label: 'Airstrip', glyph: '✈'},
     {...world.toLocal(SKY_TARGET.x, SKY_TARGET.z), color: '#ff6d00', label: 'Skydiving target', glyph: '◎'},
     {...world.toLocal(FIRE_POS.x, FIRE_POS.z), color: '#e65100', label: 'Firepit', glyph: '🔥'},
-    ...shops.shops.map(s => {const L = s.local;return {x: L.P0[0] + L.u[0] * L.W / 2 + L.n[0] * L.depth / 2, s: L.P0[1] + L.u[1] * L.W / 2 + L.n[1] * L.depth / 2, color: s.id === 'kiwi' ? '#2e9a3f' : '#d0021b', label: s.name, glyph: '🛒'};}),
+    ...shops.shops.map(s => {const L = s.local;return {x: L.P0[0] + L.u[0] * L.W / 2 + L.n[0] * L.depth / 2, s: L.P0[1] + L.u[1] * L.W / 2 + L.n[1] * L.depth / 2, color: /^kiwi/.test(s.id) ? '#2e9a3f' : '#d0021b', label: s.name, glyph: '🛒'};}),
+    ...(storgata ? storgata.poi() : []),
     ...(SITE_DATA ? [{x: SITE_DATA.rect.x0 + SITE_DATA.rect.w / 2, s: SITE_DATA.rect.s0 + SITE_DATA.rect.d / 2, color: '#f9a825', label: 'Construction site', glyph: '⛏'}] : []),
     ...(PB_DATA ? [{x: PB_DATA.centre.x, s: PB_DATA.centre.s, color: '#2e7d32', label: 'Paintball', glyph: '✚'}] : []),
     {x: SCULPTURE_AT.x, s: SCULPTURE_AT.s, color: '#7a5c3e', label: 'HODET N.N.', glyph: '◉'},
@@ -445,6 +458,7 @@
     const cp = gymPrompt();if (cp) return cp;
     {const rp = route && route.prompt(player);if (rp) return rp;}
     {const cp = catacomb && player.mode === 'foot' ? catacomb.prompt() : null;if (cp) return cp;}
+    {const sg = storgataPrompt();if (sg) return sg;}
     const shp = shopPrompt();if (shp) return shp;
     const grp = grunerPrompt();if (grp) return grp;
     const fp = firePrompt();if (fp) return fp;
@@ -610,7 +624,7 @@
     if (basket.length) {const total = basket.reduce((t, b) => t + b.price, 0);bk.innerHTML = '<b>Basket</b>' + basket.map(b => `<div>${b.product.name}<span>${KR(b.price)}</span></div>`).join('') + `<div class="total">Total<span>${KR(total)}</span></div><small>Pay at the till</small>`;}
   }
   // The bag: what you have bought (D-pad ↓ / ↓ key on foot).
-  const USE = {beer: 'drink: +30 s drunk, a bottle for the deposit', soda: 'drink: a bottle for the deposit', energy: 'drink: 15 s of 3× speed', food: 'eat: sobers you up', wood: 'empty onto the firepit (+3)'};
+  const USE = {beer: 'drink: +30 s drunk, a bottle for the deposit', soda: 'drink: a bottle for the deposit', energy: 'drink: 15 s of 3× speed', food: 'eat: sobers you up', coffee: 'drink: hot, sobers you up a little', wood: 'empty onto the firepit (+3)'};
   const bagItems = () => Object.entries(wallet.bag).map(([id, n]) => ({p: shops.products.find(x => x.id === id), n})).filter(e => e.p);
   function openBag() {bag = {sel: 0, stick: false};watch.hide();renderBag();}
   function renderBag() {
@@ -635,7 +649,7 @@
     } else if (p.use === 'beer') {audio.sfx('bottleOpen');audio.sfx('gulp');drunk += 30;beerT = 20;wallet.addPant(1);notice(`You drink a ${p.name}. (+30 s drunk, +1 bottle for the deposit)`, 3);}
     else if (p.use === 'soda') {audio.sfx('bottleOpen');audio.sfx('gulp');drunk = Math.max(0, drunk - 10);wallet.addPant(1);notice(`${p.name} – refreshing. (+1 bottle for the deposit)`, 3);}
     else if (p.use === 'energy') {audio.sfx('bottleOpen');audio.sfx('gulp');boost = {kind: 'speed', t: 15};wallet.addPant(1);notice(`${p.name}: 15 s of 3× speed! (+1 can for the deposit)`, 3);}
-    else {drunk = Math.max(0, drunk - (p.sober || 10));audio.sfx('gulp');notice(`You eat ${p.name}.${p.sober ? ` (−${p.sober} s drunk)` : ''}`, 3);}
+    else {drunk = Math.max(0, drunk - (p.sober || 10));audio.sfx('gulp');notice(`You ${p.use === 'coffee' ? 'drink' : 'eat'} ${p.name}.${p.sober ? ` (−${p.sober} s drunk)` : ''}`, 3);}
     wallet.take(p.id);walletT = 4;
   }
   // ---------- Klatreverket Torshov (issue #40): the reception, the routes, climbing ----------
@@ -897,7 +911,7 @@
       held: Object.assign({}, st?.buttons || {}), pressed: new Set(edges), released: new Set(released), r2: st ? st.run : 0, l2: st ? st.aim : 0, gamepad: Boolean(gp), mouse: {...mouse}
     };
     if (kx || ky) {input.move.x = kx;input.move.y = ky;}
-    const map = {Space: 'cross', KeyC: 'circle', KeyE: 'square', KeyF: 'triangle', Escape: 'options', KeyM: 'touchpad', KeyG: 'gallery', KeyZ: 'prone', KeyR: 'reload', ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down', ShiftLeft: 'l3', KeyQ: 'l1', KeyV: 'view', KeyY: 'share', KeyP: 'phone', KeyB: 'badges', Delete: 'delete'};
+    const map = {Space: 'cross', KeyC: 'circle', KeyE: 'square', KeyF: 'triangle', Escape: 'options', KeyM: 'touchpad', KeyG: 'gallery', KeyZ: 'prone', KeyR: 'reload', ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down', ShiftLeft: 'l3', KeyQ: 'l1', KeyV: 'view', KeyY: 'share', KeyP: 'phone', KeyB: 'badges', Delete: 'delete', KeyX: 'cast', Digit1: 'magic1', Digit2: 'magic2', Digit3: 'magic3', Digit4: 'magic4'};
     for (const [code, name] of Object.entries(map)) {if (ke(code)) input.pressed.add(name);if (k(code)) input.held[name] = true;}
     // Flying (helicopter, plane, drone): hold Shift or the right mouse button to look around (Battlefield's free look, issue #16).
     const flying = player.mode === 'drone' || (player.mode === 'vehicle' && !!player.vehicle?.aircraft);
@@ -971,9 +985,10 @@
     if (quick) quickInput(input);
     if (bag) bagInput(input);
     if (gymMenu) gymMenuInput(input);
+    if (storgata && storgata.talking) storgata.input(input, storgataCtx(), storgataResult);
     // The jobs phone (issue #56): D-pad → / P on foot or in a vehicle (not on the site machines, where → is the arm on a keyboard).
     if (jobs.phone.open) jobs.phone.input(input);
-    else if ((input.pressed.has('phone') || (input.pressed.has('right') && !player.vehicle?.site)) && (player.mode === 'foot' || player.mode === 'vehicle') && !pbBusy() && !map.open && !caseGame?.active && !bag && !gymMenu && !quick && !photo.active && !gear) {openPhone();input.pressed.delete('right');input.pressed.delete('phone');}
+    else if ((input.pressed.has('phone') || (input.pressed.has('right') && !player.vehicle?.site)) && (player.mode === 'foot' || player.mode === 'vehicle') && !pbBusy() && !map.open && !caseGame?.active && !bag && !gymMenu && !quick && !photo.active && !gear && !storgata?.talking) {openPhone();input.pressed.delete('right');input.pressed.delete('phone');}
     if (library && library.reading) library.readInput(input);
     if (caseGame?.active) {
       // The mission owns ✕ (begin), ○ (leave on panels), Options (pause), □ (door or reload), triggers.
@@ -1009,6 +1024,7 @@
       if (input.pressed.has('down') && !photo.active && !gear && !bag && !gymMenu) {openBag();input.pressed.delete('down');}
     } else if (gear) {gear = null;showGear(null);}
     if (photo.active || player.mode !== 'foot') watch.hide();
+    magicTick(dt, input);
     if (photo.active) {
       if (input.pressed.has('square') || input.pressed.has('gallery')) photo.openGallery();
       if (photo.gallery) {if (input.pressed.has('left')) photo.browse(-1);if (input.pressed.has('right')) photo.browse(1);if (input.move.x > .6 && !photo.stick) {photo.browse(1);photo.stick = true;} else if (input.move.x < -.6 && !photo.stick) {photo.browse(-1);photo.stick = true;} else if (Math.abs(input.move.x) < .3) photo.stick = false;if (input.pressed.has('cross') || input.pressed.has('delete')) photo.deleteShown();if (input.pressed.has('circle') && !photo.cancelDelete()) photo.openGallery(false);renderFrame(dt, t);return;}
@@ -1020,7 +1036,7 @@
     // Drunk effect: decays in real time.
     drunk = Math.max(0, drunk - dt);const dl = drunkLevel();
     if (boost && (boost.t -= dt) <= 0) {boost = null;audio.muffle(false);notice('The boost wears off.', 2);}
-    const wdt = dt * worldScale();stash.update(dt);shopsTick(dt);gym.update(dt, player, camera);grunerTick(dt);if (route) route.tick(player, dt);world.update(camera.position);
+    const wdt = dt * worldScale();stash.update(dt);shopsTick(dt);storgataTick(dt);gym.update(dt, player, camera);grunerTick(dt);if (route) route.tick(player, dt);world.update(camera.position);
     // The jump planes move first, so a jumper's seat (and camera) is where the plane is this frame.
     updateJumpFlight(dt);updateGamePilot(dt);
     if (player.mode === 'vehicle') updateVehicle(dt, input, dl);
@@ -1051,12 +1067,13 @@
     let doorsChanged = false;
     for (const d of doors) if (d.anim) {d.anim.t = Math.min(1, d.anim.t + dt * 2.2);const e = d.anim.t < .5 ? 2 * d.anim.t * d.anim.t : 1 - Math.pow(-2 * d.anim.t + 2, 2) / 2;setDoor(d, d.anim.from + (d.anim.to - d.anim.from) * e);if (d.anim.t >= 1) {d.open = d.anim.to === 1;d.anim = null;doorsChanged = true;}}
     if (doorsChanged || caseGame?.active) updateDynamic();
-    promptTimer -= dt;if (promptTimer <= 0) {promptTimer = .15;promptAction = player.mode === 'minigame' || player.mode === 'drone' || gear?.open || quick || bag || gymMenu || jobs.phone.open || photo.active || (caseGame?.active && caseGame.state !== 'play') ? null : findPrompt();prompt(promptAction?.text);}
+    promptTimer -= dt;if (promptTimer <= 0) {promptTimer = .15;promptAction = player.mode === 'minigame' || player.mode === 'drone' || gear?.open || quick || bag || gymMenu || jobs.phone.open || photo.active || storgata?.talking || (caseGame?.active && caseGame.state !== 'play') ? null : findPrompt();prompt(promptAction?.text);}
     weather.update(dt, camera, {indoor: weatherIndoor, windWorld: weatherWind});
     ambienceTimer -= dt;if (ambienceTimer <= 0) {ambienceTimer = .25;updateAmbience();if (audio.context) music.attach(audio.context);music.play(musicTrack());}
     // Adaptive resolution keeps the frame rate in the 20–30+ fps range on slower PCs.
     if (fpsAvg < 22) {if (++lowFrames > 90 && pixelRatio > .6) {pixelRatio = Math.max(.6, pixelRatio - .1);renderer.setPixelRatio(pixelRatio);resize();lowFrames = 0;}} else lowFrames = 0;
     updateGuide(dt);
+    magicFx(dt);
     renderFrame(dt, t);
   }
   // The other players' arrows on the map and the minimap (their slot colour and name).
@@ -1071,6 +1088,7 @@
     if (map.guide({dt, camera, x: at.x, z: at.z, you: player, heading, view, alt, others: lobbyArrows(), ground: groundAt, show: !photo.active}) === 'reached') notice('Waypoint reached.', 2.5);
   }
   function placeName() {if (inApartment()) return 'Haarklous plass 17A, 4th floor';{const c = catacomb && catacomb.placeName(player);if (c) return c;}{const z = gym.zoneAt(player, player.feet);if (z) return `Klatreverket Torshov, ${gym.ZONE_NAME[z]}`;}const tw = towerAt(player.x, player.z, player.feet);if (tw) return tw.t.own ? 'Stairwell, Haarklous plass 17A' : 'Stairwell, Torshov';
+    if (storgata && Math.hypot(player.x - storgata.people.kjell.at.x, player.z - storgata.people.kjell.at.z) < 60) return 'Kiwi Storgata 33, Oslo';
     // In a district patch: the nearest mapped neighbourhood (Ensjø, Kampen, Vålerenga, Gamlebyen …).
     const l = world.toLocal(player.x, player.z);if (Math.abs(l.x) > world.playHalf || Math.abs(l.s) > world.playHalf) {const near = DISTRICTS.flatMap(d => d.places).sort((a, b) => Math.hypot(a.x - l.x, a.s - l.s) - Math.hypot(b.x - l.x, b.s - l.s))[0];if (near) return `${near.name}, Oslo`;}
     return 'Torshov, Oslo';}
@@ -1103,16 +1121,20 @@
       const dx = (-Math.sin(player.yaw) * fwd + Math.cos(player.yaw) * right) * speed * dt, dz = (-Math.cos(player.yaw) * fwd - Math.sin(player.yaw) * right) * speed * dt;
       const bx = player.x, bz = player.z;move(dx, dz);
       player.stride += Math.hypot(player.x - bx, player.z - bz);
-      if (player.stride > (running || speed > 2.5 ? 1.05 : .72) * (player.stance === 'stand' ? 1 : .8)) {player.stride = 0;footstep(running ? 1.2 : player.stance === 'stand' ? .8 : .45);}
+      if (player.stride > (running || speed > 2.5 ? 1.05 : .72) * (player.stance === 'stand' ? 1 : .8)) {player.stride = 0;if (!(player.jumpY > .05)) footstep(running ? 1.2 : player.stance === 'stand' ? .8 : .45);}
     } else if (!mag) player.run = false;
     // Jump and stance easing.
     player.eyeNow += (stanceEye(player.stance) - player.eyeNow) * Math.min(1, dt * 9);
-    if (player.jumpV || player.jumpY) {player.jumpV -= 9.81 * dt;player.jumpY += player.jumpV * dt;const head = collision.ceilingAt(walkWorld, player, player.feet) - .1 - player.eyeNow;if (player.jumpY > head) {player.jumpY = Math.max(0, head);player.jumpV = Math.min(0, player.jumpV);}if (player.jumpY <= 0 && player.jumpV <= 0) {if (player.jumpV < -2) footstep(1.3);player.jumpY = 0;player.jumpV = 0;}}
+    // Levitation (Svev, issue #65): rising while R1 / 1 is held, then a slow sink until you land.
+    if (magic.levitating || player.floating) {
+      const head = collision.ceilingAt(walkWorld, player, player.feet) - .1 - player.eyeNow, r = window.GameMagic.levitate({y: player.jumpY, v: player.jumpV}, dt, {hold: magic.levitating, max: 3.2, head});
+      player.jumpY = r.y;player.jumpV = r.v;if (player.floating && !r.floating) audio.sfx('land');player.floating = r.floating || magic.levitating;
+    } else if (player.jumpV || player.jumpY) {player.jumpV -= 9.81 * dt;player.jumpY += player.jumpV * dt;const head = collision.ceilingAt(walkWorld, player, player.feet) - .1 - player.eyeNow;if (player.jumpY > head) {player.jumpY = Math.max(0, head);player.jumpV = Math.min(0, player.jumpV);}if (player.jumpY <= 0 && player.jumpV <= 0) {if (player.jumpV < -2) footstep(1.3);player.jumpY = 0;player.jumpV = 0;}}
     // Camera.
     const sway = dl ? {r: Math.sin(performance.now() / 1300) * .09 * dl, y: Math.sin(performance.now() / 1700) * .05 * dl, p: Math.sin(performance.now() / 900) * .03 * dl} : {r: 0, y: 0, p: 0};
     camera.position.set(player.x, player.feet + player.eyeNow + player.jumpY, player.z);
     camera.rotation.set(0, 0, 0, 'YXZ');camera.rotation.order = 'YXZ';camera.rotation.y = player.yaw + sway.y;camera.rotation.x = player.pitch + sway.p;camera.rotation.z = sway.r;
-    const fov = photo.active && photo.raised > .5 ? 70 / photo.zoom : caseGame?.active ? camera.fov : pbArmed() ? 70 / (1 + .45 * paintball.aim) : boostIs('speed') ? 82 : 70;if (Math.abs(camera.fov - fov) > .01 && !caseGame?.active) {camera.fov = fov;camera.updateProjectionMatrix();}
+    const fov = photo.active && photo.raised > .5 ? 70 / photo.zoom : caseGame?.active ? camera.fov : pbArmed() ? 70 / (1 + .45 * paintball.aim) : boostIs('speed') ? 82 : 70 + magicKick * 16;if (Math.abs(camera.fov - fov) > .01 && !caseGame?.active) {camera.fov = fov;camera.updateProjectionMatrix();}
   }
   function footstep(soft = 1) {
     let surface = 'grass', stair = false;
@@ -1478,6 +1500,7 @@
     // Kayaking (issue #45): sitting in a kayak on Akerselva; running (the librarian in Deichman shushes runners, issue #47).
     if (player.mode === 'kayak' && kayak && kayak.pose) {const k = kayak.pose;s.st = 'sit';s.p = [r(k.x), r(k.y + .28), r(k.z)];s.y = r(k.yaw);s.ky = [r(k.x), r(k.y), r(k.z), r(k.yaw)];}
     if (player.running) s.rn = 1;
+    if (magic.orb) s.mg = 1;// the light orb (issue #65): others see it by your shoulder
     // Skydiving: a jump seat in the flown Caravan (a vehicle seat 'j0'..'j11'), in the scheduled flight (ja), or in the air.
     if (player.mode === 'jumpseat' && skyd.ride) {if (skyd.ride.auto) s.ja = skyd.ride.seat;else {s.v = vehicles.indexOf(caravan);s.s = 'j' + skyd.ride.seat;}}
     if (player.mode === 'skydive' && skyd.jumper) {const J = skyd.jumper;s.p = [r(J.pos.x), r(J.pos.y), r(J.pos.z)];s.y = r(J.yaw);s.sky = J.state === 'freefall' ? 'f' : 'c';}
@@ -1548,7 +1571,7 @@
   const account = window.GameAccount.create({onChange: renderAccount});
   // Saved progress (issue #54): logged in, your progress is the account's – loaded when you log in and saved by itself.
   const safeStore = {getItem: k => {try {return localStorage.getItem(k);} catch {return null;}}, setItem: (k, v) => {try {localStorage.setItem(k, v);} catch {}}, removeItem: k => {try {localStorage.removeItem(k);} catch {}}};
-  const progress = window.GameProgress.create({account, store: safeStore, camera: photo, ask, notice, rules: badges.MERGE,
+  const progress = window.GameProgress.create({account, store: safeStore, camera: photo, ask, notice, rules: {...badges.MERGE, ...(window.GameStorgata ? window.GameStorgata.MERGE : {})},
     onApplied: () => window.dispatchEvent(new Event('haarklous-progress'))});
   window.addEventListener('haarklous-progress', () => {loadSens();badges.reload();renderSettings();});
   // A yes / no question over everything (✕ / ○ on the controller, or the buttons).
@@ -1630,7 +1653,7 @@
     drivingIndex: () => player.mode === 'vehicle' && player.vehicle ? vehicles.indexOf(player.vehicle) : gp ? caravanIndex() : -1,
     listener: () => ({x: player.x, y: player.feet + 1.5, z: player.z}), applyDoor, onChat: chatLine, onStatus: () => {renderMp();onLobbyChange();},
     onRemoteWood: r => fire.throwLog({x: r.pos.x, y: r.pos.y + 1.3, z: r.pos.z}), holdsMarker: id => !!paintball && paintball.rules.memberPlaying(id),
-    autoAnchor: seat => autoPlane.hipAnchor('j' + seat), skyPose: (r, st, g) => {skyPose(r, st, g);kayakPose(r, st, g);},
+    autoAnchor: seat => autoPlane.hipAnchor('j' + seat), skyPose: (r, st, g) => {skyPose(r, st, g);kayakPose(r, st, g);orbPose(r, st, g);},
     // In a paintball game you see your team-mates' names, not your opponents' (issue #25).
     showTag: id => !paintball || !paintball.rules.inGame() || !paintball.rules.memberPlaying(id) || paintball.rules.teamOfMember(id) === paintball.rules.myTeam()});
   // A new lobby: vehicles go back to where everybody else has them (the lobby then sends the ones that were moved).
@@ -1714,6 +1737,192 @@
     if (dl) {ghost.width = canvas.width / 2;ghost.height = canvas.height / 2;gctx.globalAlpha = .35 * dl;const off = Math.sin(performance.now() / 650) * 12 * dl;gctx.drawImage(canvas, off, Math.cos(performance.now() / 900) * 4 * dl, ghost.width, ghost.height);}
   }
 
+  // ---------- KIWI Storgata (issue #65): the regulars' quests, the finds and Sopp-Sigvald's magic ----------
+  const SG = window.GameStorgata;
+  // Even's photo of Grønland kirke: the tower (at the narrow end of the church, like game-landmarks draws it).
+  const GRONLAND = (() => {
+    const l = DISTRICTS.flatMap(d => d.landmarks).find(x => x.name === 'Grønland kirke');if (!l) return null;
+    const a = l.tower.end * (l.L / 2 - l.tower.side), c = world.toWorld(l.c[0] + l.axis[0] * a, l.c[1] + l.axis[1] * a);
+    return {id: 'gronland', name: 'Grønland kirke', size: 40, r: 8, maxDist: 170, at: {x: c.x, y: world.heightWorld(c.x, c.z) + l.top * .42, z: c.z}};
+  })();
+  // The finds and the bottles go on walkable ground (the walk world exists now).
+  if (storgata) {
+    const snap = (x, z, y, max = 6) => {const sp = collision.findSafeSpawn(walkWorld, {x, z}, 1.65, {y: y ?? groundAt(x, z), maxDistance: max});return sp ? {x: sp.x, y: sp.y, z: sp.z} : null;};
+    const at = (x, s, y, max) => {const w = world.toWorld(x, s);return snap(w.x, w.z, y, max);};
+    const pk = {}, marks = DISTRICTS.flatMap(d => d.landmarks);
+    // Torshovdalen: west of HODET N.N., by the petanque court and by a disc golf basket.
+    pk['dalen-1'] = at(SCULPTURE_AT.x - 14, SCULPTURE_AT.s - 6);
+    if (D.petanque) pk['dalen-2'] = at(D.petanque.x + 9, D.petanque.s + 7);
+    {const h = (D.discgolf || [])[1] || (D.discgolf || [])[0];if (h) pk['dalen-3'] = at(h.basket[0] + 5, h.basket[1] + 4);}
+    // Akerselva: on the banks at Sagene, in Grünerløkka and above Vaterland (akerselva-data.js: 3 m beyond the water's edge).
+    [[-1316.9, 1380.6], [-1167.7, 1886.3], [-922.3, 2309.3]].forEach(([x, s], i) => {pk[`elva-${i + 1}`] = at(x, s);});
+    // The catacomb: beside the pillar of bones in the Rotunda.
+    {const room = catacomb && catacomb.layout.rooms.find(r => r.id === 'rotunda');if (room) {const w = world.toWorld(room.cx + 2.2, room.cs);pk['bein-1'] = snap(w.x, w.z, catacomb.FLOOR_Y, 4);}}
+    // MUNCH: the free spot round the building nearest the fjord (the southernmost one).
+    {const l = marks.find(x => x.kind === 'munch');if (l) {const u = l.axis, n = [-u[1], u[0]], c = l.c, cand = [];for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {const d = a ? l.L / 2 + 4 : l.W / 2 + 4, x = c[0] + (u[0] * a + n[0] * b) * d, s = c[1] + (u[1] * a + n[1] * b) * d, q = at(x, s, undefined, 4);if (q) cand.push({q, s});}cand.sort((p, r) => r.s - p.s);if (cand.length) pk['mane-1'] = cand[0].q;}}
+    // The Opera roof: just below the plateau, in front of the stage tower.
+    {const l = marks.find(x => x.kind === 'opera'), roof = landmarks.floors.find(f => f.name === 'Opera roof');if (l && roof) {const a = -l.L * .2 + 4, w = world.toWorld(l.c[0] + l.axis[0] * a, l.c[1] + l.axis[1] * a);pk.harmonica = snap(w.x, w.z, roof.height(w), 3);}}
+    // Empty bottles on the pavement either side of the shop and a little further along Storgata.
+    const bottleSpots = [];
+    for (const [a, o] of [[-15.6, 1.6], [-11, 2.6], [-6.4, 1.8], [-1.2, 2.9], [16.2, 2.4], [20.4, 1.7], [25.6, 2.8], [31.5, 1.9], [-20, 2.2], [36, 2.0], [8.5, 3.0], [-24, 1.5]]) {
+      const [x, s] = storgata.along(a, o), w = world.toWorld(x, s), q = snap(w.x, w.z, undefined, 1.5);if (q) bottleSpots.push(q);
+    }
+    storgata.place({pickups: Object.fromEntries(Object.entries(pk).filter(([, v]) => v)), bottleSpots});
+  }
+  const storgataCtx = () => ({pant: wallet.pant, bag: wallet.bag});
+  const cap = t => t.charAt(0).toUpperCase() + t.slice(1);
+  const POWER_HELP = {levitate: 'Hold R1 (keyboard: hold 1) to float up to 3 m; let go and you sink slowly.', blink: 'R1 (keyboard: 2) jumps you up to 8 m the way you look – not through walls.',
+    gust: 'R1 (keyboard: 3) blows a gust ahead: it pushes a parked car, motorcycle or e-scooter and scares the pigeons.', orb: 'R1 (keyboard: 4) lights the light orb by your shoulder, and puts it out again.'};
+  function storgataPrompt() {
+    if (!storgata || player.mode !== 'foot' || caseGame?.active) return null;
+    const pr = storgata.prompt(player, lookTarget());return pr ? {text: pr.text, act: () => storgataAct(pr.act)} : null;
+  }
+  function storgataAct(a) {
+    if (a.talk) {watch.hide();if (photo.active) photo.toggle();magic.release('levitate');storgata.open(a.talk, storgataCtx());return;}
+    if (a.bottle) {storgata.takeBottle(a.bottle);wallet.addPant(1);walletT = 5;audio.sfx('click');notice(`An empty bottle (+1 for the deposit, ${wallet.pant} now)${storgata.status('kjell') === 'active' ? ' · Kjell-Arne wants ten' : ''}`, 2.5);return;}
+    if (a.pick) {
+      const r = storgata.pick(a.pick);if (!r) return;const f = storgata.finds[a.pick], q = SG.QUESTS.find(x => x.id === r.quest);
+      audio.sfx(r.pickup.kind === 'harmonica' ? 'harmonica' : 'mushroom');if (f) fx.burst({x: f.at.x, y: f.at.y + .3, z: f.at.z}, 0xffe38a, 40, 1.6);
+      questWaypoint(r.quest);
+      notice(r.ready ? `${cap(r.pickup.name.en)}${r.need > 1 ? ` – that is all ${r.need}` : ''}! Take ${r.need > 1 ? 'them' : 'it'} to ${SG.PEOPLE[q.who].name} outside Kiwi Storgata (the waypoint shows the way).` : `${cap(r.pickup.name.en)}: ${r.count} of ${r.need}. The waypoint shows the next one.`, 5);
+    }
+  }
+  // Our own waypoint for a quest: the next thing to find, Rolf, the church, or back to the one who asked.
+  function questWaypoint(id) {
+    if (!storgata) return;let w = storgata.target(id, player);
+    if (!w && id === 'even' && GRONLAND && storgata.status('even') === 'active') w = GRONLAND.at;
+    if (!w) return false;const l = world.toLocal(w.x, w.z);map.waypoint = {x: l.x, s: l.s};questWp = map.waypoint;return true;
+  }
+  // What a choice in a conversation does to the rest of the game: waypoints, money, the bag, bottles, a new power.
+  function storgataResult(r, who) {
+    const P = SG.PEOPLE[who], msg = [];
+    if (r.accepted) {const q = SG.QUESTS.find(x => x.id === r.accepted);audio.sfx('quest');const wp = storgata.status(q.id) === 'active' && questWaypoint(q.id);msg.push(`New task from ${P.name}: ${q.title.en} · ${storgata.goal(q.id, storgataCtx()).en}${wp ? ' · the waypoint shows the way' : ''}`);}
+    if (r.delivered) {audio.sfx('quest');questWaypoint('mona');msg.push("Rolf has read Mona's note. Go back to Mona outside Kiwi Storgata.");}
+    if (r.reward) {
+      const rw = r.reward;
+      if (rw.takePant) wallet.takePant(rw.takePant);
+      (rw.takeItems || []).forEach(id => wallet.take(id));
+      if (rw.item) wallet.add(rw.item);
+      if (questWp && map.waypoint === questWp) map.waypoint = null;questWp = null;
+      if (rw.kr) {wallet.earn(rw.kr);audio.sfx('coin');msg.push(`+${KR(rw.kr)} from ${P.name}`);}
+      const item = rw.item ? shops.products.find(x => x.id === rw.item) : null;if (item) msg.push(`${P.name} gives you ${item.name} (in your bag: D-pad ↓)`);
+      if (r.done === 'bente') audio.sfx('harmonica');if (r.done === 'tore') audio.sfx('bark');
+      if (rw.teach) {magic.learn(rw.teach);const pw = window.GameMagic.byId(rw.teach);audio.sfx('learn');fx.burst({x: player.x, y: player.feet + 1, z: player.z}, pw.color, 90, 2.2);msg.push(`You learned ${pw.icon} ${pw.no} (${pw.en})! ${POWER_HELP[pw.id]} D-pad ← / ← chooses the power for R1 / X.`);}
+      else if (SG.REGULARS.includes(r.done)) {audio.sfx('cheer');msg.push(`Storgata trusts you a little more (${storgata.trust} of 5) – Sopp-Sigvald on the corner has noticed.`);}
+      walletT = 6;badges.check();
+    }
+    if (msg.length) notice(msg.join(' · '), 8);
+  }
+  let questT = 0, questHudKey = '';
+  function storgataTick(dt) {
+    if (!storgata) return;storgata.update(dt, player, camera);
+    questT -= dt;if (questT > 0) return;questT = .3;
+    const act = SG.QUESTS.filter(q => ['active', 'ready'].includes(storgata.status(q.id))), show = act.length && player.mode === 'foot' && !caseGame?.active && !pbBusy() && !storgata.talking;
+    const html = show ? '<b>Storgata</b>' + act.slice(0, 3).map(q => `<div>${esc(q.title.en)}<small>${esc(storgata.goal(q.id, storgataCtx()).en)}</small></div>`).join('') + (act.length > 3 ? `<small>+ ${act.length - 3} more</small>` : '') : '';
+    if (html !== questHudKey) {questHudKey = html;const el = $('questHud');el.innerHTML = html;el.hidden = !html;}
+  }
+  // ---- Magic (GameMagic): R1 / X casts the chosen power, D-pad ← / ← chooses, 1–4 cast one directly ----
+  const POWER_KEYS = ['magic1', 'magic2', 'magic3', 'magic4'];
+  const magicAllowed = () => player.mode === 'foot' && !caseGame?.active && !pbBusy() && !photo.active && !gear && !bag && !gymMenu && !jobs.phone.open && !quick && !map.open &&
+    !(storgata && storgata.talking) && !(route && route.running) && !(library && library.reading);
+  function magicTick(dt, input) {
+    magicKick = Math.max(0, magicKick - dt * 4);pushTick(dt);
+    if (!magic.known.size) {renderMagicHud(false);return;}
+    for (const e of magic.tick(dt)) {if (e.id === 'levitate') notice('Out of mana – you sink slowly to the ground.', 2.5);if (e.id === 'orb') {fx.orb.on = false;audio.sfx('orbOff');notice('Out of mana – the light orb goes out.', 2.5);}}
+    // The orb goes out in a vehicle, in the mission and at paintball; levitation stops whenever the powers are not allowed.
+    if (magic.orb && (!['foot', 'sit'].includes(player.mode) || caseGame?.active || pbBusy())) {magic.orb = false;fx.orb.on = false;}
+    const ok = magicAllowed();
+    if (!ok) {
+      magic.release('levitate');
+      if (route && route.running && player.mode === 'foot' && (input.pressed.has('r1') || input.pressed.has('cast') || POWER_KEYS.some(k => input.pressed.has(k)))) notice('No magic during the timed run – that would be cheating!', 2);
+      renderMagicHud(player.mode === 'foot' && !caseGame?.active && !pbBusy() && !(storgata && storgata.talking));return;
+    }
+    const direct = POWER_KEYS.find(k => input.pressed.has(k));
+    if (input.pressed.has('left')) {const pw = window.GameMagic.byId(magic.select(1));audio.sfx('click');notice(`${pw.icon} ${pw.no} (${pw.en}) · R1 / X`, 1.5);}
+    if (direct) {const pw = window.GameMagic.POWERS[POWER_KEYS.indexOf(direct)];if (magic.knows(pw.id)) {magic.sel = pw.id;castPower(pw.id);} else notice(`${pw.icon} ${pw.en}: not learned yet – Sopp-Sigvald in Storgata teaches it.`, 2.5);}
+    else if (input.pressed.has('r1') || input.pressed.has('cast')) castPower(magic.selected);
+    // Levitation lasts while its button is held.
+    if (magic.levitating && !(input.held.magic1 || ((input.held.r1 || input.held.cast) && magic.selected === 'levitate'))) magic.release('levitate');
+    renderMagicHud(true);
+  }
+  function castPower(id) {
+    if (!id) return false;const pw = window.GameMagic.byId(id), r = magic.cast(id);
+    if (!r.ok) {audio.sfx('noMana');notice(r.why === 'cooldown' ? `${pw.icon} ${pw.no} is not ready yet (${Math.ceil(magic.cool[id])} s)` : r.why === 'mana' ? `Not enough mana for ${pw.no} (${pw.cost} needed)` : `${pw.en}: not learned yet`, 1.5);return false;}
+    if (id === 'levitate') {audio.sfx('levitate');player.floating = true;fx.burst({x: player.x, y: player.feet + .1, z: player.z}, pw.color, 26, 1.2);}
+    else if (id === 'blink') doBlink(pw);
+    else if (id === 'gust') doGust(pw);
+    else if (id === 'orb') {fx.orb.on = r.on;if (r.on) fx.orb.pos.copy(camera.position);audio.sfx(r.on ? 'orbOn' : 'orbOff');}
+    return true;
+  }
+  // Blink: straight ahead the way you face, up to 8 m, stopping where you could no longer stand (a wall, a drop, a closed door).
+  function doBlink(pw) {
+    const eye = stanceEye(player.stance), dir = {x: -Math.sin(player.yaw), z: -Math.cos(player.yaw)};
+    const test = (p, y) => {const sp = collision.supportAt(walkWorld, p, y);return sp && collision.canStand(walkWorld, p, eye, sp.y) ? sp.y : null;};
+    const t = window.GameMagic.blinkTarget({x: player.x, z: player.z, y: player.feet}, dir, pw.dist, test);
+    if (t.d < .6) {magic.mana += pw.cost;magic.cool.blink = 0;audio.sfx('noMana');notice('Something is in the way – nowhere to blink to.', 2);return;}
+    fx.burst({x: player.x, y: player.feet + player.jumpY + 1, z: player.z}, pw.color, 55, 2.4);
+    player.x = t.x;player.z = t.z;player.feet = t.y;
+    fx.burst({x: t.x, y: t.y + player.jumpY + 1, z: t.z}, pw.color, 55, 2.4);audio.sfx('blink');magicKick = 1;
+    if (storgata) storgata.scare({x: t.x, z: t.z}, null, .8);
+  }
+  // Gust: wind streaks ahead, the pigeons fly off, and the nearest free parked car / motorcycle / e-scooter in the cone is pushed.
+  // Online the pushed vehicle is claimed like a seat while it moves, and its final place goes to the lobby when it stops.
+  const pushedList = [];let pushDynT = 0;
+  function pushable(v, i) {
+    if (!v.group.visible || v.aircraft || v.site || v.pushed || v === player.vehicle || !['car', 'motorcycle', 'scooter'].includes(v.kind)) return false;
+    if (mp.occupant(i, 'd') || mp.occupant(i, 'p') || lockedByOthers().has(i)) return false;
+    return Math.abs(v.y - player.feet) < 3;
+  }
+  function doGust(pw) {
+    const dir = {x: -Math.sin(player.yaw), z: -Math.cos(player.yaw)};
+    fx.wind({x: camera.position.x, y: camera.position.y - .35, z: camera.position.z}, dir);audio.sfx('gust');
+    if (storgata) storgata.scare({x: player.x, z: player.z}, dir, 1.3);
+    const free = vehicles.map((v, i) => ({x: v.x, z: v.z, v, i})).filter(c => pushable(c.v, c.i));
+    const hit = window.GameMagic.gustTargets({x: player.x, z: player.z}, dir, free, pw.range, pw.cone)[0];
+    if (hit) pushVehicle(hit.item.v, hit.item.i, dir, hit.k);
+  }
+  function pushVehicle(v, i, dir, k) {
+    v.pushed = {i, vx: 0, vz: 0, spin: 0, t: 0};
+    mp.claim(i, 'd').then(r => {
+      if (!r.ok || player.mode !== 'foot') {v.pushed = null;if (r.ok) mp.release(i, 'd');return;}
+      const s = (v.kind === 'car' ? 6 : 8) * k;Object.assign(v.pushed, {vx: dir.x * s, vz: dir.z * s, spin: (Math.random() - .5) * (v.kind === 'car' ? .8 : 2) * k});
+      if (v.flies) v.vy = (v.kind === 'car' ? 2.2 : 2.8) * k;// a little hop as the gust catches it
+      if (v.rental) v.rested = false;pushedList.push(v);updateDynamic();
+    });
+  }
+  function pushTick(dt) {
+    if (!pushedList.length) return;
+    for (const v of [...pushedList]) {
+      const p = v.pushed, f = Math.exp(-2.4 * dt), sp = Math.hypot(p.vx, p.vz);p.t += dt;p.vx *= f;p.vz *= f;p.spin *= f;
+      if (sp > .02) {const nx = v.x + p.vx * dt, nz = v.z + p.vz * dt;if (v.clear(nx, nz)) {v.x = nx;v.z = nz;} else {if (sp > 2) audio.sfx('thud', {gain: .6});p.vx = p.vz = 0;}}
+      v.yaw += p.spin * dt;if (v.rental) v.rested = false;
+      if (p.t > 4 || player.mode !== 'foot' || (p.t > .6 && sp < .05 && !v.airborne)) {v.pushed = null;v.speed = 0;pushedList.splice(pushedList.indexOf(v), 1);v.place();mp.release(p.i, 'd', v.netGet());updateDynamic();}
+    }
+    pushDynT -= dt;if (pushDynT <= 0 && pushedList.length) {pushDynT = .25;updateDynamic();}
+  }
+  let magicHudKey = '';
+  function renderMagicHud(show) {
+    let html = '';
+    if (show && magic.known.size) {
+      const sel = window.GameMagic.byId(magic.selected);
+      html = `<div class="mg-mana" title="Mana"><u style="width:${Math.round(magic.mana / 2) * 2}%"></u></div><div class="mg-row">` + window.GameMagic.POWERS.map(pw => {
+        const k = magic.knows(pw.id), cd = magic.cool[pw.id] || 0, f = cd > 0 ? Math.round(Math.min(1, cd / pw.cd) * 20) * 5 : 0, on = (pw.id === 'orb' && magic.orb) || (pw.id === 'levitate' && magic.levitating);
+        return `<i class="${k ? '' : 'no'}${pw.id === sel.id ? ' sel' : ''}${on ? ' on' : ''}" style="--cd:${f}%"><span>${k ? pw.icon : '·'}</span><b>${pw.key}</b></i>`;
+      }).join('') + `</div><small>${sel.no} (${sel.en}) · R1 / X · ← chooses</small>`;
+    }
+    if (html !== magicHudKey) {magicHudKey = html;const el = $('magicHud');el.innerHTML = html;el.hidden = !html;}
+  }
+  const orbView = new T.Vector3();
+  function magicFx(dt) {
+    fx.update(dt, camera);
+    if (catacomb) {if (fx.orb.level > .02) {camera.updateMatrixWorld();orbView.copy(fx.orb.pos).applyMatrix4(camera.matrixWorldInverse);catacomb.setOrb(orbView, fx.orb.level);} else catacomb.setOrb(null, 0);}
+  }
+  // Other players' light orbs: a small glowing ball by their shoulder (no light, to keep the light count fixed).
+  const remoteOrbMat = new T.MeshBasicMaterial({color: 0xfff1c8});
+  function orbPose(r, st) {
+    if (st.mg && !r.orb) {r.orb = new T.Mesh(new T.SphereGeometry(.09, 12, 8), remoteOrbMat);r.orb.name = 'Remote light orb';scene.add(r.orb);}
+    if (r.orb) {r.orb.visible = !!st.mg && r.seen !== false;if (r.orb.visible) r.orb.position.set(r.pos.x + Math.cos(r.yaw) * .55, r.pos.y + 1.85 + Math.sin(performance.now() / 500) * .05, r.pos.z - Math.sin(r.yaw) * .55);}
+  }
   // ---------- Test / inspection handle ----------
   // ---------- Photo hunt places, badge checks (issue #58) ----------
   const huntSpots = (() => {
@@ -1755,6 +1964,11 @@
   function huntPhoto() {
     const shot = {cam: camera.position.clone(), fovY: camera.fov, ndc: p => new T.Vector3(p.x, p.y, p.z).project(camera), blocked: sightBlocked};
     const msg = badges.photo(shot, huntSpots, canvas);if (msg) notice(msg, 5);
+    if (storgata && GRONLAND && storgata.status('even') === 'active') {
+      const j = window.GameBadges.judge(GRONLAND, shot);
+      if (j.ok) {storgata.photo('gronland');audio.sfx('quest');questWaypoint('even');notice('A good photo of Grønland kirke! Show it to Even outside Kiwi Storgata.', 5);}
+      else if (j.d < GRONLAND.maxDist * 1.6) notice(`Even's photo of Grønland kirke: ${{far: `come closer (within ${GRONLAND.maxDist} m)`, frame: 'aim at the tower', small: 'get the whole tower in, a bit bigger – go closer or zoom in', blocked: 'something is in the way'}[j.why] || 'try again'}.`, 5);
+    }
   }
   // Badges that come from what you do: checked twice a second (the rest come from the best scores and saved states).
   let badgeT = 0, pbSeen = 0;
@@ -1774,6 +1988,7 @@
   Object.assign(window.haarklousGame, {library, pingpong, rathkes, kayak, startKayak, hushedFor: () => hushed});
   Object.assign(window.haarklousGame, {badges, huntSpots, huntPhoto, sightBlocked, SKY_TARGET, progress, account});
   Object.assign(window.haarklousGame, {rides, get rentals() {return rentals;}, jobs, openPhone, rentDrive, JOB_SIGNS});
+  Object.assign(window.haarklousGame, {storgata, magic, magicFxApi: fx, castPower, GRONLAND, storgataAct, questWaypoint, collision});
   loading.remove();$('start').hidden = false;
   requestAnimationFrame(frame);
 })();
