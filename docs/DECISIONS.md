@@ -47,7 +47,7 @@ On `main`:
 - Licences for every vehicle, each won by a test with a theory part and a practical part (rings, the speed limit, no crash, park or land): førerkort B and A at Soria Moria Trafikkskole on Vogts gate (a school car and motorcycle, a test route on the real streets), class C, the machine certificate and the crane certificate at the site office, PPL(A) and PPL(H) at the airstrip, the drone certificate A1/A3 on the phone (free); bikes, e-scooters, the kayak and riding along need none; saved with your progress (issue #59).
 - Ground with real detail up close (grass, asphalt, paving slabs, gravel, pavements and kerbs) with or without the aerial photo, and buildings that look like their part of town – Torshov brick and Harald Hals' plastered blocks, Grünerløkka's tenements with shop fronts, buff brick, wooden houses, new blocks – chosen from OpenStreetMap and Street View notes (issues #67 and #68, PR #81, not merged yet).
 
-Live site: runs `main` (Worker version 281119ea, deployed 3 Nov 2026 after PR #75; `main` builds byte-for-byte to the live page), so everything above is online.
+Live site: runs `main` (Worker version 645c84cc, deployed 4 Nov 2026 after PR #81; `main` builds byte-for-byte to the live page), so everything above is online. Account emails (issue #55) wait for the user's Brevo key.
 
 ## Log
 
@@ -59,6 +59,31 @@ Live site: runs `main` (Worker version 281119ea, deployed 3 Nov 2026 after PR #7
 - **Why:** the user said the README was too long and too complicated; players find things out in the game (3 Nov 2026).
 - **Where:** `README.md`, `docs/HANDOFF.md`, `AGENTS.md`.
 - **Status:** branch `docs/short-readme`, [PR #74](https://github.com/jonatsl/haarklous-online/pull/74), not merged. Only documents change, so the live game does not need a new deploy.
+
+### 2026-11-04 · `main` is live (issues #55, #59, #63, #64, #65, #67, #68 and #72)
+- **What:** seven pull requests are merged into `main` (a27f7a8) and deployed (Cloudflare Worker version 645c84cc):
+  - [PR #76](https://github.com/jonatsl/haarklous-online/pull/76): confirm your email and forgot password (issue #55).
+  - [PR #78](https://github.com/jonatsl/haarklous-online/pull/78): Akerselva has water again (issue #63).
+  - [PR #79](https://github.com/jonatsl/haarklous-online/pull/79): Kiwi Storgata, its regulars and Sopp-Sigvald's magic (issue #65).
+  - [PR #80](https://github.com/jonatsl/haarklous-online/pull/80): no more invisible walls (issue #64).
+  - [PR #82](https://github.com/jonatsl/haarklous-online/pull/82): licences for every vehicle (issue #59).
+  - [PR #83](https://github.com/jonatsl/haarklous-online/pull/83): Rathkes gate 1C, flat 501 (issue #72).
+  - [PR #81](https://github.com/jonatsl/haarklous-online/pull/81): better ground and building textures (issues #67 and #68).
+  - Deployed from this session's own clean worktree at the merge commit, with the `cloud/` packages installed by `npm ci`. No database or secret changed.
+- **Why:** the user asked to check issues 55, 59, 63–65, 67–68 and 72, build what was missing, then open pull requests, merge and deploy them (3 Nov 2026). None was done yet, so all were built; issues that belong together share a PR (#67 and #68), the others have their own.
+- **Decided here (while merging):**
+  - Kiwi Storgata and the licences both moved the server's save check into its own file; the one from PR #79 (`cloud/src/progress-check.js`) is kept and the licences test uses it.
+  - Kiwi Storgata and the licences both added a small text helper `cap()` to `game-main.js`; two copies stopped the game from starting, so there is one now.
+  - With the new textures, Kiwi Storgata's office building keeps its own glass look and the wall above the shop is drawn in that look (`Surroundings.facadeFill`).
+  - There are 20 badges now (16 + 2 for Kiwi Storgata + 2 for the licences).
+- **Checked:**
+  - `node --test tests/*.cjs`: 184 pass on the merged `main`, and every script passes `node --check`.
+  - `main` builds byte-for-byte to the committed `haarklous-game.html`, and the live page is byte-for-byte the build.
+  - After each merge, in the browser (offline, simulated DualShock 4): talking to Kjell-Arne at Kiwi Storgata and walking into the shop; the water in Akerselva; the licence prompt on the school motorcycle and driving after class B; door 1C, five floors of stairs and the hall of flat 501; the Kiwi front, the river and the Rathkes backyard with the new textures; the reset-password box from a link.
+  - The live page starts with every new part in it; the only failed request is `favicon.ico` (as before). `/api/account-features` answers `{"email":false}`.
+  - Not checked: a real DualShock 4, two players online, sending a real email.
+- **Still to do by the user:** account emails need a Brevo account: add and confirm a sender address, make an API key, then in `cloud/` run `node scripts/set-mail-secret.mjs` (it checks the key and stores the two Cloudflare secrets). No deploy is needed after that.
+- **Status:** live.
 
 ### 2026-11-04 · Better ground and building textures (issues #67 and #68)
 - **What:**
@@ -99,7 +124,7 @@ Live site: runs `main` (Worker version 281119ea, deployed 3 Nov 2026 after PR #7
   - Texture memory: building textures 8.1 → 14.6 MB plus 5.3 MB of ground detail (the ground paintings, about 243 MB, are unchanged). Mipmaps and anisotropy on; no faces on top of each other.
   - The game starts and you can walk; Joker's front and fill match the building; no new console errors.
   - Not checked: frame rate (the shared PC's GPU is busy, so only draw calls and triangles were counted), a real DualShock 4, the live server.
-- **Status:** branch `feat/better-textures`, [PR #81](https://github.com/jonatsl/haarklous-online/pull/81) for review (not merged, not deployed).
+- **Status:** merged into `main` ([PR #81](https://github.com/jonatsl/haarklous-online/pull/81), a27f7a8) and live (Worker version 645c84cc, 4 Nov 2026). Issues #67 and #68 are closed.
 
 ### 2026-11-04 · Rathkes gate 1C, flat 501 from the user's video (issue #72)
 - **What:**
@@ -130,7 +155,7 @@ Live site: runs `main` (Worker version 281119ea, deployed 3 Nov 2026 after PR #7
   - Node tests 137/137 (9 new): among them a walk with the game's collision code from the backyard up all five floors into the hall, and a flood fill that reaches every room.
   - In the browser (DevTools Chrome, the built single file, offline): from Rathkes gate through the gate, the passage and the backyard, door 1C, up to the 5th floor (feet at each landing's height), door 501, then into every room with its door; no new script errors. Screenshots of 11 places side by side with the matching video frames (stair from the top, the landing with door 501, the hall both ways, the four bedrooms, the kitchen from the doorway, the kitchen run, the living end).
   - Not checked: two players opening the doors online, a real DualShock 4.
-- **Status:** branch `feat/rathkes-1c-501`, [PR #83](https://github.com/jonatsl/haarklous-online/pull/83) open; not merged, not live.
+- **Status:** merged into `main` ([PR #83](https://github.com/jonatsl/haarklous-online/pull/83), 5cfad7b) and live (Worker version 645c84cc, 4 Nov 2026). Issue #72 is closed.
 
 ### 2026-11-04 · Licences for every vehicle, each won by a test (issue #59)
 - **What:**
@@ -171,7 +196,7 @@ Live site: runs `main` (Worker version 281119ea, deployed 3 Nov 2026 after PR #7
     - The drone test in the phone passed, and then the FPV drone launched.
     - The licences were still there after a reload; no script errors.
   - Not checked: the helicopter course flown by hand with the new lift (PR #75; the programmatic flight above moved the helicopter along the course), the PPL(A), class A, class C and crane practical parts in the browser (their rules are Node-tested and the site courses' lines were checked clear in the browser; the plane's approach over the last ring at 24 m clears the trees by only about 3–7 m, so it needs a steeper descent than usual), two players online, a real DualShock 4, an account on the live server.
-- **Status:** branch `feat/licences`, [PR #82](https://github.com/jonatsl/haarklous-online/pull/82), not merged yet.
+- **Status:** merged into `main` ([PR #82](https://github.com/jonatsl/haarklous-online/pull/82), eb45c33) and live (Worker version 645c84cc, 4 Nov 2026). Issue #59 is closed.
 
 ### 2026-11-04 · No more invisible walls (issue #64)
 - **What:**
@@ -201,7 +226,7 @@ Live site: runs `main` (Worker version 281119ea, deployed 3 Nov 2026 after PR #7
   - In the game loop (simulated controller): over the Marcus Thranes gate bridge on its deck, and along the bank under a footbridge 6.5 m up. Along Akerselva's right bank from Myrens into Grünerløkka across the old strip.
   - Cost at six test views (home, Muselunden, the north edge, Bjølsen, the seam, Torshovdalen): +2 to +11 draw calls and +19,000 to +49,000 triangles per frame (+1–4 %): the fence (68 pieces, only those within 450 m are drawn), the corner trees and the bridge decks.
   - Not checked: on the user's own PC and controller; online with others.
-- **Status:** branch `fix/invisible-walls`, [PR #80](https://github.com/jonatsl/haarklous-online/pull/80) (not merged yet).
+- **Status:** merged into `main` ([PR #80](https://github.com/jonatsl/haarklous-online/pull/80), 15a1694) and live (Worker version 645c84cc, 4 Nov 2026). Issue #64 is closed.
 
 ### 2026-11-04 · Kiwi Storgata: the regulars, their tasks and Sopp-Sigvald's magic (issue #65)
 - **What:**
@@ -235,7 +260,7 @@ Live site: runs `main` (Worker version 281119ea, deployed 3 Nov 2026 after PR #7
   - Tasks and powers were still there after a reload; `GameProgress.collect` includes them.
   - Performance at Kiwi Storgata: +58 draw calls (shadow pass included) and +46,000 triangles while you are within 170 m; nothing elsewhere. No light was added in total.
   - Not checked: a real DualShock 4, sounds by ear, the remote players' orb and a pushed vehicle online with two players (no lobby server here), saving to a real account on the live server.
-- **Status:** branch `feat/kiwi-storgata`, [PR #79](https://github.com/jonatsl/haarklous-online/pull/79) open (not merged, not deployed).
+- **Status:** merged into `main` ([PR #79](https://github.com/jonatsl/haarklous-online/pull/79), a4f8638) and live (Worker version 645c84cc, 4 Nov 2026). Issue #65 is closed.
 
 ### 2026-11-03 · Akerselva has water again (issue #63)
 - **What:**
@@ -261,7 +286,7 @@ Live site: runs `main` (Worker version 281119ea, deployed 3 Nov 2026 after PR #7
   - In the browser (offline): pictures from the banks, a bridge, 45 m and 300 m up and from 2 km away along the whole river show the water; from both banks every 40 m along the river (238 sight lines from eye height, 6 m from the water) the middle of the river is never hidden by ground; in the game's real meshes 0 water points are under the near ground.
   - Cost: +1 draw call and +2,400 triangles (the far ribbon); the near water strips were drawn before too (just upside down). The start takes about 50–80 ms longer (the lowering).
   - Not checked: on the user's own PC; with aerial imagery on.
-- **Status:** branch `fix/akerselva-water`, [PR #78](https://github.com/jonatsl/haarklous-online/pull/78) (not merged yet).
+- **Status:** merged into `main` ([PR #78](https://github.com/jonatsl/haarklous-online/pull/78), 84e0efc) and live (Worker version 645c84cc, 4 Nov 2026). Issue #63 is closed.
 ### 2026-11-03 · Forgot password and the email check (issue #55)
 - **What:**
   - After you create an account, the game sends an email with a **"confirm your email"** link. The link opens the game, confirms the email and logs you in on that browser. The Account box in the pause menu says when the email is not confirmed yet, with a button *Send the email again*.
@@ -282,7 +307,7 @@ Live site: runs `main` (Worker version 281119ea, deployed 3 Nov 2026 after PR #7
   - In the browser (built file, account server stubbed): the link box for a new password (two different passwords are refused, then "Password changed ✓"), the box for an expired confirm link (✕ on the controller closes it, the start screen stays), the token gone from the address bar; in the pause menu the not-confirmed line, *Send the email again*, *Forgot password?* with the note and a bad email refused; *Forgot password?* hidden while creating an account.
   - Not checked: a real email (needs the user's Brevo account and key), the live server.
 - **Still to do by the user:** make a free Brevo account, add and confirm a sender address, make an API key, then run `node scripts/set-mail-secret.mjs` in `cloud/` (Claude Code may not write Cloudflare secrets).
-- **Status:** branch `feat/account-email`, [PR #76](https://github.com/jonatsl/haarklous-online/pull/76).
+- **Status:** merged into `main` ([PR #76](https://github.com/jonatsl/haarklous-online/pull/76), dae1ab6) and live (Worker version 645c84cc, 4 Nov 2026). Issue #55 is closed. The emails start once the user has stored the Brevo key (see the `main` is live entry of 4 Nov 2026).
 
 ### 2026-11-03 · `main` is live (PR #75, helicopter and drone lift)
 - **What:** the helicopter and drone flight change (PR #75, issue #73) is merged into `main` (29057ae) and deployed (Cloudflare Worker version 281119ea).
