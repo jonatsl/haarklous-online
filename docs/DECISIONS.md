@@ -28,22 +28,26 @@ On `main`:
 - Paintball course on the valley floor between the sculpture and the site (since PR #12): lobby, admin, teams up to 6 v 6, team deathmatch with respawns or in rounds, capture the flag, paint or reball (PR #8).
 - Multiplayer on Cloudflare (lobby codes, up to 12 players), passengers in motorcycle / cars / helicopter / plane, text chat with quick chat, lobby-wide voice chat.
 - Player accounts (optional): create an account or log in with email and password in the pause menu; your account name is your lobby name (PR #34, Better Auth + Supabase).
+- Account emails (issue #55): a "confirm your email" link after sign-up and *Forgot password?* with a reset link that opens the game; both links work for an hour, the reset link once. Sent through Brevo once the user has added its key (until then the button is hidden).
 - Soundtrack: 2.5-minute open-world loop plus one loop per minigame and the mission; ambient sound by location.
 - Gamle Oslo, Ensjø and the way there: real streets, ground heights and about 7,900 buildings south of the old world (3.4 × 3.4 km, down Trondheimsveien to Bjørvika); churches, MUNCH, the Opera (walkable roof) and tall chimneys modelled; a timed Ensjø → Rathkes gate run (PR #48, issue #38).
-- Kayaking down Akerselva from three put-ins (Bjølsen, Sagene, Grünerløkka) to Vaterland: the real river, its falls and bridges (issue #45).
+- Kayaking down Akerselva from three put-ins (Bjølsen, Sagene, Grünerløkka) to Vaterland: the real river, its falls and bridges (issue #45). Its water shows along the whole river, close up and from far away (issue #63).
+- Nothing invisible stops you: you walk over the Akerselva bridges and along the banks under them, from Myrens on to Grünerløkka along the river, across the lawn over the catacomb, up to the trees in Torshov's corners and to the water's edge in Bjørvika; a low wooden fence marks the edge of the walkable world (issue #64).
 - Schous plass: playable table tennis against Ola; Deichman Grünerløkka with thousands of books, *The Inner Game of Tennis* and a readable *Moby-Dick*, and a librarian who shushes runners and loud voices (issues #44, #47).
-- Rathkes gate 1: the gate, the passage and the backyard with door 1C, ready for the second flat (issue #44, preparation).
+- Rathkes gate 1C, flat 501 – a second place to go besides the home at 17A: through the gate, the passage and the backyard, door 1C, up a winding stair to the 5th floor and into the user's real flat from their video – the hall, four bedrooms, the kitchen and living room and a small bathroom; every door opens (shared online), every room has its light; on the map (issues #44 and #72).
 - Klatreverket Torshov at its real place (Myrens verksted 3K) in its real building: 14 m hall, 7 m overhanging competition wall, Galleriet, autobelay tower, bouldering on three floors, the training room with the Moonwall; reception with the real prices and rental; climb with L2 / R2 (bouldering, top rope with Siri belaying, lead with clips, autobelay), pump, falls on the rope, the brattkort test and belaying Siri.
 - The ground round Myrens verksted and Akerselva (district patch 'myrens').
 - Jobs that earn money, from a phone (D-pad → / P) or the JOBB signs by Joker and Kiwi: food delivery from real cafés, restaurants and the shops to real street doors, and taxi with passengers who tip for smooth, fast driving; a friend riding along gets half (issue #56).
 - E-scooters on the pavements (10 kr + 3 kr a minute, 20 km/h, left where you get off – for everyone online) and Oslo city bikes and e-bikes in the 40 real Oslo Bysykkel docks around Torshov, Myrens and Grünerløkka, at the real prices; the map shows the free bikes at each dock (issue #57).
 - A large catacomb under Torshovdalen with three entrances about 100 m apart (marked ☠ on the map): torch-lit bone galleries with real-looking skulls, dark quarry tunnels where you use your torch (□ / L1 / Q), and a map that is wiped underground and fills in with what you see (PR #50, issue #43).
 - Logged in, your progress is your account's and is there on any PC or browser: money and bottles, the bag, photos (an album of up to 60), badges, best scores, Klatreverket ticks, the catacomb map and your settings; it saves by itself. The first log-in on a browser with its own progress asks whether to move it into the account. Without an account it stays in the browser as before (issue #54, PR #70).
-- Badges and a photo hunt in the pause menu (R1 / B): 16 badges from playing and ten places to photograph (Torshovoksen, HODET N.N., Deichman Grünerløkka, Klatreverket, the catacomb's rotunda, Muselunden, MUNCH, the Opera, Rathkes gate 1, your street door); each new badge pays 50–300 kr; best scores for the minigames, the mission, skydiving and the runs; an orange landing target for skydivers at the airstrip (issue #58, PR #70).
-
+- Badges and a photo hunt in the pause menu (R1 / B): 20 badges from playing and ten places to photograph (Torshovoksen, HODET N.N., Deichman Grünerløkka, Klatreverket, the catacomb's rotunda, Muselunden, MUNCH, the Opera, Rathkes gate 1, your street door); each new badge pays 50–300 kr; best scores for the minigames, the mission, skydiving and the runs; an orange landing target for skydivers at the airstrip (issue #58, PR #70).
+- Helicopter and drone flight closer to the real thing: the rotor's lift tilts with pitch and bank, so tilting takes lift away from climbing and turns it into speed; add collective or thrust to keep your height (issue #73, PR #75).
+- Kiwi Storgata 33 at its real place in the city centre, with a hot-food counter; the regulars outside give small tasks (bottles for the deposit, a harmonica on the Opera roof, coffee and a hot dog, a note for Rolf at Schous plass, a photo of Grønland kirke), in Norwegian with English below; Sopp-Sigvald the mushroom wizard teaches four magic powers after mushroom hunts in Torshovdalen, along Akerselva, in the catacomb and at MUNCH: levitation, blink, a gust and a light orb (R1 / X, D-pad ← chooses, keys 1–4); saved with your progress (issue #65).
+- Licences for every vehicle, each won by a test with a theory part and a practical part (rings, the speed limit, no crash, park or land): førerkort B and A at Soria Moria Trafikkskole on Vogts gate (a school car and motorcycle, a test route on the real streets), class C, the machine certificate and the crane certificate at the site office, PPL(A) and PPL(H) at the airstrip, the drone certificate A1/A3 on the phone (free); bikes, e-scooters, the kayak and riding along need none; saved with your progress (issue #59).
 - Ground with real detail up close (grass, asphalt, paving slabs, gravel, pavements and kerbs) with or without the aerial photo, and buildings that look like their part of town – Torshov brick and Harald Hals' plastered blocks, Grünerløkka's tenements with shop fronts, buff brick, wooden houses, new blocks – chosen from OpenStreetMap and Street View notes (issues #67 and #68, PR #81, not merged yet).
 
-Live site: runs `main` (Worker version a75a02dc, deployed 3 Nov 2026 after PR #70; `main` builds byte-for-byte to the live page), so everything above is online.
+Live site: runs `main` (Worker version 281119ea, deployed 3 Nov 2026 after PR #75; `main` builds byte-for-byte to the live page), so everything above is online.
 
 ## Log
 
@@ -71,6 +75,7 @@ Live site: runs `main` (Worker version a75a02dc, deployed 3 Nov 2026 after PR #7
     - Old halls inside the brick districts are brick, not ribbed metal (that is kept for Ensjø, Bjørvika and Myrens).
     - With the aerial photo, all grey ground gets asphalt detail (a slab pattern on a road would be worse than none on a pavement), and the brightened photo's asphalt is taken down to look like asphalt.
     - Joker, Kiwi and the eight stairwell buildings keep the brick of the shop fill and stair towers; their painted shop fronts are left out because the shops are modelled.
+    - Kiwi Storgata (merged in from PR #79) keeps its office building's own look (glass): the building gets no painted shop fronts, and the wall above the shop is drawn in the same atlas look by `facadeFill`, so its storeys line up with the rest of the front.
     - The brick of `lib.brick()` (the flat's facade walls, churches, Klatreverket, stair towers) is a little darker, like Torshov's.
 - **Where:**
   - `city-textures.js` (new): town parts, which look a building gets, wall bands, the facade atlas and its shader, the ground detail and its shader.
@@ -86,6 +91,219 @@ Live site: runs `main` (Worker version a75a02dc, deployed 3 Nov 2026 after PR #7
   - The game starts and you can walk; Joker's front and fill match the building; no new console errors.
   - Not checked: frame rate (the shared PC's GPU is busy, so only draw calls and triangles were counted), a real DualShock 4, the live server.
 - **Status:** branch `feat/better-textures`, [PR #81](https://github.com/jonatsl/haarklous-online/pull/81) for review (not merged, not deployed).
+
+### 2026-11-04 · Rathkes gate 1C, flat 501 from the user's video (issue #72)
+- **What:**
+  - Behind door 1C in the backyard of Rathkes gate 1 there is now a stair hall and a winding stair up to the 5th floor, and there the real flat 501 from the user's video.
+  - The stair: mailboxes and five steps on the ground floor, then on every floor a flight, a turn round a narrow well and a flight back; brown carpet, black iron scrolls, one curved wooden handrail, landing tiles, a stair window to the yard and a lamp on every landing. Two locked neighbours' doors on floors 1–4 with numbers and names.
+  - The top landing: grey-green panelled walls, the brass doorbell, the shoe rack and door 501.
+  - The flat: the hall (coats, fuse box, drying rack, fire extinguisher, oak wardrobe, rugs, boxed beam), a bedroom with a double bed and a paper globe lamp, a bedroom with a white metal daybed and a desk, a narrow bedroom with a single bed and a mirror wardrobe, a bedroom with navy curtains, the kitchen and living room (black kitchen with a birch worktop, crates on the wall cabinets, pots on a rail, the sideboard and record sleeves, the black dining table, the grey sofa, the teak shelving, the TV, a guitar) and the small bathroom behind the closed door at the end of the hall.
+  - Every door opens with □ and is shared online like other doors. Every room and landing has its light. Walls, furniture and the stair have collision.
+  - The building's part around the flat is drawn new: both façades with real windows on all floors, the roof. The map shows the flat (⌂ "Rathkes gate 1C · flat 501"). 17A stays the home.
+- **Why:** the user's issue #72: "Use video in my dropbox … to see the apartment and implement it. behind the closed door next to the living room/kitchen is a small bathroom. Implement like haarklous plass 17a is implemented, but make it similar to the video. the video is the real rathkes gate 1C unit 501 apartment."
+  - Decided here:
+    - The video was watched on Dropbox's own page, frame by frame (not downloaded). Sizes come from the doors (2.05 m), the worktop (0.9 m), beds and the camera's walk; ceiling 2.95 m. The full room-by-room record and what is estimated: `docs/RATHKES-1C.md`.
+    - The flat lies across the side wing along Herslebs gate: the hall runs along the wing, the stair is on the yard side (door 1C at the OSM address), the daybed and single-bed rooms and the kitchen and living room look onto Herslebs gate, the other two bedrooms onto the backyard. The video agrees: the living room looks at lit windows across a street.
+    - The bathroom (never opened in the video): 2.9 × 2.1 m with white wall tiles, a basin, a wall-hung toilet, a shower corner, a washing machine and a towel radiator.
+    - The front door opens in and swings back against the hall wall; at 90° it stood across the 1.35 m hall.
+    - The stair is the same on every floor (the video shows only the top two flights); the neighbours' doors and names are made up.
+    - The model replaces the building's part around the flat; the other parts now all keep the building's own roof height.
+    - The flat's rooms are hidden from 70 m away (the windows then show dark rooms), and only the façades and roof cast sun shadows, to keep the frame cheap.
+    - The video is at night; the game shows the flat by day, with the lamps glowing.
+- **Where:**
+  - `rathkes-501-data.js` (new): the plan, walls, doors, windows, furniture and the stair, in metres.
+  - `game-rathkes-501.js` (new): builds the façades, the stair and the flat, collision, lamps, where you are.
+  - `game-rathkes.js`: cuts the building, builds the flat, door 1B on the corner, the map's part.
+  - `game-main.js`: the room lamp, indoor sound and shadows, the place name, the map, hiding the rooms from far away.
+  - `index.html`, `README.md`, `docs/RATHKES-1C.md`, `docs/HANDOFF.md`; tests `tests/rathkes501.test.cjs` (new), `tests/grunerlokka.test.cjs`.
+- **Performance:** 36 meshes, 25,800 triangles. Measured in the browser with the flat shown and hidden: +25 to +44 draw calls and about +31,000 triangles per frame (sun shadows included) near the building and inside; from further than 70 m only the façades and roof (a few draw calls).
+- **Checked:**
+  - Node tests 137/137 (9 new): among them a walk with the game's collision code from the backyard up all five floors into the hall, and a flood fill that reaches every room.
+  - In the browser (DevTools Chrome, the built single file, offline): from Rathkes gate through the gate, the passage and the backyard, door 1C, up to the 5th floor (feet at each landing's height), door 501, then into every room with its door; no new script errors. Screenshots of 11 places side by side with the matching video frames (stair from the top, the landing with door 501, the hall both ways, the four bedrooms, the kitchen from the doorway, the kitchen run, the living end).
+  - Not checked: two players opening the doors online, a real DualShock 4.
+- **Status:** branch `feat/rathkes-1c-501`, [PR #83](https://github.com/jonatsl/haarklous-online/pull/83) open; not merged, not live.
+
+### 2026-11-04 · Licences for every vehicle, each won by a test (issue #59)
+- **What:**
+  - Driving a vehicle now needs its licence, as in Norway. Riding along as a passenger stays free, and so do city bikes, e-scooters, the kayak and a skydive flown by the game's pilot.
+    - **Førerkort klasse B** (the 30 cars) and **klasse A** (the 8 motorcycles) at **Soria Moria Trafikkskole**, the real driving school on Vogts gate at Krebs' gate (OpenStreetMap). The practical test is in the school car (white, SKOLE on the roof) or the school motorcycle outside: about 700 m on the real streets – Krebs' gate, Per Kvibergs gate, Hegermanns gate with the roundabout on Hegermanns plass, Vogts gate – and back to park in a green ring by the school, within 4 minutes, at 30 km/h (40 on Vogts gate).
+    - **Førerkort klasse C** (the 8x4 tipper; class B first), the **maskinførerbevis** (dozer M1, excavators M2 – the street excavator too –, wheel loader M4, articulated hauler M6) and the **kranførerbevis** (mobile crane G1, tower crane G2) at **the site office** outside the construction site's north gate. Practical: a course of rings on the site at 15 km/h in the tipper or the wheel loader; for cranes, hook a load by the tower crane's mast, carry it through a ring and set it down on a green mark.
+    - **PPL(A)** (the sport plane and the Caravan) and **PPL(H)** (the helicopter) at **Torshovdalen flyskole**, a sign beside the sport plane at the airstrip. Practical: take off down the strip, a wide turn over the city to the south and back to land on the strip (the way back towards the plane's spot), below 200 m; the helicopter hovers 5 s over its pad, flies a loop over the airstrip, hovers and lands on the pad, below 120 m.
+    - The **drone certificate A1/A3** (the FPV drone) is Luftfartstilsynet's free online test: theory only, on the phone.
+  - Each test: five theory questions with real rules (at most one wrong), then the practical part with rings to pass in order (orange = next, a faint one after it, green = stop, land or set the load down there). It fails if you go more than 5 km/h over the limit for 2 seconds, run into anything or crash, get out, fly too high or run out of time; the message says why, the examiner then stops the vehicle and you get out (an aircraft you land first). A passed theory part is kept, so a new try costs only the practical fee.
+  - Fees: B and A 100 + 200 kr, C 100 + 300 kr, the machine and crane certificates 100 + 150 kr, PPL(A) and PPL(H) 150 + 450 kr, the drone test free.
+  - Next to a vehicle you may not drive, the prompt says which licence it needs and where; □ sets the waypoint there. The phone (D-pad → / P) has a *Licences* page (what you have, the way to each test place, the drone test, stop a test), the pause menu a line with your licences, and the map shows the three places (🪪).
+  - Taxi jobs need class B. The examiner will not start a test after a drink (0.2 per mille limit).
+  - Licences are saved with your progress (in the browser, or in your account when logged in) and two new badges: *Licensed* (the first licence, 100 kr) and *Every licence* (all eight, 300 kr).
+- **Why:** issue #59 (the user, 3 Nov 2026): "Require tests, similar to driving test etc, that gives you licenses for each of the vehicles in the game."
+  - Decided here:
+    - **Existing players start with no licences**, as the issue says "require". A fresh start (500 kr) can pay for class B (300 kr) at once; the other tests need some money from jobs, minigames or badges.
+    - The classes are the real Norwegian ones. The Honda CBF600S gives 57 kW, more than class A2's 35 kW, so motorcycles need class A. The tipper is a lorry, so class C (which needs class B first, as in Norway). The machine classes follow Arbeidstilsynet (M1 dozer, M2 excavator, M4 wheel loader, M6 dumper; crane G1 mobile crane, G2 tower crane); one maskinførerbevis covers all the game's machines and one kranførerbevis both cranes, so the site is not five separate tests. PPL(A) covers the Caravan too (no extra class rating).
+    - The drone certificate is free and theory only, as at Luftfartstilsynet (the real test is 40 questions online with 75 % to pass; here five, at most one wrong).
+    - E-scooters need no licence in Norway (the age limit is 12 and a helmet is needed under 16); the game has no ages, so nothing is checked. City bikes and the kayak need none either.
+    - The test places: the real driving school inside the world (Soria Moria Trafikkskole; the nearest trafikkstasjon, Risløkka, is outside it), the airstrip for flying, the site office for the machines and class C.
+    - The test vehicles are a new school car and school motorcycle (added after all older vehicles, so the vehicle numbers online stay the same) and the site's tipper, wheel loader and tower crane, the sport plane and the helicopter. If someone left the test vehicle elsewhere and nobody drives it, it is put back in its place when you pay; if someone else takes it before you sit in it, the test ends and the fee is paid back.
+    - Five questions with at most one wrong is close to the real førerprøve's limit (7 wrong of 45).
+    - Speed: more than 5 km/h over the limit for more than 2 s fails (a short slip is let off). Any run into something from 5 km/h or more is a crash.
+  - Found: some OpenStreetMap street lamps that hang over the street are drawn as posts in the middle of the road (for example on Hegermanns gate by Per Kvibergs gate and on Krebs' gate by the school) and block cars. The driving test's rings are placed so the line from ring to ring keeps 1.5 m from them; the posts themselves are not changed here (a separate fix).
+- **Where:**
+  - `game-licences.js` (new): the licences, which vehicle needs which, the questions, the courses, the practical part's rules, the rings, the HUD, the menu and the signs.
+  - `game-main.js`: the school car and motorcycle, the signs, the checks at every driver's seat (the prompt, `tryDrive`, `enterVehicle`, the Caravan, the drone, taxi), the test flow, the phone page, the pause line, the map icons.
+  - `game-progress.js` (the new saved key and how two copies join), `cloud/src/progress-check.js` (the server's save check, shared with Kiwi Storgata's PR #79; the test checks every progress key), `game-badges.js` (two badges), `index.html`, `style.css`, `README.md`, `docs/HANDOFF.md`.
+  - Tests: `tests/licences.test.cjs` (new: 10 tests), `tests/badges.test.cjs`.
+  - Draw calls: the three signs add 2 each (76 triangles); the rings 2 (896 triangles each) only during a practical test; the school car (43 meshes, about 12,200 triangles) and motorcycle (49 meshes, about 8,900 triangles) are like any parked car and motorcycle and are drawn only within 170 m (they stand 600 m from 17A).
+- **Checked:**
+  - `node --test tests/*.cjs`: 138 pass (10 new); 148 after merging `main` (the helicopter and drone lift, PR #75, and the account emails, PR #76).
+  - In the browser (offline, simulated DualShock 4):
+    - Without licences the prompt at the car, motorcycle, street excavator, all seven site machines, the plane, the Caravan and the helicopter names the licence and the place, □ set the waypoint, and the seat stayed closed; the e-scooter and city bike prompts were unchanged; the drone said it needs the A1/A3 certificate.
+    - Class B: the theory with one wrong answer passed (300 kr paid). The first practical try, driven at 49 km/h, failed with "Too fast: 49 km/h where the limit is 30 km/h"; the examiner stopped the car and I was out. The second try (theory kept, 200 kr), driven by a simple autopilot on the simulated controller (stick, R2, L2), passed in 1:59 through all 19 rings and parked in the green ring. Then an ordinary parked car could be driven, and taxi was offered in the phone.
+    - PPL(H): the theory 5 of 5, then the practical flown programmatically (the helicopter moved along the course: hover, four rings, hover, landing on the pad) passed in 1:27.
+    - Maskinførerbevis: getting out of the wheel loader during the practical failed it with "You got out of the test vehicle".
+    - The drone test in the phone passed, and then the FPV drone launched.
+    - The licences were still there after a reload; no script errors.
+  - Not checked: the helicopter course flown by hand with the new lift (PR #75; the programmatic flight above moved the helicopter along the course), the PPL(A), class A, class C and crane practical parts in the browser (their rules are Node-tested and the site courses' lines were checked clear in the browser; the plane's approach over the last ring at 24 m clears the trees by only about 3–7 m, so it needs a steeper descent than usual), two players online, a real DualShock 4, an account on the live server.
+- **Status:** branch `feat/licences`, [PR #82](https://github.com/jonatsl/haarklous-online/pull/82), not merged yet.
+
+### 2026-11-04 · No more invisible walls (issue #64)
+- **What:**
+  - A survey of the whole walkable world found every place where something stopped you with nothing drawn there: about 85,000 points (every 8 m in Torshov and Myrens, every 16 m in Gamle Oslo), a 1 m step in eight directions from each, what stopped the step, and whether anything is drawn there. These invisible walls are gone:
+    1. **Between Myrens and Gamle Oslo** an 80 m strip (west of the old square, where Akerselva runs from Sagene to Grünerløkka) was ground you could see but not enter: each map patch is walkable only to 40 m inside its own edges, and these two meet. A seam joins them now, and its trees and buildings are solid.
+    2. **All 46 Akerselva bridges.** The whole rectangle of a bridge counted as the ground, so walking along a bank you hit a wall where the deck was overhead (up to 3.6 m), and 43 of the 46 decks ended in a ledge you could not step onto (the lowered river bed had pulled the ground down at their ends). Now each deck reaches out until it meets the ground at both ends and is a floor of its own: you walk over it, and along the bank under it. Railings, and the underside of a deck too low to walk under, still stop you (you see them).
+    3. **The catacomb's three stairs.** Their side walls took the height of the mausoleum's roof along the whole 28–36 m stair, so six walls stood up to 4 m out of the lawn in Torshovdalen. Now each piece of wall follows its own step and never reaches above the ground.
+    4. **453 trees in Torshov's corners** (more than 820 m from home; the walkable area is a square out to 760 m), among them trees in Muselunden: they were drawn only for the distance, vanished when you came within 15 m, and still blocked you. They are drawn close up now.
+    5. **The edge of the walkable world** (about 16 km) was an invisible line in open ground. A low wooden fence stands on it now.
+    6. **Buildings dug into a slope** (37 with the ground next to them at or above the roof, 26 more within 1 m): a building blocked you up to 4 m above its roof, so on the uphill side you stopped in front of a roof at your feet. They block only up to the roof now (an edge under 10 cm high is stepped over).
+    7. **The sea in Bjørvika** blocked you up to 0.8 m above the water, so on low shores you stopped on dry ground, metres from the water. It now stops you where the ground goes under the drawn water.
+- **Why:** issue #64, "In some places it is impossible to walk/move like an invisible wall even though there is nothing around the user. Fix." (tester, 3 Nov 2026).
+- **Decided here:**
+  - The walkable world keeps its size; its edge gets a fence you can see (beyond it there is no detailed ground to walk on).
+  - Bridge decks run straight between the points where they meet the ground (at the real bridge's height, or the top of the bank, with ramps no steeper than 30 %) and stay at least 1.8 m over the water (2.2 m for roads). Vehicles still drive on the decks as before; walking uses the new deck floors.
+  - All bridge decks are one mesh and all railings another (138 meshes before).
+- **Where:**
+  - `surroundings.js`: `walkRects` and `openEdges` (pure), the seams in `terrainFloors()` and in the obstacles, the edge fence, trees drawn near in the whole walkable square, `buildingTop`, the sea's block height.
+  - `game-kayak.js`: `deckProfile` and `box` (pure), bridges as walk floors (`bridge.floor`, `bridge.surface`), railings and decks as 2 m obstacle pieces, merged deck and railing meshes.
+  - `game-main.js`: `terrainAt` (the ground without the decks) for walking, plus the deck floors; vehicles keep `groundAt`.
+  - `catacomb-layout.js`: stair walls one cell at a time, wall tops kept under the ground (`underGround`).
+  - Tests: `tests/invisible-walls.test.cjs` (new).
+- **Checked:**
+  - `node --test tests/*.cjs`: 143 pass (5 new).
+  - The survey, before and after: points where you were stopped with nothing drawn: 37 → 0 (the survey still flags four, but they are things you see: a bench by the fire pit, a roof edge 14 cm high, and the water at knee height on two low shores). The unwalkable strip and the invisible world edge are gone.
+  - Bridges: walking from one end to the other works 58 of 71 times (4 of 77 before); the others stop at a building at the far end or at the edge of the world. Walking along a bank under a bridge works 30 of 76 times (5 of 77 before); the others stop at a deck too low to walk under, at a bridge end on the bank, or at a tree.
+  - In the game loop (simulated controller): over the Marcus Thranes gate bridge on its deck, and along the bank under a footbridge 6.5 m up. Along Akerselva's right bank from Myrens into Grünerløkka across the old strip.
+  - Cost at six test views (home, Muselunden, the north edge, Bjølsen, the seam, Torshovdalen): +2 to +11 draw calls and +19,000 to +49,000 triangles per frame (+1–4 %): the fence (68 pieces, only those within 450 m are drawn), the corner trees and the bridge decks.
+  - Not checked: on the user's own PC and controller; online with others.
+- **Status:** branch `fix/invisible-walls`, [PR #80](https://github.com/jonatsl/haarklous-online/pull/80) (not merged yet).
+
+### 2026-11-04 · Kiwi Storgata: the regulars, their tasks and Sopp-Sigvald's magic (issue #65)
+- **What:**
+  - **Kiwi Storgata 33** at its real place (OSM node 3111431401), cut into the ground floor of its real office building on Storgata (OSM way 112233122) in the Gamle Oslo patch, the same way as Joker and Kiwi Torshov: glass front, shelves, fridges, the till with a cashier, the bottle machine, prices, beer hours. The facade above it is rebuilt in the building's own glass-band material. It has the real opening hours on the door (OSM `opening_hours` "Mo-Sa 07:00-23:00") and a counter by the window with a hot coffee (30,90 kr) and a hot dog (28,90 kr).
+  - **Five regulars** outside, sitting on crates, a stool and a bench or leaning on the wall: Kjell-Arne (retired sailor), Bente (once in the Opera chorus, with her shopping trolley), Tore and his dog Laika, Mona (retired postwoman), Even (retired press photographer). □ talks; the conversation is in Norwegian with the English below, ↑↓ chooses, ✕ answers, ○ leaves. Each gives one task that uses the game:
+    - Kjell-Arne: ten empty bottles (twelve lie along Storgata, □ picks one up; a soda also gives one) → his Kvikk Lunsj.
+    - Bente: her late husband's harmonica at the top of the Opera roof → 100 kr.
+    - Tore: a coffee and a hot dog from the new counter → a Solo.
+    - Mona: a note for her brother Rolf, who feeds the pigeons on a bench at Schous plass, and his answer back → 80 kr.
+    - Even: a good photo of Grønland kirke with the whole tower (the photo hunt's own check) → 120 kr.
+    - Tasks show at the top right and set the waypoint; finished tasks are Storgata's trust (0–5 stars in the wizard's talk box).
+  - **Sopp-Sigvald**, the mushroom wizard on the corner: purple robe with stars, wild white hair and beard, a big red-and-white mushroom hat and a staff with a glowing mushroom. He rambles (pigeons are spies, time is a mushroom, never eat a mushroom you don't know). Lesson k needs the trust of k regulars, and each lesson is a mushroom hunt: three star mushrooms in Torshovdalen → **Svev** (levitation), three river mushrooms on the banks of Akerselva → **Glimt** (blink), the bone mushroom in the catacomb's Rotunda → **Vindkast** (gust), the moon mushroom at MUNCH → **Lyskule** (light orb).
+  - **Magic**: R1 (X) casts the chosen power, D-pad ← (←) chooses, keys 1–4 cast one directly. Levitation: hold to rise up to 3.2 m (under a ceiling less), let go to sink at most 1.3 m/s. Blink: up to 8 m the way you face, stops in front of walls and drops. Gust: wind streaks, the pigeons fly off, and the nearest free parked car, motorcycle or e-scooter within 14 m in a 40° cone is pushed (a little hop, slides up to about 2 m). Light orb: a glowing ball by your right shoulder with a light, on and off. A mana bar (100, refills 12 per second after a short rest) and a cooldown ring per power at the bottom right. Sounds for each power, the wizard, the harmonica and Laika.
+  - The map shows the shop, the regulars, the wizard, and while a task is on, Rolf and the things to find.
+  - Two badges: *Friend of Storgata* (all five regulars, 200 kr) and *Mushroom apprentice* (all four powers, 250 kr).
+  - The three shops now share one ceiling light that moves to the shop you are near (before: one light per shop), so the new shop and the orb add no light to the scene in total.
+- **Why:** the tester's issue #65: "It should be possible to go to KIWI Storgata and talk with NPCs and complete quests given from the somewhat tired people hanging around there. There should be a crazy mushroom wizard that can teach you magic powers. Since the game already implements a KIWI this functionality can be re-used."
+  - Decided here:
+    - The people, their names and their stories are made up; kind and funny, nothing mocking, no drugs shown (the wizard listens to mushrooms and warns against eating unknown ones).
+    - The powers work on foot only, and not during the mission, paintball (lobby or game), the timed run, a conversation or with the photo camera out; the orb goes out in a vehicle. Levitation keeps the walk collision at the ground, so you cannot float over walls or onto roofs.
+    - R1 casts because it is free on foot (it opens the badges only in the pause menu); D-pad ← was free on foot. Keyboard: X and 1–4.
+    - The gust pushes one vehicle (the nearest): online the vehicle is claimed like a seat while it moves and its final place is sent when it stops, and one player can hold only one seat at a time.
+    - Kiwi Storgata gets no JOBB sign: delivery doors exist only in the old square round Torshov, so its orders would be very long.
+    - Shops do not close in the game (as before); the real opening hours are on the door.
+    - The bottles on the pavement are not saved (there is always more litter); tasks, finds and powers are.
+- **Where:** `game-storgata.js` (new: people, tasks, conversations, the scene, pigeons, bottles, finds), `game-magic.js` (new: powers, mana, cooldowns, levitation, blink, gust, particles and the orb), `game-shops.js` (shops in a district patch, the counter, one shared light, `takePant`), `surroundings.js` (building tint and patch materials for the rebuilt facade), `game-catacomb.js` (the orb's light underground), `game-main.js` (wiring, prompts, waypoints, rewards, the HUD, pushing vehicles), `game-audio.js` (sounds), `game-progress.js` (the new saved key), `game-badges.js` (two badges), `cloud/src/progress-check.js` (new: what a save may contain, now testable) and `cloud/src/progress.js` (uses it), `index.html`, `style.css`, `README.md`, `docs/HANDOFF.md`; tests `tests/storgata.test.cjs` (new, 11 tests), `tests/shops.test.cjs` and `tests/badges.test.cjs` (the new shop and badges).
+- **Checked:**
+  - `node --test tests/*.cjs`: 139 pass (11 new).
+  - In the browser (built file, offline, simulated DualShock 4 and keyboard): all five regulars talked to and their tasks finished (12 bottles picked up, coffee and hot dog bought at the counter and paid, the harmonica picked on the Opera roof, the note given to Rolf at Schous plass, a photo of Grønland kirke from 75 m accepted by the check); the wizard's four lessons with all eight mushrooms (Torshovdalen, Akerselva, the Rotunda, MUNCH); both badges awarded (+200 and +250 kr).
+  - Levitation rose to 3.2 m in about 1.8 s and sank back in about 2.5 s; under the entrance roof at home it stopped at 0.36 m. Blink went 8.0 m along the pavement and stopped 0.2 m from the wall when aimed at it. The gust sent all 12 pigeons flying and pushed a parked car 1.8 m. The orb lit up a dark catacomb tunnel (pitch black without it). Powers did nothing in a car, in the paintball lobby or during the timed run (with a message); the orb went out in the car.
+  - Tasks and powers were still there after a reload; `GameProgress.collect` includes them.
+  - Performance at Kiwi Storgata: +58 draw calls (shadow pass included) and +46,000 triangles while you are within 170 m; nothing elsewhere. No light was added in total.
+  - Not checked: a real DualShock 4, sounds by ear, the remote players' orb and a pushed vehicle online with two players (no lobby server here), saving to a real account on the live server.
+- **Status:** branch `feat/kiwi-storgata`, [PR #79](https://github.com/jonatsl/haarklous-online/pull/79) open (not merged, not deployed).
+
+### 2026-11-03 · Akerselva has water again (issue #63)
+- **What:**
+  - Akerselva's water shows along the whole river, from Bjølsen to Vaterland: from the banks and bridges, from a car, from the air and from far away.
+  - Three things hid it:
+    1. The water surface was built upside down. Its triangles faced down, so the graphics card skipped all of them when you looked from above. This alone hid all the water. Now they face up.
+    2. In about 8 % of the water area the drawn ground was above the water. The ground is drawn with 4 m and 8 m triangles, and the river bed was only lowered at the grid points inside the river and not near buildings, so the triangles between the bed and the bank came up through the water (most near the falls and where buildings stand at the river). Now the game lowers the grid corners just enough that the drawn ground is under the water at about 53,000 points on the water (every metre, nine points across, the banks twice). The walls of buildings by the river now reach down to the lowered ground, so no building floats.
+    3. From more than 450 m away (1.6–9 km in the air) only the far ground is drawn, and it had no water. Now the far ground is also lowered along the river and a simple water ribbon lies on it.
+  - The water looks like water: dark green-blue with soft sky reflections and smaller ripples (it looked like pale ice before).
+  - On a few sharp bends the water strip folded over itself (triangles facing down, two layers that can flicker). There it now stays inside the bend.
+- **Why:** issue #63, "There is no water in akerselva, fix that." (tester, 3 Nov 2026). The water was in the code (PR #51) but could not be seen.
+- **Decided here:**
+  - Lower the ground (never raise it) instead of drawing the water on top of the ground, so there are no two surfaces at the same height (no flicker).
+  - Lower only as much as needed and never deeper than the river bed (0.7 m under the water); ground under building walls may now be lowered, and those walls go down with it.
+  - Keep the water 1.5 m wider than the river on each side, as before (wider strips folded on sharp bends).
+- **Where:**
+  - `game-kayak.js`: `waterStrip` (the water surface, facing up, inside sharp bends), `waterSamples`, `cellWeights`, `sinkGrid` (lowers the drawn ground under the water), `prepare` (now also sinks the 4 m and 8 m grids and sets each riverside building's lowest ground `gm`), the far water ribbon and the far ground (`farWater`), the water material.
+  - `surroundings.js`: ground meshes record their grid (`userData.grid`), and district buildings honour `gm`.
+  - Tests: `tests/akerselva-water.test.cjs` (new).
+- **Checked:**
+  - `node --test tests/*.cjs`: 131 pass (3 new).
+  - With the real map data: 0 of about 144,000 points on the water have drawn ground above them (before: about 8.6 % of the points, and the whole surface faced down). Lowered grid points are all within 12 m of the water.
+  - In the browser (offline): pictures from the banks, a bridge, 45 m and 300 m up and from 2 km away along the whole river show the water; from both banks every 40 m along the river (238 sight lines from eye height, 6 m from the water) the middle of the river is never hidden by ground; in the game's real meshes 0 water points are under the near ground.
+  - Cost: +1 draw call and +2,400 triangles (the far ribbon); the near water strips were drawn before too (just upside down). The start takes about 50–80 ms longer (the lowering).
+  - Not checked: on the user's own PC; with aerial imagery on.
+- **Status:** branch `fix/akerselva-water`, [PR #78](https://github.com/jonatsl/haarklous-online/pull/78) (not merged yet).
+### 2026-11-03 · Forgot password and the email check (issue #55)
+- **What:**
+  - After you create an account, the game sends an email with a **"confirm your email"** link. The link opens the game, confirms the email and logs you in on that browser. The Account box in the pause menu says when the email is not confirmed yet, with a button *Send the email again*.
+  - **Forgot password?** is a new button under the log-in form in the pause menu. Type your email and press it: the email has a link that opens the game with a box *Choose a new password* (type it twice). After that you log in with the new password, and the account is logged out everywhere else.
+  - Both links work for one hour. The reset link works only once; a used or old link opens the game with a short message that says what to do.
+  - The answer to *Forgot password?* is the same whether or not the email has an account, so nobody can test addresses with it. Links can only lead back to the game's own address.
+  - The token is removed from the address bar at once, so it is not left in the browser's history.
+- **Why:** the user's issue #55: "The game should send two kinds of email: a 'confirm your email' link after sign-up, and a 'reset your password' link from a new 'Forgot password?' button on the log-in form in the pause menu. Each link opens the game, lets you finish the step, and works only once and for a short time." The issue says to choose an email service that works without an own domain.
+  - Decided here:
+    - **Brevo** sends the emails. It can send to anyone from one confirmed sender address (for example a Gmail address), without a domain of our own, 300 emails a day for free, and it has a plain HTTP API that works from a Cloudflare Worker. Resend and most others send only to your own address until you own a domain.
+    - Confirming the email is asked for, not required: you can play, log in and save before you confirm it (so a slow or lost email never locks a player out).
+    - "A short time" is one hour for both links.
+    - Until the Brevo key is set, the game hides *Forgot password?* and the confirm reminder, and accounts work as before.
+- **Where:** `cloud/src/mail.js` (new: the two emails and the Brevo call), `cloud/src/auth.js` (Better Auth's email check and password reset, only when mail is set up; emails go out after the answer), `cloud/src/index.js` (`/api/account-features`), `cloud/scripts/set-mail-secret.mjs` (new: the user's setup), `game-account.js` (`forgot`, `resetPassword`, `confirmAgain`, `link`), `game-main.js` (the buttons, the notes and the link box), `index.html`, `style.css`, `README.md`, `docs/HANDOFF.md`; tests `tests/account.test.cjs` (3 new) and `tests/mail.test.cjs` (new, 3). No database change (the email-confirmed column and the table for the links were already there).
+- **Checked:**
+  - `node --test tests/*.cjs`: 134 pass (6 new).
+  - The real Better Auth 1.7.15 with these settings, in memory with a fake Brevo: sign-up sends the confirm email; its link confirms the email, logs in and opens `/?verified=1`; a second click just opens the game; a bad link opens the game with `INVALID_TOKEN`; *Forgot password?* sends the reset email, an unknown address gets the same answer and no email, a link to another site is refused; the reset link opens `/?reset=1&token=…`; the new password is saved, all sessions are logged out, the old password stops working; the same link a second time and an expired link are refused; without the mail settings the reset says it is not enabled.
+  - In the browser (built file, account server stubbed): the link box for a new password (two different passwords are refused, then "Password changed ✓"), the box for an expired confirm link (✕ on the controller closes it, the start screen stays), the token gone from the address bar; in the pause menu the not-confirmed line, *Send the email again*, *Forgot password?* with the note and a bad email refused; *Forgot password?* hidden while creating an account.
+  - Not checked: a real email (needs the user's Brevo account and key), the live server.
+- **Still to do by the user:** make a free Brevo account, add and confirm a sender address, make an API key, then run `node scripts/set-mail-secret.mjs` in `cloud/` (Claude Code may not write Cloudflare secrets).
+- **Status:** branch `feat/account-email`, [PR #76](https://github.com/jonatsl/haarklous-online/pull/76).
+
+### 2026-11-03 · `main` is live (PR #75, helicopter and drone lift)
+- **What:** the helicopter and drone flight change (PR #75, issue #73) is merged into `main` (29057ae) and deployed (Cloudflare Worker version 281119ea).
+  - Deployed from this session's own clean worktree at the merge commit, with `cloud/` packages installed by `npm ci`.
+- **Why:** the user said "implement issue 73 then merge and deploy" (3 Nov 2026).
+- **Checked:**
+  - `node --test tests/*.cjs`: 132 pass on the merged `main`.
+  - `main` builds byte-for-byte to the committed `haarklous-game.html`, and the live page is byte-for-byte the build. `/weather` answers 200.
+  - In the live game: the helicopter at full collective climbs 7.9 m/s level, 3.9 m/s at 30° nose down and −0.2 m/s at 45°. No console errors.
+- **Status:** live.
+
+### 2026-11-03 · Helicopter and drone: tilting costs lift (issue #73)
+- **What:**
+  - **Helicopter:**
+    - Full collective now gives 1.4 × the helicopter's weight in rotor thrust, not 1.85 ×. Level, it climbs about 8 m/s (an H125 climbs 8.5–10 m/s); before it was over 16 m/s.
+    - The thrust tilts with the helicopter, as before, but now the spare lift is small enough that you feel it. Holding W (full collective), the climb drops as you pitch forward: about half at 30°, none at 45°, and steeper it sinks. The lift goes into speed instead. Banking costs the same as pitching.
+    - At centre collective, level, it still hovers; tilted, it sinks unless you add collective.
+    - A little more air drag at speed: the top speed flying level is now about 285 km/h, the H125's never-exceed speed. Before it could reach about 430 km/h.
+  - **FPV drone (angle mode):**
+    - Before, the drone added thrust for the tilt by itself, so it never lost height. Now it doesn't: tilted, only part of the thrust holds it up, so it sinks (about 1.4–1.6 m/s at full tilt) unless you push thrust up. With thrust up it climbs while it flies forward.
+    - Centred and level it still holds its height. Acro mode was already like this.
+  - Help texts (README, start and pause screens, the ANGLE message) say so.
+- **Why:** the user's issue #73: "When changing roll and pitch the helicopter should also lose altitude … when holding down w and pitching forward it should climb less altitude". The user asked to implement it and to merge and deploy (3 Nov 2026).
+  - Decided here: no extra lift from forward speed (a real helicopter gets some, "translational lift"), because the issue asks for pitching forward to climb less.
+- **Where:** `game-aircraft.js` (helicopter lift and drag, drone thrust), `game-main.js` (ANGLE message), `README.md`, `index.html`, `docs/HANDOFF.md`, new test `tests/flight.test.cjs`.
+- **Checked:**
+  - Node tests 132/132 (4 new). Run against the old physics the new tests fail (16.6 m/s climb; the drone did not sink at full tilt).
+  - In the game (simulated controller, frames stepped by hand): the helicopter climbed 7.8 m/s at full collective level; held about 55° nose down it sank 3.1 m/s at full collective and 7.6 m/s at centre, at about 260 km/h; let go, it levelled and stopped sinking. The drone hovered at 0.0 m/s, sank 1.4 m/s at full tilt (69 km/h) and climbed 3.9 m/s with thrust up while tilted. No script errors.
+  - Not checked: a real DualShock 4, mouse flying on the user's PC.
+- **Status:** merged into `main` ([PR #75](https://github.com/jonatsl/haarklous-online/pull/75), 29057ae) and live (Worker version 281119ea, 3 Nov 2026). Issue #73 is closed.
 
 ### 2026-11-03 · `main` is live (PR #70, saved progress, badges and the photo hunt)
 - **What:** saved progress for accounts, badges and the photo hunt (PR #70, issues #54 and #58) are merged into `main` (93d4f27) and deployed (Cloudflare Worker version a75a02dc).

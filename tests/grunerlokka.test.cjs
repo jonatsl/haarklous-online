@@ -152,7 +152,8 @@ test('Rathkes gate 1: the passage splits the building into two parts and leaves 
   const inside = (p, r) => {let o = false;for (let i = 0, j = r.length - 1; i < r.length; j = i++) {const a = r[i], b = r[j];if ((a[1] > p[1]) !== (b[1] > p[1]) && p[0] < (b[0] - a[0]) * (p[1] - a[1]) / (b[1] - a[1]) + a[0]) o = !o;}return o;};
   assert.ok(inside(mid, ring) && !parts.some(r => inside(mid, r)), 'the middle of the passage is open');
   const d = {buildings: [{id: Rathkes.DATA.osm, ring, h: 18.2, style: 'brick', hip: null, tile: 3}, {id: 'w1', ring: [[0, 0], [1, 0], [1, 1]], h: 5}]};
-  assert.strictEqual(Rathkes.prepare([d]), 1);assert.deepStrictEqual(d.buildings.map(b => b.id), ['w113875904-0', 'w113875904-1', 'w1']);
+  // The passage leaves two parts; the part with the side wing loses the piece that flat 501's model draws itself (issue #72).
+  assert.strictEqual(Rathkes.prepare([d]), 1);assert.deepStrictEqual(d.buildings.map(b => b.id), ['w113875904-0', 'w113875904-1', 'w113875904-2', 'w113875904-3', 'w1']);
 });
 
 test('the library replaces its OSM building and keeps trees out of the hall and the table-tennis pad', () => {

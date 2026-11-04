@@ -1,9 +1,11 @@
 /* Grocery shops at their real places (OpenStreetMap nodes, Overpass 29 Oct 2026): Joker Torshov (node 1506608498, about 110 m
- * from the flat) and Kiwi Torshov (node 2476542841, about 270 m). Each shop is cut into the ground floor of the building it is in:
+ * from the flat) and Kiwi Torshov (node 2476542841, about 270 m); and Kiwi Storgata 33 (node 3111431401, issue #65) in the
+ * Gamle Oslo patch, about 2.8 km south-west, with a hot-food counter (coffee, hot dogs). Each shop is cut into the ground floor of the building it is in:
  * the building outline gets a notch, the shop fills it (glass front with sliding doors and the brand sign, shelves, fridges,
  * a till with a cashier, a bottle-return machine) and the facade above the shop is rebuilt so the building looks whole.
  * Money is in Norwegian kroner. The wallet (money, empty bottles, the bag of bought items) is saved in the browser.
  * GameShops.applyNotches(data)  – call before Surroundings.create (changes the two building outlines).
+ * GameShops.applyDistrictNotches(districts) – the same for shops in a district patch (decoded, before Surroundings.create).
  * GameShops.create({T, lib, world, audio}) -> {group, shops, floors, obstacles, hitboxes, wallet, priceOf, beerAllowed,
  *   shopAt(p, feet), atTill(shop, p), update(dt, player, camera)}
  */
@@ -14,7 +16,11 @@
   // building / edge = the building outline in surroundings-data.js and the wall the shop front is on; t0..t1 = part of that wall.
   const SHOPS = [
     {id: 'joker', name: 'Joker Torshov', brand: 'JOKER', osm: 1506608498, building: 888, edge: 6, t0: .08, t1: .92, depth: 10, sign: {bg: '#ffd200', fg: '#d0021b'}, shirt: 0xd0021b, hours: 'Åpent man–fre 07–24 · lør 08–24 · søn 09–24', priceFactor: 1},
-    {id: 'kiwi', name: 'Kiwi Torshov', brand: 'KIWI', osm: 2476542841, building: 156, edge: 20, t0: .04, t1: .40, depth: 10, sign: {bg: '#2e9a3f', fg: '#ffffff'}, shirt: 0x2e9a3f, hours: 'Åpent man–lør 07–23', priceFactor: .95}
+    {id: 'kiwi', name: 'Kiwi Torshov', brand: 'KIWI', osm: 2476542841, building: 156, edge: 20, t0: .04, t1: .40, depth: 10, sign: {bg: '#2e9a3f', fg: '#ffffff'}, shirt: 0x2e9a3f, hours: 'Åpent man–lør 07–23', priceFactor: .95},
+    // Kiwi Storgata 33 (issue #65): OSM node 3111431401 (opening_hours "Mo-Sa 07:00-23:00") inside office building way 112233122
+    // (9 storeys, 'modern' in the patch); edge 6 is its 52 m front on Storgata. Deliveries stay in the old square (no JOBB sign).
+    {id: 'kiwi-storgata', name: 'Kiwi Storgata 33', brand: 'KIWI', osm: 3111431401, district: 'gamle-oslo', building: 'w112233122', edge: 6, t0: .32, t1: .60, depth: 10,
+      sign: {bg: '#2e9a3f', fg: '#ffffff'}, shirt: 0x2e9a3f, hours: 'Åpent man–lør 07–23', priceFactor: .95, counter: true, jobs: false}
   ];
   // Prices in kroner (Joker; Kiwi is about 5 % cheaper). where: fridge (back wall), shelf (gondolas), floor (by the door).
   const PRODUCTS = [
@@ -29,7 +35,10 @@
     {id: 'brod', name: 'Kneippbrød', price: 39.9, color: 0x9b6a3a, where: 'shelf', use: 'food', sober: 20},
     {id: 'kaffe', name: 'Friele Frokostkaffe', price: 74.9, color: 0xb3262e, where: 'shelf', use: 'food', sober: 30},
     {id: 'polser', name: 'Grillpølser', price: 49.9, color: 0xc7463a, where: 'shelf', use: 'food', sober: 25},
-    {id: 'ved', name: 'Sekk med ved', price: 89.9, color: 0x7a5a3a, where: 'floor', use: 'wood'}
+    {id: 'ved', name: 'Sekk med ved', price: 89.9, color: 0x7a5a3a, where: 'floor', use: 'wood'},
+    // The hot-food counter (only in shops with counter: true, i.e. Kiwi Storgata).
+    {id: 'kaffekopp', name: 'Kaffe to go 0,4 l', price: 32.9, color: 0x6b4226, where: 'counter', use: 'food', sober: 10, hot: true},
+    {id: 'polse', name: 'Pølse i lompe', price: 29.9, color: 0xc7463a, where: 'counter', use: 'food', sober: 15, hot: true}
   ];
   const PANT = 2;// kroner per empty bottle or can (the Norwegian deposit for 0.5 l and smaller; every drink sold here is 0.5 l or less)
   const kr = v => `${v.toFixed(2).replace('.', ',')} kr`;
@@ -55,11 +64,23 @@
   }
   function applyNotches(data) {
     for (const s of SHOPS) {
+      if (s.district) continue;
       const b = data.buildings[s.building];if (!b || s.local) continue;
       const ring = [];for (let i = 0; i < b.r.o.length; i += 2) ring.push([b.r.o[i], b.r.o[i + 1]]);
-      const nt = notchFor(ring, s.edge, s.t0, s.t1, s.depth);b.r.o = nt.ring.flat();s.local = nt;
+      const nt = notchFor(ring, s.edge, s.t0, s.t1, s.depth);b.r.o = nt.ring.flat();s.local = nt;s.bldg = b;
     }
     return SHOPS;
+  }
+  // A shop in a district patch (issue #65): the decoded building (found by its OSM id) gets the notch in its ring; Surroundings.create
+  // later adds base / top / tint to the same object, which create() reads.
+  function applyDistrictNotches(districts) {
+    let n = 0;
+    for (const s of SHOPS) {
+      if (!s.district || s.local) continue;
+      const d = (districts || []).find(x => x && x.name === s.district), b = d && d.buildings.find(x => x.id === s.building);if (!b) continue;
+      const nt = notchFor(b.ring, s.edge, s.t0, s.t1, s.depth);b.ring = nt.ring;b.hip = null;s.local = nt;s.bldg = b;n++;
+    }
+    return n;
   }
 
   // ---------- Wallet: money (kr), empty bottles, bag of items; saved in the browser ----------
@@ -74,7 +95,7 @@
       get money() {return st.money;}, get pant() {return st.pant;}, get bag() {return st.bag;},
       earn(v) {if (!(v > 0)) return;st.money = round(st.money + v);save();},
       pay(v) {if (!(v >= 0) || st.money + 1e-9 < v) return false;st.money = round(st.money - v);save();return true;},
-      addPant(n = 1) {st.pant += n;save();}, cashPant() {const n = st.pant;st.pant = 0;st.money = round(st.money + n * PANT);save();return n;},
+      addPant(n = 1) {st.pant += n;save();}, takePant(n) {if (!(n > 0) || st.pant < n) return false;st.pant -= n;save();return true;}, cashPant() {const n = st.pant;st.pant = 0;st.money = round(st.money + n * PANT);save();return n;},
       add(id, n = 1) {st.bag[id] = (st.bag[id] || 0) + n;save();}, take(id) {if (!st.bag[id]) return false;if (--st.bag[id] <= 0) delete st.bag[id];save();return true;},
       reset(money = 500) {st = {money, pant: 0, bag: {}};save();}
     };
@@ -96,7 +117,7 @@
     const productTex = new Map();
     for (const s of SHOPS) {
       if (!s.local) continue;
-      const L = s.local, D = L.depth, W = L.W, top = world.data.buildings[s.building].top;
+      const L = s.local, D = L.depth, W = L.W, B = s.bldg || world.data.buildings[s.building], top = B.top;
       // Store frame: x = along the front, z = into the shop, y up from the shop floor.
       const w0 = world.toWorld(...L.P0), w1 = world.toWorld(...L.P1), wn = world.toWorld(L.P0[0] + L.n[0], L.P0[1] + L.n[1]);
       let ux = (w1.x - w0.x) / W, uz = (w1.z - w0.z) / W, origin = w0;const nx0 = wn.x - w0.x, nz0 = wn.z - w0.z;
@@ -110,14 +131,17 @@
       box(g, W, .04, D, W / 2, -.02, D / 2, tileM);box(g, W, .04, D, W / 2, H + .02, D / 2, ceilM);
       box(g, .02, H, D - .08, .04, H / 2, D / 2, wallM);box(g, .02, H, D - .08, W - .04, H / 2, D / 2, wallM);box(g, W - .08, H, .02, W / 2, H / 2, D - .04, wallM);
       for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) box(g, 1.2, .04, .3, W * (i + 1) / 4, H - .01, D * (j + 1) / 3, lightM);
-      const light = new T.PointLight(0xfff4e6, 0, 18, 1.5);light.position.set(W / 2, H - .4, D / 2);g.add(light);
+      const lightAt = (() => {const c = toW(W / 2, D / 2);return {x: c.x, y: floorY + H - .4, z: c.z};})();
       // Facade above the shop (same brick as the building) and, on a flat roof, the roof over the notch.
       const fillH = top - floorY - storeTop;
       if (fillH > .2) {
-        const geo = new T.PlaneGeometry(W, fillH), uv = geo.attributes.uv, vBase = (world.data.buildings[s.building].base + world.data.plinth) - floorY;
-        for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * W, storeTop - vBase + uv.getY(i) * fillH);
-        const f = new T.Mesh(geo, facadeMat);f.rotation.y = Math.PI;f.position.set(W / 2, storeTop + fillH / 2, 0);f.castShadow = f.receiveShadow = true;g.add(f);
-        if (!world.data.buildings[s.building].k) box(g, W, .06, D, W / 2, top - floorY + .03, D / 2, roofMat);
+        // In a district building (Kiwi Storgata) Surroundings draws this wall in the building's own facade look (issue #68).
+        if (!(s.district && world.facadeFill && world.facadeFill(B, L.P0, L.P1, floorY + storeTop))) {
+          const geo = new T.PlaneGeometry(W, fillH), uv = geo.attributes.uv, vBase = (B.base + world.data.plinth) - floorY;
+          for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * W, storeTop - vBase + uv.getY(i) * fillH);
+          const f = new T.Mesh(geo, facadeMat);f.rotation.y = Math.PI;f.position.set(W / 2, storeTop + fillH / 2, 0);f.castShadow = f.receiveShadow = true;g.add(f);
+        }
+        if (!(s.district ? B.hip : B.k)) box(g, W, .06, D, W / 2, top - floorY + .03, D / 2, roofMat);
       }
       // Shop front: aluminium frame, glass, sliding doors, the brand sign and the opening hours on the glass.
       box(g, W, .12, .14, W / 2, .06, 0, aluM);box(g, W, .1, .14, W / 2, 2.9, 0, aluM);
@@ -170,6 +194,20 @@
       const ved = PRODUCTS.find(p => p.where === 'floor');
       for (let k = 0; k < 5; k++) {const sk = box(g, .42, .34, .3, .35 + (k % 2) * .05, .17 + Math.floor(k / 2) * .32, 2.2 + (k % 3) * .32, sackM);sk.rotation.y = k * .3;}
       spots.push({p: ved, x: .5, y: .5, z: 2.5, w: .8, h: 1.0, d: 1.2, tag: [.82, .9, 2.5], side: 1});obstacles.push(rect(.05, .8, 1.95, 3.05, -.2, 1.1));
+      // Hot-food counter (Kiwi Storgata, issue #65): a coffee machine and a hot-dog roller grill on a counter against the front
+      // window, between the till and the door (the cross aisle behind it stays 2.6 m wide); you take the coffee and the hot dogs here.
+      if (s.counter) {
+        const a0 = 4.9, a1 = 6.5, b0 = .12, b1 = .74, ac = (a0 + a1) / 2, bc = (b0 + b1) / 2, cw = lib.wood(0x5a4030, .55);
+        box(g, a1 - a0, .92, b1 - b0, ac, .46, bc, cw);box(g, a1 - a0 + .04, .04, b1 - b0 + .04, ac, .94, bc, darkM);
+        box(g, .36, .52, .34, 5.3, 1.22, .36, lib.metal(0x2a2c2f, .4));
+        box(g, .2, .14, .02, 5.3, 1.3, .54, new T.MeshStandardMaterial({color: 0x111214, emissive: 0x3a7bd5, emissiveIntensity: .8}));
+        box(g, .4, .1, .3, 6.05, 1.01, .42, lib.metal(0xc7c9cc, .3));
+        const rollM = new T.MeshStandardMaterial({color: 0xb5472f, roughness: .5}), cupM = new T.MeshStandardMaterial({color: 0xf4efe6, roughness: .7});
+        for (let k = 0; k < 5; k++) {const r = new T.Mesh(new T.CylinderGeometry(.022, .022, .34, 8), rollM);r.rotation.z = Math.PI / 2;r.position.set(6.05, 1.085, .32 + k * .05);g.add(r);}
+        for (let k = 0; k < 3; k++) {const cup = new T.Mesh(new T.CylinderGeometry(.04, .032, .11, 10), cupM);cup.position.set(5.62, 1.015, .3 + k * .09);g.add(cup);}
+        obstacles.push(rect(a0, a1, .08, b1 + .02, -.2, 1.0));
+        PRODUCTS.filter(p => p.where === 'counter').forEach((p, k) => spots.push({p, x: k ? 6.05 : 5.4, y: 1.15, z: .45, w: .55, h: .5, d: .5, tag: [k ? 6.05 : 5.4, .8, b1 + .025], face: 'in'}));
+      }
       // Till: counter with belt, register and card terminal; the cashier stands between the counter and the window.
       box(g, 2.4, .9, .65, 2.4, .45, 1.32, lib.wood(0x6b4b33, .6));box(g, 1.6, .04, .45, 2.0, .92, 1.32, darkM);box(g, .4, .28, .34, 3.2, 1.06, 1.2, darkM);box(g, .14, .1, .2, 2.95, .98, 1.6, darkM);
       const screen = box(g, .3, .2, .02, 3.2, 1.3, 1.05, new T.MeshStandardMaterial({color: 0x0b1a10, emissive: 0x1c5a2a, emissiveIntensity: .9}));screen.rotation.x = -.2;
@@ -190,28 +228,31 @@
         const price = priceOf(s, sp.p);
         const tex = textTexture(256, 96, (c, w, h) => {c.fillStyle = '#ffe14d';c.fillRect(0, 0, w, h);c.fillStyle = '#111';c.textAlign = 'center';c.font = 'bold 30px Arial, sans-serif';c.fillText(sp.p.name.length > 16 ? sp.p.name.slice(0, 15) + '…' : sp.p.name, w / 2, 36);c.font = 'bold 38px Arial, sans-serif';c.fillText(kr(price), w / 2, 82);});
         const tag = new T.Mesh(new T.PlaneGeometry(.24, .09), new T.MeshBasicMaterial({map: tex}));tag.position.set(...sp.tag);
-        if (sp.side === -1) tag.rotation.y = -Math.PI / 2;else if (sp.side === 1) tag.rotation.y = Math.PI / 2;else tag.rotation.y = Math.PI;
+        if (sp.side === -1) tag.rotation.y = -Math.PI / 2;else if (sp.side === 1) tag.rotation.y = Math.PI / 2;else if (sp.face === 'in') tag.rotation.y = 0;else tag.rotation.y = Math.PI;
         tag.userData.noMerge = true;g.add(tag);
         const hit = new T.Mesh(new T.BoxGeometry(sp.side ? sp.w : sp.w, sp.h, sp.side ? sp.d : sp.d), hitM);hit.position.set(sp.x, sp.y, sp.z);hit.userData = {shopItem: {shop: s, product: sp.p}, noMerge: true};g.add(hit);hitboxes.push(hit);
       }
       // The cashier.
       let cashier = null;
       if (avatars) {cashier = avatars.avatar(0, 'Kasserer', s.shirt);cashier.group.position.set(2.4, 0, .5);cashier.group.rotation.y = Math.PI;g.add(cashier.group);cashier.pose({stance: 'stand'});}
-      [...doors.map(d => d.g), light].forEach(o => {o.userData.noMerge = true;});if (cashier) cashier.group.userData.noMerge = true;
+      doors.forEach(d => {d.g.userData.noMerge = true;});if (cashier) cashier.group.userData.noMerge = true;
       lib.mergeStatic(g, o => o.isInstancedMesh || !!o.userData.shopItem || !!o.userData.shopTill || !!o.userData.shopPant);
-      built.push({...s, shop: s, g, floorY, W, D, uDoor, toW, doors, light, cashier, open: 0, ux, uz, origin, vx, vz, greeted: false});
+      built.push({...s, shop: s, g, floorY, W, D, uDoor, toW, doors, lightAt, cashier, open: 0, ux, uz, origin, vx, vz, greeted: false});
       s.floorY = floorY;s.W = W;s.D = D;s.toLocal = (x, z) => {const dx = x - origin.x, dz = z - origin.z;return {a: dx * ux + dz * uz, b: dx * vx + dz * vz};};
       s.say = text => {if (cashier) cashier.say(text);};
     }
+    // One ceiling light for all shops (they are at least 160 m apart): it moves to the shop you are near and is off elsewhere.
+    // It always exists, so no shader is rebuilt when it switches on (each shop had its own light before issue #65).
+    const light = new T.PointLight(0xfff4e6, 0, 18, 1.5);light.userData.noMerge = true;group.add(light);
     // Which shop is the player standing in (on its floor)?
     function shopAt(p, feet) {for (const s of SHOPS) {if (!s.toLocal) continue;const l = s.toLocal(p.x, p.z);if (l.a > 0 && l.a < s.W && l.b > 0 && l.b < s.D && Math.abs(feet - s.floorY) < 1.4) return s;}return null;}
     const atTill = (s, p) => {const l = s.toLocal(p.x, p.z);return Math.hypot(l.a - 2.4, l.b - 2.25) < 1.3;};
     let tt = 0;
     function update(dt, player, camera) {
-      tt += dt;
+      tt += dt;let lit = null;
       for (const b of built) {
         const l = b.shop.toLocal(player.x, player.z), near = Math.hypot(l.a - b.W / 2, l.b - b.D / 2) < 30 && Math.abs(player.feet - b.floorY) < 6;
-        b.light.intensity = near ? 26 : 0;
+        if (near) lit = b;
         // Sliding doors open when someone is within 2.5 m of them.
         const want = Math.hypot(l.a - b.uDoor, l.b) < 2.5 && Math.abs(player.feet - b.floorY) < 1.6 ? 1 : 0;
         if (want && !b.open) audio && audio.sfx('shopDoor');
@@ -222,8 +263,9 @@
           b.cashier.group.rotation.y += (yaw - b.cashier.group.rotation.y) * Math.min(1, dt * 3);b.cashier.pose({stance: 'stand', speed: 0, dt});b.cashier.update(dt, camera);
         }
       }
+      light.intensity = lit ? 26 : 0;if (lit) light.position.set(lit.lightAt.x, lit.lightAt.y, lit.lightAt.z);
     }
-    return {group, shops: SHOPS.filter(s => s.local), floors, obstacles, hitboxes, wallet: makeWallet(), priceOf, beerAllowed, shopAt, atTill, update, kr, PANT, products: PRODUCTS};
+    return {group, shops: SHOPS.filter(s => s.local), floors, obstacles, hitboxes, wallet: makeWallet(), priceOf, beerAllowed, shopAt, atTill, update, kr, PANT, products: PRODUCTS, light};
   }
-  return {SHOPS, PRODUCTS, PANT, applyNotches, notchFor, create, beerAllowed, priceOf, makeWallet};
+  return {SHOPS, PRODUCTS, PANT, applyNotches, applyDistrictNotches, notchFor, create, beerAllowed, priceOf, makeWallet};
 });
