@@ -49,7 +49,7 @@ On `main`:
 - Licences for every vehicle, each won by a test with a theory part and a practical part (rings, the speed limit, no crash, park or land): førerkort B and A at Soria Moria Trafikkskole on Vogts gate (a school car and motorcycle, a test route on the real streets), class C, the machine certificate and the crane certificate at the site office, PPL(A) and PPL(H) at the airstrip, the drone certificate A1/A3 on the phone (free); bikes, e-scooters, the kayak and riding along need none; saved with your progress (issue #59).
 - Ground with real detail up close (grass, asphalt, paving slabs, gravel, pavements and kerbs) with or without the aerial photo, and buildings that look like their part of town – Torshov brick and Harald Hals' plastered blocks, Grünerløkka's tenements with shop fronts, buff brick, wooden houses, new blocks – chosen from OpenStreetMap and Street View notes (issues #67 and #68, PR #81, not merged yet).
 
-Live site: runs `main` (Worker version 645c84cc, deployed 4 Nov 2026 after PR #81; `main` builds byte-for-byte to the live page), so everything above is online. Account emails (issue #55) wait for the user's Brevo key.
+Live site: runs `main` (Worker version a893f1fd, deployed 4 Nov 2026 after PR #86; `main` builds byte-for-byte to the live page), so everything above is online. Account emails (issue #55) wait for the user's Brevo key.
 
 ## Log
 
@@ -81,7 +81,7 @@ Live site: runs `main` (Worker version 645c84cc, deployed 4 Nov 2026 after PR #8
   - In the browser (headless Chrome, the built file, offline): the building, hall, offices, garage, terrace, auditorium and ramp portal look right. In the real world: walked in through all entrances and up the ramp; the lift prompt shows in a cabin; a garage car can be driven and stays on its level; a car passes both ramps with nothing in the way.
   - Draw calls and triangles: at home unchanged (1,424 / 1.49 M). At Construction City 50–100 more draw calls and 0.2–0.35 M more triangles than before, still below the home view (outside 981 / 0.81 M, in the hall 1,055 / 1.38 M, in an office 1,107 / 1.43 M, in the garage 1,018 / 1.34 M).
   - Not checked: the frame rate on the user's PC (other sessions share the GPU here) and a real controller.
-- **Status:** branch `feat/construction-city`, [PR #86](https://github.com/jonatsl/haarklous-online/pull/86), merged at the user's request (the goal for issue #85: implement, merge and deploy).
+- **Status:** on `main` ([PR #86](https://github.com/jonatsl/haarklous-online/pull/86), merged 4 Nov 2026 at the user's request: implement, merge and deploy issue #85) and live (Cloudflare Worker version a893f1fd, deployed from a clean checkout of the merge commit 2b82bbb; the live page is byte-for-byte that build, and the live game starts with Construction City in it).
 
 ### 2026-11-03 · A short README
 - **What:** `README.md` is now 42 lines of short bullet points (it was 146 lines): what the project is, how to play, the basic controls, developer commands and the sources.
