@@ -127,6 +127,7 @@
         case 'gulp': for (let i = 0; i < 3; i++) tone(160, 90, .25, .02, .12, 'sine', t + .25 + i * .32);break;
         case 'shutter': burst(4000, 2, .3, .001, .03);burst(1500, 2, .2, .001, .05, 'bandpass', t + .07);break;
         case 'beep': tone(2000, 2000, .05, .005, .08, 'square');break;
+        case 'ding': tone(1568, 1568, .12, .004, .7, 'sine');tone(1245, 1245, .1, .004, .9, 'sine', t + .28);break;// a lift arriving (Construction City)
         case 'throw': burst(900, .7, .12, .05, .25);break;
         case 'chains': for (let i = 0; i < 9; i++) tone(rand(1200, 4800), rand(1100, 4600), .05, .002, rand(.2, .7), 'triangle', t + i * .025);burst(3000, 1, .2, .002, .2);break;
         case 'thud': burst(260, 1, .25, .003, .12, 'lowpass');break;
