@@ -34,7 +34,7 @@ On `main`:
 - Kayaking down Akerselva from three put-ins (Bjølsen, Sagene, Grünerløkka) to Vaterland: the real river, its falls and bridges (issue #45). Its water shows along the whole river, close up and from far away (issue #63).
 - Nothing invisible stops you: you walk over the Akerselva bridges and along the banks under them, from Myrens on to Grünerløkka along the river, across the lawn over the catacomb, up to the trees in Torshov's corners and to the water's edge in Bjørvika; a low wooden fence marks the edge of the walkable world (issue #64).
 - Schous plass: playable table tennis against Ola; Deichman Grünerløkka with thousands of books, *The Inner Game of Tennis* and a readable *Moby-Dick*, and a librarian who shushes runners and loud voices (issues #44, #47).
-- Rathkes gate 1: the gate, the passage and the backyard with door 1C, ready for the second flat (issue #44, preparation).
+- Rathkes gate 1C, flat 501 – a second place to go besides the home at 17A: through the gate, the passage and the backyard, door 1C, up a winding stair to the 5th floor and into the user's real flat from their video – the hall, four bedrooms, the kitchen and living room and a small bathroom; every door opens (shared online), every room has its light; on the map (issues #44 and #72).
 - Klatreverket Torshov at its real place (Myrens verksted 3K) in its real building: 14 m hall, 7 m overhanging competition wall, Galleriet, autobelay tower, bouldering on three floors, the training room with the Moonwall; reception with the real prices and rental; climb with L2 / R2 (bouldering, top rope with Siri belaying, lead with clips, autobelay), pump, falls on the rope, the brattkort test and belaying Siri.
 - The ground round Myrens verksted and Akerselva (district patch 'myrens').
 - Jobs that earn money, from a phone (D-pad → / P) or the JOBB signs by Joker and Kiwi: food delivery from real cafés, restaurants and the shops to real street doors, and taxi with passengers who tip for smooth, fast driving; a friend riding along gets half (issue #56).
@@ -49,6 +49,37 @@ On `main`:
 Live site: runs `main` (Worker version 281119ea, deployed 3 Nov 2026 after PR #75; `main` builds byte-for-byte to the live page), so everything above is online.
 
 ## Log
+
+### 2026-11-04 · Rathkes gate 1C, flat 501 from the user's video (issue #72)
+- **What:**
+  - Behind door 1C in the backyard of Rathkes gate 1 there is now a stair hall and a winding stair up to the 5th floor, and there the real flat 501 from the user's video.
+  - The stair: mailboxes and five steps on the ground floor, then on every floor a flight, a turn round a narrow well and a flight back; brown carpet, black iron scrolls, one curved wooden handrail, landing tiles, a stair window to the yard and a lamp on every landing. Two locked neighbours' doors on floors 1–4 with numbers and names.
+  - The top landing: grey-green panelled walls, the brass doorbell, the shoe rack and door 501.
+  - The flat: the hall (coats, fuse box, drying rack, fire extinguisher, oak wardrobe, rugs, boxed beam), a bedroom with a double bed and a paper globe lamp, a bedroom with a white metal daybed and a desk, a narrow bedroom with a single bed and a mirror wardrobe, a bedroom with navy curtains, the kitchen and living room (black kitchen with a birch worktop, crates on the wall cabinets, pots on a rail, the sideboard and record sleeves, the black dining table, the grey sofa, the teak shelving, the TV, a guitar) and the small bathroom behind the closed door at the end of the hall.
+  - Every door opens with □ and is shared online like other doors. Every room and landing has its light. Walls, furniture and the stair have collision.
+  - The building's part around the flat is drawn new: both façades with real windows on all floors, the roof. The map shows the flat (⌂ "Rathkes gate 1C · flat 501"). 17A stays the home.
+- **Why:** the user's issue #72: "Use video in my dropbox … to see the apartment and implement it. behind the closed door next to the living room/kitchen is a small bathroom. Implement like haarklous plass 17a is implemented, but make it similar to the video. the video is the real rathkes gate 1C unit 501 apartment."
+  - Decided here:
+    - The video was watched on Dropbox's own page, frame by frame (not downloaded). Sizes come from the doors (2.05 m), the worktop (0.9 m), beds and the camera's walk; ceiling 2.95 m. The full room-by-room record and what is estimated: `docs/RATHKES-1C.md`.
+    - The flat lies across the side wing along Herslebs gate: the hall runs along the wing, the stair is on the yard side (door 1C at the OSM address), the daybed and single-bed rooms and the kitchen and living room look onto Herslebs gate, the other two bedrooms onto the backyard. The video agrees: the living room looks at lit windows across a street.
+    - The bathroom (never opened in the video): 2.9 × 2.1 m with white wall tiles, a basin, a wall-hung toilet, a shower corner, a washing machine and a towel radiator.
+    - The front door opens in and swings back against the hall wall; at 90° it stood across the 1.35 m hall.
+    - The stair is the same on every floor (the video shows only the top two flights); the neighbours' doors and names are made up.
+    - The model replaces the building's part around the flat; the other parts now all keep the building's own roof height.
+    - The flat's rooms are hidden from 70 m away (the windows then show dark rooms), and only the façades and roof cast sun shadows, to keep the frame cheap.
+    - The video is at night; the game shows the flat by day, with the lamps glowing.
+- **Where:**
+  - `rathkes-501-data.js` (new): the plan, walls, doors, windows, furniture and the stair, in metres.
+  - `game-rathkes-501.js` (new): builds the façades, the stair and the flat, collision, lamps, where you are.
+  - `game-rathkes.js`: cuts the building, builds the flat, door 1B on the corner, the map's part.
+  - `game-main.js`: the room lamp, indoor sound and shadows, the place name, the map, hiding the rooms from far away.
+  - `index.html`, `README.md`, `docs/RATHKES-1C.md`, `docs/HANDOFF.md`; tests `tests/rathkes501.test.cjs` (new), `tests/grunerlokka.test.cjs`.
+- **Performance:** 36 meshes, 25,800 triangles. Measured in the browser with the flat shown and hidden: +25 to +44 draw calls and about +31,000 triangles per frame (sun shadows included) near the building and inside; from further than 70 m only the façades and roof (a few draw calls).
+- **Checked:**
+  - Node tests 137/137 (9 new): among them a walk with the game's collision code from the backyard up all five floors into the hall, and a flood fill that reaches every room.
+  - In the browser (DevTools Chrome, the built single file, offline): from Rathkes gate through the gate, the passage and the backyard, door 1C, up to the 5th floor (feet at each landing's height), door 501, then into every room with its door; no new script errors. Screenshots of 11 places side by side with the matching video frames (stair from the top, the landing with door 501, the hall both ways, the four bedrooms, the kitchen from the doorway, the kitchen run, the living end).
+  - Not checked: two players opening the doors online, a real DualShock 4.
+- **Status:** branch `feat/rathkes-1c-501`, [PR #83](https://github.com/jonatsl/haarklous-online/pull/83) open; not merged, not live.
 
 ### 2026-11-04 · Licences for every vehicle, each won by a test (issue #59)
 - **What:**
