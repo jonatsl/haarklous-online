@@ -74,7 +74,7 @@ Live site: runs `main` (Worker version a75a02dc, deployed 3 Nov 2026 after PR #7
   - Node tests 137/137 (9 new): among them a walk with the game's collision code from the backyard up all five floors into the hall, and a flood fill that reaches every room.
   - In the browser (DevTools Chrome, the built single file, offline): from Rathkes gate through the gate, the passage and the backyard, door 1C, up to the 5th floor (feet at each landing's height), door 501, then into every room with its door; no new script errors. Screenshots of 11 places side by side with the matching video frames (stair from the top, the landing with door 501, the hall both ways, the four bedrooms, the kitchen from the doorway, the kitchen run, the living end).
   - Not checked: two players opening the doors online, a real DualShock 4.
-- **Status:** branch `feat/rathkes-1c-501`, pull request open; not merged, not live.
+- **Status:** branch `feat/rathkes-1c-501`, [PR #83](https://github.com/jonatsl/haarklous-online/pull/83) open; not merged, not live.
 
 ### 2026-11-03 · `main` is live (PR #70, saved progress, badges and the photo hunt)
 - **What:** saved progress for accounts, badges and the photo hunt (PR #70, issues #54 and #58) are merged into `main` (93d4f27) and deployed (Cloudflare Worker version a75a02dc).
