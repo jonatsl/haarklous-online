@@ -76,7 +76,7 @@ Live site: runs `main` (Worker version 281119ea, deployed 3 Nov 2026 after PR #7
   - In the game loop (simulated controller): over the Marcus Thranes gate bridge on its deck, and along the bank under a footbridge 6.5 m up. Along Akerselva's right bank from Myrens into Grünerløkka across the old strip.
   - Cost at six test views (home, Muselunden, the north edge, Bjølsen, the seam, Torshovdalen): +2 to +11 draw calls and +19,000 to +49,000 triangles per frame (+1–4 %): the fence (68 pieces, only those within 450 m are drawn), the corner trees and the bridge decks.
   - Not checked: on the user's own PC and controller; online with others.
-- **Status:** branch `fix/invisible-walls`, pull request (not merged yet).
+- **Status:** branch `fix/invisible-walls`, [PR #80](https://github.com/jonatsl/haarklous-online/pull/80) (not merged yet).
 
 ### 2026-11-03 · Forgot password and the email check (issue #55)
 - **What:**
