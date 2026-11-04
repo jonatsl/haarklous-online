@@ -45,12 +45,12 @@ test('the wallet pays, refuses what you cannot afford, counts bottles and keeps 
 });
 
 test('each shop is cut into its real building as a notch the size of a small supermarket', () => {
-  const D = JSON.parse(JSON.stringify(globalThis.SURROUNDINGS));
-  const before = S.SHOPS.map(s => D.buildings[s.building].r.o.length);
+  const D = JSON.parse(JSON.stringify(globalThis.SURROUNDINGS)), OLD = S.SHOPS.filter(s => !s.district);// Kiwi Storgata is in a district patch (below)
+  const before = OLD.map(s => D.buildings[s.building].r.o.length);
   S.applyNotches(D);
   const ringOf = o => {const r = [];for (let i = 0; i < o.length; i += 2) r.push([o[i], o[i + 1]]);return r;};
   const crosses = (a, b, c, d) => {const o = (p, q, r) => Math.sign((q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]));return o(a, b, c) * o(a, b, d) < 0 && o(c, d, a) * o(c, d, b) < 0;};
-  S.SHOPS.forEach((s, i) => {
+  OLD.forEach((s, i) => {
     const nt = s.local, ring = ringOf(D.buildings[s.building].r.o);
     assert.equal(ring.length, before[i] / 2 + 4, `${s.id}: four corners added`);
     assert.ok(nt.W >= 8 && nt.W <= 14, `${s.id}: shop front ${nt.W.toFixed(1)} m`);

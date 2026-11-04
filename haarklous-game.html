@@ -259,6 +259,23 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
 #badgeToast span{display:grid;gap:1px}#badgeToast small{font:600 10px/1 ui-monospace,Consolas,monospace;letter-spacing:.14em;color:#ffd54f;text-transform:uppercase}
 #badgeToast b{font-size:18px}#badgeToast em{font-style:normal;color:#9ff0a8;font-weight:700}
 #askBox p{line-height:1.5}
+
+/* KIWI Storgata (issue #65): the conversation, the quest list and the magic powers */
+#talk{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);width:min(620px,calc(100% - 36px));max-height:calc(100% - 200px);overflow-y:auto;scrollbar-width:none;padding:12px 16px;border-radius:12px;background:#0b0f14eb;border:1px solid #ffffff2a;pointer-events:none;display:flex;flex-direction:column;gap:6px;font-size:15px}
+#talk .tk-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}#talk .tk-head b{font-size:17px;color:#ffd166}#talk .tk-head small{opacity:.75}#talk .tk-trust{margin-left:auto;color:#c9a0ff;font-size:13px}
+#talk p{margin:0;display:flex;flex-direction:column;gap:2px}#talk .no{font-weight:600}#talk .en{opacity:.72;font-style:italic;font-size:13.5px}
+#talk .opt{padding:5px 10px;border-radius:7px;display:flex;flex-direction:column;border:1px solid #ffffff1f}#talk .opt.sel{background:#ffd166;color:#111;border-color:#ffd166}#talk .opt.sel .en{opacity:.8}
+#talk .tk-keys{color:#ffffffa0;font-size:12.5px}
+#questHud{position:absolute;right:20px;top:96px;width:min(300px,calc(100% - 40px));display:grid;gap:4px;padding:10px 14px;border-radius:10px;background:var(--card);pointer-events:none;font-size:13.5px}
+#questHud b{font-size:14px;color:#ffd166}#questHud div{display:flex;flex-direction:column}#questHud small{opacity:.75}
+#magicHud{position:absolute;right:20px;bottom:20px;display:grid;gap:5px;justify-items:end;pointer-events:none}
+#magicHud .mg-mana{width:212px;height:7px;border-radius:4px;background:#ffffff26;overflow:hidden}#magicHud .mg-mana u{display:block;height:100%;background:linear-gradient(90deg,#6a5cff,#c38bff 60%,#9fe8ff)}
+#magicHud .mg-row{display:flex;gap:6px}
+#magicHud i{position:relative;width:47px;height:47px;border-radius:12px;background:#0b0f14d0;border:2px solid #ffffff30;display:grid;place-items:center;font-style:normal;overflow:hidden}
+#magicHud i span{font-size:22px;line-height:1}#magicHud i b{position:absolute;left:4px;top:1px;font-size:10px;opacity:.7}
+#magicHud i::after{content:'';position:absolute;left:0;right:0;bottom:0;height:var(--cd);background:#000a}
+#magicHud i.sel{border-color:#c38bff;box-shadow:0 0 10px #a46bffaa}#magicHud i.on{background:#2b2150e0}#magicHud i.no{opacity:.35}
+#magicHud small{font-size:12px;opacity:.8;text-shadow:0 1px 2px #000}
 </style>
 </head>
 <body>
@@ -276,6 +293,8 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
     <div id="wallet" hidden></div>
     <div id="basket" hidden></div>
     <div id="jobHud" hidden></div>
+    <div id="questHud" hidden></div>
+    <div id="magicHud" hidden></div>
     <div id="bag" hidden></div>
     <div id="gymMenu" hidden></div>
     <div id="climbHud" class="game-card" hidden></div>
@@ -303,6 +322,7 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
           <dt>R2 / L3 / Shift</dt><dd>Run</dd>
           <dt>L2 / R2 · mouse buttons</dt><dd>Climbing at Klatreverket: hold to grip with the left / right hand, let go and look at the next hold to reach it</dd>
           <dt>L1 / Q</dt><dd>Torch on / off in the catacombs (□ too, where it is dark)</dd>
+          <dt>R1 / X · D-pad ← / ←</dt><dd>Magic, once Sopp-Sigvald at Kiwi Storgata has taught you: cast the chosen power (hold for levitation) · choose the power · keyboard 1–4 cast one directly</dd>
           <dt>Options / Esc</dt><dd>Pause and settings · R1 / B there: badges, the photo hunt and your best scores</dd>
         </dl>
         <button id="startButton">Click or press ✕ to start</button>
@@ -391,6 +411,8 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
           <dt>Badges and photo hunt</dt><dd>R1 / B in this menu: your badges, the photo hunt and your best scores · photo hunt: take a good photo of each known place (in the picture, big enough – go closer or zoom in with L2 and the right stick – and nothing in the way) · every new badge pays some kroner · skydiving: land on the orange target 180 m down the airstrip (◎ on the map)</dd>
           <dt>Account progress</dt><dd>Logged in, your money, bag, photos, badges, best scores and settings are saved to your account by themselves and are there on any PC; without an account they stay in this browser</dd>
           <dt>Rathkes gate 1</dt><dd>□ opens the iron gate under the “1” on Rathkes gate · the passage leads to the backyard and the doors 1B and 1C (the flat on the 5th floor comes later)</dd>
+          <dt>Kiwi Storgata</dt><dd>Kiwi Storgata 33 in the city centre (🛒 on the map), with a counter for coffee and hot dogs · the regulars outside (☺) ask for small favours: □ / E talks (Norwegian with English below), ↑↓ choose, ✕ / Space answer, ○ / C leave · their tasks show at the top right and set the waypoint · □ on an empty bottle picks it up</dd>
+          <dt>Magic (Sopp-Sigvald)</dt><dd>The mushroom wizard on the corner (🍄) teaches four powers, one for each mushroom hunt once enough of Storgata trusts you · R1 / X casts the chosen power, D-pad ← / ← chooses, keyboard 1–4 casts one directly · 1 Svev (levitation): hold to float up to 3 m, let go to sink slowly · 2 Glimt (blink): up to 8 m the way you look · 3 Vindkast (gust): pushes a parked car, motorcycle or e-scooter and scares pigeons · 4 Lyskule (light orb): on / off, lights the dark (the catacombs too) · the bar is your mana; powers work on foot, not in the mission, at paintball, in the timed run or in a vehicle</dd>
         </dl>
         <p class="small">Map data © OpenStreetMap contributors (ODbL) · Height data © Kartverket (CC BY 4.0) · Aerial imagery, when online: Esri World Imagery.</p>
         <button id="resume">Resume</button>
@@ -1905,7 +1927,8 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
         const ring = b.ring;if (ring.length < 3) return;
         let cx = 0, cs = 0, gm = Infinity;for (const p of ring) {cx += p[0];cs += p[1];gm = Math.min(gm, relLocal(p[0], p[1]));}cx /= ring.length;cs /= ring.length;
         const g0 = ground + relLocal(cx, cs), bottom = ground + Math.min(gm, b.gm ?? Infinity) - .6, top = g0 + b.h, set = nearSet(b.tile), f = farSet(b.tile);
-        Object.assign(b, {cx, cs, base: g0, bottom, top});
+        // tint: the wall colour (a shop cut into the building rebuilds the wall above it in the same material, game-shops.js).
+        Object.assign(b, {cx, cs, base: g0, bottom, top, tint: tint[b.style] ? pick(tint[b.style], i).getHex() : null});
         if (b.style === 'brick') {
           walls(set.plinth, ring, bottom, Math.min(g0 + data.plinth, top), g0);if (top > g0 + data.plinth) walls(set.facade, ring, g0 + data.plinth, top, g0 + data.plinth);
           if (b.hip) hipRoof(set.roof, b.hip, top);else cap(set.roof, ring, null, top);
@@ -2091,7 +2114,7 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
     }
 
     return {near, far, setImagery, setSun, setOvercast, get imageryState() {return imageryState;}, attribution: data.attribution, ground, heightWorld, toLocal, toWorld, terrainFloor, terrainFloors, obstacles, surfaceAt, trafficDistance, greenery, data, playHalf: PLAY_HALF, trees: allTrees,
-      districts: patches.map(P => P.d), get districtImagery() {return patches.map(P => P.nearImagery);}, update, yLocal, geoNear, geoFar};
+      districts: patches.map(P => P.d), get districtImagery() {return patches.map(P => P.nearImagery);}, update, yLocal, geoNear, geoFar, patchMaterials: {...patchMats, facade: facadeMat, plinth: plinthMat, roof: roofMat}};
   }
   return {create};
 });
@@ -2613,6 +2636,22 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
         case 'unlock': tone(1700, 1700, .07, .004, .07, 'square');tone(2300, 2300, .07, .004, .09, 'square', t + .1);burst(1200, 3, .25, .002, .06, 'bandpass', t + .25);break;
         case 'bell': for (let i = 0; i < 2; i++) {tone(3100, 3080, .12, .002, .6, 'sine', t + i * .14);tone(4650, 4600, .05, .002, .4, 'sine', t + i * .14);}break;
         case 'paddle': burst(900, .8, .12, .04, .28);burst(2600, 1.2, .05, .02, .15, 'bandpass', t + .05);break;
+        // KIWI Storgata (issue #65): the people, the wizard and the four magic powers.
+        case 'hm': tone(180, 150, .05, .03, .25, 'triangle');tone(240, 200, .04, .03, .2, 'triangle', t + .18);break;
+        case 'mystic': for (let i = 0; i < 5; i++) tone([523, 659, 784, 988, 1175][i], [523, 659, 784, 988, 1175][i] * 1.01, .05, .02, .55, 'sine', t + i * .09);break;
+        case 'quest': tone(660, 660, .08, .01, .18, 'triangle');tone(880, 880, .08, .01, .3, 'triangle', t + .12);break;
+        case 'harmonica': for (let i = 0; i < 6; i++) {const f = [392, 440, 494, 440, 392, 523][i];tone(f, f, .06, .03, .22, 'sawtooth', t + i * .2);tone(f * 2, f * 2, .03, .03, .2, 'square', t + i * .2);}break;
+        case 'bark': for (let i = 0; i < 2; i++) {tone(520, 260, .16, .005, .09, 'sawtooth', t + i * .22);burst(900, 2, .12, .002, .06, 'bandpass', t + i * .22);}break;
+        case 'flap': for (let i = 0; i < 10; i++) burst(rand(700, 1600), 1.2, .09, .004, .05, 'bandpass', t + i * rand(.03, .07));break;
+        case 'mushroom': tone(1320, 1980, .07, .005, .25, 'sine');tone(1760, 2640, .05, .005, .3, 'sine', t + .08);break;
+        case 'learn': for (let i = 0; i < 8; i++) tone(440 * Math.pow(2, i / 4), 440 * Math.pow(2, i / 4) * 1.02, .06, .02, .6, 'sine', t + i * .07);burst(5000, 1, .08, .3, .8, 'highpass', t + .2);break;
+        case 'levitate': tone(300, 620, .07, .2, .7, 'sine');burst(2200, .6, .06, .25, .6, 'bandpass');break;
+        case 'land': burst(400, .8, .12, .005, .15, 'lowpass');break;
+        case 'blink': tone(1800, 240, .12, .002, .22, 'sawtooth');burst(4000, 1.5, .18, .002, .18, 'highpass');tone(240, 1600, .08, .005, .18, 'sine', t + .12);break;
+        case 'gust': burst(500, .5, .5, .05, .9, 'lowpass');burst(1800, .4, .25, .1, .8, 'bandpass');burst(3600, .6, .1, .05, .5, 'highpass', t + .1);break;
+        case 'orbOn': tone(880, 1320, .07, .02, .4, 'sine');tone(1320, 1760, .05, .02, .5, 'sine', t + .1);break;
+        case 'orbOff': tone(1320, 660, .05, .01, .3, 'sine');break;
+        case 'noMana': tone(220, 180, .06, .01, .18, 'square');break;
       }
     }
 
@@ -3662,8 +3701,9 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
 })(typeof window === 'undefined' ? globalThis : window, function () {
   'use strict';
   const SETTINGS = ['haarklous-look-sensitivity-v1', 'haarklous-music-volume-v1', 'haarklous-minimap-v1'];
+  // haarklous-storgata-v1 (issue #65): the quests of the people at Kiwi Storgata and the magic powers you have learned.
   const KEYS = ['haarklous-wallet-v1', 'haarklous-records-v1', 'haarklous-badges-v1', 'haarklous-kayak-v1', 'haarklous-route-v1',
-    'haarklous-klatreverket-v1', 'haarklous-catacomb-map-v1', ...SETTINGS];
+    'haarklous-klatreverket-v1', 'haarklous-catacomb-map-v1', 'haarklous-storgata-v1', ...SETTINGS];
   const META = 'haarklous-progress-sync-v1', GUEST = 'haarklous-progress-guest-v1', DECLINED = 'haarklous-progress-declined-v1';
   const START_MONEY = 500, SAVE_EVERY = 20, KEEPALIVE_MAX = 60000;
 
@@ -3685,6 +3725,7 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
       if (k === 'haarklous-catacomb-map-v1') {if (bitsSet(t)) return true;continue;}
       if (k === 'haarklous-badges-v1') {if (Object.keys(obj(t).got || {}).length) return true;continue;}
       if (k === 'haarklous-route-v1') {const r = obj(t);if (r.best !== null && r.best !== undefined || num(r.runs) > 0) return true;continue;}
+      if (k === 'haarklous-storgata-v1') {const g = obj(t);if (['q', 'powers', 'got'].some(f => Object.keys(g[f] || {}).length)) return true;continue;}
       if (Object.keys(obj(t)).length) return true;
     }
     return false;
@@ -4366,11 +4407,13 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
   return {create};
 });
 </script><script>/* Grocery shops at their real places (OpenStreetMap nodes, Overpass 29 Oct 2026): Joker Torshov (node 1506608498, about 110 m
- * from the flat) and Kiwi Torshov (node 2476542841, about 270 m). Each shop is cut into the ground floor of the building it is in:
+ * from the flat) and Kiwi Torshov (node 2476542841, about 270 m); and Kiwi Storgata 33 (node 3111431401, issue #65) in the
+ * Gamle Oslo patch, about 2.8 km south-west, with a hot-food counter (coffee, hot dogs). Each shop is cut into the ground floor of the building it is in:
  * the building outline gets a notch, the shop fills it (glass front with sliding doors and the brand sign, shelves, fridges,
  * a till with a cashier, a bottle-return machine) and the facade above the shop is rebuilt so the building looks whole.
  * Money is in Norwegian kroner. The wallet (money, empty bottles, the bag of bought items) is saved in the browser.
  * GameShops.applyNotches(data)  – call before Surroundings.create (changes the two building outlines).
+ * GameShops.applyDistrictNotches(districts) – the same for shops in a district patch (decoded, before Surroundings.create).
  * GameShops.create({T, lib, world, audio}) -> {group, shops, floors, obstacles, hitboxes, wallet, priceOf, beerAllowed,
  *   shopAt(p, feet), atTill(shop, p), update(dt, player, camera)}
  */
@@ -4381,7 +4424,11 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
   // building / edge = the building outline in surroundings-data.js and the wall the shop front is on; t0..t1 = part of that wall.
   const SHOPS = [
     {id: 'joker', name: 'Joker Torshov', brand: 'JOKER', osm: 1506608498, building: 888, edge: 6, t0: .08, t1: .92, depth: 10, sign: {bg: '#ffd200', fg: '#d0021b'}, shirt: 0xd0021b, hours: 'Åpent man–fre 07–24 · lør 08–24 · søn 09–24', priceFactor: 1},
-    {id: 'kiwi', name: 'Kiwi Torshov', brand: 'KIWI', osm: 2476542841, building: 156, edge: 20, t0: .04, t1: .40, depth: 10, sign: {bg: '#2e9a3f', fg: '#ffffff'}, shirt: 0x2e9a3f, hours: 'Åpent man–lør 07–23', priceFactor: .95}
+    {id: 'kiwi', name: 'Kiwi Torshov', brand: 'KIWI', osm: 2476542841, building: 156, edge: 20, t0: .04, t1: .40, depth: 10, sign: {bg: '#2e9a3f', fg: '#ffffff'}, shirt: 0x2e9a3f, hours: 'Åpent man–lør 07–23', priceFactor: .95},
+    // Kiwi Storgata 33 (issue #65): OSM node 3111431401 (opening_hours "Mo-Sa 07:00-23:00") inside office building way 112233122
+    // (9 storeys, 'modern' in the patch); edge 6 is its 52 m front on Storgata. Deliveries stay in the old square (no JOBB sign).
+    {id: 'kiwi-storgata', name: 'Kiwi Storgata 33', brand: 'KIWI', osm: 3111431401, district: 'gamle-oslo', building: 'w112233122', edge: 6, t0: .32, t1: .60, depth: 10,
+      sign: {bg: '#2e9a3f', fg: '#ffffff'}, shirt: 0x2e9a3f, hours: 'Åpent man–lør 07–23', priceFactor: .95, counter: true, jobs: false}
   ];
   // Prices in kroner (Joker; Kiwi is about 5 % cheaper). where: fridge (back wall), shelf (gondolas), floor (by the door).
   const PRODUCTS = [
@@ -4396,7 +4443,10 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
     {id: 'brod', name: 'Kneippbrød', price: 39.9, color: 0x9b6a3a, where: 'shelf', use: 'food', sober: 20},
     {id: 'kaffe', name: 'Friele Frokostkaffe', price: 74.9, color: 0xb3262e, where: 'shelf', use: 'food', sober: 30},
     {id: 'polser', name: 'Grillpølser', price: 49.9, color: 0xc7463a, where: 'shelf', use: 'food', sober: 25},
-    {id: 'ved', name: 'Sekk med ved', price: 89.9, color: 0x7a5a3a, where: 'floor', use: 'wood'}
+    {id: 'ved', name: 'Sekk med ved', price: 89.9, color: 0x7a5a3a, where: 'floor', use: 'wood'},
+    // The hot-food counter (only in shops with counter: true, i.e. Kiwi Storgata).
+    {id: 'kaffekopp', name: 'Kaffe to go 0,4 l', price: 32.9, color: 0x6b4226, where: 'counter', use: 'food', sober: 10, hot: true},
+    {id: 'polse', name: 'Pølse i lompe', price: 29.9, color: 0xc7463a, where: 'counter', use: 'food', sober: 15, hot: true}
   ];
   const PANT = 2;// kroner per empty bottle or can (the Norwegian deposit for 0.5 l and smaller; every drink sold here is 0.5 l or less)
   const kr = v => `${v.toFixed(2).replace('.', ',')} kr`;
@@ -4422,11 +4472,23 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
   }
   function applyNotches(data) {
     for (const s of SHOPS) {
+      if (s.district) continue;
       const b = data.buildings[s.building];if (!b || s.local) continue;
       const ring = [];for (let i = 0; i < b.r.o.length; i += 2) ring.push([b.r.o[i], b.r.o[i + 1]]);
-      const nt = notchFor(ring, s.edge, s.t0, s.t1, s.depth);b.r.o = nt.ring.flat();s.local = nt;
+      const nt = notchFor(ring, s.edge, s.t0, s.t1, s.depth);b.r.o = nt.ring.flat();s.local = nt;s.bldg = b;
     }
     return SHOPS;
+  }
+  // A shop in a district patch (issue #65): the decoded building (found by its OSM id) gets the notch in its ring; Surroundings.create
+  // later adds base / top / tint to the same object, which create() reads.
+  function applyDistrictNotches(districts) {
+    let n = 0;
+    for (const s of SHOPS) {
+      if (!s.district || s.local) continue;
+      const d = (districts || []).find(x => x && x.name === s.district), b = d && d.buildings.find(x => x.id === s.building);if (!b) continue;
+      const nt = notchFor(b.ring, s.edge, s.t0, s.t1, s.depth);b.ring = nt.ring;b.hip = null;s.local = nt;s.bldg = b;n++;
+    }
+    return n;
   }
 
   // ---------- Wallet: money (kr), empty bottles, bag of items; saved in the browser ----------
@@ -4441,7 +4503,7 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
       get money() {return st.money;}, get pant() {return st.pant;}, get bag() {return st.bag;},
       earn(v) {if (!(v > 0)) return;st.money = round(st.money + v);save();},
       pay(v) {if (!(v >= 0) || st.money + 1e-9 < v) return false;st.money = round(st.money - v);save();return true;},
-      addPant(n = 1) {st.pant += n;save();}, cashPant() {const n = st.pant;st.pant = 0;st.money = round(st.money + n * PANT);save();return n;},
+      addPant(n = 1) {st.pant += n;save();}, takePant(n) {if (!(n > 0) || st.pant < n) return false;st.pant -= n;save();return true;}, cashPant() {const n = st.pant;st.pant = 0;st.money = round(st.money + n * PANT);save();return n;},
       add(id, n = 1) {st.bag[id] = (st.bag[id] || 0) + n;save();}, take(id) {if (!st.bag[id]) return false;if (--st.bag[id] <= 0) delete st.bag[id];save();return true;},
       reset(money = 500) {st = {money, pant: 0, bag: {}};save();}
     };
@@ -4463,7 +4525,7 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
     const productTex = new Map();
     for (const s of SHOPS) {
       if (!s.local) continue;
-      const L = s.local, D = L.depth, W = L.W, top = world.data.buildings[s.building].top;
+      const L = s.local, D = L.depth, W = L.W, B = s.bldg || world.data.buildings[s.building], top = B.top;
       // Store frame: x = along the front, z = into the shop, y up from the shop floor.
       const w0 = world.toWorld(...L.P0), w1 = world.toWorld(...L.P1), wn = world.toWorld(L.P0[0] + L.n[0], L.P0[1] + L.n[1]);
       let ux = (w1.x - w0.x) / W, uz = (w1.z - w0.z) / W, origin = w0;const nx0 = wn.x - w0.x, nz0 = wn.z - w0.z;
@@ -4477,14 +4539,17 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
       box(g, W, .04, D, W / 2, -.02, D / 2, tileM);box(g, W, .04, D, W / 2, H + .02, D / 2, ceilM);
       box(g, .02, H, D - .08, .04, H / 2, D / 2, wallM);box(g, .02, H, D - .08, W - .04, H / 2, D / 2, wallM);box(g, W - .08, H, .02, W / 2, H / 2, D - .04, wallM);
       for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) box(g, 1.2, .04, .3, W * (i + 1) / 4, H - .01, D * (j + 1) / 3, lightM);
-      const light = new T.PointLight(0xfff4e6, 0, 18, 1.5);light.position.set(W / 2, H - .4, D / 2);g.add(light);
+      const lightAt = (() => {const c = toW(W / 2, D / 2);return {x: c.x, y: floorY + H - .4, z: c.z};})();
       // Facade above the shop (same brick as the building) and, on a flat roof, the roof over the notch.
       const fillH = top - floorY - storeTop;
       if (fillH > .2) {
-        const geo = new T.PlaneGeometry(W, fillH), uv = geo.attributes.uv, vBase = (world.data.buildings[s.building].base + world.data.plinth) - floorY;
+        // A district building that is not brick (Kiwi Storgata: 'modern' glass bands) is rebuilt in its own wall material and tint.
+        const style = s.district ? B.style : 'brick', own = style !== 'brick' && world.patchMaterials && world.patchMaterials[style];
+        const geo = new T.PlaneGeometry(W, fillH), uv = geo.attributes.uv, vBase = (B.base + (own ? 0 : world.data.plinth)) - floorY;
         for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * W, storeTop - vBase + uv.getY(i) * fillH);
-        const f = new T.Mesh(geo, facadeMat);f.rotation.y = Math.PI;f.position.set(W / 2, storeTop + fillH / 2, 0);f.castShadow = f.receiveShadow = true;g.add(f);
-        if (!world.data.buildings[s.building].k) box(g, W, .06, D, W / 2, top - floorY + .03, D / 2, roofMat);
+        if (own) {const c = new T.Color(B.tint ?? 0xffffff), col = new Float32Array(uv.count * 3);for (let i = 0; i < uv.count; i++) c.toArray(col, i * 3);geo.setAttribute('color', new T.BufferAttribute(col, 3));}
+        const f = new T.Mesh(geo, own || facadeMat);f.rotation.y = Math.PI;f.position.set(W / 2, storeTop + fillH / 2, 0);f.castShadow = f.receiveShadow = true;if (own) f.userData.noMerge = true;g.add(f);// merging drops the vertex colours
+        if (!(s.district ? B.hip : B.k)) box(g, W, .06, D, W / 2, top - floorY + .03, D / 2, roofMat);
       }
       // Shop front: aluminium frame, glass, sliding doors, the brand sign and the opening hours on the glass.
       box(g, W, .12, .14, W / 2, .06, 0, aluM);box(g, W, .1, .14, W / 2, 2.9, 0, aluM);
@@ -4537,6 +4602,20 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
       const ved = PRODUCTS.find(p => p.where === 'floor');
       for (let k = 0; k < 5; k++) {const sk = box(g, .42, .34, .3, .35 + (k % 2) * .05, .17 + Math.floor(k / 2) * .32, 2.2 + (k % 3) * .32, sackM);sk.rotation.y = k * .3;}
       spots.push({p: ved, x: .5, y: .5, z: 2.5, w: .8, h: 1.0, d: 1.2, tag: [.82, .9, 2.5], side: 1});obstacles.push(rect(.05, .8, 1.95, 3.05, -.2, 1.1));
+      // Hot-food counter (Kiwi Storgata, issue #65): a coffee machine and a hot-dog roller grill on a counter against the front
+      // window, between the till and the door (the cross aisle behind it stays 2.6 m wide); you take the coffee and the hot dogs here.
+      if (s.counter) {
+        const a0 = 4.9, a1 = 6.5, b0 = .12, b1 = .74, ac = (a0 + a1) / 2, bc = (b0 + b1) / 2, cw = lib.wood(0x5a4030, .55);
+        box(g, a1 - a0, .92, b1 - b0, ac, .46, bc, cw);box(g, a1 - a0 + .04, .04, b1 - b0 + .04, ac, .94, bc, darkM);
+        box(g, .36, .52, .34, 5.3, 1.22, .36, lib.metal(0x2a2c2f, .4));
+        box(g, .2, .14, .02, 5.3, 1.3, .54, new T.MeshStandardMaterial({color: 0x111214, emissive: 0x3a7bd5, emissiveIntensity: .8}));
+        box(g, .4, .1, .3, 6.05, 1.01, .42, lib.metal(0xc7c9cc, .3));
+        const rollM = new T.MeshStandardMaterial({color: 0xb5472f, roughness: .5}), cupM = new T.MeshStandardMaterial({color: 0xf4efe6, roughness: .7});
+        for (let k = 0; k < 5; k++) {const r = new T.Mesh(new T.CylinderGeometry(.022, .022, .34, 8), rollM);r.rotation.z = Math.PI / 2;r.position.set(6.05, 1.085, .32 + k * .05);g.add(r);}
+        for (let k = 0; k < 3; k++) {const cup = new T.Mesh(new T.CylinderGeometry(.04, .032, .11, 10), cupM);cup.position.set(5.62, 1.015, .3 + k * .09);g.add(cup);}
+        obstacles.push(rect(a0, a1, .08, b1 + .02, -.2, 1.0));
+        PRODUCTS.filter(p => p.where === 'counter').forEach((p, k) => spots.push({p, x: k ? 6.05 : 5.4, y: 1.15, z: .45, w: .55, h: .5, d: .5, tag: [k ? 6.05 : 5.4, .8, b1 + .025], face: 'in'}));
+      }
       // Till: counter with belt, register and card terminal; the cashier stands between the counter and the window.
       box(g, 2.4, .9, .65, 2.4, .45, 1.32, lib.wood(0x6b4b33, .6));box(g, 1.6, .04, .45, 2.0, .92, 1.32, darkM);box(g, .4, .28, .34, 3.2, 1.06, 1.2, darkM);box(g, .14, .1, .2, 2.95, .98, 1.6, darkM);
       const screen = box(g, .3, .2, .02, 3.2, 1.3, 1.05, new T.MeshStandardMaterial({color: 0x0b1a10, emissive: 0x1c5a2a, emissiveIntensity: .9}));screen.rotation.x = -.2;
@@ -4557,28 +4636,31 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
         const price = priceOf(s, sp.p);
         const tex = textTexture(256, 96, (c, w, h) => {c.fillStyle = '#ffe14d';c.fillRect(0, 0, w, h);c.fillStyle = '#111';c.textAlign = 'center';c.font = 'bold 30px Arial, sans-serif';c.fillText(sp.p.name.length > 16 ? sp.p.name.slice(0, 15) + '…' : sp.p.name, w / 2, 36);c.font = 'bold 38px Arial, sans-serif';c.fillText(kr(price), w / 2, 82);});
         const tag = new T.Mesh(new T.PlaneGeometry(.24, .09), new T.MeshBasicMaterial({map: tex}));tag.position.set(...sp.tag);
-        if (sp.side === -1) tag.rotation.y = -Math.PI / 2;else if (sp.side === 1) tag.rotation.y = Math.PI / 2;else tag.rotation.y = Math.PI;
+        if (sp.side === -1) tag.rotation.y = -Math.PI / 2;else if (sp.side === 1) tag.rotation.y = Math.PI / 2;else if (sp.face === 'in') tag.rotation.y = 0;else tag.rotation.y = Math.PI;
         tag.userData.noMerge = true;g.add(tag);
         const hit = new T.Mesh(new T.BoxGeometry(sp.side ? sp.w : sp.w, sp.h, sp.side ? sp.d : sp.d), hitM);hit.position.set(sp.x, sp.y, sp.z);hit.userData = {shopItem: {shop: s, product: sp.p}, noMerge: true};g.add(hit);hitboxes.push(hit);
       }
       // The cashier.
       let cashier = null;
       if (avatars) {cashier = avatars.avatar(0, 'Kasserer', s.shirt);cashier.group.position.set(2.4, 0, .5);cashier.group.rotation.y = Math.PI;g.add(cashier.group);cashier.pose({stance: 'stand'});}
-      [...doors.map(d => d.g), light].forEach(o => {o.userData.noMerge = true;});if (cashier) cashier.group.userData.noMerge = true;
+      doors.forEach(d => {d.g.userData.noMerge = true;});if (cashier) cashier.group.userData.noMerge = true;
       lib.mergeStatic(g, o => o.isInstancedMesh || !!o.userData.shopItem || !!o.userData.shopTill || !!o.userData.shopPant);
-      built.push({...s, shop: s, g, floorY, W, D, uDoor, toW, doors, light, cashier, open: 0, ux, uz, origin, vx, vz, greeted: false});
+      built.push({...s, shop: s, g, floorY, W, D, uDoor, toW, doors, lightAt, cashier, open: 0, ux, uz, origin, vx, vz, greeted: false});
       s.floorY = floorY;s.W = W;s.D = D;s.toLocal = (x, z) => {const dx = x - origin.x, dz = z - origin.z;return {a: dx * ux + dz * uz, b: dx * vx + dz * vz};};
       s.say = text => {if (cashier) cashier.say(text);};
     }
+    // One ceiling light for all shops (they are at least 160 m apart): it moves to the shop you are near and is off elsewhere.
+    // It always exists, so no shader is rebuilt when it switches on (each shop had its own light before issue #65).
+    const light = new T.PointLight(0xfff4e6, 0, 18, 1.5);light.userData.noMerge = true;group.add(light);
     // Which shop is the player standing in (on its floor)?
     function shopAt(p, feet) {for (const s of SHOPS) {if (!s.toLocal) continue;const l = s.toLocal(p.x, p.z);if (l.a > 0 && l.a < s.W && l.b > 0 && l.b < s.D && Math.abs(feet - s.floorY) < 1.4) return s;}return null;}
     const atTill = (s, p) => {const l = s.toLocal(p.x, p.z);return Math.hypot(l.a - 2.4, l.b - 2.25) < 1.3;};
     let tt = 0;
     function update(dt, player, camera) {
-      tt += dt;
+      tt += dt;let lit = null;
       for (const b of built) {
         const l = b.shop.toLocal(player.x, player.z), near = Math.hypot(l.a - b.W / 2, l.b - b.D / 2) < 30 && Math.abs(player.feet - b.floorY) < 6;
-        b.light.intensity = near ? 26 : 0;
+        if (near) lit = b;
         // Sliding doors open when someone is within 2.5 m of them.
         const want = Math.hypot(l.a - b.uDoor, l.b) < 2.5 && Math.abs(player.feet - b.floorY) < 1.6 ? 1 : 0;
         if (want && !b.open) audio && audio.sfx('shopDoor');
@@ -4589,10 +4671,11 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
           b.cashier.group.rotation.y += (yaw - b.cashier.group.rotation.y) * Math.min(1, dt * 3);b.cashier.pose({stance: 'stand', speed: 0, dt});b.cashier.update(dt, camera);
         }
       }
+      light.intensity = lit ? 26 : 0;if (lit) light.position.set(lit.lightAt.x, lit.lightAt.y, lit.lightAt.z);
     }
-    return {group, shops: SHOPS.filter(s => s.local), floors, obstacles, hitboxes, wallet: makeWallet(), priceOf, beerAllowed, shopAt, atTill, update, kr, PANT, products: PRODUCTS};
+    return {group, shops: SHOPS.filter(s => s.local), floors, obstacles, hitboxes, wallet: makeWallet(), priceOf, beerAllowed, shopAt, atTill, update, kr, PANT, products: PRODUCTS, light};
   }
-  return {SHOPS, PRODUCTS, PANT, applyNotches, notchFor, create, beerAllowed, priceOf, makeWallet};
+  return {SHOPS, PRODUCTS, PANT, applyNotches, applyDistrictNotches, notchFor, create, beerAllowed, priceOf, makeWallet};
 });
 </script><script>/* Generated by tools/make-climbing.py: Klatreverket Torshov at Myrens verksted (issue #40). Building outline (c) OpenStreetMap contributors (ODbL); heights (c) Kartverket (CC BY 4.0). */
 window.KLATREVERKET={"attribution":"Building: OpenStreetMap way 1031709261 (ODbL); heights: Kartverket DTM and DOM (CC BY 4.0); facts: klatreverket.no (Nov 2026)","osm":1031709261,"buildingNo":"80554273","gymNode":1465714083,"ring":[[-995.83,134.92],[-960.53,177.22],[-957.35,181.23],[-934.93,162.19],[-937.28,159.41],[-918.82,143.83],[-930.03,130.47],[-933.71,133.58],[-939.39,126.68],[-935.6,123.57],[-946.92,110.21],[-950.49,113.32],[-954.67,108.43],[-954.28,108.09],[-954.67,107.65],[-954.84,107.76],[-957.52,104.31],[-969.45,114.21],[-966.27,117.89],[-964.16,116.11],[-960.03,121.12],[-965.61,125.79],[-974.08,115.55]],"gym":[-959.75,171.66],"address":[-964.21,176.55],"name":"Klatreverket Torshov","hours":"Mo-Th 07:00-23:00; Fr 07:00-21:00; Sa-Su 09:00-20:00","phone":"+47 22 040680","frame":{"origin":[-957.352,181.229],"u":[-0.639089,-0.769133],"v":[0.769133,-0.639089],"length":60.21,"wing":19.75},"roof":{"ridge":15.08,"eaves":14.57,"strip":11.7,"other":13.18},"groundMin":-41.627,"ground":{"south":-41.627,"west":-41.228,"entrance":-41.645,"far":-40.864},"floorY":-41.595,"terrainInsideMax":-40.773,"roofY":{"ridge":-26.547,"eaves":-27.057,"strip":-29.927,"other":-28.447}};
@@ -8979,7 +9062,7 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
  * which are part of an account's saved progress (GameProgress).
  *
  * Pure (Node-tested):
- *   BADGES [{id, icon, name, how, kr, test(facts)}]   facts = {records, gym, kayak, route, got}
+ *   BADGES [{id, icon, name, how, kr, test(facts)}]   facts = {records, gym, kayak, route, storgata, got}
  *   SPOTS  [{id, name, hint, kr, size, r, maxDist}]   size = the subject's height (m), r = its own radius (the sight line
  *                                                    stops r before its centre), maxDist = how close you must be; the game
  *                                                    adds at = {x, y, z} and, for a door, face = {x, z} (the way it faces)
@@ -9032,7 +9115,12 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
     {id: 'moby', icon: '📖', name: 'Call me Ishmael', how: 'Open Moby-Dick at Deichman Grünerløkka.', kr: 50, test: f => !!f.records.marks?.moby},
     {id: 'fire', icon: '🔥', name: 'Keeper of the fire', how: 'Throw a log on the firepit in the park.', kr: 50, test: f => !!f.records.marks?.fire},
     {id: 'airborne', icon: '🚁', name: 'Airborne', how: 'Fly the helicopter or the plane 50 m above the ground.', kr: 100, test: f => !!f.records.marks?.airborne},
-    {id: 'hunter', icon: '📷', name: 'Photo hunter', how: 'Find and photograph every place in the photo hunt.', kr: 300, test: f => SPOTS.every(s => f.got[s.id])}
+    {id: 'hunter', icon: '📷', name: 'Photo hunter', how: 'Find and photograph every place in the photo hunt.', kr: 300, test: f => SPOTS.every(s => f.got[s.id])},
+    // KIWI Storgata (issue #65): the regulars' quests and Sopp-Sigvald's four lessons.
+    {id: 'storgata', icon: '🛒', name: 'Friend of Storgata', how: 'Help all five regulars outside Kiwi Storgata 33.', kr: 200,
+      test: f => ['kjell', 'bente', 'tore', 'mona', 'even'].every(id => ((f.storgata || {}).q || {})[id]?.s === 'done')},
+    {id: 'wizard', icon: '🍄', name: 'Mushroom apprentice', how: 'Learn all four magic powers from Sopp-Sigvald, the mushroom wizard in Storgata.', kr: 250,
+      test: f => ['levitate', 'blink', 'gust', 'orb'].every(id => ((f.storgata || {}).powers || {})[id])}
   ];
 
   function judge(spot, shot) {
@@ -9119,7 +9207,7 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
       if (!panel.hidden) render();
       return true;
     }
-    const facts = () => ({records, gym: read('haarklous-klatreverket-v1'), kayak: read('haarklous-kayak-v1'), route: read('haarklous-route-v1'), got: state.got});
+    const facts = () => ({records, gym: read('haarklous-klatreverket-v1'), kayak: read('haarklous-kayak-v1'), route: read('haarklous-route-v1'), storgata: read('haarklous-storgata-v1'), got: state.got});
     function check() {const f = facts();for (const b of BADGES) if (!state.got[b.id] && b.test(f)) award(b);}
     function addRecord(kind, data) {const r = record(records, kind, data);store(RECORDS, records);check();return r;}
     function thumbOf(canvas) {
@@ -10862,14 +10950,16 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
     TX.bones = models ? models.boneWall({size: 768}) : null;
 
     // ---------- Materials: baked torch light, outdoor-light mask, your torch ----------
-    const U = {uFlick: {value: new T.Vector4(1, 1, 1, 1)}, uLamp: {value: new T.Vector4(1, .93, .82, 0)}, uLampPos: {value: new T.Vector3(.17, -.2, .05)}, uLampDir: {value: new T.Vector3(-.03, .05, -1).normalize()}, uLampCos: {value: new T.Vector2(Math.cos(.52), Math.cos(.22))}, uDark: {value: .014}};
+    const U = {uFlick: {value: new T.Vector4(1, 1, 1, 1)}, uLamp: {value: new T.Vector4(1, .93, .82, 0)}, uLampPos: {value: new T.Vector3(.17, -.2, .05)}, uLampDir: {value: new T.Vector3(-.03, .05, -1).normalize()}, uLampCos: {value: new T.Vector2(Math.cos(.52), Math.cos(.22))}, uDark: {value: .014},
+      // The light orb (issue #65, GameMagic): a point light in view space; three.js lights do not reach the dark parts down here.
+      uOrb: {value: new T.Vector4(1, .89, .69, 0)}, uOrbPos: {value: new T.Vector3()}};
     function bakeMaterial(params, {instanced = false} = {}) {
       const m = new T.MeshStandardMaterial({metalness: 0, envMapIntensity: 0, ...params}), a = instanced ? 'i' : '';
       m.onBeforeCompile = sh => {
         Object.assign(sh.uniforms, U);
         sh.vertexShader = sh.vertexShader.replace('#include <common>', `#include <common>\nattribute vec3 ${a}bake;attribute vec3 ${a}bakeDir;attribute vec2 ${a}bakeX;varying vec3 vBake;varying vec3 vBakeDir;varying vec2 vBakeX;`)
           .replace('#include <begin_vertex>', `#include <begin_vertex>\nvBake = ${a}bake;vBakeX = ${a}bakeX;vBakeDir = mat3(modelViewMatrix) * ${a}bakeDir;`);
-        sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vBake;varying vec3 vBakeDir;varying vec2 vBakeX;uniform vec4 uFlick;uniform vec4 uLamp;uniform vec3 uLampPos;uniform vec3 uLampDir;uniform vec2 uLampCos;uniform float uDark;')
+        sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vBake;varying vec3 vBakeDir;varying vec2 vBakeX;uniform vec4 uFlick;uniform vec4 uLamp;uniform vec3 uLampPos;uniform vec3 uLampDir;uniform vec2 uLampCos;uniform float uDark;uniform vec4 uOrb;uniform vec3 uOrbPos;')
           .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
           {
             float sky = vBakeX.x;
@@ -10884,6 +10974,11 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
               float spot = smoothstep(uLampCos.x, uLampCos.y, dot(-ld, uLampDir));
               IncidentLight il;il.direction = ld;il.visible = true;il.color = uLamp.rgb * uLamp.w * (spot * .94 + .06) * getDistanceAttenuation(dl, 34.0, 2.0);
               RE_Direct(il, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight);
+            }
+            if (uOrb.w > 0.0) {
+              vec3 ov = uOrbPos - geometryPosition;float od = length(ov);
+              IncidentLight io;io.direction = ov / max(od, .001);io.visible = true;io.color = uOrb.rgb * uOrb.w * getDistanceAttenuation(od, 16.0, 1.6);
+              RE_Direct(io, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight);
             }
           }`);
       };
@@ -11310,7 +11405,9 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
     window.addEventListener('haarklous-progress', () => {let s = null;try {s = localStorage.getItem(SAVE_KEY);} catch {}explorer.load(s);savedCount = explorer.count;dirty = true;});
 
     // ---------- Your torch ----------
-    const lamp = {on: false, level: 0};
+    const lamp = {on: false, level: 0}, orb = {level: 0};
+    // The light orb: its position in view space (camera.matrixWorldInverse applied) and brightness 0..1; null / 0 = off.
+    function setOrb(viewPos, level) {orb.level = level || 0;U.uOrb.value.w = orb.level > .01 && viewPos ? orb.level * 14 : 0;if (viewPos) U.uOrbPos.value.copy(viewPos);}
     function toggleLamp(on = !lamp.on) {lamp.on = on;if (audio) audio.sfx('click');return lamp.on;}
 
     // ---------- Sounds: dripping water, a low hum of the earth, torches crackling ----------
@@ -11368,7 +11465,7 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
       // Deep down the world above is not drawn: daylight in the far-off doorways is a bright quad instead.
       const cl = world.toLocal(camera.position.x, camera.position.z), camDeep = L.deep(cl.x, cl.s, camera.position.y - 1.6);
       for (const g of doorGlows) g.visible = camDeep;
-      if (inside) {revealT -= dt;if (revealT <= 0) {revealT = .2;const r = !dark ? 13 : lamp.on ? 11 : 3.5;if (explorer.reveal(lp.x, lp.s, r)) dirty = true;}}
+      if (inside) {revealT -= dt;if (revealT <= 0) {revealT = .2;const r = !dark ? 13 : lamp.on ? 11 : orb.level > .5 ? 9 : 3.5;if (explorer.reveal(lp.x, lp.s, r)) dirty = true;}}
       saveT -= dt;if (saveT <= 0 && explorer.count !== savedCount) {saveT = 2;save();}
       let torchNear = 0;if (depth > 0) for (const t of torches) {const d = Math.hypot(t.x - lp.x, t.s - lp.s);if (d < 6) torchNear = Math.max(torchNear, 1 - d / 6);}
       sounds(dt, depth, torchNear);
@@ -11426,7 +11523,7 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
     };
     let countWalk = 0;for (let c = 0; c < NX * NS; c++) if (L.walkable(c)) countWalk++;
     const poi = () => L.entrances.map(e => {const d = e.toLocal(-1.5, 0);return {x: d.x, s: d.s, color: '#3b2f2f', label: `Catacomb (${e.label.toLowerCase()} entrance)`, glyph: '☠'};});
-    return {group, layout: L, floors, obstacles, vehicleObstacles, cutsGround, poi, update, prompt, toggleLamp, lamp, mapLayer, placeName, explorer, cellLight, flames: flameMesh, chunks: chunkGroups,
+    return {group, layout: L, floors, obstacles, vehicleObstacles, cutsGround, poi, update, prompt, toggleLamp, lamp, setOrb, mapLayer, placeName, explorer, cellLight, flames: flameMesh, chunks: chunkGroups,
       get state() {return last;}, hall: id => {const r = room('hall-' + id);return world.toWorld(r.cx, r.cs);}, FLOOR_Y};
   }
   return {create};
@@ -13782,6 +13879,740 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
   }
   return {create, deliveryTerms, deliveryPay, taxiFare, expectedTaxiS, Mood, WrongWay, orderFor, ORDERS, ROAD};
 });
+</script><script>/* Magic powers taught by Sopp-Sigvald, the mushroom wizard outside Kiwi Storgata (issue #65). Four powers, learned one by one:
+ *   Svev (levitation)  hold R1 / 1: float up to 3 m, let go to sink slowly (also a slow fall after a jump); uses mana while rising
+ *   Glimt (blink)      R1 / 2: a short jump through the air, up to 8 m the way you look; it stops in front of walls
+ *   Vindkast (gust)    R1 / 3: a gust of wind ahead (14 m, 40°): pushes a parked car, motorcycle or e-scooter and scares pigeons
+ *   Lyskule (light orb) R1 / 4: a glowing orb by your shoulder that lights up the dark (the catacombs too); uses a little mana
+ * D-pad ← (or ←) chooses the power for R1 (X on the keyboard). Mana (100) refills by itself; each power has a cooldown.
+ * Powers work on foot only, and not during the mission, paintball, the timed run or a conversation.
+ *
+ * Pure (Node-tested):
+ *   POWERS, MAX_MANA, REGEN
+ *   new Magic(known) -> {mana, known, sel, levitating, orb, cool{}, learn(id), knows(id), list(), select(step), selected,
+ *        can(id) -> null | 'unknown' | 'cooldown' | 'mana', cast(id) -> {ok, why, power, on}, release(id), tick(dt) -> [events]}
+ *   levitate({y, v}, dt, {hold, max, head}) -> {y, v, floating}   height above the floor you stand on and vertical speed
+ *   blinkTarget(from {x, z, y}, dir {x, z}, dist, test(p, y) -> y | null, step = .2) -> {x, z, y, d}
+ *   gustTargets(from {x, z}, dir {x, z}, items [{x, z}], range, coneDeg) -> [{item, d, k}] nearest first, k = strength 0..1
+ * GameMagic.effects({T, scene}) -> {burst(pos, color, n, speed), wind(from, dir), orb, update(dt, camera)}
+ */
+(function (root, factory) {
+  const api = factory();
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  else root.GameMagic = api;
+})(typeof window === 'undefined' ? globalThis : window, function () {
+  'use strict';
+  const MAX_MANA = 100, REGEN = 12, REGEN_DELAY = 1.2;
+  // cost: mana to cast; drain: mana per second while it lasts; cd: seconds before it can be cast again.
+  const POWERS = [
+    {id: 'levitate', icon: '🪶', no: 'Svev', en: 'Levitation', key: '1', cost: 4, drain: 15, cd: .4, hold: true, color: 0xb8e6ff},
+    {id: 'blink', icon: '✨', no: 'Glimt', en: 'Blink', key: '2', cost: 30, cd: 3, dist: 8, color: 0xc38bff},
+    {id: 'gust', icon: '🌬️', no: 'Vindkast', en: 'Gust', key: '3', cost: 35, cd: 5, range: 14, cone: 40, color: 0xdff6ea},
+    {id: 'orb', icon: '🔮', no: 'Lyskule', en: 'Light orb', key: '4', cost: 10, drain: 1.2, cd: 1, toggle: true, color: 0xffe2a0}
+  ];
+  const byId = id => POWERS.find(p => p.id === id);
+
+  class Magic {
+    constructor(known = []) {this.mana = MAX_MANA;this.cool = {};this.known = new Set();this.sel = null;this.levitating = false;this.orb = false;this.idle = 0;for (const id of known) this.learn(id);}
+    learn(id) {if (!byId(id) || this.known.has(id)) return false;this.known.add(id);this.sel = id;return true;}
+    knows(id) {return this.known.has(id);}
+    list() {return POWERS.filter(p => this.known.has(p.id));}
+    get selected() {return this.sel && this.known.has(this.sel) ? this.sel : (this.list()[0] || {}).id || null;}
+    select(step = 1) {const l = this.list();if (!l.length) return null;const i = l.findIndex(p => p.id === this.selected);this.sel = l[((i + step) % l.length + l.length) % l.length].id;return this.sel;}
+    can(id) {
+      const p = byId(id);if (!p || !this.known.has(id)) return 'unknown';
+      if (p.toggle && this.orb && id === 'orb') return null;// switching the orb off is always allowed
+      if ((this.cool[id] || 0) > 0) return 'cooldown';
+      if (this.mana < p.cost) return 'mana';
+      return null;
+    }
+    cast(id) {
+      const p = byId(id), why = this.can(id);if (why) return {ok: false, why, power: p};
+      if (id === 'orb' && this.orb) {this.orb = false;this.cool[id] = p.cd;return {ok: true, power: p, on: false};}
+      this.mana -= p.cost;this.cool[id] = p.cd;this.idle = 0;
+      if (id === 'levitate') this.levitating = true;
+      if (id === 'orb') this.orb = true;
+      return {ok: true, power: p, on: true};
+    }
+    release(id) {if (id === 'levitate' && this.levitating) {this.levitating = false;return true;}return false;}
+    // Mana drains while levitating or while the orb burns, and refills after a short rest.
+    tick(dt) {
+      const ev = [];
+      for (const k of Object.keys(this.cool)) this.cool[k] = Math.max(0, this.cool[k] - dt);
+      let drain = 0;if (this.levitating) drain += byId('levitate').drain;if (this.orb) drain += byId('orb').drain;
+      if (drain > 0) {this.mana -= drain * dt;if (this.levitating) this.idle = 0;}
+      else this.idle += dt;
+      if (this.mana <= 0) {
+        this.mana = 0;
+        if (this.levitating) {this.levitating = false;ev.push({kind: 'empty', id: 'levitate'});}
+        if (this.orb) {this.orb = false;ev.push({kind: 'empty', id: 'orb'});}
+      }
+      // The orb's small drain does not stop the refill (its net effect is a slower refill).
+      if (this.idle > REGEN_DELAY || (!this.levitating && this.orb)) this.mana = Math.min(MAX_MANA, this.mana + REGEN * dt);
+      return ev;
+    }
+  }
+
+  // One step of the vertical motion with levitation: y = height above the floor under you, v = vertical speed.
+  // hold: rising (1.8 m/s up to max, then hovering with a slight bob); not holding but still up: sinking at most 1.3 m/s.
+  // head: headroom (ceiling above the floor minus your eye height), so you never float through a ceiling.
+  function levitate(s, dt, {hold, max = 3.2, head = Infinity}) {
+    let {y, v} = s;const top = Math.min(max, head);
+    if (hold) {const want = y < top - .05 ? 1.8 : (top - y) * 2;v += (want - v) * Math.min(1, dt * 6);}
+    else {v -= 9.81 * dt;if (v < -1.3) v = -1.3;}
+    y += v * dt;
+    if (y > top) {y = top;v = Math.min(0, v);}
+    if (y <= 0) return {y: 0, v: 0, floating: false};
+    return {y, v, floating: true};
+  }
+
+  // Blink: march from `from` along dir (normalised here) in small steps; test(p, y) returns the floor height you would stand on
+  // at p coming from height y (null = blocked: a wall, a drop, no floor). Stops at the last good point.
+  function blinkTarget(from, dir, dist, test, step = .2) {
+    const L = Math.hypot(dir.x, dir.z) || 1, ux = dir.x / L, uz = dir.z / L;
+    let best = {x: from.x, z: from.z, y: from.y, d: 0}, y = from.y;
+    for (let d = step; d <= dist + 1e-9; d += step) {
+      const p = {x: from.x + ux * d, z: from.z + uz * d}, ny = test(p, y);
+      if (ny === null || ny === undefined || !Number.isFinite(ny)) break;
+      y = ny;best = {x: p.x, z: p.z, y, d};
+    }
+    return best;
+  }
+
+  // Gust: what lies in a cone ahead (range metres, half-angle coneDeg), nearest first, with a strength that falls off with distance
+  // and with the angle off the centre line.
+  function gustTargets(from, dir, items, range = 14, coneDeg = 40) {
+    const L = Math.hypot(dir.x, dir.z) || 1, ux = dir.x / L, uz = dir.z / L, c = Math.cos(coneDeg * Math.PI / 180), out = [];
+    for (const item of items) {
+      const dx = item.x - from.x, dz = item.z - from.z, d = Math.hypot(dx, dz);if (d > range || d < .01) continue;
+      const cos = (dx * ux + dz * uz) / d;if (cos < c) continue;
+      out.push({item, d, k: (1 - d / range * .6) * (.5 + .5 * (cos - c) / (1 - c))});
+    }
+    return out.sort((a, b) => a.d - b.d);
+  }
+
+  // ---------- Browser: particles, the wind and the orb ----------
+  function effects({T, scene}) {
+    const N = 480, pos = new Float32Array(N * 3), col = new Float32Array(N * 3), vel = new Float32Array(N * 3), life = new Float32Array(N), age = new Float32Array(N), drag = new Float32Array(N);
+    const geo = new T.BufferGeometry();geo.setAttribute('position', new T.BufferAttribute(pos, 3));geo.setAttribute('color', new T.BufferAttribute(col, 3));
+    const dot = (() => {const c = document.createElement('canvas');c.width = c.height = 64;const x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 0, 32, 32, 32);g.addColorStop(0, 'rgba(255,255,255,1)');g.addColorStop(.35, 'rgba(255,255,255,.55)');g.addColorStop(1, 'rgba(255,255,255,0)');x.fillStyle = g;x.fillRect(0, 0, 64, 64);const t = new T.CanvasTexture(c);t.colorSpace = T.SRGBColorSpace;return t;})();
+    const mat = new T.PointsMaterial({size: .22, map: dot, vertexColors: true, transparent: true, depthWrite: false, blending: T.AdditiveBlending, sizeAttenuation: true, fog: false});
+    const points = new T.Points(geo, mat);points.frustumCulled = false;points.visible = false;points.name = 'Magic particles';scene.add(points);
+    let next = 0, alive = 0;const tmp = new T.Color();
+    function spawn(p, v, color, t, dr = 1.5) {
+      const i = next;next = (next + 1) % N;
+      pos[i * 3] = p.x;pos[i * 3 + 1] = p.y;pos[i * 3 + 2] = p.z;vel[i * 3] = v.x;vel[i * 3 + 1] = v.y;vel[i * 3 + 2] = v.z;
+      tmp.set(color);col[i * 3] = tmp.r;col[i * 3 + 1] = tmp.g;col[i * 3 + 2] = tmp.b;life[i] = t;age[i] = 0;drag[i] = dr;
+    }
+    const rnd = (a = 1) => (Math.random() * 2 - 1) * a;
+    // A puff of sparks round a point (blink start and end, a learned power, a picked mushroom).
+    function burst(p, color = 0xc38bff, n = 60, speed = 2.5) {for (let k = 0; k < n; k++) spawn({x: p.x + rnd(.25), y: p.y + rnd(.6), z: p.z + rnd(.25)}, {x: rnd(speed), y: rnd(speed) + .6, z: rnd(speed)}, color, .6 + Math.random() * .6);points.visible = true;}
+    // The gust: streaks flying out along dir in a widening cone.
+    function wind(from, dir) {
+      const L = Math.hypot(dir.x, dir.z) || 1, ux = dir.x / L, uz = dir.z / L;
+      for (let k = 0; k < 150; k++) {const s = 9 + Math.random() * 9, side = rnd(.45), up = Math.random() * .5 - .1;spawn({x: from.x + ux * .6 + rnd(.3), y: from.y + rnd(.4), z: from.z + uz * .6 + rnd(.3)}, {x: (ux - uz * side) * s, y: up * s * .4, z: (uz + ux * side) * s}, Math.random() < .25 ? 0xb9d98a : 0xeaf6f2, .5 + Math.random() * .7, .9);}
+      points.visible = true;
+    }
+    // The light orb: a glowing ball with a soft halo by your right shoulder, and a light that is always in the scene (so no shader
+    // is rebuilt when it comes on; intensity 0 when it is off).
+    const orbG = new T.Group();orbG.name = 'Light orb';orbG.visible = false;scene.add(orbG);
+    const core = new T.Mesh(new T.SphereGeometry(.04, 16, 10), new T.MeshBasicMaterial({color: 0xfff4d0, fog: false}));orbG.add(core);
+    const halo = new T.Sprite(new T.SpriteMaterial({map: dot, color: 0xffd98a, transparent: true, depthWrite: false, blending: T.AdditiveBlending, fog: false}));halo.scale.set(.5, .5, 1);halo.material.opacity = .75;orbG.add(halo);
+    const light = new T.PointLight(0xffe2b0, 0, 16, 1.6);light.name = 'Light orb light';scene.add(light);
+    const orb = {group: orbG, light, level: 0, on: false, pos: new T.Vector3(), t: 0};
+    const fwd = new T.Vector3(), right = new T.Vector3(), want = new T.Vector3(), up = new T.Vector3(0, 1, 0);
+    function update(dt, camera) {
+      // Orb: eases toward a point beside your head, bobbing; the light fades in and out.
+      orb.level += ((orb.on ? 1 : 0) - orb.level) * Math.min(1, dt * 6);orb.t += dt;
+      const show = orb.level > .02;orbG.visible = show;light.intensity = show ? orb.level * 9 : 0;
+      if (show) {
+        camera.getWorldDirection(fwd);fwd.y = 0;if (fwd.lengthSq() < 1e-6) fwd.set(0, 0, -1);fwd.normalize();right.crossVectors(fwd, up).normalize();
+        want.copy(camera.position).addScaledVector(right, .7).addScaledVector(fwd, 1.05);want.y += .32 + Math.sin(orb.t * 2.1) * .06;
+        if (orb.pos.distanceToSquared(want) > 25) orb.pos.copy(want);else orb.pos.lerp(want, Math.min(1, dt * 5));
+        orbG.position.copy(orb.pos);light.position.copy(orb.pos);core.scale.setScalar(.6 + .4 * orb.level);halo.scale.setScalar((.16 + Math.sin(orb.t * 5) * .015) * orb.level);
+        if (Math.random() < dt * 14) spawn({x: orb.pos.x + rnd(.05), y: orb.pos.y + rnd(.05), z: orb.pos.z + rnd(.05)}, {x: rnd(.15), y: .25 + Math.random() * .2, z: rnd(.15)}, 0xffd98a, .8, .5);
+      }
+      // Particles.
+      if (!points.visible) return;
+      alive = 0;
+      for (let i = 0; i < N; i++) {
+        if (age[i] >= life[i]) {if (pos[i * 3 + 1] > -9e3) {pos[i * 3 + 1] = -1e4;}continue;}
+        age[i] += dt;alive++;const k = Math.exp(-drag[i] * dt);
+        vel[i * 3] *= k;vel[i * 3 + 1] = vel[i * 3 + 1] * k - .6 * dt;vel[i * 3 + 2] *= k;
+        pos[i * 3] += vel[i * 3] * dt;pos[i * 3 + 1] += vel[i * 3 + 1] * dt;pos[i * 3 + 2] += vel[i * 3 + 2] * dt;
+        const f = 1 - age[i] / life[i];if (f < .3) {col[i * 3] *= .9;col[i * 3 + 1] *= .9;col[i * 3 + 2] *= .9;}
+      }
+      geo.attributes.position.needsUpdate = geo.attributes.color.needsUpdate = true;
+      if (!alive) points.visible = false;
+    }
+    for (let i = 0; i < N; i++) pos[i * 3 + 1] = -1e4;
+    return {burst, wind, orb, update, points};
+  }
+
+  return {POWERS, MAX_MANA, REGEN, Magic, levitate, blinkTarget, gustTargets, effects, byId};
+});
+</script><script>/* KIWI Storgata (issue #65): the regulars who hang around outside Kiwi Storgata 33 – a bit worn out, kind and funny – give you
+ * small quests that use the rest of the game, and Sopp-Sigvald, the mushroom wizard on the corner, teaches you magic once
+ * Storgata trusts you (GameMagic). Talk with □ / E; the conversation is in Norwegian with an English translation.
+ *   Kjell-Arne, retired sailor       ten empty bottles for the deposit (□ on bottles round Storgata, or drink a soda)
+ *   Bente, ex opera chorus singer    her late husband's harmonica, forgotten on the Opera roof
+ *   Tore and his dog Laika           a hot coffee and a hot dog from the counter inside the Kiwi
+ *   Mona, ex postwoman               a note for her brother Rolf, who feeds the pigeons at Schous plass
+ *   Even, retired press photographer a photo of Grønland kirke, where he married in 1981 (the photo camera, △)
+ *   Sopp-Sigvald                     four lessons, each after a mushroom hunt: Torshovdalen, Akerselva, the catacomb, MUNCH;
+ *                                    lesson k needs the trust of k regulars (each finished quest above is one)
+ * Saved in localStorage 'haarklous-storgata-v1' (part of an account's saved progress, GameProgress; MERGE joins two copies).
+ *
+ * Pure (Node-tested):
+ *   PEOPLE, QUESTS, PICKUPS, KEY, fresh(), normalize(raw), status(st, id), trust(st), lesson(st), pickupsOf(questId)
+ *   talk(st, who, ctx) -> {name, about, lines [{no, en}], options [{no, en, act, quest}]}   ctx = {pant, bag {id: n}, seed}
+ *   perform(st, who, option, ctx, now) -> {lines, reward?, accepted?, error?}   reward = {kr, item, takePant, takeItems, teach}
+ *   pick(st, pickupId) -> {quest, count, need, ready} | null     photo(st, spotId) -> quest id | null
+ *   goal(st, questId, ctx) -> {no, en}    merge(a, b) (texts) MERGE    hasProgress(st)
+ * GameStorgata.create({T, lib, avatars, world, groundAt, front, places, root, audio}) -> browser part (see the end).
+ */
+(function (root, factory) {
+  const api = factory();
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  else root.GameStorgata = api;
+})(typeof window === 'undefined' ? globalThis : window, function () {
+  'use strict';
+  const KEY = 'haarklous-storgata-v1';
+  const L = (no, en) => ({no, en});
+  const BYE = {...L('Ha det!', 'Bye!'), act: 'bye'};
+
+  // Where they are: a = metres along the shop's wall from the shop front's west corner, o = metres out from the wall.
+  const PEOPLE = {
+    even: {name: 'Even', about: L('pensjonert pressefotograf, 66', 'retired press photographer, 66'), color: 0x4b5a3c, place: {a: -13, o: .55}, seat: .45},
+    bente: {name: 'Bente', about: L('tidligere kordame i Operaen, 58', 'once in the Opera chorus, 58'), color: 0x8e2b62, place: {a: -8.6, o: .55}},
+    kjell: {name: 'Kjell-Arne', about: L('pensjonert sjømann, 62', 'retired sailor, 62'), color: 0x23406e, place: {a: -3.6, o: .55}, seat: .45},
+    tore: {name: 'Tore', about: L('og hunden Laika, 55', 'and his dog Laika, 55'), color: 0x5b4636, place: {a: 17.8, o: .6}, seat: .47},
+    mona: {name: 'Mona', about: L('tidligere postbud, 60', 'retired postwoman, 60'), color: 0xc0392b, place: {a: 22.2, o: .6}, seat: .45},
+    sigvald: {name: 'Sopp-Sigvald', about: L('soppmagiker, «omtrent 400 år»', 'mushroom wizard, "about 400 years old"'), color: 0x4a2a7a, place: {a: 28, o: 1.5}, wizard: true},
+    rolf: {name: 'Rolf', about: L('Monas bror, venn av duene', "Mona's brother, friend of the pigeons"), color: 0x3c5a7a, away: 'rolf', seat: .47}
+  };
+  const REGULARS = ['kjell', 'bente', 'tore', 'mona', 'even'];
+  const QUESTS = [
+    {id: 'kjell', who: 'kjell', kind: 'pant', need: 10, title: L('Ti tomflasker', 'Ten empty bottles'), reward: {item: 'kvikklunsj', takePant: 10}},
+    {id: 'bente', who: 'bente', kind: 'find', title: L('Arvids munnspill', "Arvid's harmonica"), reward: {kr: 100}},
+    {id: 'tore', who: 'tore', kind: 'buy', items: ['kaffekopp', 'polse'], title: L('Kaffe og pølse', 'Coffee and a hot dog'), reward: {item: 'solo', takeItems: ['kaffekopp', 'polse']}},
+    {id: 'mona', who: 'mona', kind: 'deliver', title: L('En lapp til Rolf', 'A note for Rolf'), reward: {kr: 80}},
+    {id: 'even', who: 'even', kind: 'photo', spot: 'gronland', title: L('Grønland kirke', 'Grønland kirke'), reward: {kr: 120}},
+    {id: 'w1', who: 'sigvald', kind: 'find', trust: 1, teach: 'levitate', title: L('Stjernesopp i Torshovdalen', 'Star mushrooms in Torshovdalen')},
+    {id: 'w2', who: 'sigvald', kind: 'find', trust: 2, teach: 'blink', title: L('Elvesopp langs Akerselva', 'River mushrooms along Akerselva')},
+    {id: 'w3', who: 'sigvald', kind: 'find', trust: 3, teach: 'gust', title: L('Beinsoppen i katakomben', 'The bone mushroom in the catacomb')},
+    {id: 'w4', who: 'sigvald', kind: 'find', trust: 4, teach: 'orb', title: L('Månesoppen ved MUNCH', 'The moon mushroom at MUNCH')}
+  ];
+  const quest = id => QUESTS.find(q => q.id === id);
+  // Things to find; the game places them (places.pickups[id] = world position) and shows each only while its quest is on.
+  const PICKUPS = [
+    {id: 'harmonica', quest: 'bente', name: L('Arvids munnspill', "Arvid's harmonica"), kind: 'harmonica'},
+    {id: 'dalen-1', quest: 'w1', name: L('stjernesopp', 'star mushroom'), kind: 'star'}, {id: 'dalen-2', quest: 'w1', name: L('stjernesopp', 'star mushroom'), kind: 'star'}, {id: 'dalen-3', quest: 'w1', name: L('stjernesopp', 'star mushroom'), kind: 'star'},
+    {id: 'elva-1', quest: 'w2', name: L('elvesopp', 'river mushroom'), kind: 'river'}, {id: 'elva-2', quest: 'w2', name: L('elvesopp', 'river mushroom'), kind: 'river'}, {id: 'elva-3', quest: 'w2', name: L('elvesopp', 'river mushroom'), kind: 'river'},
+    {id: 'bein-1', quest: 'w3', name: L('beinsoppen', 'the bone mushroom'), kind: 'bone'},
+    {id: 'mane-1', quest: 'w4', name: L('månesoppen', 'the moon mushroom'), kind: 'moon'}
+  ];
+  const pickupsOf = id => PICKUPS.filter(p => p.quest === id);
+
+  // ---------- State ----------
+  const fresh = () => ({v: 1, q: {}, got: {}, powers: {}, met: {}});
+  const STATES = ['none', 'active', 'ready', 'done'];
+  function normalize(raw) {
+    const st = fresh(), r = raw && typeof raw === 'object' ? raw : {};
+    for (const [id, x] of Object.entries(r.q || {})) if (quest(id) && x && STATES.includes(x.s) && x.s !== 'none') st.q[id] = {s: x.s, at: +x.at || 0, ...(x.done ? {done: +x.done} : {})};
+    for (const id of Object.keys(r.got || {})) if (PICKUPS.some(p => p.id === id)) st.got[id] = 1;
+    for (const [id, at] of Object.entries(r.powers || {})) if (['levitate', 'blink', 'gust', 'orb'].includes(id)) st.powers[id] = +at || 1;
+    for (const id of Object.keys(r.met || {})) if (PEOPLE[id]) st.met[id] = 1;
+    return st;
+  }
+  const status = (st, id) => (st.q[id] && st.q[id].s) || 'none';
+  const trust = st => REGULARS.filter(id => status(st, id) === 'done').length;
+  // The wizard's next lesson: the first one not finished, and whether Storgata trusts you enough for it.
+  function lesson(st) {const q = QUESTS.filter(q => q.who === 'sigvald').find(q => status(st, q.id) !== 'done');return q ? {q, ok: trust(st) >= q.trust} : null;}
+  const hasProgress = st => !!st && (Object.keys(st.q || {}).length > 0 || Object.keys(st.powers || {}).length > 0 || Object.keys(st.got || {}).length > 0);
+  const missing = (q, bag) => (q.items || []).filter(id => !((bag || {})[id] > 0));
+  function ready(st, id, ctx = {}) {
+    const q = quest(id), s = status(st, id);if (s === 'ready') return true;if (s !== 'active') return false;
+    if (q.kind === 'pant') return (ctx.pant || 0) >= q.need;
+    if (q.kind === 'buy') return missing(q, ctx.bag).length === 0;
+    return false;
+  }
+  const PRODUCT_NO = {kaffekopp: 'kaffe', polse: 'pølse i lompe'}, PRODUCT_EN = {kaffekopp: 'a coffee', polse: 'a hot dog'};
+  // What the HUD says you are doing for a quest.
+  function goal(st, id, ctx = {}) {
+    const q = quest(id), s = status(st, id);
+    if (s === 'ready') return L(`Gå tilbake til ${PEOPLE[q.who].name} i Storgata`, `Go back to ${PEOPLE[q.who].name} in Storgata`);
+    if (q.kind === 'pant') {const n = Math.min(q.need, ctx.pant || 0);return n >= q.need ? L('Gi Kjell-Arne ti tomflasker', 'Give Kjell-Arne ten empty bottles') : L(`Tomflasker: ${n} av ${q.need}`, `Empty bottles: ${n} of ${q.need} (□ on bottles round Storgata, or drink a soda)`);}
+    if (q.kind === 'buy') {const m = missing(q, ctx.bag);return m.length ? L(`Kjøp ${m.map(i => PRODUCT_NO[i]).join(' og ')} på Kiwi`, `Buy ${m.map(i => PRODUCT_EN[i]).join(' and ')} at the Kiwi counter`) : L('Gi Tore kaffen og pølsa', 'Give Tore the coffee and the hot dog');}
+    if (q.kind === 'deliver') return L('Gi Monas lapp til Rolf på Schous plass', "Give Mona's note to Rolf at Schous plass");
+    if (q.kind === 'photo') return L('Ta et bilde av Grønland kirke (hele tårnet)', 'Take a photo of Grønland kirke (the whole tower) with the camera');
+    if (id === 'bente') return L('Finn munnspillet på Operataket', 'Find the harmonica at the top of the Opera roof');
+    const ps = pickupsOf(id), k = ps.filter(p => st.got[p.id]).length;
+    return L(`${k} av ${ps.length} funnet – følg veipunktet`, `${k} of ${ps.length} found – follow the waypoint`);
+  }
+
+  // ---------- Conversations ----------
+  const RAMBLE = [
+    L('Soppene snakker, vet du. Mest om været. Og om trikken. De hater trikken.', 'The mushrooms talk, you know. Mostly about the weather. And the tram. They hate the tram.'),
+    L('Jeg gikk i lære hos en trollmann i Nordmarka i 1974. Eller var det 1874? Tiden er en sopp.', 'I was apprenticed to a wizard in Nordmarka in 1974. Or was it 1874? Time is a mushroom.'),
+    L('Duene her er spioner. Jeg har bevis. Bevisene er også duer.', 'The pigeons here are spies. I have proof. The proof is also pigeons.'),
+    L('Har du sett hatten min? … Å. Den sitter på hodet. Takk skal du ha.', "Have you seen my hat? … Oh. It's on my head. Thank you."),
+    L('Aldri spis en sopp du ikke kjenner! Magi kommer fra vennlighet, ikke fra magen.', 'Never eat a mushroom you do not know! Magic comes from kindness, not from your stomach.'),
+    L('Visste du at en kiwi er en fugl som ikke kan fly? Akkurat som meg før frokost.', "Did you know a kiwi is a bird that can't fly? Just like me before breakfast.")
+  ];
+  const IDLE = {
+    kjell: [L('Har jeg fortalt om da jeg rundet Kapp Horn med en papegøye som bare kunne banne på portugisisk?', 'Did I tell you about rounding Cape Horn with a parrot that could only swear in Portuguese?'),
+      L('Havet og Storgata er like, vet du. Begge er salte, og begge har måker.', 'The sea and Storgata are alike, you know. Both are salty, and both have seagulls.'), L('Takk for flaskene, matros!', 'Thanks for the bottles, sailor!')],
+    bente: [L('Tralalaaa… Unnskyld, bare oppvarming.', 'Tralalaaa… Sorry, just warming up.'), L('Kom tilbake i morgen, så synger jeg Habanera for deg.', "Come back tomorrow and I'll sing the Habanera for you."),
+      L('Bravo! Bravissimo! … Det var til deg, altså.', 'Bravo! Bravissimo! … That was for you, by the way.')],
+    tore: [L('Laika liker deg. Hun liker ikke mange. Postmannen, for eksempel: nei.', "Laika likes you. She doesn't like many people. The postman, for example: no."), L('Mm. Fint vær for kaffe.', 'Mm. Nice weather for coffee.')],
+    mona: [L('Rolf og jeg skal fiske på søndag. Med to fiskestenger!', 'Rolf and I are going fishing on Sunday. With two fishing rods!'), L('Visste du at postkassen på hjørnet er fra 1962? Nå vet du det.', 'Did you know the letterbox on the corner is from 1962? Now you do.')],
+    even: [L('Husk: det beste bildet er det du tar i dag.', 'Remember: the best photo is the one you take today.'), L('Se på lyset over Storgata nå. Klikk.', 'Look at the light over Storgata now. Click.')],
+    rolf: [L('Duene og jeg, vi forstår hverandre. De sier aldri noe dumt om fiskestenger.', 'The pigeons and I understand each other. They never say anything silly about fishing rods.')]
+  };
+  const INTRO = {
+    kjell: L('Ahoi! Kjell-Arne. Tjue år på sjøen – nå seiler jeg på fortauet.', 'Ahoy! Kjell-Arne. Twenty years at sea – now I sail the pavement.'),
+    bente: L('Å, en tilskuer! Bente, tretti år i operakoret. Jeg har sunget Carmen førti ganger – i koret, men likevel.', "Oh, an audience! Bente, thirty years in the opera chorus. I've sung Carmen forty times – in the chorus, but still."),
+    tore: L('Mm. Tore. Og dette er Laika. Hun er sjefen, jeg er bare sjåføren.', "Mm. Tore. And this is Laika. She's the boss, I'm just the driver."),
+    mona: L('Hei, vennen. Mona. Trettien år i Posten – jeg kjenner hver eneste postkasse i Gamle Oslo.', 'Hi, dear. Mona. Thirty-one years at the Post – I know every letterbox in Old Oslo.'),
+    even: L('Even. Pressefotograf i førti år. Nå tar jeg bilder med øynene – film er så dyrt.', 'Even. Press photographer for forty years. Now I take pictures with my eyes – film is so expensive.'),
+    sigvald: L('Aha! En sjel med gode sko! Sopp-Sigvald, magiker, soppvenn og rådgiver for duer.', 'Aha! A soul with good shoes! Sopp-Sigvald, wizard, friend of mushrooms and adviser to pigeons.'),
+    rolf: L('Hm? Rolf. Jeg mater duene. Duene mater meg med selskap.', 'Hm? Rolf. I feed the pigeons. The pigeons feed me company.')
+  };
+  const OFFER = {
+    kjell: [L('Ryggen min er ikke hva den var. Kan du samle ti tomflasker for meg? Folk slenger dem rundt her i Storgata.', "My back isn't what it was. Could you collect ten empty bottles for me? People leave them all over Storgata."), L('Klart, jeg finner dem!', "Sure, I'll find them!")],
+    bente: [L('I går sang jeg på Operataket, og der glemte jeg munnspillet etter min Arvid. Bakkene er for bratte for knærne mine i dag. Kan du hente det?', "Yesterday I sang on the Opera roof, and I left my Arvid's harmonica up there. The slopes are too steep for my knees today. Could you fetch it?"), L('Jeg henter det!', "I'll fetch it!")],
+    tore: [L('Det er kaldt i dag. Kan du kjøpe en kaffe til meg og en pølse i lompe til Laika? Det er en disk ved vinduet inne på Kiwi. Pølsa er til Laika. Ærlig talt.', "It's cold today. Could you buy me a coffee and a hot dog for Laika? There's a counter by the window inside the Kiwi. The hot dog is for Laika. Honestly."), L('Kaffe og pølse, kommer straks!', 'Coffee and a hot dog, coming right up!')],
+    mona: [L('Broren min Rolf mater duene på Schous plass hver dag. Vi har ikke snakket sammen siden en dum krangel om en fiskestang. Kan du gi ham denne lappen?', "My brother Rolf feeds the pigeons at Schous plass every day. We haven't spoken since a silly row about a fishing rod. Could you give him this note?"), L('Jeg leverer den!', "I'll deliver it!")],
+    even: [L('Jeg giftet meg i Grønland kirke i 1981. Knærne mine klarer ikke turen dit lenger. Vil du ta et bilde av kirken for meg? Hele tårnet, takk.', "I got married in Grønland kirke in 1981. My knees can't manage the walk any more. Would you take a picture of the church for me? The whole tower, please."), L('Jeg tar bildet!', "I'll take the picture!")],
+    w1: [L('Folk i Storgata sier du er snill. Godt! I Torshovdalen gløder tre stjernesopper. Hent dem, så lærer jeg deg å sveve.', 'People in Storgata say you are kind. Good! Three star mushrooms glow in Torshovdalen. Bring them to me and I will teach you to float.'), L('Jeg finner soppene!', "I'll find the mushrooms!")],
+    w2: [L('Langs Akerselva vokser elvesopp som har lært seg å hoppe over steiner. Tre stykker, takk. Da lærer du Glimt.', 'Along Akerselva grow river mushrooms that have learned to skip over stones. Three of them, please. Then you will learn Blink.'), L('Til elva!', 'To the river!')],
+    w3: [L('Dypt under Torshovdalen, i katakomben, står beinsoppen i Rotunden. Den er gammel og gretten. Si at Sigvald hilser – og ta den med. Da lærer du Vindkast.', 'Deep under Torshovdalen, in the catacomb, the bone mushroom stands in the Rotunda. It is old and grumpy. Tell it Sigvald says hello – and bring it. Then you will learn Gust.'), L('Ned i mørket, da.', 'Down into the dark, then.')],
+    w4: [L('Den siste: månesoppen ved foten av MUNCH, der fjorden glitrer. Med den lærer du Lyskule.', 'The last one: the moon mushroom at the foot of MUNCH, where the fjord glitters. With it you will learn Light orb.'), L('Jeg henter månesoppen!', "I'll fetch the moon mushroom!")]
+  };
+  const ACTIVE = {
+    bente: L('Munnspillet ligger helt øverst på Operataket. Veipunktet viser veien – gå opp den hvite bakken.', 'The harmonica is at the very top of the Opera roof. The waypoint shows the way – walk up the white slope.'),
+    mona: L('Rolf sitter på en benk på Schous plass, ved bordtennisbordet i Grünerløkka. Lue med dusk. Følg veipunktet.', 'Rolf sits on a bench at Schous plass, by the table tennis table in Grünerløkka. Bobble hat. Follow the waypoint.'),
+    even: L('Grønland kirke, med det høye tårnet, øst for Grønland T-bane. Ta bildet med kameraet (△) og få med hele tårnet.', 'Grønland kirke, the one with the tall tower, east of Grønland T-bane. Take it with the camera (△) and get the whole tower in.')
+  };
+  const READY = {kjell: L('Gi ham ti tomflasker', 'Give him ten empty bottles'), bente: L('Gi henne munnspillet', 'Give her the harmonica'), tore: L('Gi dem kaffen og pølsa', 'Give them the coffee and the hot dog'),
+    mona: L('Fortell hva Rolf sa', 'Tell her what Rolf said'), even: L('Vis ham bildet', 'Show him the photo'), sigvald: L('Gi ham soppene', 'Give him the mushrooms'), sigvald1: L('Gi ham soppen', 'Give him the mushroom')};
+  const THANKS = {
+    kjell: L('Ti flasker! Tjue kroner i pant – det blir kaffe i morgen. Her, ta Kvikk Lunsjen min. Du har fortjent den, matros.', "Ten bottles! Twenty kroner of deposit – that's coffee tomorrow. Here, have my Kvikk Lunsj. You've earned it, sailor."),
+    bente: L('Arvid! Du er hjemme igjen. … Her, ta hundre kroner. Nei, ikke si nei – en primadonna insisterer!', "Arvid! You're home again. … Here, take a hundred kroner. No, don't say no – a prima donna insists!"),
+    tore: L('Varm kaffe… Du er et godt menneske. Laika, si takk! … Hun sier takk. Ta denne Soloen – jeg fant to.', "Hot coffee… You're a good person. Laika, say thank you! … She says thanks. Have this Solo – I found two."),
+    mona: L('Sa han det? At han savner meg? Å, den dumme gamle torsken… Her, åtti kroner for portoen. Og tusen takk.', 'He said that? That he misses me? Oh, the silly old cod… Here, eighty kroner for the postage. And thank you so much.'),
+    even: L('La meg se… Ja. Akkurat sånn så den ut. Lyset er fint – du har øye for det. Her, hundre og tjue kroner, mitt siste fotohonorar.', "Let me see… Yes. That's just how it looked. Lovely light – you have an eye for it. Here, a hundred and twenty kroner, my last photo fee.")
+  };
+  const TEACH = {
+    levitate: L('Pust inn. Tenk på en fjær. Tenk på en fjær som tenker på en sky. Hold R1 (eller 1)… Sånn! Du svever!', 'Breathe in. Think of a feather. Think of a feather thinking of a cloud. Hold R1 (or 1)… There! You are floating!'),
+    blink: L('Se dit du vil. Blunk med hele kroppen. R1 (eller 2) – glimt! Ikke gjennom vegger, det gjør vondt.', 'Look where you want to go. Blink with your whole body. R1 (or 2) – blink! Not through walls, that hurts.'),
+    gust: L('Blås som en nordavind med dårlig humør! R1 (eller 3) dytter biler, sparkesykler og duer. Mest duer.', 'Blow like a grumpy north wind! R1 (or 3) pushes cars, scooters and pigeons. Mostly pigeons.'),
+    orb: L('Hold lyset i hånden og slipp det løs. R1 (eller 4) tenner og slukker Lyskula. Fin i katakomben!', 'Hold the light in your hand and let it go. R1 (or 4) lights and puts out the light orb. Lovely in the catacomb!')
+  };
+  const pickLine = (list, seed) => list[((seed | 0) % list.length + list.length) % list.length];
+
+  function talk(st, who, ctx = {}) {
+    const P = PEOPLE[who];if (!P) return null;
+    const out = {name: P.name, about: P.about, lines: [], options: []}, seed = ctx.seed || 0;
+    if (!st.met[who]) out.lines.push(INTRO[who]);
+    if (who === 'rolf') {
+      const s = status(st, 'mona');
+      if (s === 'active') {out.lines.push(L('En lapp? Til meg? Hvem i all verden …', 'A note? For me? Who on earth …'));out.options.push({...L('Gi ham Monas lapp', "Give him Mona's note"), act: 'deliver', quest: 'mona'});}
+      else if (s === 'ready' || s === 'done') out.lines.push(L('Si hei til Mona. Og si at duene hilser.', 'Say hi to Mona. And tell her the pigeons send their regards.'));
+      else out.lines.push(pickLine(IDLE.rolf, seed));
+      out.options.push(BYE);return out;
+    }
+    if (who === 'sigvald') {
+      out.lines.push(pickLine(RAMBLE, seed));
+      const ls = lesson(st);
+      if (!ls) {out.lines.push(L('Du er nå Mester av Storgata! Bruk kreftene vennlig. Og ikke si noe til duene.', 'You are now Master of Storgata! Use your powers kindly. And do not tell the pigeons anything.'));out.options.push(BYE);return out;}
+      const s = status(st, ls.q.id);
+      if (s === 'none' && !ls.ok) out.lines.push(L(`Folk i Storgata vet hvem som har et godt hjerte. Hjelp dem, så snakker vi om magi. Tillit: ${trust(st)} av ${ls.q.trust}.`, `The people of Storgata know who has a good heart. Help them, and then we will talk magic. Trust: ${trust(st)} of ${ls.q.trust}.`));
+      else if (s === 'none') {out.lines.push(OFFER[ls.q.id][0]);out.options.push({...OFFER[ls.q.id][1], act: 'accept', quest: ls.q.id});}
+      else if (s === 'active') {const ps = pickupsOf(ls.q.id), k = ps.filter(p => st.got[p.id]).length;out.lines.push(L(`Soppene venter. ${k} av ${ps.length} funnet. Veipunktet viser den neste.`, `The mushrooms are waiting. ${k} of ${ps.length} found. The waypoint shows the next one.`));}
+      else if (s === 'ready') {out.lines.push(L('Jeg kjenner lukten av sopp! Har du dem?', 'I smell mushrooms! Do you have them?'));out.options.push({...(pickupsOf(ls.q.id).length > 1 ? READY.sigvald : READY.sigvald1), act: 'complete', quest: ls.q.id});}
+      out.options.push(BYE);return out;
+    }
+    const q = quest(who), s = status(st, who);
+    if (s === 'none') {out.lines.push(OFFER[who][0]);out.options.push({...OFFER[who][1], act: 'accept', quest: who});}
+    else if (s === 'done') out.lines.push(pickLine(IDLE[who], seed));
+    else if (ready(st, who, ctx)) {out.lines.push(L('Å! Har du det?', 'Oh! Have you got it?'));out.options.push({...READY[who], act: 'complete', quest: who});}
+    else if (q.kind === 'pant') out.lines.push(L(`Du har ${Math.min(ctx.pant || 0, q.need)} av ti. Se langs fortauene – og en brus gir også en flaske!`, `You have ${Math.min(ctx.pant || 0, q.need)} of ten. Look along the pavements – and a soda gives you a bottle too!`));
+    else if (q.kind === 'buy') {const m = missing(q, ctx.bag);out.lines.push(L(`Kaffe og pølse i lompe fra disken ved vinduet inne på Kiwi. Du mangler: ${m.map(i => PRODUCT_NO[i]).join(' og ')}. Laika ser på deg.`, `Coffee and a hot dog from the counter by the window inside the Kiwi. Still missing: ${m.map(i => PRODUCT_EN[i]).join(' and ')}. Laika is watching you.`));}
+    else out.lines.push(ACTIVE[who]);
+    out.options.push(BYE);return out;
+  }
+
+  // The chosen option: accept a quest, finish it (the reward, which the game pays out), or hand Mona's note to Rolf.
+  function perform(st, who, opt, ctx = {}, now = Date.now()) {
+    st.met[who] = 1;
+    if (!opt || opt.act === 'bye') return {lines: []};
+    const q = quest(opt.quest);if (!q) return {error: 'no quest', lines: []};
+    if (opt.act === 'accept') {
+      if (status(st, q.id) !== 'none') return {error: 'taken', lines: []};
+      if (q.who === 'sigvald') {const ls = lesson(st);if (!ls || ls.q.id !== q.id || !ls.ok) return {error: 'trust', lines: []};}
+      st.q[q.id] = {s: 'active', at: now};
+      // Things found before (a copy of the progress from another PC) still count.
+      const ps = pickupsOf(q.id);if (ps.length && ps.every(p => st.got[p.id])) st.q[q.id].s = 'ready';
+      return {accepted: q.id, lines: [L('Tusen takk!', 'Thank you so much!')]};
+    }
+    if (opt.act === 'deliver') {
+      if (q.id !== 'mona' || status(st, 'mona') !== 'active') return {error: 'no note', lines: []};
+      st.q.mona.s = 'ready';
+      return {delivered: true, lines: [L('«Unnskyld for fiskestanga.» Hm. Si at hun kan få den tilbake. Og… at jeg savner henne.', '"Sorry about the fishing rod." Hm. Tell her she can have it back. And… that I miss her.')]};
+    }
+    if (opt.act === 'complete') {
+      if (!ready(st, q.id, ctx)) return {error: 'not ready', lines: []};
+      st.q[q.id] = {s: 'done', at: st.q[q.id].at, done: now};
+      const reward = {...(q.reward || {})};
+      if (q.teach) {st.powers[q.teach] = now;reward.teach = q.teach;}
+      const lines = q.teach ? [L('Ahh, de nynner! Nå, hør godt etter …', 'Ahh, they are humming! Now listen carefully …'), TEACH[q.teach]] : [THANKS[q.id]];
+      if (q.teach && q.id !== 'w4') lines.push(L('D-pad ← (eller ←) velger kraft. Mana fylles opp av seg selv.', 'D-pad ← (or ←) chooses the power. Your mana refills by itself.'));
+      return {lines, reward, done: q.id};
+    }
+    return {error: 'unknown', lines: []};
+  }
+
+  function pick(st, id) {
+    const p = PICKUPS.find(x => x.id === id);if (!p || st.got[id] || status(st, p.quest) !== 'active') return null;
+    st.got[id] = 1;const ps = pickupsOf(p.quest), count = ps.filter(x => st.got[x.id]).length;
+    if (count >= ps.length) st.q[p.quest].s = 'ready';
+    return {quest: p.quest, count, need: ps.length, ready: count >= ps.length, pickup: p};
+  }
+  function photo(st, spot) {const q = QUESTS.find(x => x.kind === 'photo' && x.spot === spot && status(st, x.id) === 'active');if (!q) return null;st.q[q.id].s = 'ready';return q.id;}
+
+  // Two copies of the state (an account and a browser, or two PCs) join: the further step of each quest wins, finds, powers and
+  // people met add up.
+  function merge(A, B) {
+    const parse = t => {try {return normalize(JSON.parse(t));} catch {return fresh();}};
+    const a = parse(A), b = parse(B), out = fresh();
+    for (const id of new Set([...Object.keys(a.q), ...Object.keys(b.q)])) {
+      const x = a.q[id], y = b.q[id];out.q[id] = !y ? x : !x ? y : STATES.indexOf(x.s) >= STATES.indexOf(y.s) ? x : y;
+    }
+    out.got = {...b.got, ...a.got};out.met = {...b.met, ...a.met};
+    for (const id of new Set([...Object.keys(a.powers), ...Object.keys(b.powers)])) out.powers[id] = Math.min(a.powers[id] || Infinity, b.powers[id] || Infinity);
+    return JSON.stringify(out);
+  }
+  const MERGE = {[KEY]: merge};
+
+  // ---------- Browser ----------
+  // front = the shop notch {P0, u, n, W} in local metres; rolf = {x, z, yaw} (world) for his bench at Schous plass. The finds and the
+  // bottles are placed by the game once the walk world exists (place(...)). groundAt(x, z) gives world heights.
+  function create({T, lib, avatars, world, groundAt, front, rolf, root, audio}) {
+    const group = new T.Group();group.name = 'Storgata';
+    const W = (x, s) => world.toWorld(x, s), along = (a, o) => [front.P0[0] + front.u[0] * a - front.n[0] * o, front.P0[1] + front.u[1] * a - front.n[1] * o];
+    // The street side is -n in local metres; in the world that is a yaw for a figure facing -z.
+    const outW = (() => {const p = W(...along(0, 0)), q = W(...along(0, 1));return Math.atan2(-(q.x - p.x), -(q.z - p.z));})();
+    const obstacles = [], hitboxes = [], people = {};
+    const hitM = new T.MeshBasicMaterial({visible: false});
+    const mats = {
+      white: new T.MeshStandardMaterial({color: 0xf1f1ec, roughness: .9}), grey: new T.MeshStandardMaterial({color: 0x9a9a96, roughness: .9}), red: new T.MeshStandardMaterial({color: 0xc3241c, roughness: .55}),
+      crate: lib.polymer(0x2f5d8a), card: new T.MeshStandardMaterial({color: 0xb28b5a, roughness: 1}), wood: lib.wood(0x6b4a33, .7), metal: lib.metal(0x7d8186, .4), dark: lib.polymer(0x232528),
+      robe: lib.fabric(0x4a2a7a), star: new T.MeshStandardMaterial({color: 0xffe066, emissive: 0xffc400, emissiveIntensity: .6}), glow: new T.MeshStandardMaterial({color: 0xe0ffd0, emissive: 0x9dff6a, emissiveIntensity: 1.6}),
+      fur: new T.MeshStandardMaterial({color: 0x8a6a48, roughness: 1}), furDark: new T.MeshStandardMaterial({color: 0x3d2c1f, roughness: 1}), blanket: lib.fabric(0x7a2f2f), can: new T.MeshStandardMaterial({color: 0xf7941d, roughness: .3, metalness: .6}),
+      scarf: lib.fabric(0xe0a020), bag: lib.fabric(0xd0021b), beanie: lib.fabric(0x1f4f8f), bobble: lib.fabric(0xd8452b), cap: lib.fabric(0x3c3c3c), green: new T.MeshStandardMaterial({color: 0x3f7f35, roughness: .8}), pink: new T.MeshStandardMaterial({color: 0xe9457a, roughness: .7})
+    };
+    const mesh = (parent, geo, mat, x = 0, y = 0, z = 0) => {const m = new T.Mesh(geo, mat);m.position.set(x, y, z);m.castShadow = true;parent.add(m);return m;};
+    const box = (parent, w, h, d, mat, x, y, z) => mesh(parent, new T.BoxGeometry(w, h, d), mat, x, y, z);
+    const cyl = (parent, r0, r1, h, mat, x, y, z, seg = 12) => mesh(parent, new T.CylinderGeometry(r0, r1, h, seg), mat, x, y, z);
+    const sph = (parent, r, mat, x, y, z, ws = 12, hs = 8) => mesh(parent, new T.SphereGeometry(r, ws, hs), mat, x, y, z);
+    // A person: the game's avatar, posed once and merged; the head stays a separate group so it can turn. The regulars' bodies are
+    // merged together into one set of meshes (crowd, below), the wizard and Rolf each on their own (the wizard sways).
+    const eyeM = new T.MeshStandardMaterial({color: 0x222222}), crowd = new T.Group();crowd.name = 'Storgata regulars';group.add(crowd);
+    function person(id, at, yaw, {stance = 'stand', seat = 0, dress, own = false} = {}) {
+      const P = PEOPLE[id], av = avatars.avatar(id === 'sigvald' ? 4 : 7, P.name, P.color), g = av.group;
+      const y = groundAt(at.x, at.z);g.position.set(at.x, y + (stance === 'sit' ? seat + .02 : 0), at.z);g.rotation.y = yaw;av.pose({stance});
+      const head = av.joints.head;head.userData.noMerge = true;
+      if (dress) dress(g, head, av);
+      // One eye material for everybody, and no shadows from the heads (fewer draw calls).
+      head.traverse(o => {if (o.isMesh) {o.castShadow = false;if (o.material.color && o.material.color.getHex() === 0x222222 && !o.material.map) o.material = eyeM;}});
+      g.updateMatrixWorld(true);lib.mergeStatic(head);if (own) lib.mergeStatic(g);
+      const hit = new T.Mesh(new T.BoxGeometry(.8, 1.7, .8), hitM);hit.position.set(0, stance === 'sit' ? .35 : .85, 0);hit.userData = {storgata: id, noMerge: true};g.add(hit);hitboxes.push(hit);
+      (own ? group : crowd).add(g);
+      const p = people[id] = {id, av, g, head, base: head.rotation.y, at: {x: at.x, y, z: at.z}, yaw, talkT: 0};
+      return p;
+    }
+    // Walk obstacle round a spot (world): a box of half-size hx × hz turned by yaw.
+    function block(at, yaw, hx, hz, h = 1.6) {
+      const c = Math.cos(yaw), s = Math.sin(yaw), y = groundAt(at.x, at.z);
+      obstacles.push({points: [[-hx, -hz], [hx, -hz], [hx, hz], [-hx, hz]].map(([a, b]) => ({x: at.x + c * a + s * b, z: at.z - s * a + c * b})), minY: y - .3, maxY: y + h, kind: 'storgata'});
+    }
+    const spot = (a, o) => W(...along(a, o));
+    const props = new T.Group();props.name = 'Storgata props';group.add(props);
+    const prop = (at, yaw) => {const g = new T.Group();g.position.set(at.x, groundAt(at.x, at.z), at.z);g.rotation.y = yaw;props.add(g);return g;};
+    // ---- The regulars along the wall, facing the street ----
+    {
+      const at = spot(PEOPLE.kjell.place.a, PEOPLE.kjell.place.o), yaw = outW + .25;
+      const c = prop(at, yaw);box(c, .44, .44, .36, mats.crate, 0, .22, .02);box(c, .5, .02, .5, mats.card, .55, .01, -.1);
+      const sign = (() => {const cv = document.createElement('canvas');cv.width = 256;cv.height = 160;const x = cv.getContext('2d');x.fillStyle = '#c9a26b';x.fillRect(0, 0, 256, 160);x.fillStyle = '#2b2118';x.font = 'bold 34px Segoe UI, Arial';x.textAlign = 'center';x.fillText('TAKK FOR', 128, 58);x.fillText('TOMFLASKA :)', 128, 108);const t = new T.CanvasTexture(cv);t.colorSpace = T.SRGBColorSpace;return new T.MeshStandardMaterial({map: t, roughness: 1});})();
+      const sg = box(c, .48, .3, .01, sign, -.45, .22, -.18);sg.rotation.x = -.25;cyl(c, .045, .035, .1, mats.white, .42, .05, -.22, 10);
+      person('kjell', at, yaw, {stance: 'sit', seat: .44, dress: (g, head) => {
+        mesh(head, new T.SphereGeometry(.125, 14, 8, 0, Math.PI * 2, 0, Math.PI * .5), mats.beanie, 0, .045, .01).scale.set(1, .95, 1);
+        const beard = mesh(head, new T.SphereGeometry(.085, 10, 8), mats.grey, 0, -.06, -.07);beard.scale.set(1.1, .9, .6);
+      }});
+      block(at, yaw, .45, .4, 1.4);
+    }
+    {
+      const at = spot(PEOPLE.bente.place.a, PEOPLE.bente.place.o), yaw = outW - .3, t = spot(PEOPLE.bente.place.a + 1.0, .65), ty = outW + Math.PI / 2;
+      // Her shopping trolley: wire basket on four wheels, full of bags and a potted geranium.
+      const tr = prop(t, ty);box(tr, .55, .02, .4, mats.metal, 0, .32, 0);for (const [x, z] of [[-.27, -.19], [.27, -.19], [-.27, .19], [.27, .19]]) {box(tr, .02, .5, .02, mats.metal, x, .57, z);cyl(tr, .05, .05, .03, mats.dark, x, .05, z, 10).rotation.x = Math.PI / 2;box(tr, .02, .3, .02, mats.metal, x, .17, z);}
+      box(tr, .55, .02, .02, mats.metal, 0, .82, -.19);box(tr, .55, .02, .02, mats.metal, 0, .82, .19);box(tr, .02, .02, .4, mats.metal, -.27, .82, 0);box(tr, .02, .02, .4, mats.metal, .27, .82, 0);
+      box(tr, .02, .32, .02, mats.metal, .32, 1.0, 0).rotation.z = -.4;box(tr, .02, .02, .42, mats.dark, .38, 1.14, 0);
+      box(tr, .25, .3, .2, mats.white, -.12, .5, -.05);box(tr, .22, .28, .2, mats.bag, .13, .5, .06);cyl(tr, .08, .06, .14, mats.card, .1, .9, -.08, 10);sph(tr, .12, mats.green, .1, 1.04, -.08);for (let k = 0; k < 4; k++) sph(tr, .035, mats.pink, .1 + Math.cos(k * 1.6) * .08, 1.12, -.08 + Math.sin(k * 1.6) * .08);
+      person('bente', at, yaw, {dress: (g, head) => {
+        mesh(head, new T.TorusGeometry(.09, .035, 8, 16), mats.scarf, 0, -.16, 0).rotation.x = Math.PI / 2;
+        const hat = mesh(head, new T.CylinderGeometry(.22, .22, .02, 18), mats.pink, 0, .11, 0);hat.rotation.x = -.12;mesh(head, new T.CylinderGeometry(.1, .11, .09, 14), mats.pink, 0, .15, 0);
+      }});
+      block(at, yaw, .3, .3, 1.8);block(t, ty, .32, .25, 1.2);
+    }
+    {
+      const at = spot(PEOPLE.tore.place.a, PEOPLE.tore.place.o), yaw = outW - .2, d = spot(PEOPLE.tore.place.a + .95, 1.05), dy = outW + Math.PI / 2 - .3;
+      const st = prop(at, yaw);box(st, .38, .04, .34, mats.card, 0, .45, .02);for (const sx of [-1, 1]) {const l = box(st, .025, .5, .025, mats.metal, sx * .15, .22, .02);l.rotation.x = .35;const l2 = box(st, .025, .5, .025, mats.metal, sx * .15, .22, .02);l2.rotation.x = -.35;}
+      person('tore', at, yaw, {stance: 'sit', seat: .47, dress: (g, head, av) => {
+        mesh(head, new T.SphereGeometry(.122, 14, 8, 0, Math.PI * 2, 0, Math.PI * .45), mats.cap, 0, .05, 0);box(head, .2, .02, .12, mats.cap, 0, .07, -.13);
+        // A can of Solo in his right hand (the avatar's bottle is a beer bottle).
+        const can = cyl(av.joints.R.el, .032, .032, .12, mats.can, 0, -.31, -.03, 10);can.rotation.x = .2;
+      }});
+      // Laika: a scruffy dog lying on a blanket, head up; her tail wags (its own small mesh).
+      const dog = prop(d, dy);dog.name = 'Laika';box(dog, .7, .02, .5, mats.blanket, 0, .01, 0);
+      const body = sph(dog, .17, mats.fur, 0, .17, 0, 12, 8);body.scale.set(1, .85, 2.0);
+      for (const [x, z] of [[-.1, -.22], [.1, -.22]]) {const l = box(dog, .07, .06, .2, mats.fur, x, .04, z - .08);l.rotation.x = 0;}
+      const dh = new T.Group();dh.position.set(0, .32, -.34);dog.add(dh);sph(dh, .1, mats.fur, 0, 0, 0);const snout = sph(dh, .06, mats.fur, 0, -.03, -.09);snout.scale.set(.9, .8, 1.3);sph(dh, .022, mats.furDark, 0, -.02, -.17, 8, 6);
+      for (const sx of [-1, 1]) {const ear = box(dh, .05, .1, .03, mats.furDark, sx * .07, .07, .01);ear.rotation.z = sx * .4;sph(dh, .013, mats.furDark, sx * .04, .025, -.085, 6, 4);}
+      const tail = new T.Group();tail.position.set(0, .2, .32);dog.add(tail);const tm = box(tail, .04, .04, .24, mats.fur, 0, .03, .11);tm.rotation.x = -.5;
+      dh.userData.noMerge = tail.userData.noMerge = true;dog.updateMatrixWorld(true);lib.mergeStatic(dh);lib.mergeStatic(tail);
+      people.tore.dog = {head: dh, tail, t: 0};
+      block(at, yaw, .3, .3, 1.4);block(d, dy, .3, .45, .6);
+    }
+    {
+      const at = spot(PEOPLE.mona.place.a, PEOPLE.mona.place.o), yaw = outW, b = prop(at, yaw);
+      // A bench against the wall; her red Posten bag and a thermos beside her.
+      box(b, 1.6, .05, .42, mats.wood, .35, .45, .05);box(b, 1.6, .3, .04, mats.wood, .35, .72, .25);for (const x of [-.35, 1.05]) box(b, .06, .45, .4, mats.metal, x, .22, .05);
+      box(b, .32, .26, .12, mats.bag, .75, .6, .05);cyl(b, .045, .045, .26, mats.metal, 1.0, .6, -.02, 10);
+      person('mona', at, yaw, {stance: 'sit', seat: .47, dress: (g, head) => {
+        mesh(head, new T.SphereGeometry(.13, 14, 10), mats.grey, 0, .01, .03).scale.set(1, 1.1, 1);
+        mesh(head, new T.TorusGeometry(.03, .012, 6, 12), mats.dark, -.04, .03, -.105).rotation.y = .1;mesh(head, new T.TorusGeometry(.03, .012, 6, 12), mats.dark, .04, .03, -.105).rotation.y = -.1;
+      }});
+      const c = Math.cos(yaw), s = Math.sin(yaw), mid = {x: at.x + c * .35, z: at.z - s * .35};block(mid, yaw, .85, .3, 1.0);
+    }
+    {
+      const at = spot(PEOPLE.even.place.a, PEOPLE.even.place.o), yaw = outW + .35, c = prop(at, yaw);box(c, .44, .44, .36, mats.crate, 0, .22, .02);
+      person('even', at, yaw, {stance: 'sit', seat: .45, dress: (g, head, av) => {
+        mesh(head, new T.CylinderGeometry(.13, .125, .05, 14), mats.cap, 0, .08, 0);box(head, .18, .015, .1, mats.cap, 0, .07, -.12);
+        // An old film camera on a strap round his neck.
+        const torso = av.joints.head.parent.parent;box(torso, .15, .1, .07, mats.dark, 0, .3, -.17);cyl(torso, .035, .035, .06, mats.metal, 0, .3, -.23, 10).rotation.x = Math.PI / 2;
+      }});
+      block(at, yaw, .45, .4, 1.4);
+    }
+    // ---- Sopp-Sigvald, the mushroom wizard: robe, wild white hair and beard, a red-and-white mushroom hat and a staff ----
+    {
+      const at = spot(PEOPLE.sigvald.place.a, PEOPLE.sigvald.place.o), yaw = outW - .6;
+      const p = person('sigvald', at, yaw, {own: true, dress: (g, head, av) => {
+        const hips = av.joints.head.parent.parent.parent;
+        const robe = cyl(hips, .2, .42, 1.0, mats.robe, 0, -.47, 0, 18);robe.castShadow = true;
+        for (let k = 0; k < 9; k++) {const a = k * 2.4, h = -.2 - (k % 3) * .25, r = .26 + ((h + .2) * -.18);const s = box(hips, .05, .05, .01, mats.star, Math.sin(a) * r, h, Math.cos(a) * r);s.rotation.set(0, a, .8);}
+        for (let k = 0; k < 9; k++) {const a = k / 9 * Math.PI * 2;sph(head, .06 + (k % 3) * .015, mats.white, Math.sin(a) * .12, .02 + Math.cos(a * 2) * .03, Math.cos(a) * .11 + .02, 8, 6);}
+        const beard = mesh(head, new T.ConeGeometry(.09, .34, 10), mats.white, 0, -.2, -.07);beard.rotation.x = Math.PI + .25;
+        cyl(head, .07, .085, .12, mats.white, 0, .14, 0, 12);
+        // The big fly-agaric hat: a red dome with white spots and pale gills underneath.
+        const R = .4, capM = mesh(head, new T.SphereGeometry(R, 24, 12, 0, Math.PI * 2, 0, Math.PI * .5), mats.red, 0, .19, 0);capM.scale.set(1, .78, 1);
+        const gills = mesh(head, new T.CircleGeometry(R * .98, 24), mats.white, 0, .189, 0);gills.rotation.x = Math.PI / 2;
+        for (let k = 0; k < 14; k++) {const a = k * 2.4, r = (.08 + (k % 4) * .075), yy = .19 + Math.sqrt(Math.max(0, R * R - r * r)) * .6;const d = sph(head, .035 + (k % 2) * .015, mats.white, Math.sin(a) * r * 1.02, .19 + (yy - .19) * 1.3, Math.cos(a) * r * 1.02, 8, 6);d.scale.y = .45;}
+        const staff = cyl(av.joints.R.el, .022, .028, 1.7, mats.wood, 0, -.3, -.05, 8);staff.rotation.x = .1;
+        const tip = sph(av.joints.R.el, .06, mats.glow, 0, .55, -.12, 10, 8);tip.scale.y = .6;cyl(av.joints.R.el, .015, .02, .05, mats.white, 0, .5, -.11, 8);
+      }});
+      p.wizard = true;block(at, yaw, .38, .38, 1.9);
+    }
+    // ---- Rolf on a bench at Schous plass (placed by place(), his own group) ----
+    const rolfGroup = new T.Group();rolfGroup.name = 'Rolf';group.add(rolfGroup);let rolfAt = null;
+    function placeRolf(at, yaw) {
+      rolfAt = {x: at.x, y: groundAt(at.x, at.z), z: at.z};
+      const b = new T.Group();b.position.set(at.x, groundAt(at.x, at.z), at.z);b.rotation.y = yaw;rolfGroup.add(b);
+      box(b, 1.7, .05, .44, mats.wood, .35, .45, .05);box(b, 1.7, .3, .04, mats.wood, .35, .72, .26);for (const x of [-.4, 1.1]) box(b, .06, .45, .4, mats.metal, x, .22, .05);box(b, .2, .14, .14, mats.card, .8, .54, .05);
+      b.updateMatrixWorld(true);lib.mergeStatic(b);
+      const p = person('rolf', at, yaw, {stance: 'sit', seat: .47, own: true, dress: (g, head) => {mesh(head, new T.SphereGeometry(.125, 14, 8, 0, Math.PI * 2, 0, Math.PI * .5), mats.bobble, 0, .05, .01);sph(head, .05, mats.white, 0, .18, .01, 8, 6);}});
+      group.remove(p.g);rolfGroup.add(p.g);const c = Math.cos(yaw), s = Math.sin(yaw);block({x: at.x + c * .35, z: at.z - s * .35}, yaw, .9, .3, 1.0);
+    }
+    if (rolf) placeRolf(rolf, rolf.yaw || 0);
+    props.updateMatrixWorld(true);lib.mergeStatic(props, o => !!o.userData.noMerge);
+    crowd.updateMatrixWorld(true);lib.mergeStatic(crowd);
+
+    // ---- Pigeons: one instanced flock round Storgata's pavement and one round Rolf; they flap off from a gust or a runner ----
+    const pigeonGeo = (() => {
+      const parts = [new T.SphereGeometry(.075, 10, 6).scale(1, .8, 1.5).translate(0, .085, 0), new T.SphereGeometry(.04, 8, 6).translate(0, .165, -.09), new T.ConeGeometry(.01, .035, 6).rotateX(-Math.PI / 2).translate(0, .158, -.14), new T.BoxGeometry(.075, .012, .1).translate(0, .085, .13)];
+      const pos = [], nor = [];for (const p of parts) {const g = p.index ? p.toNonIndexed() : p;pos.push(...g.attributes.position.array);nor.push(...g.attributes.normal.array);}
+      const g = new T.BufferGeometry();g.setAttribute('position', new T.Float32BufferAttribute(pos, 3));g.setAttribute('normal', new T.Float32BufferAttribute(nor, 3));return g;
+    })();
+    const birds = [], MAXB = 22, flock = new T.InstancedMesh(pigeonGeo, new T.MeshStandardMaterial({color: 0xffffff, roughness: .8}), MAXB);flock.castShadow = false;flock.count = 0;flock.name = 'Pigeons';flock.frustumCulled = false;group.add(flock);
+    const shade = new T.Color();
+    function addBirds(centre, n, spread, seed) {
+      let r = seed;const rnd = () => {r = (r * 16807) % 2147483647;return r / 2147483647;};
+      for (let k = 0; k < n && birds.length < MAXB; k++) {
+        const a = rnd() * Math.PI * 2, d = rnd() * spread, x = centre.x + Math.cos(a) * d, z = centre.z + Math.sin(a) * d;
+        const b = {home: {x, z}, x, z, y: groundAt(x, z), yaw: rnd() * 6.28, state: 'peck', t: rnd() * 3, vx: 0, vy: 0, vz: 0, back: 0};birds.push(b);
+        shade.setRGB(.05, .055, .065).multiplyScalar(.8 + rnd() * .7);// the game's colours are linear: this is a pigeon greyflock.setColorAt(birds.length - 1, shade);
+      }
+      flock.count = birds.length;if (flock.instanceColor) flock.instanceColor.needsUpdate = true;
+    }
+    addBirds(spot(PEOPLE.kjell.place.a + 6, 2.6), 12, 3.2, 7);
+    if (rolfAt) {const c = Math.cos(rolf.yaw || 0), sn = Math.sin(rolf.yaw || 0);addBirds({x: rolfAt.x - sn * 2.2 + c * .4, z: rolfAt.z - c * 2.2 - sn * .4}, 8, 1.6, 11);}
+    function scare(from, dir, strength = 1) {
+      for (const b of birds) {
+        if (b.state === 'fly') continue;const dx = b.x - from.x, dz = b.z - from.z, d = Math.hypot(dx, dz);if (d > 16) continue;
+        if (dir) {const L = Math.hypot(dir.x, dir.z) || 1, cos = (dx * dir.x + dz * dir.z) / (L * (d || 1));if (cos < .55) continue;}
+        const s = (dir ? 7 : 3.5) * strength, ux = d ? dx / d : 0, uz = d ? dz / d : 1;
+        b.state = 'fly';b.vx = (dir ? dir.x / (Math.hypot(dir.x, dir.z) || 1) * s : ux * s) + (Math.random() - .5);b.vz = (dir ? dir.z / (Math.hypot(dir.x, dir.z) || 1) * s : uz * s) + (Math.random() - .5);b.vy = 3 + Math.random() * 2;b.back = 7 + Math.random() * 6;
+      }
+      if (audio) audio.sfx('flap');
+    }
+    const m4 = new T.Matrix4(), q4 = new T.Quaternion(), e4 = new T.Euler(), v4 = new T.Vector3(), s4 = new T.Vector3(1, 1, 1);
+    function birdsUpdate(dt, player) {
+      for (let i = 0; i < birds.length; i++) {
+        const b = birds[i];
+        if (b.state === 'peck') {
+          b.t -= dt;if (b.t < 0) {b.t = .5 + Math.random() * 2.5;const a = Math.random() * Math.PI * 2;b.tx = b.home.x + Math.cos(a) * 1.5;b.tz = b.home.z + Math.sin(a) * 1.5;}
+          if (b.tx !== undefined) {const dx = b.tx - b.x, dz = b.tz - b.z, d = Math.hypot(dx, dz);if (d > .05) {const s = Math.min(d, .5 * dt);b.x += dx / d * s;b.z += dz / d * s;b.yaw = Math.atan2(-dx, -dz);}}
+          b.y = groundAt(b.x, b.z);
+          if (player && player.running && Math.hypot(player.x - b.x, player.z - b.z) < 2.2) scare(player, null, .7);
+        } else {
+          b.vy -= 1.2 * dt;b.x += b.vx * dt;b.y += b.vy * dt;b.z += b.vz * dt;b.yaw = Math.atan2(-b.vx, -b.vz);b.back -= dt;
+          if (b.back < 0) {b.state = 'peck';b.x = b.home.x + (Math.random() - .5);b.z = b.home.z + (Math.random() - .5);b.y = groundAt(b.x, b.z);}
+        }
+        const flap = b.state === 'fly' ? Math.sin(performance.now() / 40 + i) * .25 : 0, bob = b.state === 'peck' ? Math.max(0, Math.sin(performance.now() / 160 + i * 1.7)) * .25 : 0;
+        e4.set(bob, b.yaw, flap);q4.setFromEuler(e4);v4.set(b.x, b.y, b.z);m4.compose(v4, q4, s4);flock.setMatrixAt(i, m4);
+      }
+      flock.instanceMatrix.needsUpdate = true;
+    }
+
+    // ---- Empty bottles lying round Storgata (□ picks one up: +1 for the deposit). Not saved: there is always more litter. ----
+    const bottleGeo = (() => {const a = new T.CylinderGeometry(.032, .034, .17, 10).toNonIndexed(), b = new T.CylinderGeometry(.012, .026, .07, 8).translate(0, .12, 0).toNonIndexed();const g = new T.BufferGeometry();g.setAttribute('position', new T.Float32BufferAttribute([...a.attributes.position.array, ...b.attributes.position.array], 3));g.setAttribute('normal', new T.Float32BufferAttribute([...a.attributes.normal.array, ...b.attributes.normal.array], 3));return g;})();
+    let bottles = [];const bottleMesh = new T.InstancedMesh(bottleGeo, new T.MeshStandardMaterial({color: 0x3f7a4a, roughness: .15, metalness: .1, transparent: true, opacity: .85}), 16);bottleMesh.count = 0;bottleMesh.name = 'Empty bottles';group.add(bottleMesh);
+    function placeBottles(list) {
+      bottles = list.slice(0, 16).map((p, i) => ({...p, i, taken: false, lie: (i * 1.7) % 6.28}));bottleMesh.count = bottles.length;
+      bottles.forEach(b => {e4.set(Math.PI / 2, b.lie, 0);q4.setFromEuler(e4);v4.set(b.x, b.y + .035, b.z);m4.compose(v4, q4, s4);bottleMesh.setMatrixAt(b.i, m4);});bottleMesh.instanceMatrix.needsUpdate = true;
+    }
+    function takeBottle(b) {b.taken = true;m4.makeScale(0, 0, 0);bottleMesh.setMatrixAt(b.i, m4);bottleMesh.instanceMatrix.needsUpdate = true;}
+
+    // ---- Things to find (mushrooms, the harmonica), each shown only while its quest is on ----
+    const finds = {};
+    const capMat = {star: new T.MeshStandardMaterial({color: 0xfff1a8, emissive: 0xffd34d, emissiveIntensity: 1.3}), river: new T.MeshStandardMaterial({color: 0xa8e9ff, emissive: 0x3cc8ff, emissiveIntensity: 1.2}),
+      bone: new T.MeshStandardMaterial({color: 0xf3ead6, emissive: 0xb9a37a, emissiveIntensity: .9}), moon: new T.MeshStandardMaterial({color: 0xe8e4ff, emissive: 0x9e94ff, emissiveIntensity: 1.4})};
+    const sparkTex = (() => {const c = document.createElement('canvas');c.width = c.height = 64;const x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 0, 32, 32, 32);g.addColorStop(0, 'rgba(255,255,255,1)');g.addColorStop(1, 'rgba(255,255,255,0)');x.fillStyle = g;x.fillRect(0, 0, 64, 64);const t = new T.CanvasTexture(c);t.colorSpace = T.SRGBColorSpace;return t;})();
+    function placeFinds(where) {
+      for (const p of PICKUPS) {
+        const at = where[p.id];if (!at) continue;
+        const g = new T.Group();g.position.set(at.x, at.y, at.z);g.visible = false;g.name = `Find ${p.id}`;group.add(g);
+        if (p.kind === 'harmonica') {box(g, .1, .025, .03, mats.metal, 0, .015, 0);box(g, .1, .012, .032, mats.red, 0, .032, 0);}
+        else {const m = capMat[p.kind], s = p.kind === 'bone' || p.kind === 'moon' ? 1.6 : 1;cyl(g, .025 * s, .035 * s, .12 * s, mats.white, 0, .06 * s, 0, 8);const c = mesh(g, new T.SphereGeometry(.08 * s, 14, 8, 0, Math.PI * 2, 0, Math.PI * .55), m, 0, .12 * s, 0);c.scale.y = .7;}
+        g.traverse(o => {o.castShadow = false;});
+        const halo = new T.Sprite(new T.SpriteMaterial({map: sparkTex, color: p.kind === 'harmonica' ? 0xfff2a0 : capMat[p.kind].emissive, transparent: true, depthWrite: false, blending: T.AdditiveBlending}));halo.scale.set(.6, .6, 1);halo.position.y = .38;g.add(halo);
+        finds[p.id] = {p, g, halo, at};
+      }
+    }
+
+    // ---- State, saved in the browser (or the account) ----
+    let st = fresh();
+    const load = () => {try {st = normalize(JSON.parse(localStorage.getItem(KEY) || 'null'));} catch {st = fresh();}};
+    const save = () => {try {localStorage.setItem(KEY, JSON.stringify(st));} catch {}};
+    load();
+
+    // ---- Talking: the panel with the Norwegian lines, the English translation and the choices ----
+    const panel = document.createElement('div');panel.id = 'talk';panel.hidden = true;root.append(panel);
+    let conv = null;// {who, view: {name, about, lines, options}, sel, stick}
+    const esc = s => String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+    function render() {
+      panel.hidden = !conv;if (!conv) return;const v = conv.view;
+      const stars = conv.who === 'sigvald' ? `<span class="tk-trust">Trust ${'★'.repeat(trust(st))}${'☆'.repeat(Math.max(0, 5 - trust(st)))}</span>` : '';
+      panel.innerHTML = `<div class="tk-head"><b>${esc(v.name)}</b><small>${esc(v.about.en)}</small>${stars}</div>` + v.lines.map(l => `<p><span class="no">${esc(l.no)}</span><span class="en">${esc(l.en)}</span></p>`).join('') +
+        v.options.map((o, i) => `<div class="opt${i === conv.sel ? ' sel' : ''}"><span class="no">${o.act === 'bye' ? '○' : '✕'} ${esc(o.no)}</span><span class="en">${esc(o.en)}</span></div>`).join('') +
+        '<small class="tk-keys">↑↓ choose · ✕ / Space answer · ○ / C leave</small>';
+    }
+    let api = null;
+    function open(who, ctx) {
+      const p = people[who];conv = {who, view: talk(st, who, {...ctx, seed: Math.floor(Math.random() * 1000)}), sel: 0, stick: false};
+      if (p) {p.talkT = 6;p.av.say(conv.view.lines[conv.view.lines.length - 1].no);}
+      if (audio) audio.sfx(who === 'sigvald' ? 'mystic' : 'hm');render();
+    }
+    function close() {if (conv) {st.met[conv.who] = 1;save();}conv = null;render();}
+    // The game handles what an option does to the rest of the game (money, the bag, waypoints, powers) in onResult.
+    function choose(ctx, onResult) {
+      const opt = conv.view.options[conv.sel], who = conv.who;if (!opt) {close();return;}
+      if (opt.act === 'bye') {perform(st, who, opt, ctx);close();return;}
+      const r = perform(st, who, opt, ctx);save();if (onResult) onResult(r, who, opt);
+      if (r.lines && r.lines.length) {conv.view = {...conv.view, lines: r.lines, options: [BYE]};conv.sel = 0;const p = people[who];if (p) {p.av.say(r.lines[0].no);p.talkT = 6;}render();} else close();
+    }
+    function input(inp, ctx, onResult) {
+      const y = inp.move.y, n = conv.view.options.length;
+      if (inp.pressed.has('up') || (y < -.5 && !conv.stick)) conv.sel = Math.max(0, conv.sel - 1);
+      if (inp.pressed.has('down') || (y > .5 && !conv.stick)) conv.sel = Math.min(n - 1, conv.sel + 1);
+      conv.stick = Math.abs(y) > .5;
+      if (inp.pressed.has('cross')) choose(ctx, onResult);else if (inp.pressed.has('circle')) close();
+      if (conv) render();
+      inp.move.x = inp.move.y = 0;inp.look.x = inp.look.y = 0;['cross', 'circle', 'up', 'down', 'square', 'triangle', 'left', 'right', 'r1', 'cast'].forEach(b => inp.pressed.delete(b));
+    }
+
+    // ---- Each frame ----
+    const camPos = new T.Vector3();
+    function update(dt, player, camera) {
+      camPos.copy(camera.position);
+      const shopNear = people.kjell ? Math.hypot(camPos.x - people.kjell.at.x, camPos.z - people.kjell.at.z) < 170 : false;
+      for (const p of Object.values(people)) {
+        const near = p.id === 'rolf' ? rolfAt && Math.hypot(camPos.x - rolfAt.x, camPos.z - rolfAt.z) < 170 : shopNear;
+        p.g.visible = !!near;if (!near) continue;
+        // The head turns toward you when you come close, and back when you leave.
+        const dx = player.x - p.at.x, dz = player.z - p.at.z, d = Math.hypot(dx, dz);let turn = 0;
+        if (d < 7) {let a = Math.atan2(-dx, -dz) - p.yaw;a = Math.atan2(Math.sin(a), Math.cos(a));turn = Math.max(-1.1, Math.min(1.1, a));}
+        p.head.rotation.y += (turn - p.head.rotation.y) * Math.min(1, dt * 4);
+        p.talkT = Math.max(0, p.talkT - dt);p.head.rotation.x = p.talkT > 0 ? Math.sin(performance.now() / 180) * .06 : 0;
+        if (p.wizard) {p.g.rotation.z = Math.sin(performance.now() / 900) * .035;p.g.rotation.x = Math.sin(performance.now() / 1300) * .02;}
+        if (p.dog) {p.dog.t += dt;p.dog.tail.rotation.y = Math.sin(p.dog.t * (d < 4 ? 14 : 5)) * .6;p.dog.head.rotation.y = Math.max(-.8, Math.min(.8, turn * .8));}
+        p.av.update(dt, camera, d < 25);
+      }
+      rolfGroup.visible = !!(rolfAt && Math.hypot(camPos.x - rolfAt.x, camPos.z - rolfAt.z) < 170);
+      props.visible = bottleMesh.visible = crowd.visible = shopNear;flock.visible = shopNear || rolfGroup.visible;
+      if (flock.visible) birdsUpdate(dt, player);
+      for (const f of Object.values(finds)) {
+        const on = status(st, f.p.quest) === 'active' && !st.got[f.p.id] && Math.hypot(camPos.x - f.at.x, camPos.z - f.at.z) < 150;
+        f.g.visible = on;if (on) {f.g.rotation.y += dt * .8;f.halo.material.opacity = .55 + Math.sin(performance.now() / 300) * .25;}
+      }
+    }
+    // □ prompts: talk to someone you look at (or stand next to), pick up a bottle, pick a mushroom / the harmonica.
+    function prompt(player, look) {
+      const u = look && look.userData;let who = u && u.storgata;
+      if (!who) {let best = 1.7;for (const p of Object.values(people)) {if (!p.g.visible) continue;const d = Math.hypot(player.x - p.at.x, player.z - p.at.z);if (d < best && Math.abs(player.feet - p.at.y) < 1.5) {best = d;who = p.id;}}}
+      if (who) {const P = PEOPLE[who], s = P.wizard ? '🍄 ' : '';return {text: `□ ${s}Talk to ${P.name} (${P.about.en})`, act: {talk: who}};}
+      for (const f of Object.values(finds)) if (f.g.visible && Math.hypot(player.x - f.at.x, player.z - f.at.z) < 1.6 && Math.abs(player.feet - f.at.y) < 1.6) return {text: `□ Pick up ${f.p.name.en} (${f.p.name.no})`, act: {pick: f.p.id}};
+      if (bottleMesh.visible) {let best = null, bd = 1.4;for (const b of bottles) {if (b.taken) continue;const d = Math.hypot(player.x - b.x, player.z - b.z);if (d < bd && Math.abs(player.feet - b.y) < 1.2) {bd = d;best = b;}}if (best) return {text: '□ Pick up the empty bottle (2 kr deposit)', act: {bottle: best}};}
+      return null;
+    }
+    function poi() {
+      const out = [];
+      if (people.sigvald) {const k = world.toLocal(people.kjell.at.x, people.kjell.at.z), w = world.toLocal(people.sigvald.at.x, people.sigvald.at.z);out.push({x: k.x, s: k.s, color: '#c77d2e', label: 'Storgata regulars', glyph: '☺'}, {x: w.x, s: w.s, color: '#7b3fb5', label: 'Sopp-Sigvald (wizard)', glyph: '🍄'});}
+      if (rolfAt && status(st, 'mona') === 'active') {const r = world.toLocal(rolfAt.x, rolfAt.z);out.push({x: r.x, s: r.s, color: '#c77d2e', label: 'Rolf', glyph: '✉'});}
+      for (const f of Object.values(finds)) if (status(st, f.p.quest) === 'active' && !st.got[f.p.id]) {const l = world.toLocal(f.at.x, f.at.z);out.push({x: l.x, s: l.s, color: f.p.kind === 'harmonica' ? '#d4a017' : '#9b59b6', label: f.p.name.en, glyph: f.p.kind === 'harmonica' ? '♪' : '🍄'});}
+      return out;
+    }
+    // Where a quest leads you next (world): the nearest thing still to find, Rolf, or back to the giver.
+    function target(id, from) {
+      const q = quest(id), s = status(st, id);if (s === 'ready') return people[q.who] && people[q.who].at;
+      if (q.kind === 'deliver') return rolfAt;
+      const left = pickupsOf(id).map(p => finds[p.id]).filter(f => f && !st.got[f.p.id]).sort((a, b) => Math.hypot(a.at.x - from.x, a.at.z - from.z) - Math.hypot(b.at.x - from.x, b.at.z - from.z));
+      return left.length ? left[0].at : null;
+    }
+    api = {group, obstacles, hitboxes, people, finds, birds, scare, update, prompt, poi, target, open, close, input, render, save, takeBottle,
+      get state() {return st;}, set state(v) {st = normalize(v);save();}, reload() {load();if (conv) close();}, get talking() {return !!conv;}, get conv() {return conv;},
+      get trust() {return trust(st);}, get bottles() {return bottles;}, get rolfAt() {return rolfAt;},
+      // Called by the game once the walk world exists: the finds and the bottles on walkable ground.
+      place({pickups = {}, bottleSpots = []}) {placeFinds(pickups);placeBottles(bottleSpots);},
+      quests: QUESTS, PEOPLE, PICKUPS, goal: (id, ctx) => goal(st, id, ctx), status: id => status(st, id), pick: id => {const r = pick(st, id);if (r) save();return r;}, photo: spot => {const r = photo(st, spot);if (r) save();return r;},
+      along, outW};
+    if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('haarklous-progress', () => api.reload());
+    return api;
+  }
+
+  return {KEY, PEOPLE, REGULARS, QUESTS, PICKUPS, fresh, normalize, status, trust, lesson, pickupsOf, talk, perform, pick, photo, goal, ready, merge, MERGE, hasProgress, create};
+});
 </script><script>/* First-person "case" game: pistol, visible arms, randomised hostiles and a possible hostage.
  * Pure helpers (Node-testable):
  *   createRng(seed) -> () => [0,1)            deterministic mulberry32 generator
@@ -14355,6 +15186,8 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     ...(window.CatacombLayout ? window.CatacombLayout.holes() : [])].filter(Boolean);
   // District patches beyond the old square (issue #38): Gamle Oslo, Ensjø and the way there, with its key buildings.
   const DISTRICTS = window.District ? (window.DISTRICTS || []).map(d => window.District.decode(d)) : [];
+  // Kiwi Storgata 33 (issue #65) is cut into its office building in the Gamle Oslo patch, like Joker and Kiwi in the old square.
+  window.GameShops.applyDistrictNotches(DISTRICTS);
   // Grünerløkka (issues #44, #45): Deichman Grünerløkka draws its own building, Rathkes gate 1 gets the passage to its
   // backyard, and Akerselva's bed is lowered along the river so its water shows in the ground grids.
   if (window.GameLibrary) window.GameLibrary.prepare(DISTRICTS);if (window.GameRathkes) window.GameRathkes.prepare(DISTRICTS);if (window.GameKayak && window.AKERSELVA) window.GameKayak.prepare(DISTRICTS, D);
@@ -14452,14 +15285,24 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
   // Oslo city bike docks (issue #57) at their real places, from the operator's open data: posts and a totem with the name.
   const rides = window.GameRentals && window.RIDES ? window.GameRentals.create({T, lib, audio, data: window.RIDES, toWorld: world.toWorld, heightAt: groundAt}) : null;
   if (rides) scene.add(rides.group);
+  // KIWI Storgata (issue #65): the regulars outside Kiwi Storgata 33, Sopp-Sigvald the mushroom wizard on the corner, and Rolf on a
+  // bench at Schous plass (OSM-free spot beside the footway, 11 m from the table tennis table), facing the table.
+  const storgataShop = shops.shops.find(sh => sh.id === 'kiwi-storgata');
+  const storgata = storgataShop && window.GameStorgata ? window.GameStorgata.create({T, lib, avatars: window.GameAvatars.create({T, lib}), world, groundAt, front: storgataShop.local, root: view, audio,
+    rolf: (() => {const p = world.toWorld(-909.5, 1763.5), t = world.toWorld(-901.5, 1771.5);return {x: p.x, z: p.z, yaw: Math.atan2(-(t.x - p.x), -(t.z - p.z))};})()}) : null;
+  if (storgata) scene.add(storgata.group);
+  // Sopp-Sigvald's magic (GameMagic): the powers you have learned, mana and cooldowns; the particles and the light orb.
+  const magic = new window.GameMagic.Magic(storgata ? Object.keys(storgata.state.powers) : []), fx = window.GameMagic.effects({T, scene});
+  let magicKick = 0, questWp = null;// the blink's short widening of the view; the waypoint a quest set
+  window.addEventListener('haarklous-progress', () => {if (!storgata) return;magic.known = new Set();magic.sel = null;for (const id of Object.keys(storgata.state.powers)) magic.learn(id);if (!magic.knows('orb')) {magic.orb = false;fx.orb.on = false;}});
   // Job signs (issue #56) beside the doors of Joker and Kiwi; □ there opens the jobs phone. Their doors are delivery pickups too.
-  const JOB_SIGNS = shops.shops.map(sh => {
+  const JOB_SIGNS = shops.shops.filter(sh => sh.jobs !== false).map(sh => {
     const L = sh.local, at = (a, b) => world.toWorld(L.P0[0] + L.u[0] * a + L.n[0] * b, L.P0[1] + L.u[1] * a + L.n[1] * b), door = L.W - 2;
     const p = at(door - 2.3, -1.3), q = at(door - 2.3, -.3), pick = world.toLocal(at(door, -1.4).x, at(door, -1.4).z);
     return {shop: sh, x: p.x, z: p.z, yaw: Math.atan2(-(q.x - p.x), -(q.z - p.z)), pickup: {name: sh.name, kind: 'shop', shop: true, x: pick.x, s: pick.s}};
   });
   const signObstacles = JOB_SIGNS.map(j => {const y = groundAt(j.x, j.z);return {points: [[-.5, -.15], [.5, -.15], [.5, .15], [-.5, .15]].map(([a, b]) => ({x: j.x + Math.cos(j.yaw) * a + Math.sin(j.yaw) * b, z: j.z - Math.sin(j.yaw) * a + Math.cos(j.yaw) * b})), minY: y - .3, maxY: y + 2.2, kind: 'sign'};});
-  const extraObstacles = [...(siteField ? window.GameSite.fenceObstacles(siteField, groundAt) : []), ...(pbRules ? pbRules.obstacles : []), ...(catacomb ? catacomb.obstacles : []), ...(rides ? rides.obstacles : []), ...signObstacles];
+  const extraObstacles = [...(siteField ? window.GameSite.fenceObstacles(siteField, groundAt) : []), ...(pbRules ? pbRules.obstacles : []), ...(catacomb ? catacomb.obstacles : []), ...(rides ? rides.obstacles : []), ...signObstacles, ...(storgata ? storgata.obstacles : [])];
   const staticObstacles = [...apt.obstacles, ...towers.flatMap(towerObstacles), ...world.obstacles(), ...fire.obstacles, ...stash.obstacles, ...shops.obstacles, ...sculpture.obstacles, ...oksen.obstacles, ...gym.obstacles, ...extraObstacles, ...landmarks.obstacles];
   const walkFloors = [...apt.floors, ...towers.flatMap(towerFloors), ...shops.floors, ...sculpture.floors, ...oksen.floors, ...landmarks.floors, ...gym.floors, ...(catacomb ? catacomb.floors : []), ...groundFloors];
   staticObstacles.push(...grl.flatMap(m => m.obstacles || []));walkFloors.unshift(...grl.flatMap(m => m.floors || []));
@@ -14480,7 +15323,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
   const shootTargets = [];[apt.group, ownStair.group].forEach(g => g.traverse(o => {if (o.isMesh && !(o.material.transparent) && o.visible) shootTargets.push(o);}));
   const interactables = [];[apt.group, ...towers.map(t => t.stair.group)].forEach(g => g.traverse(o => {if (o.isMesh && (o.userData.doorId || o.userData.lockedDoor)) interactables.push(o);}));
   apt.drinks.forEach(d => d.object.traverse(o => {if (o.isMesh) {o.userData.drink = d;interactables.push(o);}}));
-  interactables.push(...stash.hitboxes, ...shops.hitboxes, ...gym.hitboxes);
+  interactables.push(...stash.hitboxes, ...shops.hitboxes, ...gym.hitboxes, ...(storgata ? storgata.hitboxes : []));
   interactables.push(...grl.flatMap(m => m.hitboxes || []));
 
   // ---------- Vehicles ----------
@@ -14585,7 +15428,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
   const stanceSpeed = () => player.stance === 'prone' ? .28 : player.stance === 'crouch' ? .55 : 1;
   function place(x, z, yaw, y) {
     const sp = collision.findSafeSpawn(walkWorld, {x, z}, stanceEye('stand'), {y: y ?? heightAt(x, z), maxDistance: 6});
-    player.x = sp ? sp.x : x;player.z = sp ? sp.z : z;player.feet = sp ? sp.y : (y ?? heightAt(x, z));if (yaw !== undefined) player.yaw = yaw;player.pitch = 0;player.stance = 'stand';player.eyeNow = player.eye;player.jumpY = player.jumpV = 0;
+    player.x = sp ? sp.x : x;player.z = sp ? sp.z : z;player.feet = sp ? sp.y : (y ?? heightAt(x, z));if (yaw !== undefined) player.yaw = yaw;player.pitch = 0;player.stance = 'stand';player.eyeNow = player.eye;player.jumpY = player.jumpV = 0;player.floating = false;
   }
   // The hostage mission starts from its own marker on the grass beside the entrance, so the street door is a normal door.
   const MISSION_MARK = {x: 4.8, z: 14.2};
@@ -14633,7 +15476,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     if (caseGame?.active) list.push(...caseGame.actorObstacles());
     collision.setDynamic(walkWorld, list);
     // Other vehicles block the one being driven; it must never collide with its own (parked) footprint.
-    const vlist = vehicles.filter(v => v !== player.vehicle).flatMap(v => [].concat(v.footprint()));
+    const vlist = vehicles.filter(v => v !== player.vehicle && !v.pushed).flatMap(v => [].concat(v.footprint()));
     vehicleBlockers = vlist;vehicleWorlds.forEach(w => collision.setDynamic(w, vlist));
   }
   updateDynamic();
@@ -14693,7 +15536,8 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     {...world.toLocal(AIR.plane.x, AIR.plane.z), color: '#1565c0', label: 'Airstrip', glyph: '✈'},
     {...world.toLocal(SKY_TARGET.x, SKY_TARGET.z), color: '#ff6d00', label: 'Skydiving target', glyph: '◎'},
     {...world.toLocal(FIRE_POS.x, FIRE_POS.z), color: '#e65100', label: 'Firepit', glyph: '🔥'},
-    ...shops.shops.map(s => {const L = s.local;return {x: L.P0[0] + L.u[0] * L.W / 2 + L.n[0] * L.depth / 2, s: L.P0[1] + L.u[1] * L.W / 2 + L.n[1] * L.depth / 2, color: s.id === 'kiwi' ? '#2e9a3f' : '#d0021b', label: s.name, glyph: '🛒'};}),
+    ...shops.shops.map(s => {const L = s.local;return {x: L.P0[0] + L.u[0] * L.W / 2 + L.n[0] * L.depth / 2, s: L.P0[1] + L.u[1] * L.W / 2 + L.n[1] * L.depth / 2, color: /^kiwi/.test(s.id) ? '#2e9a3f' : '#d0021b', label: s.name, glyph: '🛒'};}),
+    ...(storgata ? storgata.poi() : []),
     ...(SITE_DATA ? [{x: SITE_DATA.rect.x0 + SITE_DATA.rect.w / 2, s: SITE_DATA.rect.s0 + SITE_DATA.rect.d / 2, color: '#f9a825', label: 'Construction site', glyph: '⛏'}] : []),
     ...(PB_DATA ? [{x: PB_DATA.centre.x, s: PB_DATA.centre.s, color: '#2e7d32', label: 'Paintball', glyph: '✚'}] : []),
     {x: SCULPTURE_AT.x, s: SCULPTURE_AT.s, color: '#7a5c3e', label: 'HODET N.N.', glyph: '◉'},
@@ -14756,6 +15600,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     const cp = gymPrompt();if (cp) return cp;
     {const rp = route && route.prompt(player);if (rp) return rp;}
     {const cp = catacomb && player.mode === 'foot' ? catacomb.prompt() : null;if (cp) return cp;}
+    {const sg = storgataPrompt();if (sg) return sg;}
     const shp = shopPrompt();if (shp) return shp;
     const grp = grunerPrompt();if (grp) return grp;
     const fp = firePrompt();if (fp) return fp;
@@ -14921,7 +15766,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     if (basket.length) {const total = basket.reduce((t, b) => t + b.price, 0);bk.innerHTML = '<b>Basket</b>' + basket.map(b => `<div>${b.product.name}<span>${KR(b.price)}</span></div>`).join('') + `<div class="total">Total<span>${KR(total)}</span></div><small>Pay at the till</small>`;}
   }
   // The bag: what you have bought (D-pad ↓ / ↓ key on foot).
-  const USE = {beer: 'drink: +30 s drunk, a bottle for the deposit', soda: 'drink: a bottle for the deposit', energy: 'drink: 15 s of 3× speed', food: 'eat: sobers you up', wood: 'empty onto the firepit (+3)'};
+  const USE = {beer: 'drink: +30 s drunk, a bottle for the deposit', soda: 'drink: a bottle for the deposit', energy: 'drink: 15 s of 3× speed', food: 'eat: sobers you up', coffee: 'drink: hot, sobers you up a little', wood: 'empty onto the firepit (+3)'};
   const bagItems = () => Object.entries(wallet.bag).map(([id, n]) => ({p: shops.products.find(x => x.id === id), n})).filter(e => e.p);
   function openBag() {bag = {sel: 0, stick: false};watch.hide();renderBag();}
   function renderBag() {
@@ -14946,7 +15791,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     } else if (p.use === 'beer') {audio.sfx('bottleOpen');audio.sfx('gulp');drunk += 30;beerT = 20;wallet.addPant(1);notice(`You drink a ${p.name}. (+30 s drunk, +1 bottle for the deposit)`, 3);}
     else if (p.use === 'soda') {audio.sfx('bottleOpen');audio.sfx('gulp');drunk = Math.max(0, drunk - 10);wallet.addPant(1);notice(`${p.name} – refreshing. (+1 bottle for the deposit)`, 3);}
     else if (p.use === 'energy') {audio.sfx('bottleOpen');audio.sfx('gulp');boost = {kind: 'speed', t: 15};wallet.addPant(1);notice(`${p.name}: 15 s of 3× speed! (+1 can for the deposit)`, 3);}
-    else {drunk = Math.max(0, drunk - (p.sober || 10));audio.sfx('gulp');notice(`You eat ${p.name}.${p.sober ? ` (−${p.sober} s drunk)` : ''}`, 3);}
+    else {drunk = Math.max(0, drunk - (p.sober || 10));audio.sfx('gulp');notice(`You ${p.use === 'coffee' ? 'drink' : 'eat'} ${p.name}.${p.sober ? ` (−${p.sober} s drunk)` : ''}`, 3);}
     wallet.take(p.id);walletT = 4;
   }
   // ---------- Klatreverket Torshov (issue #40): the reception, the routes, climbing ----------
@@ -15208,7 +16053,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
       held: Object.assign({}, st?.buttons || {}), pressed: new Set(edges), released: new Set(released), r2: st ? st.run : 0, l2: st ? st.aim : 0, gamepad: Boolean(gp), mouse: {...mouse}
     };
     if (kx || ky) {input.move.x = kx;input.move.y = ky;}
-    const map = {Space: 'cross', KeyC: 'circle', KeyE: 'square', KeyF: 'triangle', Escape: 'options', KeyM: 'touchpad', KeyG: 'gallery', KeyZ: 'prone', KeyR: 'reload', ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down', ShiftLeft: 'l3', KeyQ: 'l1', KeyV: 'view', KeyY: 'share', KeyP: 'phone', KeyB: 'badges', Delete: 'delete'};
+    const map = {Space: 'cross', KeyC: 'circle', KeyE: 'square', KeyF: 'triangle', Escape: 'options', KeyM: 'touchpad', KeyG: 'gallery', KeyZ: 'prone', KeyR: 'reload', ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down', ShiftLeft: 'l3', KeyQ: 'l1', KeyV: 'view', KeyY: 'share', KeyP: 'phone', KeyB: 'badges', Delete: 'delete', KeyX: 'cast', Digit1: 'magic1', Digit2: 'magic2', Digit3: 'magic3', Digit4: 'magic4'};
     for (const [code, name] of Object.entries(map)) {if (ke(code)) input.pressed.add(name);if (k(code)) input.held[name] = true;}
     // Flying (helicopter, plane, drone): hold Shift or the right mouse button to look around (Battlefield's free look, issue #16).
     const flying = player.mode === 'drone' || (player.mode === 'vehicle' && !!player.vehicle?.aircraft);
@@ -15282,9 +16127,10 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     if (quick) quickInput(input);
     if (bag) bagInput(input);
     if (gymMenu) gymMenuInput(input);
+    if (storgata && storgata.talking) storgata.input(input, storgataCtx(), storgataResult);
     // The jobs phone (issue #56): D-pad → / P on foot or in a vehicle (not on the site machines, where → is the arm on a keyboard).
     if (jobs.phone.open) jobs.phone.input(input);
-    else if ((input.pressed.has('phone') || (input.pressed.has('right') && !player.vehicle?.site)) && (player.mode === 'foot' || player.mode === 'vehicle') && !pbBusy() && !map.open && !caseGame?.active && !bag && !gymMenu && !quick && !photo.active && !gear) {openPhone();input.pressed.delete('right');input.pressed.delete('phone');}
+    else if ((input.pressed.has('phone') || (input.pressed.has('right') && !player.vehicle?.site)) && (player.mode === 'foot' || player.mode === 'vehicle') && !pbBusy() && !map.open && !caseGame?.active && !bag && !gymMenu && !quick && !photo.active && !gear && !storgata?.talking) {openPhone();input.pressed.delete('right');input.pressed.delete('phone');}
     if (library && library.reading) library.readInput(input);
     if (caseGame?.active) {
       // The mission owns ✕ (begin), ○ (leave on panels), Options (pause), □ (door or reload), triggers.
@@ -15320,6 +16166,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
       if (input.pressed.has('down') && !photo.active && !gear && !bag && !gymMenu) {openBag();input.pressed.delete('down');}
     } else if (gear) {gear = null;showGear(null);}
     if (photo.active || player.mode !== 'foot') watch.hide();
+    magicTick(dt, input);
     if (photo.active) {
       if (input.pressed.has('square') || input.pressed.has('gallery')) photo.openGallery();
       if (photo.gallery) {if (input.pressed.has('left')) photo.browse(-1);if (input.pressed.has('right')) photo.browse(1);if (input.move.x > .6 && !photo.stick) {photo.browse(1);photo.stick = true;} else if (input.move.x < -.6 && !photo.stick) {photo.browse(-1);photo.stick = true;} else if (Math.abs(input.move.x) < .3) photo.stick = false;if (input.pressed.has('cross') || input.pressed.has('delete')) photo.deleteShown();if (input.pressed.has('circle') && !photo.cancelDelete()) photo.openGallery(false);renderFrame(dt, t);return;}
@@ -15331,7 +16178,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     // Drunk effect: decays in real time.
     drunk = Math.max(0, drunk - dt);const dl = drunkLevel();
     if (boost && (boost.t -= dt) <= 0) {boost = null;audio.muffle(false);notice('The boost wears off.', 2);}
-    const wdt = dt * worldScale();stash.update(dt);shopsTick(dt);gym.update(dt, player, camera);grunerTick(dt);if (route) route.tick(player, dt);world.update(camera.position);
+    const wdt = dt * worldScale();stash.update(dt);shopsTick(dt);storgataTick(dt);gym.update(dt, player, camera);grunerTick(dt);if (route) route.tick(player, dt);world.update(camera.position);
     // The jump planes move first, so a jumper's seat (and camera) is where the plane is this frame.
     updateJumpFlight(dt);updateGamePilot(dt);
     if (player.mode === 'vehicle') updateVehicle(dt, input, dl);
@@ -15362,12 +16209,13 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     let doorsChanged = false;
     for (const d of doors) if (d.anim) {d.anim.t = Math.min(1, d.anim.t + dt * 2.2);const e = d.anim.t < .5 ? 2 * d.anim.t * d.anim.t : 1 - Math.pow(-2 * d.anim.t + 2, 2) / 2;setDoor(d, d.anim.from + (d.anim.to - d.anim.from) * e);if (d.anim.t >= 1) {d.open = d.anim.to === 1;d.anim = null;doorsChanged = true;}}
     if (doorsChanged || caseGame?.active) updateDynamic();
-    promptTimer -= dt;if (promptTimer <= 0) {promptTimer = .15;promptAction = player.mode === 'minigame' || player.mode === 'drone' || gear?.open || quick || bag || gymMenu || jobs.phone.open || photo.active || (caseGame?.active && caseGame.state !== 'play') ? null : findPrompt();prompt(promptAction?.text);}
+    promptTimer -= dt;if (promptTimer <= 0) {promptTimer = .15;promptAction = player.mode === 'minigame' || player.mode === 'drone' || gear?.open || quick || bag || gymMenu || jobs.phone.open || photo.active || storgata?.talking || (caseGame?.active && caseGame.state !== 'play') ? null : findPrompt();prompt(promptAction?.text);}
     weather.update(dt, camera, {indoor: weatherIndoor, windWorld: weatherWind});
     ambienceTimer -= dt;if (ambienceTimer <= 0) {ambienceTimer = .25;updateAmbience();if (audio.context) music.attach(audio.context);music.play(musicTrack());}
     // Adaptive resolution keeps the frame rate in the 20–30+ fps range on slower PCs.
     if (fpsAvg < 22) {if (++lowFrames > 90 && pixelRatio > .6) {pixelRatio = Math.max(.6, pixelRatio - .1);renderer.setPixelRatio(pixelRatio);resize();lowFrames = 0;}} else lowFrames = 0;
     updateGuide(dt);
+    magicFx(dt);
     renderFrame(dt, t);
   }
   // The other players' arrows on the map and the minimap (their slot colour and name).
@@ -15382,6 +16230,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     if (map.guide({dt, camera, x: at.x, z: at.z, you: player, heading, view, alt, others: lobbyArrows(), ground: groundAt, show: !photo.active}) === 'reached') notice('Waypoint reached.', 2.5);
   }
   function placeName() {if (inApartment()) return 'Haarklous plass 17A, 4th floor';{const c = catacomb && catacomb.placeName(player);if (c) return c;}{const z = gym.zoneAt(player, player.feet);if (z) return `Klatreverket Torshov, ${gym.ZONE_NAME[z]}`;}const tw = towerAt(player.x, player.z, player.feet);if (tw) return tw.t.own ? 'Stairwell, Haarklous plass 17A' : 'Stairwell, Torshov';
+    if (storgata && Math.hypot(player.x - storgata.people.kjell.at.x, player.z - storgata.people.kjell.at.z) < 60) return 'Kiwi Storgata 33, Oslo';
     // In a district patch: the nearest mapped neighbourhood (Ensjø, Kampen, Vålerenga, Gamlebyen …).
     const l = world.toLocal(player.x, player.z);if (Math.abs(l.x) > world.playHalf || Math.abs(l.s) > world.playHalf) {const near = DISTRICTS.flatMap(d => d.places).sort((a, b) => Math.hypot(a.x - l.x, a.s - l.s) - Math.hypot(b.x - l.x, b.s - l.s))[0];if (near) return `${near.name}, Oslo`;}
     return 'Torshov, Oslo';}
@@ -15414,16 +16263,20 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
       const dx = (-Math.sin(player.yaw) * fwd + Math.cos(player.yaw) * right) * speed * dt, dz = (-Math.cos(player.yaw) * fwd - Math.sin(player.yaw) * right) * speed * dt;
       const bx = player.x, bz = player.z;move(dx, dz);
       player.stride += Math.hypot(player.x - bx, player.z - bz);
-      if (player.stride > (running || speed > 2.5 ? 1.05 : .72) * (player.stance === 'stand' ? 1 : .8)) {player.stride = 0;footstep(running ? 1.2 : player.stance === 'stand' ? .8 : .45);}
+      if (player.stride > (running || speed > 2.5 ? 1.05 : .72) * (player.stance === 'stand' ? 1 : .8)) {player.stride = 0;if (!(player.jumpY > .05)) footstep(running ? 1.2 : player.stance === 'stand' ? .8 : .45);}
     } else if (!mag) player.run = false;
     // Jump and stance easing.
     player.eyeNow += (stanceEye(player.stance) - player.eyeNow) * Math.min(1, dt * 9);
-    if (player.jumpV || player.jumpY) {player.jumpV -= 9.81 * dt;player.jumpY += player.jumpV * dt;const head = collision.ceilingAt(walkWorld, player, player.feet) - .1 - player.eyeNow;if (player.jumpY > head) {player.jumpY = Math.max(0, head);player.jumpV = Math.min(0, player.jumpV);}if (player.jumpY <= 0 && player.jumpV <= 0) {if (player.jumpV < -2) footstep(1.3);player.jumpY = 0;player.jumpV = 0;}}
+    // Levitation (Svev, issue #65): rising while R1 / 1 is held, then a slow sink until you land.
+    if (magic.levitating || player.floating) {
+      const head = collision.ceilingAt(walkWorld, player, player.feet) - .1 - player.eyeNow, r = window.GameMagic.levitate({y: player.jumpY, v: player.jumpV}, dt, {hold: magic.levitating, max: 3.2, head});
+      player.jumpY = r.y;player.jumpV = r.v;if (player.floating && !r.floating) audio.sfx('land');player.floating = r.floating || magic.levitating;
+    } else if (player.jumpV || player.jumpY) {player.jumpV -= 9.81 * dt;player.jumpY += player.jumpV * dt;const head = collision.ceilingAt(walkWorld, player, player.feet) - .1 - player.eyeNow;if (player.jumpY > head) {player.jumpY = Math.max(0, head);player.jumpV = Math.min(0, player.jumpV);}if (player.jumpY <= 0 && player.jumpV <= 0) {if (player.jumpV < -2) footstep(1.3);player.jumpY = 0;player.jumpV = 0;}}
     // Camera.
     const sway = dl ? {r: Math.sin(performance.now() / 1300) * .09 * dl, y: Math.sin(performance.now() / 1700) * .05 * dl, p: Math.sin(performance.now() / 900) * .03 * dl} : {r: 0, y: 0, p: 0};
     camera.position.set(player.x, player.feet + player.eyeNow + player.jumpY, player.z);
     camera.rotation.set(0, 0, 0, 'YXZ');camera.rotation.order = 'YXZ';camera.rotation.y = player.yaw + sway.y;camera.rotation.x = player.pitch + sway.p;camera.rotation.z = sway.r;
-    const fov = photo.active && photo.raised > .5 ? 70 / photo.zoom : caseGame?.active ? camera.fov : pbArmed() ? 70 / (1 + .45 * paintball.aim) : boostIs('speed') ? 82 : 70;if (Math.abs(camera.fov - fov) > .01 && !caseGame?.active) {camera.fov = fov;camera.updateProjectionMatrix();}
+    const fov = photo.active && photo.raised > .5 ? 70 / photo.zoom : caseGame?.active ? camera.fov : pbArmed() ? 70 / (1 + .45 * paintball.aim) : boostIs('speed') ? 82 : 70 + magicKick * 16;if (Math.abs(camera.fov - fov) > .01 && !caseGame?.active) {camera.fov = fov;camera.updateProjectionMatrix();}
   }
   function footstep(soft = 1) {
     let surface = 'grass', stair = false;
@@ -15789,6 +16642,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     // Kayaking (issue #45): sitting in a kayak on Akerselva; running (the librarian in Deichman shushes runners, issue #47).
     if (player.mode === 'kayak' && kayak && kayak.pose) {const k = kayak.pose;s.st = 'sit';s.p = [r(k.x), r(k.y + .28), r(k.z)];s.y = r(k.yaw);s.ky = [r(k.x), r(k.y), r(k.z), r(k.yaw)];}
     if (player.running) s.rn = 1;
+    if (magic.orb) s.mg = 1;// the light orb (issue #65): others see it by your shoulder
     // Skydiving: a jump seat in the flown Caravan (a vehicle seat 'j0'..'j11'), in the scheduled flight (ja), or in the air.
     if (player.mode === 'jumpseat' && skyd.ride) {if (skyd.ride.auto) s.ja = skyd.ride.seat;else {s.v = vehicles.indexOf(caravan);s.s = 'j' + skyd.ride.seat;}}
     if (player.mode === 'skydive' && skyd.jumper) {const J = skyd.jumper;s.p = [r(J.pos.x), r(J.pos.y), r(J.pos.z)];s.y = r(J.yaw);s.sky = J.state === 'freefall' ? 'f' : 'c';}
@@ -15859,7 +16713,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
   const account = window.GameAccount.create({onChange: renderAccount});
   // Saved progress (issue #54): logged in, your progress is the account's – loaded when you log in and saved by itself.
   const safeStore = {getItem: k => {try {return localStorage.getItem(k);} catch {return null;}}, setItem: (k, v) => {try {localStorage.setItem(k, v);} catch {}}, removeItem: k => {try {localStorage.removeItem(k);} catch {}}};
-  const progress = window.GameProgress.create({account, store: safeStore, camera: photo, ask, notice, rules: badges.MERGE,
+  const progress = window.GameProgress.create({account, store: safeStore, camera: photo, ask, notice, rules: {...badges.MERGE, ...(window.GameStorgata ? window.GameStorgata.MERGE : {})},
     onApplied: () => window.dispatchEvent(new Event('haarklous-progress'))});
   window.addEventListener('haarklous-progress', () => {loadSens();badges.reload();renderSettings();});
   // A yes / no question over everything (✕ / ○ on the controller, or the buttons).
@@ -15941,7 +16795,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     drivingIndex: () => player.mode === 'vehicle' && player.vehicle ? vehicles.indexOf(player.vehicle) : gp ? caravanIndex() : -1,
     listener: () => ({x: player.x, y: player.feet + 1.5, z: player.z}), applyDoor, onChat: chatLine, onStatus: () => {renderMp();onLobbyChange();},
     onRemoteWood: r => fire.throwLog({x: r.pos.x, y: r.pos.y + 1.3, z: r.pos.z}), holdsMarker: id => !!paintball && paintball.rules.memberPlaying(id),
-    autoAnchor: seat => autoPlane.hipAnchor('j' + seat), skyPose: (r, st, g) => {skyPose(r, st, g);kayakPose(r, st, g);},
+    autoAnchor: seat => autoPlane.hipAnchor('j' + seat), skyPose: (r, st, g) => {skyPose(r, st, g);kayakPose(r, st, g);orbPose(r, st, g);},
     // In a paintball game you see your team-mates' names, not your opponents' (issue #25).
     showTag: id => !paintball || !paintball.rules.inGame() || !paintball.rules.memberPlaying(id) || paintball.rules.teamOfMember(id) === paintball.rules.myTeam()});
   // A new lobby: vehicles go back to where everybody else has them (the lobby then sends the ones that were moved).
@@ -16025,6 +16879,192 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     if (dl) {ghost.width = canvas.width / 2;ghost.height = canvas.height / 2;gctx.globalAlpha = .35 * dl;const off = Math.sin(performance.now() / 650) * 12 * dl;gctx.drawImage(canvas, off, Math.cos(performance.now() / 900) * 4 * dl, ghost.width, ghost.height);}
   }
 
+  // ---------- KIWI Storgata (issue #65): the regulars' quests, the finds and Sopp-Sigvald's magic ----------
+  const SG = window.GameStorgata;
+  // Even's photo of Grønland kirke: the tower (at the narrow end of the church, like game-landmarks draws it).
+  const GRONLAND = (() => {
+    const l = DISTRICTS.flatMap(d => d.landmarks).find(x => x.name === 'Grønland kirke');if (!l) return null;
+    const a = l.tower.end * (l.L / 2 - l.tower.side), c = world.toWorld(l.c[0] + l.axis[0] * a, l.c[1] + l.axis[1] * a);
+    return {id: 'gronland', name: 'Grønland kirke', size: 40, r: 8, maxDist: 170, at: {x: c.x, y: world.heightWorld(c.x, c.z) + l.top * .42, z: c.z}};
+  })();
+  // The finds and the bottles go on walkable ground (the walk world exists now).
+  if (storgata) {
+    const snap = (x, z, y, max = 6) => {const sp = collision.findSafeSpawn(walkWorld, {x, z}, 1.65, {y: y ?? groundAt(x, z), maxDistance: max});return sp ? {x: sp.x, y: sp.y, z: sp.z} : null;};
+    const at = (x, s, y, max) => {const w = world.toWorld(x, s);return snap(w.x, w.z, y, max);};
+    const pk = {}, marks = DISTRICTS.flatMap(d => d.landmarks);
+    // Torshovdalen: west of HODET N.N., by the petanque court and by a disc golf basket.
+    pk['dalen-1'] = at(SCULPTURE_AT.x - 14, SCULPTURE_AT.s - 6);
+    if (D.petanque) pk['dalen-2'] = at(D.petanque.x + 9, D.petanque.s + 7);
+    {const h = (D.discgolf || [])[1] || (D.discgolf || [])[0];if (h) pk['dalen-3'] = at(h.basket[0] + 5, h.basket[1] + 4);}
+    // Akerselva: on the banks at Sagene, in Grünerløkka and above Vaterland (akerselva-data.js: 3 m beyond the water's edge).
+    [[-1316.9, 1380.6], [-1167.7, 1886.3], [-922.3, 2309.3]].forEach(([x, s], i) => {pk[`elva-${i + 1}`] = at(x, s);});
+    // The catacomb: beside the pillar of bones in the Rotunda.
+    {const room = catacomb && catacomb.layout.rooms.find(r => r.id === 'rotunda');if (room) {const w = world.toWorld(room.cx + 2.2, room.cs);pk['bein-1'] = snap(w.x, w.z, catacomb.FLOOR_Y, 4);}}
+    // MUNCH: the free spot round the building nearest the fjord (the southernmost one).
+    {const l = marks.find(x => x.kind === 'munch');if (l) {const u = l.axis, n = [-u[1], u[0]], c = l.c, cand = [];for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {const d = a ? l.L / 2 + 4 : l.W / 2 + 4, x = c[0] + (u[0] * a + n[0] * b) * d, s = c[1] + (u[1] * a + n[1] * b) * d, q = at(x, s, undefined, 4);if (q) cand.push({q, s});}cand.sort((p, r) => r.s - p.s);if (cand.length) pk['mane-1'] = cand[0].q;}}
+    // The Opera roof: just below the plateau, in front of the stage tower.
+    {const l = marks.find(x => x.kind === 'opera'), roof = landmarks.floors.find(f => f.name === 'Opera roof');if (l && roof) {const a = -l.L * .2 + 4, w = world.toWorld(l.c[0] + l.axis[0] * a, l.c[1] + l.axis[1] * a);pk.harmonica = snap(w.x, w.z, roof.height(w), 3);}}
+    // Empty bottles on the pavement either side of the shop and a little further along Storgata.
+    const bottleSpots = [];
+    for (const [a, o] of [[-15.6, 1.6], [-11, 2.6], [-6.4, 1.8], [-1.2, 2.9], [16.2, 2.4], [20.4, 1.7], [25.6, 2.8], [31.5, 1.9], [-20, 2.2], [36, 2.0], [8.5, 3.0], [-24, 1.5]]) {
+      const [x, s] = storgata.along(a, o), w = world.toWorld(x, s), q = snap(w.x, w.z, undefined, 1.5);if (q) bottleSpots.push(q);
+    }
+    storgata.place({pickups: Object.fromEntries(Object.entries(pk).filter(([, v]) => v)), bottleSpots});
+  }
+  const storgataCtx = () => ({pant: wallet.pant, bag: wallet.bag});
+  const cap = t => t.charAt(0).toUpperCase() + t.slice(1);
+  const POWER_HELP = {levitate: 'Hold R1 (keyboard: hold 1) to float up to 3 m; let go and you sink slowly.', blink: 'R1 (keyboard: 2) jumps you up to 8 m the way you look – not through walls.',
+    gust: 'R1 (keyboard: 3) blows a gust ahead: it pushes a parked car, motorcycle or e-scooter and scares the pigeons.', orb: 'R1 (keyboard: 4) lights the light orb by your shoulder, and puts it out again.'};
+  function storgataPrompt() {
+    if (!storgata || player.mode !== 'foot' || caseGame?.active) return null;
+    const pr = storgata.prompt(player, lookTarget());return pr ? {text: pr.text, act: () => storgataAct(pr.act)} : null;
+  }
+  function storgataAct(a) {
+    if (a.talk) {watch.hide();if (photo.active) photo.toggle();magic.release('levitate');storgata.open(a.talk, storgataCtx());return;}
+    if (a.bottle) {storgata.takeBottle(a.bottle);wallet.addPant(1);walletT = 5;audio.sfx('click');notice(`An empty bottle (+1 for the deposit, ${wallet.pant} now)${storgata.status('kjell') === 'active' ? ' · Kjell-Arne wants ten' : ''}`, 2.5);return;}
+    if (a.pick) {
+      const r = storgata.pick(a.pick);if (!r) return;const f = storgata.finds[a.pick], q = SG.QUESTS.find(x => x.id === r.quest);
+      audio.sfx(r.pickup.kind === 'harmonica' ? 'harmonica' : 'mushroom');if (f) fx.burst({x: f.at.x, y: f.at.y + .3, z: f.at.z}, 0xffe38a, 40, 1.6);
+      questWaypoint(r.quest);
+      notice(r.ready ? `${cap(r.pickup.name.en)}${r.need > 1 ? ` – that is all ${r.need}` : ''}! Take ${r.need > 1 ? 'them' : 'it'} to ${SG.PEOPLE[q.who].name} outside Kiwi Storgata (the waypoint shows the way).` : `${cap(r.pickup.name.en)}: ${r.count} of ${r.need}. The waypoint shows the next one.`, 5);
+    }
+  }
+  // Our own waypoint for a quest: the next thing to find, Rolf, the church, or back to the one who asked.
+  function questWaypoint(id) {
+    if (!storgata) return;let w = storgata.target(id, player);
+    if (!w && id === 'even' && GRONLAND && storgata.status('even') === 'active') w = GRONLAND.at;
+    if (!w) return false;const l = world.toLocal(w.x, w.z);map.waypoint = {x: l.x, s: l.s};questWp = map.waypoint;return true;
+  }
+  // What a choice in a conversation does to the rest of the game: waypoints, money, the bag, bottles, a new power.
+  function storgataResult(r, who) {
+    const P = SG.PEOPLE[who], msg = [];
+    if (r.accepted) {const q = SG.QUESTS.find(x => x.id === r.accepted);audio.sfx('quest');const wp = storgata.status(q.id) === 'active' && questWaypoint(q.id);msg.push(`New task from ${P.name}: ${q.title.en} · ${storgata.goal(q.id, storgataCtx()).en}${wp ? ' · the waypoint shows the way' : ''}`);}
+    if (r.delivered) {audio.sfx('quest');questWaypoint('mona');msg.push("Rolf has read Mona's note. Go back to Mona outside Kiwi Storgata.");}
+    if (r.reward) {
+      const rw = r.reward;
+      if (rw.takePant) wallet.takePant(rw.takePant);
+      (rw.takeItems || []).forEach(id => wallet.take(id));
+      if (rw.item) wallet.add(rw.item);
+      if (questWp && map.waypoint === questWp) map.waypoint = null;questWp = null;
+      if (rw.kr) {wallet.earn(rw.kr);audio.sfx('coin');msg.push(`+${KR(rw.kr)} from ${P.name}`);}
+      const item = rw.item ? shops.products.find(x => x.id === rw.item) : null;if (item) msg.push(`${P.name} gives you ${item.name} (in your bag: D-pad ↓)`);
+      if (r.done === 'bente') audio.sfx('harmonica');if (r.done === 'tore') audio.sfx('bark');
+      if (rw.teach) {magic.learn(rw.teach);const pw = window.GameMagic.byId(rw.teach);audio.sfx('learn');fx.burst({x: player.x, y: player.feet + 1, z: player.z}, pw.color, 90, 2.2);msg.push(`You learned ${pw.icon} ${pw.no} (${pw.en})! ${POWER_HELP[pw.id]} D-pad ← / ← chooses the power for R1 / X.`);}
+      else if (SG.REGULARS.includes(r.done)) {audio.sfx('cheer');msg.push(`Storgata trusts you a little more (${storgata.trust} of 5) – Sopp-Sigvald on the corner has noticed.`);}
+      walletT = 6;badges.check();
+    }
+    if (msg.length) notice(msg.join(' · '), 8);
+  }
+  let questT = 0, questHudKey = '';
+  function storgataTick(dt) {
+    if (!storgata) return;storgata.update(dt, player, camera);
+    questT -= dt;if (questT > 0) return;questT = .3;
+    const act = SG.QUESTS.filter(q => ['active', 'ready'].includes(storgata.status(q.id))), show = act.length && player.mode === 'foot' && !caseGame?.active && !pbBusy() && !storgata.talking;
+    const html = show ? '<b>Storgata</b>' + act.slice(0, 3).map(q => `<div>${esc(q.title.en)}<small>${esc(storgata.goal(q.id, storgataCtx()).en)}</small></div>`).join('') + (act.length > 3 ? `<small>+ ${act.length - 3} more</small>` : '') : '';
+    if (html !== questHudKey) {questHudKey = html;const el = $('questHud');el.innerHTML = html;el.hidden = !html;}
+  }
+  // ---- Magic (GameMagic): R1 / X casts the chosen power, D-pad ← / ← chooses, 1–4 cast one directly ----
+  const POWER_KEYS = ['magic1', 'magic2', 'magic3', 'magic4'];
+  const magicAllowed = () => player.mode === 'foot' && !caseGame?.active && !pbBusy() && !photo.active && !gear && !bag && !gymMenu && !jobs.phone.open && !quick && !map.open &&
+    !(storgata && storgata.talking) && !(route && route.running) && !(library && library.reading);
+  function magicTick(dt, input) {
+    magicKick = Math.max(0, magicKick - dt * 4);pushTick(dt);
+    if (!magic.known.size) {renderMagicHud(false);return;}
+    for (const e of magic.tick(dt)) {if (e.id === 'levitate') notice('Out of mana – you sink slowly to the ground.', 2.5);if (e.id === 'orb') {fx.orb.on = false;audio.sfx('orbOff');notice('Out of mana – the light orb goes out.', 2.5);}}
+    // The orb goes out in a vehicle, in the mission and at paintball; levitation stops whenever the powers are not allowed.
+    if (magic.orb && (!['foot', 'sit'].includes(player.mode) || caseGame?.active || pbBusy())) {magic.orb = false;fx.orb.on = false;}
+    const ok = magicAllowed();
+    if (!ok) {
+      magic.release('levitate');
+      if (route && route.running && player.mode === 'foot' && (input.pressed.has('r1') || input.pressed.has('cast') || POWER_KEYS.some(k => input.pressed.has(k)))) notice('No magic during the timed run – that would be cheating!', 2);
+      renderMagicHud(player.mode === 'foot' && !caseGame?.active && !pbBusy() && !(storgata && storgata.talking));return;
+    }
+    const direct = POWER_KEYS.find(k => input.pressed.has(k));
+    if (input.pressed.has('left')) {const pw = window.GameMagic.byId(magic.select(1));audio.sfx('click');notice(`${pw.icon} ${pw.no} (${pw.en}) · R1 / X`, 1.5);}
+    if (direct) {const pw = window.GameMagic.POWERS[POWER_KEYS.indexOf(direct)];if (magic.knows(pw.id)) {magic.sel = pw.id;castPower(pw.id);} else notice(`${pw.icon} ${pw.en}: not learned yet – Sopp-Sigvald in Storgata teaches it.`, 2.5);}
+    else if (input.pressed.has('r1') || input.pressed.has('cast')) castPower(magic.selected);
+    // Levitation lasts while its button is held.
+    if (magic.levitating && !(input.held.magic1 || ((input.held.r1 || input.held.cast) && magic.selected === 'levitate'))) magic.release('levitate');
+    renderMagicHud(true);
+  }
+  function castPower(id) {
+    if (!id) return false;const pw = window.GameMagic.byId(id), r = magic.cast(id);
+    if (!r.ok) {audio.sfx('noMana');notice(r.why === 'cooldown' ? `${pw.icon} ${pw.no} is not ready yet (${Math.ceil(magic.cool[id])} s)` : r.why === 'mana' ? `Not enough mana for ${pw.no} (${pw.cost} needed)` : `${pw.en}: not learned yet`, 1.5);return false;}
+    if (id === 'levitate') {audio.sfx('levitate');player.floating = true;fx.burst({x: player.x, y: player.feet + .1, z: player.z}, pw.color, 26, 1.2);}
+    else if (id === 'blink') doBlink(pw);
+    else if (id === 'gust') doGust(pw);
+    else if (id === 'orb') {fx.orb.on = r.on;if (r.on) fx.orb.pos.copy(camera.position);audio.sfx(r.on ? 'orbOn' : 'orbOff');}
+    return true;
+  }
+  // Blink: straight ahead the way you face, up to 8 m, stopping where you could no longer stand (a wall, a drop, a closed door).
+  function doBlink(pw) {
+    const eye = stanceEye(player.stance), dir = {x: -Math.sin(player.yaw), z: -Math.cos(player.yaw)};
+    const test = (p, y) => {const sp = collision.supportAt(walkWorld, p, y);return sp && collision.canStand(walkWorld, p, eye, sp.y) ? sp.y : null;};
+    const t = window.GameMagic.blinkTarget({x: player.x, z: player.z, y: player.feet}, dir, pw.dist, test);
+    if (t.d < .6) {magic.mana += pw.cost;magic.cool.blink = 0;audio.sfx('noMana');notice('Something is in the way – nowhere to blink to.', 2);return;}
+    fx.burst({x: player.x, y: player.feet + player.jumpY + 1, z: player.z}, pw.color, 55, 2.4);
+    player.x = t.x;player.z = t.z;player.feet = t.y;
+    fx.burst({x: t.x, y: t.y + player.jumpY + 1, z: t.z}, pw.color, 55, 2.4);audio.sfx('blink');magicKick = 1;
+    if (storgata) storgata.scare({x: t.x, z: t.z}, null, .8);
+  }
+  // Gust: wind streaks ahead, the pigeons fly off, and the nearest free parked car / motorcycle / e-scooter in the cone is pushed.
+  // Online the pushed vehicle is claimed like a seat while it moves, and its final place goes to the lobby when it stops.
+  const pushedList = [];let pushDynT = 0;
+  function pushable(v, i) {
+    if (!v.group.visible || v.aircraft || v.site || v.pushed || v === player.vehicle || !['car', 'motorcycle', 'scooter'].includes(v.kind)) return false;
+    if (mp.occupant(i, 'd') || mp.occupant(i, 'p') || lockedByOthers().has(i)) return false;
+    return Math.abs(v.y - player.feet) < 3;
+  }
+  function doGust(pw) {
+    const dir = {x: -Math.sin(player.yaw), z: -Math.cos(player.yaw)};
+    fx.wind({x: camera.position.x, y: camera.position.y - .35, z: camera.position.z}, dir);audio.sfx('gust');
+    if (storgata) storgata.scare({x: player.x, z: player.z}, dir, 1.3);
+    const free = vehicles.map((v, i) => ({x: v.x, z: v.z, v, i})).filter(c => pushable(c.v, c.i));
+    const hit = window.GameMagic.gustTargets({x: player.x, z: player.z}, dir, free, pw.range, pw.cone)[0];
+    if (hit) pushVehicle(hit.item.v, hit.item.i, dir, hit.k);
+  }
+  function pushVehicle(v, i, dir, k) {
+    v.pushed = {i, vx: 0, vz: 0, spin: 0, t: 0};
+    mp.claim(i, 'd').then(r => {
+      if (!r.ok || player.mode !== 'foot') {v.pushed = null;if (r.ok) mp.release(i, 'd');return;}
+      const s = (v.kind === 'car' ? 6 : 8) * k;Object.assign(v.pushed, {vx: dir.x * s, vz: dir.z * s, spin: (Math.random() - .5) * (v.kind === 'car' ? .8 : 2) * k});
+      if (v.flies) v.vy = (v.kind === 'car' ? 2.2 : 2.8) * k;// a little hop as the gust catches it
+      if (v.rental) v.rested = false;pushedList.push(v);updateDynamic();
+    });
+  }
+  function pushTick(dt) {
+    if (!pushedList.length) return;
+    for (const v of [...pushedList]) {
+      const p = v.pushed, f = Math.exp(-2.4 * dt), sp = Math.hypot(p.vx, p.vz);p.t += dt;p.vx *= f;p.vz *= f;p.spin *= f;
+      if (sp > .02) {const nx = v.x + p.vx * dt, nz = v.z + p.vz * dt;if (v.clear(nx, nz)) {v.x = nx;v.z = nz;} else {if (sp > 2) audio.sfx('thud', {gain: .6});p.vx = p.vz = 0;}}
+      v.yaw += p.spin * dt;if (v.rental) v.rested = false;
+      if (p.t > 4 || player.mode !== 'foot' || (p.t > .6 && sp < .05 && !v.airborne)) {v.pushed = null;v.speed = 0;pushedList.splice(pushedList.indexOf(v), 1);v.place();mp.release(p.i, 'd', v.netGet());updateDynamic();}
+    }
+    pushDynT -= dt;if (pushDynT <= 0 && pushedList.length) {pushDynT = .25;updateDynamic();}
+  }
+  let magicHudKey = '';
+  function renderMagicHud(show) {
+    let html = '';
+    if (show && magic.known.size) {
+      const sel = window.GameMagic.byId(magic.selected);
+      html = `<div class="mg-mana" title="Mana"><u style="width:${Math.round(magic.mana / 2) * 2}%"></u></div><div class="mg-row">` + window.GameMagic.POWERS.map(pw => {
+        const k = magic.knows(pw.id), cd = magic.cool[pw.id] || 0, f = cd > 0 ? Math.round(Math.min(1, cd / pw.cd) * 20) * 5 : 0, on = (pw.id === 'orb' && magic.orb) || (pw.id === 'levitate' && magic.levitating);
+        return `<i class="${k ? '' : 'no'}${pw.id === sel.id ? ' sel' : ''}${on ? ' on' : ''}" style="--cd:${f}%"><span>${k ? pw.icon : '·'}</span><b>${pw.key}</b></i>`;
+      }).join('') + `</div><small>${sel.no} (${sel.en}) · R1 / X · ← chooses</small>`;
+    }
+    if (html !== magicHudKey) {magicHudKey = html;const el = $('magicHud');el.innerHTML = html;el.hidden = !html;}
+  }
+  const orbView = new T.Vector3();
+  function magicFx(dt) {
+    fx.update(dt, camera);
+    if (catacomb) {if (fx.orb.level > .02) {camera.updateMatrixWorld();orbView.copy(fx.orb.pos).applyMatrix4(camera.matrixWorldInverse);catacomb.setOrb(orbView, fx.orb.level);} else catacomb.setOrb(null, 0);}
+  }
+  // Other players' light orbs: a small glowing ball by their shoulder (no light, to keep the light count fixed).
+  const remoteOrbMat = new T.MeshBasicMaterial({color: 0xfff1c8});
+  function orbPose(r, st) {
+    if (st.mg && !r.orb) {r.orb = new T.Mesh(new T.SphereGeometry(.09, 12, 8), remoteOrbMat);r.orb.name = 'Remote light orb';scene.add(r.orb);}
+    if (r.orb) {r.orb.visible = !!st.mg && r.seen !== false;if (r.orb.visible) r.orb.position.set(r.pos.x + Math.cos(r.yaw) * .55, r.pos.y + 1.85 + Math.sin(performance.now() / 500) * .05, r.pos.z - Math.sin(r.yaw) * .55);}
+  }
   // ---------- Test / inspection handle ----------
   // ---------- Photo hunt places, badge checks (issue #58) ----------
   const huntSpots = (() => {
@@ -16066,6 +17106,11 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
   function huntPhoto() {
     const shot = {cam: camera.position.clone(), fovY: camera.fov, ndc: p => new T.Vector3(p.x, p.y, p.z).project(camera), blocked: sightBlocked};
     const msg = badges.photo(shot, huntSpots, canvas);if (msg) notice(msg, 5);
+    if (storgata && GRONLAND && storgata.status('even') === 'active') {
+      const j = window.GameBadges.judge(GRONLAND, shot);
+      if (j.ok) {storgata.photo('gronland');audio.sfx('quest');questWaypoint('even');notice('A good photo of Grønland kirke! Show it to Even outside Kiwi Storgata.', 5);}
+      else if (j.d < GRONLAND.maxDist * 1.6) notice(`Even's photo of Grønland kirke: ${{far: `come closer (within ${GRONLAND.maxDist} m)`, frame: 'aim at the tower', small: 'get the whole tower in, a bit bigger – go closer or zoom in', blocked: 'something is in the way'}[j.why] || 'try again'}.`, 5);
+    }
   }
   // Badges that come from what you do: checked twice a second (the rest come from the best scores and saved states).
   let badgeT = 0, pbSeen = 0;
@@ -16085,6 +17130,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
   Object.assign(window.haarklousGame, {library, pingpong, rathkes, kayak, startKayak, hushedFor: () => hushed});
   Object.assign(window.haarklousGame, {badges, huntSpots, huntPhoto, sightBlocked, SKY_TARGET, progress, account});
   Object.assign(window.haarklousGame, {rides, get rentals() {return rentals;}, jobs, openPhone, rentDrive, JOB_SIGNS});
+  Object.assign(window.haarklousGame, {storgata, magic, magicFxApi: fx, castPower, GRONLAND, storgataAct, questWaypoint, collision});
   loading.remove();$('start').hidden = false;
   requestAnimationFrame(frame);
 })();
