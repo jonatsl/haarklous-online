@@ -87,7 +87,7 @@ Live site: runs `main` (Worker version 281119ea, deployed 3 Nov 2026 after PR #7
     - The drone test in the phone passed, and then the FPV drone launched.
     - The licences were still there after a reload; no script errors.
   - Not checked: the helicopter course flown by hand with the new lift (PR #75; the programmatic flight above moved the helicopter along the course), the PPL(A), class A, class C and crane practical parts in the browser (their rules are Node-tested and the site courses' lines were checked clear in the browser; the plane's approach over the last ring at 24 m clears the trees by only about 3–7 m, so it needs a steeper descent than usual), two players online, a real DualShock 4, an account on the live server.
-- **Status:** branch `feat/licences`, pull request not merged yet.
+- **Status:** branch `feat/licences`, [PR #82](https://github.com/jonatsl/haarklous-online/pull/82), not merged yet.
 ### 2026-11-03 · Forgot password and the email check (issue #55)
 - **What:**
   - After you create an account, the game sends an email with a **"confirm your email"** link. The link opens the game, confirms the email and logs you in on that browser. The Account box in the pause menu says when the email is not confirmed yet, with a button *Send the email again*.
