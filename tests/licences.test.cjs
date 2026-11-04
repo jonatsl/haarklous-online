@@ -56,12 +56,12 @@ test('licences are saved progress: the server accepts the key, and two copies jo
     const m = JSON.parse(P.merge(account, browser, {}, mode)[K]);
     assert.deepEqual(m.have, {B: '2026-11-01', PPLA: '2026-11-02'}, mode);assert.equal(m.theory.M, '2026-11-02');assert.equal(m.fails.A, 3);
   }
-  const rules = await import(pathToFileURL(path.join(__dirname, '../cloud/src/progress-rules.js')).href);
+  const rules = await import(pathToFileURL(path.join(__dirname, '../cloud/src/progress-check.js')).href);
   const all = Object.fromEntries(P.KEYS.map(k => [k, '{}']));
-  assert.equal(rules.checkSave({set: all, del: []}).error, undefined, 'the server accepts every progress key');
+  assert.equal(rules.checkSave({set: all, del: []}), null, 'the server accepts every progress key');
   const big = JSON.stringify({have: Object.fromEntries(L.IDS.map(id => [id, '2026-11-03'])), theory: Object.fromEntries(L.IDS.map(id => [id, '2026-11-03'])), fails: Object.fromEntries(L.IDS.map(id => [id, 99]))});
-  assert.deepEqual(rules.checkSave({set: {[K]: big}}).set, [[K, big]]);
-  assert.ok(rules.checkSave({set: {'Haarklous-Licences': '{}'}}).error, 'a bad key is still refused');
+  assert.equal(rules.checkSave({set: {[K]: big}}), null);assert.deepEqual(rules.saveParts({set: {[K]: big}}).set, [[K, big]]);
+  assert.ok(rules.checkSave({set: {'Haarklous-Licences': '{}'}}), 'a bad key is still refused');
 });
 
 test('badges for the first licence and for all of them', () => {

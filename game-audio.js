@@ -162,6 +162,22 @@
         case 'unlock': tone(1700, 1700, .07, .004, .07, 'square');tone(2300, 2300, .07, .004, .09, 'square', t + .1);burst(1200, 3, .25, .002, .06, 'bandpass', t + .25);break;
         case 'bell': for (let i = 0; i < 2; i++) {tone(3100, 3080, .12, .002, .6, 'sine', t + i * .14);tone(4650, 4600, .05, .002, .4, 'sine', t + i * .14);}break;
         case 'paddle': burst(900, .8, .12, .04, .28);burst(2600, 1.2, .05, .02, .15, 'bandpass', t + .05);break;
+        // KIWI Storgata (issue #65): the people, the wizard and the four magic powers.
+        case 'hm': tone(180, 150, .05, .03, .25, 'triangle');tone(240, 200, .04, .03, .2, 'triangle', t + .18);break;
+        case 'mystic': for (let i = 0; i < 5; i++) tone([523, 659, 784, 988, 1175][i], [523, 659, 784, 988, 1175][i] * 1.01, .05, .02, .55, 'sine', t + i * .09);break;
+        case 'quest': tone(660, 660, .08, .01, .18, 'triangle');tone(880, 880, .08, .01, .3, 'triangle', t + .12);break;
+        case 'harmonica': for (let i = 0; i < 6; i++) {const f = [392, 440, 494, 440, 392, 523][i];tone(f, f, .06, .03, .22, 'sawtooth', t + i * .2);tone(f * 2, f * 2, .03, .03, .2, 'square', t + i * .2);}break;
+        case 'bark': for (let i = 0; i < 2; i++) {tone(520, 260, .16, .005, .09, 'sawtooth', t + i * .22);burst(900, 2, .12, .002, .06, 'bandpass', t + i * .22);}break;
+        case 'flap': for (let i = 0; i < 10; i++) burst(rand(700, 1600), 1.2, .09, .004, .05, 'bandpass', t + i * rand(.03, .07));break;
+        case 'mushroom': tone(1320, 1980, .07, .005, .25, 'sine');tone(1760, 2640, .05, .005, .3, 'sine', t + .08);break;
+        case 'learn': for (let i = 0; i < 8; i++) tone(440 * Math.pow(2, i / 4), 440 * Math.pow(2, i / 4) * 1.02, .06, .02, .6, 'sine', t + i * .07);burst(5000, 1, .08, .3, .8, 'highpass', t + .2);break;
+        case 'levitate': tone(300, 620, .07, .2, .7, 'sine');burst(2200, .6, .06, .25, .6, 'bandpass');break;
+        case 'land': burst(400, .8, .12, .005, .15, 'lowpass');break;
+        case 'blink': tone(1800, 240, .12, .002, .22, 'sawtooth');burst(4000, 1.5, .18, .002, .18, 'highpass');tone(240, 1600, .08, .005, .18, 'sine', t + .12);break;
+        case 'gust': burst(500, .5, .5, .05, .9, 'lowpass');burst(1800, .4, .25, .1, .8, 'bandpass');burst(3600, .6, .1, .05, .5, 'highpass', t + .1);break;
+        case 'orbOn': tone(880, 1320, .07, .02, .4, 'sine');tone(1320, 1760, .05, .02, .5, 'sine', t + .1);break;
+        case 'orbOff': tone(1320, 660, .05, .01, .3, 'sine');break;
+        case 'noMana': tone(220, 180, .06, .01, .18, 'square');break;
       }
     }
 

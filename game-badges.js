@@ -7,7 +7,7 @@
  * which are part of an account's saved progress (GameProgress).
  *
  * Pure (Node-tested):
- *   BADGES [{id, icon, name, how, kr, test(facts)}]   facts = {records, gym, kayak, route, lic, got}
+ *   BADGES [{id, icon, name, how, kr, test(facts)}]   facts = {records, gym, kayak, route, lic, storgata, got}
  *   SPOTS  [{id, name, hint, kr, size, r, maxDist}]   size = the subject's height (m), r = its own radius (the sight line
  *                                                    stops r before its centre), maxDist = how close you must be; the game
  *                                                    adds at = {x, y, z} and, for a door, face = {x, z} (the way it faces)
@@ -63,7 +63,12 @@
     {id: 'licence', icon: '🪪', name: 'Licensed', how: 'Pass a licence test: a driving licence, a machine or crane certificate, a pilot licence or the drone certificate.', kr: 100, test: f => keys(f.lic && f.lic.have).length > 0},
     {id: 'licences', icon: '🎓', name: 'Every licence', how: `Hold all ${LICENCE_COUNT} licences: classes B, A and C, the machine and crane certificates, PPL(A), PPL(H) and the drone certificate.`, kr: 300, test: f => keys(f.lic && f.lic.have).length >= LICENCE_COUNT},
     {id: 'airborne', icon: '🚁', name: 'Airborne', how: 'Fly the helicopter or the plane 50 m above the ground.', kr: 100, test: f => !!f.records.marks?.airborne},
-    {id: 'hunter', icon: '📷', name: 'Photo hunter', how: 'Find and photograph every place in the photo hunt.', kr: 300, test: f => SPOTS.every(s => f.got[s.id])}
+    {id: 'hunter', icon: '📷', name: 'Photo hunter', how: 'Find and photograph every place in the photo hunt.', kr: 300, test: f => SPOTS.every(s => f.got[s.id])},
+    // KIWI Storgata (issue #65): the regulars' quests and Sopp-Sigvald's four lessons.
+    {id: 'storgata', icon: '🛒', name: 'Friend of Storgata', how: 'Help all five regulars outside Kiwi Storgata 33.', kr: 200,
+      test: f => ['kjell', 'bente', 'tore', 'mona', 'even'].every(id => ((f.storgata || {}).q || {})[id]?.s === 'done')},
+    {id: 'wizard', icon: '🍄', name: 'Mushroom apprentice', how: 'Learn all four magic powers from Sopp-Sigvald, the mushroom wizard in Storgata.', kr: 250,
+      test: f => ['levitate', 'blink', 'gust', 'orb'].every(id => ((f.storgata || {}).powers || {})[id])}
   ];
 
   function judge(spot, shot) {
@@ -150,7 +155,7 @@
       if (!panel.hidden) render();
       return true;
     }
-    const facts = () => ({records, gym: read('haarklous-klatreverket-v1'), kayak: read('haarklous-kayak-v1'), route: read('haarklous-route-v1'), lic: read('haarklous-licences-v1'), got: state.got});
+    const facts = () => ({records, gym: read('haarklous-klatreverket-v1'), kayak: read('haarklous-kayak-v1'), route: read('haarklous-route-v1'), lic: read('haarklous-licences-v1'), storgata: read('haarklous-storgata-v1'), got: state.got});
     function check() {const f = facts();for (const b of BADGES) if (!state.got[b.id] && b.test(f)) award(b);}
     function addRecord(kind, data) {const r = record(records, kind, data);store(RECORDS, records);check();return r;}
     function thumbOf(canvas) {

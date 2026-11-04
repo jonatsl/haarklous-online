@@ -245,12 +245,22 @@
       return runs;
     }
     const runs = wallRuns();
+    // A wall's top never rises above the open ground over it (issue #64: the stairs' side walls took the pavilion's roof height
+    // along their whole 28–36 m run and stood up to 4 m out of the lawn as invisible walls). Inside a mausoleum it may.
+    function underGround(pts, top) {
+      let g = Infinity;
+      pts.forEach((a, i) => {const b = pts[(i + 1) % pts.length];for (let t = 0; t <= 1; t += .25) {const x = a[0] + (b[0] - a[0]) * t, s = a[1] + (b[1] - a[1]) * t;if (!cutsGround(x, s)) g = Math.min(g, heightLocal(x, s));}});
+      return Math.min(top, g - .05);
+    }
     function obstacles(toWorld) {
       const list = [], W = (x, s) => toWorld(x, s);
-      for (const r of runs) {
+      // Stair walls go one cell at a time (their ceiling follows the stair); gallery walls as whole straight runs.
+      const pieces = runs.flatMap(r => r.cells.some(c => stairOf[c] >= 0) ? r.cells.map(c => ({side: r.side, cells: [c], stair: true})) : [r]);
+      for (const r of pieces) {
         const first = centre(r.cells[0] % NX, Math.floor(r.cells[0] / NX)), last = centre(r.cells[r.cells.length - 1] % NX, Math.floor(r.cells[r.cells.length - 1] / NX)), k = r.side;
         const ossuary = r.cells.every(c => style[c] === S.ossuary || style[c] === S.chapel), inset = ossuary ? .22 : 0;
-        let lo = Infinity, hi = -Infinity;for (const c of r.cells) {const p = centre(c % NX, Math.floor(c / NX));lo = Math.min(lo, floorAt(c, p.x - 1, p.s - 1), floorAt(c, p.x + 1, p.s + 1));hi = Math.max(hi, ceilAt(c, p.x, p.s));}
+        let lo = Infinity, hi = -Infinity;
+        for (const c of r.cells) {const p = centre(c % NX, Math.floor(c / NX));lo = Math.min(lo, floorAt(c, p.x - 1, p.s - 1), floorAt(c, p.x + 1, p.s + 1));for (const [ox, os] of r.stair ? [[-1, -1], [1, 1], [-1, 1], [1, -1]] : [[0, 0]]) hi = Math.max(hi, ceilAt(c, p.x + ox * .99, p.s + os * .99));}
         // The wall line (on the cell edge) and the rock behind it; k: 0 N (-s), 1 E (+x), 2 S (+s), 3 W (-x).
         const dx = DI[k], ds = DJ[k], ax = k % 2 === 0 ? [first.x - 1, last.x + 1] : null, as = k % 2 ? [first.s - 1, last.s + 1] : null;
         const wall = k % 2 === 0 ? first.s + ds * 1 : first.x + dx * 1;
@@ -261,10 +271,10 @@
         const e = entrances.find(en => r.cells.includes(en.cells[0]) && (en.alongX ? k === (en.sign > 0 ? 3 : 1) : k === (en.sign > 0 ? 0 : 2)));
         if (e) {
           const a = e.alongX ? pts.map(p => p[1]) : pts.map(p => p[0]), lo2 = Math.min(...a), hi2 = Math.max(...a), g0 = e.line - e.doorWidth / 2, g1 = e.line + e.doorWidth / 2;
-          for (const [u0, u1] of [[lo2, g0], [g1, hi2]]) if (u1 - u0 > .01) {const q = pts.map(p => e.alongX ? [p[0], p[1] === lo2 ? u0 : u1] : [p[0] === lo2 ? u0 : u1, p[1]]);list.push({points: q.map(p => W(p[0], p[1])), minY: lo - .5, maxY: hi + .5, kind: 'catacomb'});}
+          for (const [u0, u1] of [[lo2, g0], [g1, hi2]]) if (u1 - u0 > .01) {const q = pts.map(p => e.alongX ? [p[0], p[1] === lo2 ? u0 : u1] : [p[0] === lo2 ? u0 : u1, p[1]]);list.push({points: q.map(p => W(p[0], p[1])), minY: lo - .5, maxY: underGround(q, hi + .5), kind: 'catacomb'});}
           continue;
         }
-        list.push({points: pts.map(p => W(p[0], p[1])), minY: lo - .5, maxY: hi + .5, kind: 'catacomb'});
+        list.push({points: pts.map(p => W(p[0], p[1])), minY: lo - .5, maxY: underGround(pts, hi + .5), kind: 'catacomb'});
       }
       // The mausoleums' outer walls, for people outside (the stair passes under the back wall below minY).
       for (const e of entrances) {

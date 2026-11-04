@@ -31,7 +31,8 @@ On `main`:
 - Account emails (issue #55): a "confirm your email" link after sign-up and *Forgot password?* with a reset link that opens the game; both links work for an hour, the reset link once. Sent through Brevo once the user has added its key (until then the button is hidden).
 - Soundtrack: 2.5-minute open-world loop plus one loop per minigame and the mission; ambient sound by location.
 - Gamle Oslo, Ensjø and the way there: real streets, ground heights and about 7,900 buildings south of the old world (3.4 × 3.4 km, down Trondheimsveien to Bjørvika); churches, MUNCH, the Opera (walkable roof) and tall chimneys modelled; a timed Ensjø → Rathkes gate run (PR #48, issue #38).
-- Kayaking down Akerselva from three put-ins (Bjølsen, Sagene, Grünerløkka) to Vaterland: the real river, its falls and bridges (issue #45).
+- Kayaking down Akerselva from three put-ins (Bjølsen, Sagene, Grünerløkka) to Vaterland: the real river, its falls and bridges (issue #45). Its water shows along the whole river, close up and from far away (issue #63).
+- Nothing invisible stops you: you walk over the Akerselva bridges and along the banks under them, from Myrens on to Grünerløkka along the river, across the lawn over the catacomb, up to the trees in Torshov's corners and to the water's edge in Bjørvika; a low wooden fence marks the edge of the walkable world (issue #64).
 - Schous plass: playable table tennis against Ola; Deichman Grünerløkka with thousands of books, *The Inner Game of Tennis* and a readable *Moby-Dick*, and a librarian who shushes runners and loud voices (issues #44, #47).
 - Rathkes gate 1: the gate, the passage and the backyard with door 1C, ready for the second flat (issue #44, preparation).
 - Klatreverket Torshov at its real place (Myrens verksted 3K) in its real building: 14 m hall, 7 m overhanging competition wall, Galleriet, autobelay tower, bouldering on three floors, the training room with the Moonwall; reception with the real prices and rental; climb with L2 / R2 (bouldering, top rope with Siri belaying, lead with clips, autobelay), pump, falls on the rope, the brattkort test and belaying Siri.
@@ -40,8 +41,9 @@ On `main`:
 - E-scooters on the pavements (10 kr + 3 kr a minute, 20 km/h, left where you get off – for everyone online) and Oslo city bikes and e-bikes in the 40 real Oslo Bysykkel docks around Torshov, Myrens and Grünerløkka, at the real prices; the map shows the free bikes at each dock (issue #57).
 - A large catacomb under Torshovdalen with three entrances about 100 m apart (marked ☠ on the map): torch-lit bone galleries with real-looking skulls, dark quarry tunnels where you use your torch (□ / L1 / Q), and a map that is wiped underground and fills in with what you see (PR #50, issue #43).
 - Logged in, your progress is your account's and is there on any PC or browser: money and bottles, the bag, photos (an album of up to 60), badges, best scores, Klatreverket ticks, the catacomb map and your settings; it saves by itself. The first log-in on a browser with its own progress asks whether to move it into the account. Without an account it stays in the browser as before (issue #54, PR #70).
-- Badges and a photo hunt in the pause menu (R1 / B): 16 badges from playing and ten places to photograph (Torshovoksen, HODET N.N., Deichman Grünerløkka, Klatreverket, the catacomb's rotunda, Muselunden, MUNCH, the Opera, Rathkes gate 1, your street door); each new badge pays 50–300 kr; best scores for the minigames, the mission, skydiving and the runs; an orange landing target for skydivers at the airstrip (issue #58, PR #70).
+- Badges and a photo hunt in the pause menu (R1 / B): 20 badges from playing and ten places to photograph (Torshovoksen, HODET N.N., Deichman Grünerløkka, Klatreverket, the catacomb's rotunda, Muselunden, MUNCH, the Opera, Rathkes gate 1, your street door); each new badge pays 50–300 kr; best scores for the minigames, the mission, skydiving and the runs; an orange landing target for skydivers at the airstrip (issue #58, PR #70).
 - Helicopter and drone flight closer to the real thing: the rotor's lift tilts with pitch and bank, so tilting takes lift away from climbing and turns it into speed; add collective or thrust to keep your height (issue #73, PR #75).
+- Kiwi Storgata 33 at its real place in the city centre, with a hot-food counter; the regulars outside give small tasks (bottles for the deposit, a harmonica on the Opera roof, coffee and a hot dog, a note for Rolf at Schous plass, a photo of Grønland kirke), in Norwegian with English below; Sopp-Sigvald the mushroom wizard teaches four magic powers after mushroom hunts in Torshovdalen, along Akerselva, in the catacomb and at MUNCH: levitation, blink, a gust and a light orb (R1 / X, D-pad ← chooses, keys 1–4); saved with your progress (issue #65).
 - Licences for every vehicle, each won by a test with a theory part and a practical part (rings, the speed limit, no crash, park or land): førerkort B and A at Soria Moria Trafikkskole on Vogts gate (a school car and motorcycle, a test route on the real streets), class C, the machine certificate and the crane certificate at the site office, PPL(A) and PPL(H) at the airstrip, the drone certificate A1/A3 on the phone (free); bikes, e-scooters, the kayak and riding along need none; saved with your progress (issue #59).
 
 Live site: runs `main` (Worker version 281119ea, deployed 3 Nov 2026 after PR #75; `main` builds byte-for-byte to the live page), so everything above is online.
@@ -74,7 +76,7 @@ Live site: runs `main` (Worker version 281119ea, deployed 3 Nov 2026 after PR #7
 - **Where:**
   - `game-licences.js` (new): the licences, which vehicle needs which, the questions, the courses, the practical part's rules, the rings, the HUD, the menu and the signs.
   - `game-main.js`: the school car and motorcycle, the signs, the checks at every driver's seat (the prompt, `tryDrive`, `enterVehicle`, the Caravan, the drone, taxi), the test flow, the phone page, the pause line, the map icons.
-  - `game-progress.js` (the new saved key and how two copies join), `cloud/src/progress-rules.js` (new: the server's save check, now testable) and `cloud/src/progress.js` (uses it), `game-badges.js` (two badges), `index.html`, `style.css`, `README.md`, `docs/HANDOFF.md`.
+  - `game-progress.js` (the new saved key and how two copies join), `cloud/src/progress-check.js` (the server's save check, shared with Kiwi Storgata's PR #79; the test checks every progress key), `game-badges.js` (two badges), `index.html`, `style.css`, `README.md`, `docs/HANDOFF.md`.
   - Tests: `tests/licences.test.cjs` (new: 10 tests), `tests/badges.test.cjs`.
   - Draw calls: the three signs add 2 each (76 triangles); the rings 2 (896 triangles each) only during a practical test; the school car (43 meshes, about 12,200 triangles) and motorcycle (49 meshes, about 8,900 triangles) are like any parked car and motorcycle and are drawn only within 170 m (they stand 600 m from 17A).
 - **Checked:**
@@ -88,6 +90,96 @@ Live site: runs `main` (Worker version 281119ea, deployed 3 Nov 2026 after PR #7
     - The licences were still there after a reload; no script errors.
   - Not checked: the helicopter course flown by hand with the new lift (PR #75; the programmatic flight above moved the helicopter along the course), the PPL(A), class A, class C and crane practical parts in the browser (their rules are Node-tested and the site courses' lines were checked clear in the browser; the plane's approach over the last ring at 24 m clears the trees by only about 3–7 m, so it needs a steeper descent than usual), two players online, a real DualShock 4, an account on the live server.
 - **Status:** branch `feat/licences`, [PR #82](https://github.com/jonatsl/haarklous-online/pull/82), not merged yet.
+
+### 2026-11-04 · No more invisible walls (issue #64)
+- **What:**
+  - A survey of the whole walkable world found every place where something stopped you with nothing drawn there: about 85,000 points (every 8 m in Torshov and Myrens, every 16 m in Gamle Oslo), a 1 m step in eight directions from each, what stopped the step, and whether anything is drawn there. These invisible walls are gone:
+    1. **Between Myrens and Gamle Oslo** an 80 m strip (west of the old square, where Akerselva runs from Sagene to Grünerløkka) was ground you could see but not enter: each map patch is walkable only to 40 m inside its own edges, and these two meet. A seam joins them now, and its trees and buildings are solid.
+    2. **All 46 Akerselva bridges.** The whole rectangle of a bridge counted as the ground, so walking along a bank you hit a wall where the deck was overhead (up to 3.6 m), and 43 of the 46 decks ended in a ledge you could not step onto (the lowered river bed had pulled the ground down at their ends). Now each deck reaches out until it meets the ground at both ends and is a floor of its own: you walk over it, and along the bank under it. Railings, and the underside of a deck too low to walk under, still stop you (you see them).
+    3. **The catacomb's three stairs.** Their side walls took the height of the mausoleum's roof along the whole 28–36 m stair, so six walls stood up to 4 m out of the lawn in Torshovdalen. Now each piece of wall follows its own step and never reaches above the ground.
+    4. **453 trees in Torshov's corners** (more than 820 m from home; the walkable area is a square out to 760 m), among them trees in Muselunden: they were drawn only for the distance, vanished when you came within 15 m, and still blocked you. They are drawn close up now.
+    5. **The edge of the walkable world** (about 16 km) was an invisible line in open ground. A low wooden fence stands on it now.
+    6. **Buildings dug into a slope** (37 with the ground next to them at or above the roof, 26 more within 1 m): a building blocked you up to 4 m above its roof, so on the uphill side you stopped in front of a roof at your feet. They block only up to the roof now (an edge under 10 cm high is stepped over).
+    7. **The sea in Bjørvika** blocked you up to 0.8 m above the water, so on low shores you stopped on dry ground, metres from the water. It now stops you where the ground goes under the drawn water.
+- **Why:** issue #64, "In some places it is impossible to walk/move like an invisible wall even though there is nothing around the user. Fix." (tester, 3 Nov 2026).
+- **Decided here:**
+  - The walkable world keeps its size; its edge gets a fence you can see (beyond it there is no detailed ground to walk on).
+  - Bridge decks run straight between the points where they meet the ground (at the real bridge's height, or the top of the bank, with ramps no steeper than 30 %) and stay at least 1.8 m over the water (2.2 m for roads). Vehicles still drive on the decks as before; walking uses the new deck floors.
+  - All bridge decks are one mesh and all railings another (138 meshes before).
+- **Where:**
+  - `surroundings.js`: `walkRects` and `openEdges` (pure), the seams in `terrainFloors()` and in the obstacles, the edge fence, trees drawn near in the whole walkable square, `buildingTop`, the sea's block height.
+  - `game-kayak.js`: `deckProfile` and `box` (pure), bridges as walk floors (`bridge.floor`, `bridge.surface`), railings and decks as 2 m obstacle pieces, merged deck and railing meshes.
+  - `game-main.js`: `terrainAt` (the ground without the decks) for walking, plus the deck floors; vehicles keep `groundAt`.
+  - `catacomb-layout.js`: stair walls one cell at a time, wall tops kept under the ground (`underGround`).
+  - Tests: `tests/invisible-walls.test.cjs` (new).
+- **Checked:**
+  - `node --test tests/*.cjs`: 143 pass (5 new).
+  - The survey, before and after: points where you were stopped with nothing drawn: 37 → 0 (the survey still flags four, but they are things you see: a bench by the fire pit, a roof edge 14 cm high, and the water at knee height on two low shores). The unwalkable strip and the invisible world edge are gone.
+  - Bridges: walking from one end to the other works 58 of 71 times (4 of 77 before); the others stop at a building at the far end or at the edge of the world. Walking along a bank under a bridge works 30 of 76 times (5 of 77 before); the others stop at a deck too low to walk under, at a bridge end on the bank, or at a tree.
+  - In the game loop (simulated controller): over the Marcus Thranes gate bridge on its deck, and along the bank under a footbridge 6.5 m up. Along Akerselva's right bank from Myrens into Grünerløkka across the old strip.
+  - Cost at six test views (home, Muselunden, the north edge, Bjølsen, the seam, Torshovdalen): +2 to +11 draw calls and +19,000 to +49,000 triangles per frame (+1–4 %): the fence (68 pieces, only those within 450 m are drawn), the corner trees and the bridge decks.
+  - Not checked: on the user's own PC and controller; online with others.
+- **Status:** branch `fix/invisible-walls`, [PR #80](https://github.com/jonatsl/haarklous-online/pull/80) (not merged yet).
+
+### 2026-11-04 · Kiwi Storgata: the regulars, their tasks and Sopp-Sigvald's magic (issue #65)
+- **What:**
+  - **Kiwi Storgata 33** at its real place (OSM node 3111431401), cut into the ground floor of its real office building on Storgata (OSM way 112233122) in the Gamle Oslo patch, the same way as Joker and Kiwi Torshov: glass front, shelves, fridges, the till with a cashier, the bottle machine, prices, beer hours. The facade above it is rebuilt in the building's own glass-band material. It has the real opening hours on the door (OSM `opening_hours` "Mo-Sa 07:00-23:00") and a counter by the window with a hot coffee (30,90 kr) and a hot dog (28,90 kr).
+  - **Five regulars** outside, sitting on crates, a stool and a bench or leaning on the wall: Kjell-Arne (retired sailor), Bente (once in the Opera chorus, with her shopping trolley), Tore and his dog Laika, Mona (retired postwoman), Even (retired press photographer). □ talks; the conversation is in Norwegian with the English below, ↑↓ chooses, ✕ answers, ○ leaves. Each gives one task that uses the game:
+    - Kjell-Arne: ten empty bottles (twelve lie along Storgata, □ picks one up; a soda also gives one) → his Kvikk Lunsj.
+    - Bente: her late husband's harmonica at the top of the Opera roof → 100 kr.
+    - Tore: a coffee and a hot dog from the new counter → a Solo.
+    - Mona: a note for her brother Rolf, who feeds the pigeons on a bench at Schous plass, and his answer back → 80 kr.
+    - Even: a good photo of Grønland kirke with the whole tower (the photo hunt's own check) → 120 kr.
+    - Tasks show at the top right and set the waypoint; finished tasks are Storgata's trust (0–5 stars in the wizard's talk box).
+  - **Sopp-Sigvald**, the mushroom wizard on the corner: purple robe with stars, wild white hair and beard, a big red-and-white mushroom hat and a staff with a glowing mushroom. He rambles (pigeons are spies, time is a mushroom, never eat a mushroom you don't know). Lesson k needs the trust of k regulars, and each lesson is a mushroom hunt: three star mushrooms in Torshovdalen → **Svev** (levitation), three river mushrooms on the banks of Akerselva → **Glimt** (blink), the bone mushroom in the catacomb's Rotunda → **Vindkast** (gust), the moon mushroom at MUNCH → **Lyskule** (light orb).
+  - **Magic**: R1 (X) casts the chosen power, D-pad ← (←) chooses, keys 1–4 cast one directly. Levitation: hold to rise up to 3.2 m (under a ceiling less), let go to sink at most 1.3 m/s. Blink: up to 8 m the way you face, stops in front of walls and drops. Gust: wind streaks, the pigeons fly off, and the nearest free parked car, motorcycle or e-scooter within 14 m in a 40° cone is pushed (a little hop, slides up to about 2 m). Light orb: a glowing ball by your right shoulder with a light, on and off. A mana bar (100, refills 12 per second after a short rest) and a cooldown ring per power at the bottom right. Sounds for each power, the wizard, the harmonica and Laika.
+  - The map shows the shop, the regulars, the wizard, and while a task is on, Rolf and the things to find.
+  - Two badges: *Friend of Storgata* (all five regulars, 200 kr) and *Mushroom apprentice* (all four powers, 250 kr).
+  - The three shops now share one ceiling light that moves to the shop you are near (before: one light per shop), so the new shop and the orb add no light to the scene in total.
+- **Why:** the tester's issue #65: "It should be possible to go to KIWI Storgata and talk with NPCs and complete quests given from the somewhat tired people hanging around there. There should be a crazy mushroom wizard that can teach you magic powers. Since the game already implements a KIWI this functionality can be re-used."
+  - Decided here:
+    - The people, their names and their stories are made up; kind and funny, nothing mocking, no drugs shown (the wizard listens to mushrooms and warns against eating unknown ones).
+    - The powers work on foot only, and not during the mission, paintball (lobby or game), the timed run, a conversation or with the photo camera out; the orb goes out in a vehicle. Levitation keeps the walk collision at the ground, so you cannot float over walls or onto roofs.
+    - R1 casts because it is free on foot (it opens the badges only in the pause menu); D-pad ← was free on foot. Keyboard: X and 1–4.
+    - The gust pushes one vehicle (the nearest): online the vehicle is claimed like a seat while it moves and its final place is sent when it stops, and one player can hold only one seat at a time.
+    - Kiwi Storgata gets no JOBB sign: delivery doors exist only in the old square round Torshov, so its orders would be very long.
+    - Shops do not close in the game (as before); the real opening hours are on the door.
+    - The bottles on the pavement are not saved (there is always more litter); tasks, finds and powers are.
+- **Where:** `game-storgata.js` (new: people, tasks, conversations, the scene, pigeons, bottles, finds), `game-magic.js` (new: powers, mana, cooldowns, levitation, blink, gust, particles and the orb), `game-shops.js` (shops in a district patch, the counter, one shared light, `takePant`), `surroundings.js` (building tint and patch materials for the rebuilt facade), `game-catacomb.js` (the orb's light underground), `game-main.js` (wiring, prompts, waypoints, rewards, the HUD, pushing vehicles), `game-audio.js` (sounds), `game-progress.js` (the new saved key), `game-badges.js` (two badges), `cloud/src/progress-check.js` (new: what a save may contain, now testable) and `cloud/src/progress.js` (uses it), `index.html`, `style.css`, `README.md`, `docs/HANDOFF.md`; tests `tests/storgata.test.cjs` (new, 11 tests), `tests/shops.test.cjs` and `tests/badges.test.cjs` (the new shop and badges).
+- **Checked:**
+  - `node --test tests/*.cjs`: 139 pass (11 new).
+  - In the browser (built file, offline, simulated DualShock 4 and keyboard): all five regulars talked to and their tasks finished (12 bottles picked up, coffee and hot dog bought at the counter and paid, the harmonica picked on the Opera roof, the note given to Rolf at Schous plass, a photo of Grønland kirke from 75 m accepted by the check); the wizard's four lessons with all eight mushrooms (Torshovdalen, Akerselva, the Rotunda, MUNCH); both badges awarded (+200 and +250 kr).
+  - Levitation rose to 3.2 m in about 1.8 s and sank back in about 2.5 s; under the entrance roof at home it stopped at 0.36 m. Blink went 8.0 m along the pavement and stopped 0.2 m from the wall when aimed at it. The gust sent all 12 pigeons flying and pushed a parked car 1.8 m. The orb lit up a dark catacomb tunnel (pitch black without it). Powers did nothing in a car, in the paintball lobby or during the timed run (with a message); the orb went out in the car.
+  - Tasks and powers were still there after a reload; `GameProgress.collect` includes them.
+  - Performance at Kiwi Storgata: +58 draw calls (shadow pass included) and +46,000 triangles while you are within 170 m; nothing elsewhere. No light was added in total.
+  - Not checked: a real DualShock 4, sounds by ear, the remote players' orb and a pushed vehicle online with two players (no lobby server here), saving to a real account on the live server.
+- **Status:** branch `feat/kiwi-storgata`, [PR #79](https://github.com/jonatsl/haarklous-online/pull/79) open (not merged, not deployed).
+
+### 2026-11-03 · Akerselva has water again (issue #63)
+- **What:**
+  - Akerselva's water shows along the whole river, from Bjølsen to Vaterland: from the banks and bridges, from a car, from the air and from far away.
+  - Three things hid it:
+    1. The water surface was built upside down. Its triangles faced down, so the graphics card skipped all of them when you looked from above. This alone hid all the water. Now they face up.
+    2. In about 8 % of the water area the drawn ground was above the water. The ground is drawn with 4 m and 8 m triangles, and the river bed was only lowered at the grid points inside the river and not near buildings, so the triangles between the bed and the bank came up through the water (most near the falls and where buildings stand at the river). Now the game lowers the grid corners just enough that the drawn ground is under the water at about 53,000 points on the water (every metre, nine points across, the banks twice). The walls of buildings by the river now reach down to the lowered ground, so no building floats.
+    3. From more than 450 m away (1.6–9 km in the air) only the far ground is drawn, and it had no water. Now the far ground is also lowered along the river and a simple water ribbon lies on it.
+  - The water looks like water: dark green-blue with soft sky reflections and smaller ripples (it looked like pale ice before).
+  - On a few sharp bends the water strip folded over itself (triangles facing down, two layers that can flicker). There it now stays inside the bend.
+- **Why:** issue #63, "There is no water in akerselva, fix that." (tester, 3 Nov 2026). The water was in the code (PR #51) but could not be seen.
+- **Decided here:**
+  - Lower the ground (never raise it) instead of drawing the water on top of the ground, so there are no two surfaces at the same height (no flicker).
+  - Lower only as much as needed and never deeper than the river bed (0.7 m under the water); ground under building walls may now be lowered, and those walls go down with it.
+  - Keep the water 1.5 m wider than the river on each side, as before (wider strips folded on sharp bends).
+- **Where:**
+  - `game-kayak.js`: `waterStrip` (the water surface, facing up, inside sharp bends), `waterSamples`, `cellWeights`, `sinkGrid` (lowers the drawn ground under the water), `prepare` (now also sinks the 4 m and 8 m grids and sets each riverside building's lowest ground `gm`), the far water ribbon and the far ground (`farWater`), the water material.
+  - `surroundings.js`: ground meshes record their grid (`userData.grid`), and district buildings honour `gm`.
+  - Tests: `tests/akerselva-water.test.cjs` (new).
+- **Checked:**
+  - `node --test tests/*.cjs`: 131 pass (3 new).
+  - With the real map data: 0 of about 144,000 points on the water have drawn ground above them (before: about 8.6 % of the points, and the whole surface faced down). Lowered grid points are all within 12 m of the water.
+  - In the browser (offline): pictures from the banks, a bridge, 45 m and 300 m up and from 2 km away along the whole river show the water; from both banks every 40 m along the river (238 sight lines from eye height, 6 m from the water) the middle of the river is never hidden by ground; in the game's real meshes 0 water points are under the near ground.
+  - Cost: +1 draw call and +2,400 triangles (the far ribbon); the near water strips were drawn before too (just upside down). The start takes about 50–80 ms longer (the lowering).
+  - Not checked: on the user's own PC; with aerial imagery on.
+- **Status:** branch `fix/akerselva-water`, [PR #78](https://github.com/jonatsl/haarklous-online/pull/78) (not merged yet).
 ### 2026-11-03 · Forgot password and the email check (issue #55)
 - **What:**
   - After you create an account, the game sends an email with a **"confirm your email"** link. The link opens the game, confirms the email and logs you in on that browser. The Account box in the pause menu says when the email is not confirmed yet, with a button *Send the email again*.
