@@ -7,7 +7,9 @@
  *   heightWorld(x, z) -> y, toLocal(x, z) -> {x, s}, toWorld(x, s) -> {x, z},
  *   terrainFloor() (walk-collision floor), obstacles() (buildings, trees, lamp posts, bushes, hedges, in model coordinates),
  *   surfaceAt(x, z) -> 'grass'|'asphalt'|'gravel'|'sand'|'none', trafficDistance(x, z), greenery(x, z) -> 0..1,
- *   terrainFloors() (the old square and one floor per district patch), update(cameraWorldPosition), yLocal(x, s), geoNear, geoFar }
+ *   terrainFloors() (the old square, one floor per district patch and the seams between patches), update(cameraWorldPosition),
+ *   yLocal(x, s), geoNear, geoFar }   A wooden fence stands on the edge of the walkable world (issue #64).
+ * Pure (Node-tested): Surroundings.walkRects(half, playHalf, districts), Surroundings.openEdges(rects).
  * districts: decoded district patches (District.decode of window.DISTRICTS, issue #38: Gamle Oslo, Ensjø and the way there),
  *   each with its own 8 m ground grid, buildings, streets, areas, trees and sea, drawn and walkable like the old square.
  * Coordinates: model (world) metres as in the apartment model; "local" = metres east (x) and south (s) of the address.
@@ -20,6 +22,50 @@
   // anything closer than 15 m and is drawn underneath) only fills in the distance. NEAR_REACH covers the walkable area.
   // ±760 m since 29 Oct 2026 (was ±540): the real Muselunden disc golf park, 470–815 m north-east of home, is in reach.
   const PLAY_HALF = 760, NEAR_REACH = PLAY_HALF + 60, CELL = 270;
+  // ---------- Where you can walk (pure, Node-tested; issue #64) ----------
+  // Walkable rectangles in the local frame: the old square (map data ±800 m, walkable ±PLAY_HALF), each district patch's play
+  // box (40 m inside its data), and a seam wherever two of them have map data that meet but walkable boxes that do not: the
+  // Myrens and Gamle Oslo patches meet at s 560, so the 80 m between their play boxes (s 520–600) was ground you could see
+  // but not enter, an invisible wall across Akerselva's banks.
+  function walkRects(half, play, districts) {
+    const regions = [{name: 'Neighbourhood', x0: -play, s0: -play, x1: play, s1: play, data: {x0: -half, s0: -half, x1: half, s1: half}},
+      ...districts.map(d => ({name: `District ${d.name}`, ...d.play, data: {x0: d.x0, s0: d.s0, x1: d.x1, s1: d.s1}}))];
+    const inBox = (x, s, r) => x >= r.x0 - 1e-6 && x <= r.x1 + 1e-6 && s >= r.s0 - 1e-6 && s <= r.s1 + 1e-6;
+    const seams = [];
+    for (let i = 0; i < regions.length; i++) for (let j = i + 1; j < regions.length; j++) {
+      const A = regions[i], B = regions[j], ox0 = Math.max(A.x0, B.x0), ox1 = Math.min(A.x1, B.x1), os0 = Math.max(A.s0, B.s0), os1 = Math.min(A.s1, B.s1);
+      let r = null;
+      if (ox1 > ox0 && os1 < os0) r = {x0: ox0, x1: ox1, s0: os1, s1: os0};// one above the other, a gap in s
+      else if (os1 > os0 && ox1 < ox0) r = {x0: ox1, x1: ox0, s0: os0, s1: os1};// side by side, a gap in x
+      if (!r) continue;
+      let ok = true;
+      for (let a = 0; a <= 4 && ok; a++) for (let c = 0; c <= 4 && ok; c++) {const x = r.x0 + (r.x1 - r.x0) * a / 4, s = r.s0 + (r.s1 - r.s0) * c / 4;ok = inBox(x, s, A.data) || inBox(x, s, B.data);}
+      if (ok) seams.push({name: `Seam ${A.name.replace('District ', '')} / ${B.name.replace('District ', '')}`, ...r});
+    }
+    return [...regions.map(({name, x0, s0, x1, s1}) => ({name, x0, s0, x1, s1})), ...seams];
+  }
+  // The edges of a union of axis-aligned rectangles that no other rectangle continues: where the walkable world ends.
+  // -> [{a: [x, s], b: [x, s]}], each piece once.
+  function openEdges(rects) {
+    const out = [], lines = new Map();
+    for (const R of rects) for (const [axis, at, lo, hi, out_] of [['s', R.s0, R.x0, R.x1, -1], ['s', R.s1, R.x0, R.x1, 1], ['x', R.x0, R.s0, R.s1, -1], ['x', R.x1, R.s0, R.s1, 1]]) {
+      // Just outside this edge: the other rectangles that cover it there.
+      const e = at + out_ * 1e-6;let free = [[lo, hi]];
+      for (const Q of rects) {
+        if (Q === R) continue;
+        const inside = axis === 's' ? e >= Q.s0 && e <= Q.s1 : e >= Q.x0 && e <= Q.x1;if (!inside) continue;
+        const q0 = axis === 's' ? Q.x0 : Q.s0, q1 = axis === 's' ? Q.x1 : Q.s1;
+        free = free.flatMap(([u, v]) => [[u, Math.min(v, q0)], [Math.max(u, q1), v]].filter(([p, q]) => q - p > 1e-6));
+      }
+      const key = axis + at;if (!lines.has(key)) lines.set(key, []);
+      for (const [u, v] of free) {
+        // Two rectangles sharing an edge line (both open there) give it once.
+        let pieces = [[u, v]];for (const [p, q] of lines.get(key)) pieces = pieces.flatMap(([m, n]) => [[m, Math.min(n, p)], [Math.max(m, q), n]].filter(([g, h]) => h - g > 1e-6));
+        for (const [m, n] of pieces) {lines.get(key).push([m, n]);out.push(axis === 's' ? {a: [m, at], b: [n, at]} : {a: [at, m], b: [at, n]});}
+      }
+    }
+    return out;
+  }
   // holes: rectangles of the local frame ({x0, s0, x1, s1}) kept free of trees and bushes (the paved paintball yard, the building site).
   function create({T, lib, data, renderer, onStatus = () => {}, holes = [], districts = []}) {
     const DZ = (typeof window === 'undefined' ? globalThis : window).District;
@@ -64,7 +110,7 @@
       const g = new T.BufferGeometry();g.setAttribute('position', new T.BufferAttribute(pos, 3));g.setAttribute('uv', new T.BufferAttribute(uv, 2));g.setIndex(index);g.computeVertexNormals();
       const tex = new T.CanvasTexture(canvas);tex.colorSpace = T.SRGBColorSpace;tex.anisotropy = 8;
       const m = new T.Mesh(g, new T.MeshStandardMaterial({map: tex, color: 0xa6a6a6, roughness: .97, metalness: 0, envMapIntensity: .35}));
-      m.receiveShadow = true;m.name = name;parent.add(m);return {mesh: m, tex};
+      m.receiveShadow = true;m.name = name;m.userData.grid = {x0: -extent, s0: -extent, step: res, nx: count, ns: count};parent.add(m);return {mesh: m, tex};
     }
 
     // ---------- Map painting (offline ground texture) and surface classes ----------
@@ -347,7 +393,9 @@
     const treeCells = new Map(), allTrees = [], inHole = (x, s) => holes.some(h => x > h.x0 && x < h.x1 && s > h.s0 && s < h.s1);
     for (let i = 0; i < data.trees.length; i += 3) {
       const t = {x: data.trees[i], s: data.trees[i + 1], h: data.trees[i + 2]};if (inHole(t.x, t.s)) continue;allTrees.push(t);
-      if (Math.hypot(t.x, t.s) < NEAR_REACH) {const k = cellKey(t.x, t.s);if (!treeCells.has(k)) treeCells.set(k, []);treeCells.get(k).push(t);}
+      // Every tree you can walk up to is in the near pass (a square, like the walkable area): 453 trees in the corners beyond
+      // 820 m were only in the far pass, which clips everything within 15 m, so they vanished and stood there as invisible walls (issue #64).
+      if (Math.abs(t.x) < NEAR_REACH && Math.abs(t.s) < NEAR_REACH) {const k = cellKey(t.x, t.s);if (!treeCells.has(k)) treeCells.set(k, []);treeCells.get(k).push(t);}
     }
     const yard = data.courtyard;
     if (yard) for (let i = 0; i < yard.trees.length; i += 3) {const t = {x: yard.trees[i], s: yard.trees[i + 1], h: yard.trees[i + 2]};allTrees.push(t);const k = cellKey(t.x, t.s);if (!treeCells.has(k)) treeCells.set(k, []);treeCells.get(k).push(t);}
@@ -434,7 +482,7 @@
       }
       if (!index.length) return null;
       const g = new T.BufferGeometry();g.setAttribute('position', new T.BufferAttribute(pos, 3));g.setAttribute('normal', new T.BufferAttribute(nor, 3));g.setAttribute('uv', new T.BufferAttribute(uv, 2));g.setIndex(index);g.computeBoundingSphere();
-      const m = new T.Mesh(g, material);m.receiveShadow = true;m.name = name;m.userData.noMerge = true;return m;
+      const m = new T.Mesh(g, material);m.receiveShadow = true;m.name = name;m.userData.noMerge = true;m.userData.grid = {x0, s0, step: res, nx: ni + 1, ns: nj + 1, ownNormals: true};return m;
     }
     const texFrom = (w, h, draw, mw, mh) => {const c = document.createElement('canvas');c.width = w;c.height = h;draw(c.getContext('2d'), w, h);const t = new T.CanvasTexture(c);t.colorSpace = T.SRGBColorSpace;t.wrapS = t.wrapT = T.RepeatWrapping;t.repeat.set(1 / mw, 1 / mh);t.anisotropy = 8;return t;};
     // Plaster with four windows per 12 m and storey (3 m); glass bands with mullions every 1.5 m (3.6 m storeys); ribbed metal.
@@ -465,7 +513,7 @@
       d.buildings.forEach((b, i) => {
         const ring = b.ring;if (ring.length < 3) return;
         let cx = 0, cs = 0, gm = Infinity;for (const p of ring) {cx += p[0];cs += p[1];gm = Math.min(gm, relLocal(p[0], p[1]));}cx /= ring.length;cs /= ring.length;
-        const g0 = ground + relLocal(cx, cs), bottom = ground + gm - .6, top = g0 + b.h, set = nearSet(b.tile), f = farSet(b.tile);
+        const g0 = ground + relLocal(cx, cs), bottom = ground + Math.min(gm, b.gm ?? Infinity) - .6, top = g0 + b.h, set = nearSet(b.tile), f = farSet(b.tile);
         // tint: the wall colour (a shop cut into the building rebuilds the wall above it in the same material, game-shops.js).
         Object.assign(b, {cx, cs, base: g0, bottom, top, tint: tint[b.style] ? pick(tint[b.style], i).getHex() : null});
         if (b.style === 'brick') {
@@ -603,13 +651,62 @@
     function setOvercast(v) {sky.material.uniforms.overcast.value = Math.max(0, Math.min(1, v));}// 0 clear … 1 fully overcast (real weather)
 
     // ---------- Collision and queries (model coordinates) ----------
+    const walkAreas = walkRects(half, PLAY_HALF, districts);// the old square, the patches' play boxes and the seams between them
+    // The edge of the walkable world gets a low wooden fence, so you can see why you stop there (issue #64: the edge was an
+    // invisible wall across open ground). Posts every 2.4 m, two rails; one merged mesh per stretch of up to 100 posts; none
+    // in the sea.
+    const fence = new T.Group();fence.name = 'Edge fence';
+    {
+      const mat = lib.wood(0x6e5236, .85), inFlat = (x, s, f) => {let r = false;for (let i = 0, j = f.length - 2; i < f.length; j = i, i += 2) {if ((f[i + 1] > s) !== (f[j + 1] > s) && x < (f[j] - f[i]) * (s - f[i + 1]) / (f[j + 1] - f[i + 1]) + f[i]) r = !r;}return r;};
+      const wet = (x, s) => patches.some(P => P.d.sea.some(f => inFlat(x, s, f)) && yLocal(x, s) < ground + P.d.seaRel + .35);
+      let pos = [], nor = [], uv = [], idx = [];
+      const flush = () => {
+        if (idx.length) {const g = new T.BufferGeometry();g.setAttribute('position', new T.Float32BufferAttribute(pos, 3));g.setAttribute('normal', new T.Float32BufferAttribute(nor, 3));g.setAttribute('uv', new T.Float32BufferAttribute(uv, 2));g.setIndex(idx);g.computeBoundingSphere();const m = new T.Mesh(g, mat);m.receiveShadow = true;m.userData.noMerge = true;fence.add(m);}
+        pos = [];nor = [];uv = [];idx = [];
+      };
+      // A beam from p to q (local x, y, s) with a w × h cross-section; `side` is the horizontal direction across it.
+      const beam = (p, q, w, h, side) => {
+        const d = [q[0] - p[0], q[1] - p[1], q[2] - p[2]];let sd = [side[0] * w / 2, 0, side[1] * w / 2];
+        const cr = () => [sd[1] * d[2] - sd[2] * d[1], sd[2] * d[0] - sd[0] * d[2], sd[0] * d[1] - sd[1] * d[0]];
+        let up = cr();if (up[1] < 0) {sd = sd.map(v => -v);up = cr();}// keep "up" upward without mirroring the box
+        const ul = Math.hypot(...up) || 1;up = up.map(v => v / ul * h / 2);
+        const c = (e, a, b) => [e[0] + sd[0] * a + up[0] * b, e[1] + sd[1] * a + up[1] * b, e[2] + sd[2] * a + up[2] * b];
+        const face = (v, n) => {const b0 = pos.length / 3;v.forEach(x => pos.push(...x));for (let k = 0; k < 4; k++) nor.push(...n);uv.push(0, 0, 1, 0, 1, 1, 0, 1);idx.push(b0, b0 + 1, b0 + 2, b0, b0 + 2, b0 + 3);};
+        const nrm = v => {const l = Math.hypot(...v) || 1;return v.map(x => x / l);}, neg = v => v.map(x => -x), dn = nrm(d);
+        face([c(p, 1, -1), c(q, 1, -1), c(q, 1, 1), c(p, 1, 1)], nrm(sd));face([c(q, -1, -1), c(p, -1, -1), c(p, -1, 1), c(q, -1, 1)], neg(nrm(sd)));
+        face([c(p, 1, 1), c(q, 1, 1), c(q, -1, 1), c(p, -1, 1)], nrm(up));face([c(p, -1, -1), c(q, -1, -1), c(q, 1, -1), c(p, 1, -1)], neg(nrm(up)));
+        face([c(q, 1, -1), c(q, -1, -1), c(q, -1, 1), c(q, 1, 1)], dn);face([c(p, -1, -1), c(p, 1, -1), c(p, 1, 1), c(p, -1, 1)], neg(dn));
+      };
+      for (const e of openEdges(walkAreas)) {
+        const L = Math.hypot(e.b[0] - e.a[0], e.b[1] - e.a[1]), n = Math.max(1, Math.round(L / 2.4)), ux = (e.b[0] - e.a[0]) / L, us = (e.b[1] - e.a[1]) / L, side = [-us, ux];
+        let prev = null, posts = 0;
+        for (let i = 0; i <= n; i++) {
+          const x = e.a[0] + (e.b[0] - e.a[0]) * i / n, s = e.a[1] + (e.b[1] - e.a[1]) * i / n, y = yLocal(x, s);
+          if (wet(x, s)) {prev = null;continue;}
+          beam([x, y - .15, s], [x, y + 1.05, s], .09, .09, side);
+          if (prev) for (const hgt of [.5, .95]) beam([prev[0], prev[1] + hgt, prev[2]], [x, y + hgt, s], .045, .07, side);
+          prev = [x, y, s];
+          if (++posts >= 100) {flush();posts = 0;}
+        }
+        flush();
+      }
+    }
+    geoNear.add(fence);
     const ringWorld = flat => pairs(flat).map(([x, s]) => toWorld(x, s));
+    // A building blocks up to 4 m above its roof, except one dug into a slope: where the ground along its walls comes within 1 m
+    // of the roof, you walk on that ground at roof height, and the 4 m above the roof was an invisible wall (issue #64); there it
+    // blocks only up to the roof.
+    function buildingTop(ring, top) {
+      let g = -Infinity;
+      ring.forEach((a, i) => {const b = ring[(i + 1) % ring.length], n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 2));for (let k = 0; k < n; k++) g = Math.max(g, yLocal(a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n));});
+      return g > top - 1 ? top - .1 : top + 4;// (a roof edge less than 10 cm above the ground is stepped over)
+    }
     function obstacles() {
       const list = [];
       data.buildings.forEach(b => {
         const o = b.r.o;if (Math.abs(o[0]) > PLAY_HALF + 40 || Math.abs(o[1]) > PLAY_HALF + 40) return;
-        const rings = b.enter !== undefined ? data.enterable[b.enter].collide.map(r => r.o) : [o];
-        for (const r of rings) list.push({points: ringWorld(r), minY: b.bottom - .5, maxY: b.top + 4, kind: 'building'});
+        const rings = b.enter !== undefined ? data.enterable[b.enter].collide.map(r => r.o) : [o], top = buildingTop(pairs(o), b.top);
+        for (const r of rings) list.push({points: ringWorld(r), minY: b.bottom - .5, maxY: top, kind: 'building'});
       });
       const ownRings = (parts, minY, maxY) => parts.forEach(p => list.push({points: pairs(p.o).map(([x, z]) => ({x, z})), minY, maxY, kind: 'building'}));
       ownRings(own.lower, ownBottom - .5, -.16);ownRings(own.band, -.16, own.bandTop);ownRings(own.upper, own.bandTop, own.top + 4);
@@ -619,13 +716,14 @@
       lamps.forEach(l => {if (walkable(l.x, l.s)) square(l.x, l.s, .1, 5.2, 'lamp');});
       bushes.forEach(b => square(b.x, b.s, .45 * b.r, 1.2, 'bush'));
       hedgeObstacles.forEach(h => {const dx = h.b[0] - h.a[0], dz = h.b[1] - h.a[1], L = Math.hypot(dx, dz), nx = -dz / L * h.w / 2, nz = dx / L * h.w / 2;const pts = [[h.a[0] + nx, h.a[1] + nz], [h.b[0] + nx, h.b[1] + nz], [h.b[0] - nx, h.b[1] - nz], [h.a[0] - nx, h.a[1] - nz]].map(([a, b]) => toWorld(a, b)), y = yLocal(h.a[0], h.a[1]);list.push({points: pts, minY: y - .5, maxY: y + 1, kind: 'hedge'});});
-      // District patches: their buildings (also those in the old square's outer band) and trees; the sea stops you at the quay
-      // (quays stand 1.5 m or more above the water, so the block only reaches 0.8 m above it).
+      // District patches: their buildings (also those in the old square's outer band and the seams) and trees; the sea stops you
+      // where the ground goes under its drawn surface (sea level + 0.25 m). It reached 0.8 m above the water before, so on low
+      // shores you were stopped up to several metres before the water, on dry ground (issue #64).
       for (const P of patches) {
-        const d = P.d, pl = d.play, near = (x, s, m) => (x > pl.x0 - m && x < pl.x1 + m && s > pl.s0 - m && s < pl.s1 + m) || (Math.abs(x) < PLAY_HALF + m && Math.abs(s) < PLAY_HALF + m);
-        for (const b of d.buildings) if (b.top !== undefined && near(b.cx, b.cs, 40)) list.push({points: b.ring.map(([x, s]) => toWorld(x, s)), minY: b.bottom - .5, maxY: b.top + 4, kind: 'building'});
+        const d = P.d, near = (x, s, m) => walkAreas.some(r => x > r.x0 - m && x < r.x1 + m && s > r.s0 - m && s < r.s1 + m);
+        for (const b of d.buildings) if (b.top !== undefined && near(b.cx, b.cs, 40)) list.push({points: b.ring.map(([x, s]) => toWorld(x, s)), minY: b.bottom - .5, maxY: buildingTop(b.ring, b.top), kind: 'building'});
         for (const t of d.trees) if (near(t.x, t.s, 0)) square(t.x, t.s, .28, 6, 'tree');
-        for (const r of d.sea) list.push({points: ringWorld(r), minY: ground + d.seaRel - 3, maxY: ground + d.seaRel + .8, kind: 'water'});
+        for (const r of d.sea) list.push({points: ringWorld(r), minY: ground + d.seaRel - 3, maxY: ground + d.seaRel + .3, kind: 'water'});
       }
       return list;
     }
@@ -633,8 +731,9 @@
       return {name: 'Neighbourhood', points: [[-PLAY_HALF, -PLAY_HALF], [PLAY_HALF, -PLAY_HALF], [PLAY_HALF, PLAY_HALF], [-PLAY_HALF, PLAY_HALF]].map(([x, s]) => toWorld(x, s)), height: p => heightWorld(p.x, p.z), ceilingHeight: Infinity, surfaceKind: 'terrain'};
     }
     // The old square plus one walkable floor per district patch (same ground everywhere, so where they overlap they join).
+    // (and the seams between patches whose map data meet, issue #64).
     function terrainFloors() {
-      return [terrainFloor(), ...patches.map(({d}) => ({name: `District ${d.name}`, points: [[d.play.x0, d.play.s0], [d.play.x1, d.play.s0], [d.play.x1, d.play.s1], [d.play.x0, d.play.s1]].map(([x, s]) => toWorld(x, s)),
+      return [terrainFloor(), ...walkAreas.slice(1).map(r => ({name: r.name, points: [[r.x0, r.s0], [r.x1, r.s0], [r.x1, r.s1], [r.x0, r.s1]].map(([x, s]) => toWorld(x, s)),
         height: p => heightWorld(p.x, p.z), ceilingHeight: Infinity, surfaceKind: 'terrain'}))];
     }
     const traffic = data.roads.filter(r => ['residential', 'tertiary', 'secondary', 'primary', 'trunk', 'trunk_link'].includes(r.k)).flatMap(r => {const p = pairs(r.p), w = {residential: .35, tertiary: .7, secondary: 1, primary: 1.4, trunk: 2, trunk_link: 1.2}[r.k];return p.slice(1).map((b, i) => ({a: p[i], b, w}));});
@@ -655,5 +754,5 @@
     return {near, far, setImagery, setSun, setOvercast, get imageryState() {return imageryState;}, attribution: data.attribution, ground, heightWorld, toLocal, toWorld, terrainFloor, terrainFloors, obstacles, surfaceAt, trafficDistance, greenery, data, playHalf: PLAY_HALF, trees: allTrees,
       districts: patches.map(P => P.d), get districtImagery() {return patches.map(P => P.nearImagery);}, update, yLocal, geoNear, geoFar, patchMaterials: {...patchMats, facade: facadeMat, plinth: plinthMat, roof: roofMat}};
   }
-  return {create};
+  return {create, walkRects, openEdges, PLAY_HALF};
 });

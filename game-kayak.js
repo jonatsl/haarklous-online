@@ -7,9 +7,12 @@
  *   GameKayak.river(data) -> {length, n, at(t), locate(x, s, hint), flow(t), level(t), fallAt(t)}  (t = metres downstream)
  *   new GameKayak.Boat(river) -> place(t, side), step(dt, {fwd, turn}) -> events [{kind: 'bump' | 'fall' | 'finish', …}]
  * Browser:
- *   GameKayak.prepare(districts, D, District) lowers the ground along the river bed (before Surroundings.create builds it), so
- *     the water shows in the 8 m patch grids and the old 4 m grid; ground under buildings is left alone.
+ *   GameKayak.prepare(districts, D) lowers the ground along the river bed (before Surroundings.create builds it), then sinks
+ *     the grid corners that still hold the drawn ground above the water (sinkGrid, issue #63), in the old 4 m grid and the 8 m
+ *     patch grids, and lets the walls of buildings by the river reach down to the lowered ground -> {changed, dry, walls}.
+ *   waterStrip(R, k0, k1, opts, toW, yOf) builds a water surface (triangles facing up); waterSamples / sinkGrid are pure too.
  *   GameKayak.create({T, lib, data, world, audio, districts}) -> {group, obstacles, groundAt(x, z), racks, prompt(player),
+ *     farWater (the ribbon in the far pass, over its own sunk ground),
  *     start(i), update(dt, input, camera) -> {exit?, notice?}, exitPoint(), hud(), remoteBoat(), riverModel, boat, active}
  * Controls (the user's wish): left stick ↑ / W paddle forward, ↓ / S back-paddle, ←→ / A D turn. R3 / V outside view.
  * □ / E gets out on the nearer bank when slow.
@@ -150,29 +153,175 @@
     }
     return changed;
   }
-  const boxOf = ring => ({ring, x0: Math.min(...ring.map(p => p[0])), x1: Math.max(...ring.map(p => p[0])), s0: Math.min(...ring.map(p => p[1])), s1: Math.max(...ring.map(p => p[1]))});
+  const boxOf = ring => {const B = {ring, x0: Infinity, x1: -Infinity, s0: Infinity, s1: -Infinity};for (const p of ring) {if (p[0] < B.x0) B.x0 = p[0];if (p[0] > B.x1) B.x1 = p[0];if (p[1] < B.s0) B.s0 = p[1];if (p[1] > B.s1) B.s1 = p[1];}return B;};
+
+  // ---------- Keeping the drawn ground under the water (issue #63) ----------
+  // Points on the water surface, every `along` metres and at nine places across (both banks included, and the banks again half
+  // way between): the ground drawn there must stay `margin` below the water (top), and is never lowered deeper than the bed
+  // (floor). Heights relative to the stair door.
+  function waterSamples(data, {along = 1, margin = .08, drop = 0} = {}) {
+    const R = river(data), out = [];
+    const add = (c, f) => {const off = f < 0 ? f * c.wl : f * c.wr;out.push({x: c.x - c.ds * off, s: c.s + c.dx * off, top: c.level - drop - margin, floor: c.level - drop - DEPTH});};
+    for (let t = 0; t <= R.length; t += along) {
+      const c = R.at(t);for (let f = -1; f <= 1.001; f += .25) add(c, f);
+      if (t + along / 2 <= R.length) {const h = R.at(t + along / 2);add(h, -1);add(h, 1);}
+    }
+    return out;
+  }
+  // A ground grid is drawn as two triangles per cell, split along the diagonal from (i + 1, j) to (i, j + 1) (Surroundings'
+  // terrainMesh and patchGround). The three corners and their weights at (x, s), or null outside the grid.
+  function cellWeights(grid, x, s) {
+    const fi = (x - grid.x0) / grid.step, fj = (s - grid.s0) / grid.step, i = Math.floor(fi), j = Math.floor(fj);
+    if (i < 0 || j < 0 || i >= grid.nx - 1 || j >= grid.ns - 1) return null;
+    const u = fi - i, v = fj - j, k = j * grid.nx + i;
+    return u + v <= 1 ? [[k, 1 - u - v], [k + 1, u], [k + grid.nx, v]] : [[k + grid.nx + 1, u + v - 1], [k + grid.nx, 1 - u], [k + 1, 1 - v]];
+  }
+  // Lower grid corners just enough that the drawn (triangulated) ground is under the water at every sample: an excess is shared
+  // by the corners of its triangle in proportion to their weight (the smallest change), never below the bed, never raising
+  // anything, and never at a corner `keep(k)` protects (ground under a building's walls). Returns {changed, dry} (dry: samples
+  // still above the water, only where kept corners hold the ground up).
+  function sinkGrid(grid, samples, keep = () => false, passes = 12) {
+    // Typed arrays over the corners the samples touch (one grid read per corner), then a few passes over the samples.
+    const ids = new Map(), keys = [], n = samples.length, tri = new Int32Array(n * 3), wt = new Float64Array(n * 3), top = new Float64Array(n), floor = new Float64Array(n);
+    let m = 0;
+    for (const p of samples) {
+      const w = cellWeights(grid, p.x, p.s);if (!w) continue;
+      for (let c = 0; c < 3; c++) {const k = w[c][0];let id = ids.get(k);if (id === undefined) {id = keys.length;ids.set(k, id);keys.push(k);}tri[m * 3 + c] = id;wt[m * 3 + c] = w[c][1];}
+      top[m] = p.top;floor[m] = p.floor;m++;
+    }
+    const cur = Float64Array.from(keys, k => grid.get(k)), start = cur.slice(), fixed = Uint8Array.from(keys, k => keep(k) ? 1 : 0);
+    let dry = 0;
+    for (let pass = 0; pass <= passes; pass++) {
+      dry = 0;
+      for (let q = 0; q < m; q++) {
+        const a = tri[q * 3], b = tri[q * 3 + 1], c = tri[q * 3 + 2], wa = wt[q * 3], wb = wt[q * 3 + 1], wc = wt[q * 3 + 2];
+        const y = cur[a] * wa + cur[b] * wb + cur[c] * wc, over = y - top[q];
+        if (over <= 1e-6) continue;
+        dry++;if (pass === passes) continue;// the last pass only counts
+        const f = floor[q], ua = wa > 1e-6 && cur[a] > f + 1e-6 && !fixed[a], ub = wb > 1e-6 && cur[b] > f + 1e-6 && !fixed[b], uc = wc > 1e-6 && cur[c] > f + 1e-6 && !fixed[c];
+        const S = (ua ? wa * wa : 0) + (ub ? wb * wb : 0) + (uc ? wc * wc : 0);if (!S) continue;
+        if (ua) cur[a] = Math.max(f, cur[a] - over * wa / S);if (ub) cur[b] = Math.max(f, cur[b] - over * wb / S);if (uc) cur[c] = Math.max(f, cur[c] - over * wc / S);
+      }
+      if (!dry) break;
+    }
+    let changed = 0;for (let i = 0; i < keys.length; i++) if (cur[i] < start[i]) {grid.set(keys[i], cur[i]);changed++;}
+    return {changed, dry};
+  }
+
+  // Before Surroundings.create builds the world: lower the river bed (lowerGrid, for walking and the kayak), then sink the
+  // ground corners that still hold the drawn ground above the water (sinkGrid: the old 4 m grid out to ±760 m, the patch tiles
+  // beyond), and let the walls of buildings by the river reach down to the lowered ground (`gm`, their lowest ground).
+  // Returns {changed (grid points), dry (water samples still under the ground), walls (buildings reaching lower)}.
   function prepare(districts, D, data) {
-    data = data || (typeof window !== 'undefined' && window.AKERSELVA);if (!data) return 0;
+    data = data || (typeof window !== 'undefined' && window.AKERSELVA);if (!data) return {changed: 0, dry: 0, walls: 0};
     const quads = bedQuads(data), qx0 = Math.min(...quads.flatMap(q => q.ring.map(p => p[0]))) - 30, qx1 = Math.max(...quads.flatMap(q => q.ring.map(p => p[0]))) + 30;
     const qs0 = Math.min(...quads.flatMap(q => q.ring.map(p => p[1]))) - 30, qs1 = Math.max(...quads.flatMap(q => q.ring.map(p => p[1]))) + 30;
     const nearRiver = b => b.x1 > qx0 && b.x0 < qx1 && b.s1 > qs0 && b.s0 < qs1;
-    let changed = 0;
+    const samples = waterSamples(data), PLAY = 760;// the old square's own 4 m ground is drawn out to ±760 m, patch tiles beyond
+    const inPlay = (x, s) => Math.abs(x) <= PLAY && Math.abs(s) <= PLAY;
+    const pairs = flat => {const o = [];for (let i = 0; i < flat.length; i += 2) o.push([flat[i], flat[i + 1]]);return o;};
+    let changed = 0, dry = 0, old = null;const grids = [];
+    const marks = new Set(), mark = (x, s) => marks.add(`${Math.floor(x / 32)},${Math.floor(s / 32)}`);// where corners were lowered
     // The old 4 m grid (surroundings-data.js): decimetres in base64 int16, re-encoded after the change.
     if (D && D.terrain && D.terrain.dm) {
       const T = D.terrain, bin = atob(T.dm), bytes = new Uint8Array(bin.length);for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
       const dm = new Int16Array(bytes.buffer), half = T.half, N = T.n;
-      const pairs = flat => {const o = [];for (let i = 0; i < flat.length; i += 2) o.push([flat[i], flat[i + 1]]);return o;};
       const blds = (D.buildings || []).map(b => boxOf(pairs(b.r.o))).filter(nearRiver);
-      const c = lowerGrid({x0: -half, s0: -half, step: T.step, nx: N, ns: N, get: k => dm[k] / 10, set: (k, v) => {dm[k] = Math.round(v * 10);}}, quads, blds);
-      if (c) {let s = '';for (let i = 0; i < bytes.length; i += 8192) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));T.dm = btoa(s);}
-      changed += c;
+      // Rounded down to whole decimetres, so a lowered corner never ends up higher than asked.
+      old = {T, bytes, dm, half, N, x0: -half, s0: -half, step: T.step, nx: N, ns: N, get: k => dm[k] / 10, set: (k, v) => {dm[k] = Math.min(dm[k], Math.floor(v * 10 + 1e-6));mark(-half + (k % N) * T.step, -half + Math.floor(k / N) * T.step);}};
+      changed += lowerGrid(old, quads, blds);
+      const r = sinkGrid(old, samples.filter(p => inPlay(p.x, p.s)));changed += r.changed;dry += r.dry;
     }
     for (const d of districts || []) {
       if (!d || !d.h) continue;
       const blds = (d.buildings || []).map(b => boxOf(b.ring)).filter(nearRiver);
-      changed += lowerGrid({x0: d.x0, s0: d.s0, step: d.step, nx: d.nx, ns: d.ns, get: k => d.h[k], set: (k, v) => {d.h[k] = v;}}, quads, blds);
+      const at = k => [d.x0 + (k % d.nx) * d.step, d.s0 + Math.floor(k / d.nx) * d.step];
+      changed += lowerGrid({x0: d.x0, s0: d.s0, step: d.step, nx: d.nx, ns: d.ns, get: k => d.h[k], set: (k, v) => {d.h[k] = v;mark(...at(k));}}, quads, blds);
+      // The patch tiles beyond ±760 m: corners inside the old ±800 m square take their height from the old grid (Surroundings'
+      // relLocal), so they are read and lowered there.
+      const oldK = k => {
+        if (!old) return -1;const [x, s] = at(k);if (Math.abs(x) > old.half || Math.abs(s) > old.half) return -1;
+        const i = (x - old.x0) / old.step, j = (s - old.s0) / old.step;return Number.isInteger(i) && Number.isInteger(j) ? j * old.N + i : -1;
+      };
+      const grid = {d, x0: d.x0, s0: d.s0, step: d.step, nx: d.nx, ns: d.ns, get: k => {const o = oldK(k);return o >= 0 ? old.get(o) : d.h[k];}, set: (k, v) => {const o = oldK(k);if (o >= 0) old.set(o, v);d.h[k] = Math.min(d.h[k], v);mark(...at(k));}};
+      grids.push(grid);
+      const r = sinkGrid(grid, samples.filter(p => !inPlay(p.x, p.s) && p.x >= d.x0 && p.x <= d.x1 && p.s >= d.s0 && p.s <= d.s1));changed += r.changed;dry += r.dry;
     }
-    return changed;
+    if (old && changed) {let s = '';for (let i = 0; i < old.bytes.length; i += 8192) s += String.fromCharCode.apply(null, old.bytes.subarray(i, i + 8192));old.T.dm = btoa(s);}
+    // The ground as drawn (the triangles of the grid that draws (x, s)), and the walls: a building's lowest ground along its walls.
+    const drawn = (x, s) => {
+      const g = old && inPlay(x, s) ? old : grids.find(q => x >= q.d.x0 && x <= q.d.x1 && s >= q.d.s0 && s <= q.d.s1);if (!g) return Infinity;
+      const w = cellWeights(g, x, s);return w ? w.reduce((a, [k, f]) => a + g.get(k) * f, 0) : Infinity;
+    };
+    const lowestAlong = ring => {let m = Infinity;ring.forEach((a, i) => {const b = ring[(i + 1) % ring.length], n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 2));for (let k = 0; k < n; k++) m = Math.min(m, drawn(a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n));});return m;};// every 2 m
+    let walls = 0;
+    const touched = ring => {const B = boxOf(ring);for (let i = Math.floor((B.x0 - 8) / 32); i <= Math.floor((B.x1 + 8) / 32); i++) for (let j = Math.floor((B.s0 - 8) / 32); j <= Math.floor((B.s1 + 8) / 32); j++) if (marks.has(`${i},${j}`)) return true;return false;};
+    const reach = (b, ring, now) => {if (!touched(ring)) return;const m = lowestAlong(ring);if (m < now - .05) {b.gm = Math.floor(m * 10) / 10;walls++;}};
+    if (changed) {
+      for (const b of (D && D.buildings) || []) reach(b, pairs(b.r.o), b.gm ?? b.g ?? 0);
+      for (const g of grids) for (const b of g.d.buildings || []) if (b.ring && b.ring.length >= 3) reach(b, b.ring, b.gm ?? Math.min(...b.ring.map(p => drawn(p[0], p[1]))));
+    }
+    return {changed, dry, walls};
+  }
+
+  // A water surface along the river from sample k0 to k1 (every `every` samples, `cols` vertices across, `widen` metres beyond
+  // each bank, `lift` above the water level): positions (toW(x, s) -> {x, z}, yOf(level) -> y), uvs and triangles. The triangles
+  // turn counter-clockwise seen from above, so they face up: before issue #63 they faced down and the camera culled every one.
+  // On the inside of a sharp bend the rows across would cross each other (a fold: triangles facing down, two layers of water
+  // that flicker), so there the strip reaches at most 85 % of the bend's radius from the centre line.
+  function waterStrip(R, k0, k1, {lift = 0, widen = 0, cols = 5, every = 1} = {}, toW = (x, s) => ({x, z: s}), yOf = v => v) {
+    const pos = [], uv = [], idx = [], ks = [];
+    for (let k = k0; k < k1; k += every) ks.push(k);
+    ks.push(k1);
+    const rows = ks.map(k => R.at(k * R.step)), head = rows.map(c => Math.atan2(c.dx, c.ds));
+    const capL = rows.map(() => Infinity), capR = rows.map(() => Infinity);
+    for (let r = 0; r + 1 < rows.length; r++) {
+      let dh = head[r + 1] - head[r];dh = Math.atan2(Math.sin(dh), Math.cos(dh));
+      const radius = Math.hypot(rows[r + 1].x - rows[r].x, rows[r + 1].s - rows[r].s) / Math.max(1e-6, Math.abs(dh)) * .85, cap = dh > 0 ? capL : capR;// turning left: the left side is inside
+      cap[r] = Math.min(cap[r], radius);cap[r + 1] = Math.min(cap[r + 1], radius);
+    }
+    rows.forEach((c, r) => {
+      for (let j = 0; j < cols; j++) {
+        const f = j / (cols - 1) * 2 - 1, off = f < 0 ? -Math.min(-f * (c.wl + widen), capL[r]) : Math.min(f * (c.wr + widen), capR[r]), w = toW(c.x - c.ds * off, c.s + c.dx * off);
+        pos.push(w.x, yOf(c.level) + lift, w.z);uv.push(j / (cols - 1) * (c.wl + c.wr) / 8, ks[r] * R.step / 8);
+      }
+      if (r < rows.length - 1) {const a = r * cols;for (let j = 0; j < cols - 1; j++) idx.push(a + j, a + j + 1, a + j + cols, a + j + 1, a + j + cols + 1, a + j + cols);}
+    });
+    return {pos, uv, idx};
+  }
+
+  // ---------- Bridge decks (pure; issue #64) ----------
+  // A bridge's profile along its axis, u = metres from the river's centre line (negative toward the left bank). Each end goes
+  // out from the bank (at least 1 m) until the ground T(u) comes up to the deck height D (within 0.25 m), or the ground has
+  // levelled out (less than 0.1 m rise over 2 m) where a ramp up to the clearance over the water would be no steeper than 30 %,
+  // or `reach` metres. Between its ends the deck is straight, but never lower than `clear` over the water.
+  // -> [[-eA, T(-eA)], [-bankA, y], [bankB, y], [eB, T(eB)]]: both ends meet the ground.
+  function deckProfile(D, clear, bankA, bankB, reach, T) {
+    const end = (bank, sign) => {
+      const hist = [];
+      for (let u = bank + 1; u <= bank + reach + 1e-6; u += .5) {
+        const y = T(sign * u);hist.push(y);
+        if (y >= D - .25) return [u, y];
+        if (hist.length >= 5 && y - hist[hist.length - 5] < .1 && (clear - y) / (u - bank) <= .3) return [u, y];
+      }
+      return [bank + reach, T(sign * (bank + reach))];
+    };
+    const [eA, yA] = end(bankA, -1), [eB, yB] = end(bankB, 1), line = u => yA + (yB - yA) * (u + eA) / (eA + eB);
+    return [[-eA, yA], [-bankA, Math.max(clear, line(-bankA))], [bankB, Math.max(clear, line(bankB))], [eB, yB]];
+  }
+  // A box from p to q ([x, y, z]) with a w x h cross-section, `side` the horizontal direction across it ([x, z]), added to a
+  // {pos, nor, idx} buffer with flat faces turned outward.
+  function box(B, p, q, w, h, side) {
+    const d = [q[0] - p[0], q[1] - p[1], q[2] - p[2]];let sd = [side[0] * w / 2, 0, side[1] * w / 2];
+    const cr = () => [sd[1] * d[2] - sd[2] * d[1], sd[2] * d[0] - sd[0] * d[2], sd[0] * d[1] - sd[1] * d[0]];
+    let up = cr();if (up[1] < 0) {sd = sd.map(v => -v);up = cr();}// keep "up" upward without mirroring the box
+    const ul = Math.hypot(...up) || 1;up = up.map(v => v / ul * h / 2);
+    const c = (e, a, b) => [e[0] + sd[0] * a + up[0] * b, e[1] + sd[1] * a + up[1] * b, e[2] + sd[2] * a + up[2] * b];
+    const nrm = v => {const n = Math.hypot(...v) || 1;return v.map(x => x / n);}, neg = v => v.map(x => -x), dn = nrm(d);
+    const face = (v, n) => {const b0 = B.pos.length / 3;v.forEach(x => B.pos.push(...x));for (let k = 0; k < 4; k++) B.nor.push(...n);B.idx.push(b0, b0 + 1, b0 + 2, b0, b0 + 2, b0 + 3);};
+    face([c(p, 1, -1), c(q, 1, -1), c(q, 1, 1), c(p, 1, 1)], nrm(sd));face([c(q, -1, -1), c(p, -1, -1), c(p, -1, 1), c(q, -1, 1)], neg(nrm(sd)));
+    face([c(p, 1, 1), c(q, 1, 1), c(q, -1, 1), c(p, -1, 1)], nrm(up));face([c(p, -1, -1), c(q, -1, -1), c(q, 1, -1), c(p, 1, -1)], neg(nrm(up)));
+    face([c(q, 1, -1), c(q, -1, -1), c(q, -1, 1), c(q, 1, 1)], dn);face([c(p, -1, -1), c(p, 1, -1), c(p, 1, 1), c(p, -1, 1)], neg(dn));
   }
 
   // ---------- Browser: water, banks, bridges, racks, the kayak and its paddle ----------
@@ -198,27 +347,40 @@
       for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {const sx = (h[y * N + (x + 1) % N] - h[y * N + (x - 1 + N) % N]) * 18, sy = (h[((y + 1) % N) * N + x] - h[((y - 1 + N) % N) * N + x]) * 18, l = Math.hypot(sx, sy, 1), k = (y * N + x) * 4;img.data[k] = (-sx / l * .5 + .5) * 255;img.data[k + 1] = (-sy / l * .5 + .5) * 255;img.data[k + 2] = (1 / l * .5 + .5) * 255;img.data[k + 3] = 255;}
       g.putImageData(img, 0, 0);const t = new T.CanvasTexture(c);t.wrapS = t.wrapT = T.RepeatWrapping;return t;
     })();
-    const waterMat = new T.MeshStandardMaterial({color: 0x9fb3ad, map: tex, normalMap: ripples, normalScale: new T.Vector2(.6, .6), roughness: .06, metalness: .15, envMapIntensity: 1.5, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2});
+    // Dark green-blue river water with soft sky reflections (it looked like pale ice with the old mirror-like settings, issue #63).
+    const waterMat = new T.MeshStandardMaterial({color: 0x7d9894, map: tex, normalMap: ripples, normalScale: new T.Vector2(.35, .35), roughness: .18, metalness: 0, envMapIntensity: .65, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2});
     const foamTex = (() => {
       const c = document.createElement('canvas');c.width = 128;c.height = 128;const x = c.getContext('2d');
       for (let i = 0; i < 700; i++) {x.fillStyle = `rgba(255,255,255,${.25 + Math.random() * .6})`;x.beginPath();x.ellipse(Math.random() * 128, Math.random() * 128, 1 + Math.random() * 4, 2 + Math.random() * 8, 0, 0, Math.PI * 2);x.fill();}
       const t = new T.CanvasTexture(c);t.wrapS = t.wrapT = T.RepeatWrapping;return t;
     })();
     const foamMat = new T.MeshBasicMaterial({map: foamTex, transparent: true, opacity: .85, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4});
-    function strip(k0, k1, lift, widen, mat) {
-      const cols = 5, pos = [], uv = [], idx = [];
-      for (let k = k0; k <= k1; k++) {
-        const c = R.at(k * R.step);
-        for (let j = 0; j < cols; j++) {
-          const f = j / (cols - 1) * 2 - 1, off = f < 0 ? f * (c.wl + widen) : f * (c.wr + widen), lx = c.x - c.ds * off, ls = c.s + c.dx * off, w = toW(lx, ls);
-          pos.push(w.x, yOf(c.level) + lift, w.z);uv.push(j / (cols - 1) * (c.wl + c.wr) / 8, k * R.step / 8);
-        }
-        if (k < k1) {const r = (k - k0) * cols;for (let j = 0; j < cols - 1; j++) idx.push(r + j, r + j + cols, r + j + 1, r + j + 1, r + j + cols, r + j + cols + 1);}
-      }
+    function strip(k0, k1, lift, widen, mat, opts = {}) {
+      const {pos, uv, idx} = waterStrip(R, k0, k1, {lift, widen, ...opts}, toW, yOf);
       const geo = new T.BufferGeometry();geo.setAttribute('position', new T.Float32BufferAttribute(pos, 3));geo.setAttribute('uv', new T.Float32BufferAttribute(uv, 2));geo.setIndex(idx);geo.computeVertexNormals();
       const m = new T.Mesh(geo, mat);m.receiveShadow = true;return m;
     }
     for (let k = 0; k < R.n - 1; k += 100) group.add(strip(k, Math.min(R.n - 1, k + 100), .03, 1.5, waterMat));
+    // Far away (beyond the near pass: 450 m on foot, 1.6–9 km in the air) the far pass draws the river: its own coarse ground
+    // (8 m in the old square, 16 m in the patches, drawn .5 m low) is sunk under the water like the near grids, and one plain
+    // water ribbon (8 m rows, 3 across, 1 draw call) lies on it .45 m below the real level.
+    const farWater = (() => {
+      if (!world.far) return null;
+      const samples = waterSamples(data, {margin: .2, drop: .5}).map(p => ({x: p.x, s: p.s, top: G + p.top, floor: G + p.floor}));
+      const meshes = [];world.far.traverse(o => {if (o.isMesh && o.userData.grid) meshes.push(o);});
+      meshes.sort((a, b) => a.userData.grid.step - b.userData.grid.step);// the old square's 8 m ground first, then the 16 m patches
+      let left = samples;
+      for (const m of meshes) {
+        const g = m.userData.grid, pos = m.geometry.attributes.position, mine = [], rest = [];
+        for (const p of left) (p.x >= g.x0 && p.x <= g.x0 + (g.nx - 1) * g.step && p.s >= g.s0 && p.s <= g.s0 + (g.ns - 1) * g.step ? mine : rest).push(p);
+        left = rest;
+        const r = sinkGrid({x0: g.x0, s0: g.s0, step: g.step, nx: g.nx, ns: g.ns, get: k => pos.getY(k), set: (k, v) => pos.setY(k, v)}, mine);
+        if (r.changed) {pos.needsUpdate = true;if (!g.ownNormals) m.geometry.computeVertexNormals();m.geometry.computeBoundingSphere();}
+      }
+      const mat = new T.MeshStandardMaterial({color: 0x3a5a5e, roughness: .25, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2});
+      const m = strip(0, R.n - 1, -.45, 1.5, mat, {cols: 3, every: 2});m.receiveShadow = false;m.name = 'Akerselva (far water)';world.far.add(m);
+      return m;
+    })();
     // White water on the falls and just below them, and on the weirs.
     const white = [...(data.falls || []).map(f => [f.t - f.len / 2 - 2, f.t + f.len / 2 + 14]), ...(data.weirs || []).map(w => [w.t - 3, w.t + 9])];
     for (const [a, b] of white) {const k0 = Math.max(0, Math.floor(a / R.step)), k1 = Math.min(R.n - 1, Math.ceil(b / R.step));if (k1 > k0) group.add(strip(k0, k1, .08, -.3, foamMat));}
@@ -247,30 +409,63 @@
       }
     }
 
-    // Bridges: a deck from bank to bank at the ground height of its ends (never lower than 1.8 m above the water), railings.
+    // Bridges (issue #64): each deck reaches out until it meets the ground at both ends (`deckProfile`: up to the real bridge's
+    // height, the data's `deck`, or the top of the bank), so you walk and drive on and off, and it clears the water by 1.8 m
+    // (2.2 m for roads). Before, the deck stopped 3.5 m beyond the banks, where the lowered river bed had pulled the ground down,
+    // so 43 of the 46 decks ended in a ledge you could not step onto, and the whole rectangle counted as the ground: along the
+    // banks the bridges stood as invisible walls, up to 3.6 m high.
+    // Now each deck is its own walk floor (`floor`, the ground stays under it, so you walk on along the bank under a bridge),
+    // and its railings and underside are obstacles one 2 m piece at a time. All decks are one mesh, all railings another.
     const bridges = [], obstacles = [];
-    const deckMat = lib.concrete(0x8d8a84), railMat = lib.metal(0x2f3437, .5);
+    const deckMat = lib.concrete(0x8d8a84), railMat = lib.metal(0x2f3437, .5), deckB = {pos: [], nor: [], idx: []}, railB = {pos: [], nor: [], idx: []};
     for (const b of data.bridges || []) {
       const c = R.at(b.t);let dx = b.dir[0], ds = b.dir[1];const l = Math.hypot(dx, ds) || 1;dx /= l;ds /= l;
       const across = Math.max(.35, Math.abs(dx * -c.ds + ds * c.dx)), sgn = Math.sign(dx * -c.ds + ds * c.dx) || 1;
-      const ha = (c.wl + 3.5) / across, hb = (c.wr + 3.5) / across;// along the bridge to each bank (left first)
-      const A = [c.x - dx * ha * sgn, c.s - ds * ha * sgn], B = [c.x + dx * hb * sgn, c.s + ds * hb * sgn];
-      const wa = toW(...A), wb = toW(...B), clear = yOf(c.level) + (b.kind === 'foot' ? 1.8 : 2.2);
-      const ya = Math.max(world.heightWorld(wa.x, wa.z), clear), yb = Math.max(world.heightWorld(wb.x, wb.z), clear);
-      const len = Math.hypot(wb.x - wa.x, wb.z - wa.z), w = Math.min(14, b.w), thick = b.kind === 'foot' ? .35 : .7;
-      const g = new T.Group();g.position.set((wa.x + wb.x) / 2, (ya + yb) / 2, (wa.z + wb.z) / 2);g.rotation.order = 'YXZ';g.rotation.y = Math.atan2(-(wb.x - wa.x), -(wb.z - wa.z));g.rotation.x = Math.atan2(yb - ya, len);group.add(g);
-      const deck = new T.Mesh(new T.BoxGeometry(w, thick, len + .6), deckMat);deck.position.y = -thick / 2 - .02;deck.castShadow = deck.receiveShadow = true;g.add(deck);
-      for (const s of [-1, 1]) {const rail = new T.Mesh(new T.BoxGeometry(.06, 1.05, len), railMat);rail.position.set(s * (w / 2 - .05), .52, 0);rail.castShadow = true;g.add(rail);}
-      // Walkable: the deck is the ground inside its rectangle (groundAt), the railings are walls.
-      const ux = (wb.x - wa.x) / len, uz = (wb.z - wa.z) / len, vx = -uz, vz = ux;
-      bridges.push({name: b.name, kind: b.kind, wa, ux, uz, vx, vz, len, w, ya, yb});
-      for (const s of [-1, 1]) obstacles.push({points: [[s * w / 2 - .08 * s, 0], [s * w / 2, 0], [s * w / 2, len], [s * w / 2 - .08 * s, len]].map(([q, p]) => ({x: wa.x + ux * p + vx * q, z: wa.z + uz * p + vz * q})), minY: Math.min(ya, yb) - .5, maxY: Math.max(ya, yb) + 1.1, kind: 'railing'});
+      const at = u => toW(c.x + dx * u * sgn, c.s + ds * u * sgn), T = u => {const w = at(u);return world.heightWorld(w.x, w.z);};// u < 0: the left bank's side
+      const bankA = c.wl / across, bankB = c.wr / across, clear = yOf(c.level + (b.kind === 'foot' ? 1.8 : 2.2)), D = Math.max(clear, b.deck === undefined ? -Infinity : yOf(b.deck));
+      const thick = b.kind === 'foot' ? .35 : .7, w = Math.min(14, b.w);
+      const P = deckProfile(D, clear, bankA, bankB, Math.min(30, Math.max(6, l)), T);
+      const wa = at(P[0][0]), wb = at(P[3][0]), len = Math.hypot(wb.x - wa.x, wb.z - wa.z), ux = (wb.x - wa.x) / len, uz = (wb.z - wa.z) / len, vx = -uz, vz = ux;
+      const prof = P.map(([u, y]) => [u - P[0][0], y]);// metres from end A, deck height
+      const deckAt = p => {const q = Math.max(0, Math.min(len, p));for (let i = 0; i < 3; i++) if (q <= prof[i + 1][0] || i === 2) {const [p0, y0] = prof[i], [p1, y1] = prof[i + 1];return y0 + (y1 - y0) * (p1 > p0 ? Math.min(1, (q - p0) / (p1 - p0)) : 0);}};
+      const pt = (p, q, y) => [wa.x + ux * p + vx * q, y, wa.z + uz * p + vz * q];
+      for (let i = 0; i < 3; i++) {
+        const [p0, y0] = prof[i], [p1, y1] = prof[i + 1];if (p1 - p0 < .01) continue;
+        box(deckB, pt(p0, 0, y0 - thick / 2), pt(p1, 0, y1 - thick / 2), w, thick, [vx, vz]);
+        for (const s of [-1, 1]) box(railB, pt(p0, s * (w / 2 - .05), y0 + .52), pt(p1, s * (w / 2 - .05), y1 + .52), .06, 1.05, [vx, vz]);
+      }
+      const corners = [[0, -w / 2], [len, -w / 2], [len, w / 2], [0, w / 2]].map(([p, q]) => ({x: wa.x + ux * p + vx * q, z: wa.z + uz * p + vz * q}));
+      // The walkable surface: the deck, which over its last 1.5 m at each end bends to the ground across its whole width, so its
+      // end lines join the ground exactly and you step on and off anywhere along them.
+      const surface = (x, z) => {
+        const p = (x - wa.x) * ux + (z - wa.z) * uz;let y = deckAt(p);
+        for (const [d, Te] of [[p, prof[0][1]], [len - p, prof[3][1]]]) if (d < 1.5) y += (world.heightWorld(x, z) - Te) * (1 - Math.max(0, d) / 1.5);
+        return y;
+      };
+      const bridge = {name: b.name, kind: b.kind, wa, ux, uz, vx, vz, len, w, deckAt, surface, deck: D, ends: [prof[0][1], prof[3][1]],
+        floor: {name: `Bridge${b.name ? ' ' + b.name : ''}`, points: corners, height: p => surface(p.x, p.z), ceilingHeight: Infinity, surfaceKind: 'stone'}};
+      bridges.push(bridge);
+      // Pieces of at most 2 m: the railings (from the deck's underside to 1.1 m over it) and, away from the ends where it bends to
+      // the ground, the deck itself (its underside up to just under its top, so a head under a low deck stops, while people on
+      // the deck are free).
+      const n = Math.max(1, Math.ceil(len / 2));
+      for (let k = 0; k < n; k++) {
+        const p0 = len * k / n, p1 = len * (k + 1) / n, lo = Math.min(deckAt(p0), deckAt(p1)), hi = Math.max(deckAt(p0), deckAt(p1));
+        const poly = (q0, q1) => [[p0, q0], [p1, q0], [p1, q1], [p0, q1]].map(([p, q]) => ({x: wa.x + ux * p + vx * q, z: wa.z + uz * p + vz * q}));
+        for (const s of [-1, 1]) obstacles.push({points: poly(s * (w / 2 - .08), s * w / 2), minY: lo - thick, maxY: hi + 1.1, kind: 'railing'});
+        if (p0 >= 1.5 && p1 <= len - 1.5) obstacles.push({points: poly(-w / 2 + .08, w / 2 - .08), minY: lo - thick, maxY: lo - .05, kind: 'bridge deck'});
+      }
     }
-    // The bridge deck under (x, z), or null: lets you walk and drive across where the river bed was lowered.
+    for (const [B, mat, name] of [[deckB, deckMat, 'Akerselva bridges (decks)'], [railB, railMat, 'Akerselva bridges (railings)']]) {
+      if (!B.idx.length) continue;
+      const g = new T.BufferGeometry();g.setAttribute('position', new T.Float32BufferAttribute(B.pos, 3));g.setAttribute('normal', new T.Float32BufferAttribute(B.nor, 3));g.setIndex(B.idx);g.computeBoundingSphere();
+      const m = new T.Mesh(g, mat);m.castShadow = m.receiveShadow = true;m.name = name;group.add(m);
+    }
+    // The bridge deck under (x, z), or null: for vehicles and anything placed on the ground (walking uses the decks' floors).
     function groundAt(x, z) {
       for (const b of bridges) {
         const dx = x - b.wa.x, dz = z - b.wa.z, p = dx * b.ux + dz * b.uz, q = dx * b.vx + dz * b.vz;
-        if (p >= -.3 && p <= b.len + .3 && Math.abs(q) <= b.w / 2) return b.ya + (b.yb - b.ya) * clamp(p / b.len, 0, 1);
+        if (p >= 0 && p <= b.len && Math.abs(q) <= b.w / 2) return b.surface(x, z);
       }
       return null;
     }
@@ -399,8 +594,8 @@
     // A tick for the water's flow animation (always, so the river moves when you walk past).
     function tick(dt) {tex.offset.y -= dt * .1;ripples.offset.y -= dt * .12;foamTex.offset.y -= dt * .6;}
     const poi = () => racks.map(r => {const l = world.toLocal(r.x, r.z);return {x: l.x, s: l.s, color: '#1d5f7a', label: `Kayak: ${r.name.replace(/ \(.*\)/, '')}`, glyph: '🛶'};});
-    return {group, obstacles, groundAt, racks, bridges, prompt, start, stop, update, hud, tick, exitPoint, remoteBoat: () => boatMesh(), poi, riverModel: R, boat, get active() {return active;}, get view() {return view;}, get pose() {return active ? pose : null;}, canExit, get best() {return best;}};
+    return {group, obstacles, groundAt, racks, bridges, farWater, prompt, start, stop, update, hud, tick, exitPoint, remoteBoat: () => boatMesh(), poi, riverModel: R, boat, get active() {return active;}, get view() {return view;}, get pose() {return active ? pose : null;}, canExit, get best() {return best;}};
   }
 
-  return {river, Boat, bedQuads, lowerGrid, prepare, create, HULL};
+  return {river, Boat, bedQuads, lowerGrid, waterSamples, cellWeights, sinkGrid, waterStrip, deckProfile, box, prepare, create, HULL};
 });

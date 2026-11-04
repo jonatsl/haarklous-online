@@ -31,7 +31,8 @@ On `main`:
 - Account emails (issue #55): a "confirm your email" link after sign-up and *Forgot password?* with a reset link that opens the game; both links work for an hour, the reset link once. Sent through Brevo once the user has added its key (until then the button is hidden).
 - Soundtrack: 2.5-minute open-world loop plus one loop per minigame and the mission; ambient sound by location.
 - Gamle Oslo, Ensjø and the way there: real streets, ground heights and about 7,900 buildings south of the old world (3.4 × 3.4 km, down Trondheimsveien to Bjørvika); churches, MUNCH, the Opera (walkable roof) and tall chimneys modelled; a timed Ensjø → Rathkes gate run (PR #48, issue #38).
-- Kayaking down Akerselva from three put-ins (Bjølsen, Sagene, Grünerløkka) to Vaterland: the real river, its falls and bridges (issue #45).
+- Kayaking down Akerselva from three put-ins (Bjølsen, Sagene, Grünerløkka) to Vaterland: the real river, its falls and bridges (issue #45). Its water shows along the whole river, close up and from far away (issue #63).
+- Nothing invisible stops you: you walk over the Akerselva bridges and along the banks under them, from Myrens on to Grünerløkka along the river, across the lawn over the catacomb, up to the trees in Torshov's corners and to the water's edge in Bjørvika; a low wooden fence marks the edge of the walkable world (issue #64).
 - Schous plass: playable table tennis against Ola; Deichman Grünerløkka with thousands of books, *The Inner Game of Tennis* and a readable *Moby-Dick*, and a librarian who shushes runners and loud voices (issues #44, #47).
 - Rathkes gate 1: the gate, the passage and the backyard with door 1C, ready for the second flat (issue #44, preparation).
 - Klatreverket Torshov at its real place (Myrens verksted 3K) in its real building: 14 m hall, 7 m overhanging competition wall, Galleriet, autobelay tower, bouldering on three floors, the training room with the Moonwall; reception with the real prices and rental; climb with L2 / R2 (bouldering, top rope with Siri belaying, lead with clips, autobelay), pump, falls on the rope, the brattkort test and belaying Siri.
@@ -56,6 +57,36 @@ Live site: runs `main` (Worker version 281119ea, deployed 3 Nov 2026 after PR #7
 - **Why:** the user said the README was too long and too complicated; players find things out in the game (3 Nov 2026).
 - **Where:** `README.md`, `docs/HANDOFF.md`, `AGENTS.md`.
 - **Status:** branch `docs/short-readme`, [PR #74](https://github.com/jonatsl/haarklous-online/pull/74), not merged. Only documents change, so the live game does not need a new deploy.
+
+### 2026-11-04 · No more invisible walls (issue #64)
+- **What:**
+  - A survey of the whole walkable world found every place where something stopped you with nothing drawn there: about 85,000 points (every 8 m in Torshov and Myrens, every 16 m in Gamle Oslo), a 1 m step in eight directions from each, what stopped the step, and whether anything is drawn there. These invisible walls are gone:
+    1. **Between Myrens and Gamle Oslo** an 80 m strip (west of the old square, where Akerselva runs from Sagene to Grünerløkka) was ground you could see but not enter: each map patch is walkable only to 40 m inside its own edges, and these two meet. A seam joins them now, and its trees and buildings are solid.
+    2. **All 46 Akerselva bridges.** The whole rectangle of a bridge counted as the ground, so walking along a bank you hit a wall where the deck was overhead (up to 3.6 m), and 43 of the 46 decks ended in a ledge you could not step onto (the lowered river bed had pulled the ground down at their ends). Now each deck reaches out until it meets the ground at both ends and is a floor of its own: you walk over it, and along the bank under it. Railings, and the underside of a deck too low to walk under, still stop you (you see them).
+    3. **The catacomb's three stairs.** Their side walls took the height of the mausoleum's roof along the whole 28–36 m stair, so six walls stood up to 4 m out of the lawn in Torshovdalen. Now each piece of wall follows its own step and never reaches above the ground.
+    4. **453 trees in Torshov's corners** (more than 820 m from home; the walkable area is a square out to 760 m), among them trees in Muselunden: they were drawn only for the distance, vanished when you came within 15 m, and still blocked you. They are drawn close up now.
+    5. **The edge of the walkable world** (about 16 km) was an invisible line in open ground. A low wooden fence stands on it now.
+    6. **Buildings dug into a slope** (37 with the ground next to them at or above the roof, 26 more within 1 m): a building blocked you up to 4 m above its roof, so on the uphill side you stopped in front of a roof at your feet. They block only up to the roof now (an edge under 10 cm high is stepped over).
+    7. **The sea in Bjørvika** blocked you up to 0.8 m above the water, so on low shores you stopped on dry ground, metres from the water. It now stops you where the ground goes under the drawn water.
+- **Why:** issue #64, "In some places it is impossible to walk/move like an invisible wall even though there is nothing around the user. Fix." (tester, 3 Nov 2026).
+- **Decided here:**
+  - The walkable world keeps its size; its edge gets a fence you can see (beyond it there is no detailed ground to walk on).
+  - Bridge decks run straight between the points where they meet the ground (at the real bridge's height, or the top of the bank, with ramps no steeper than 30 %) and stay at least 1.8 m over the water (2.2 m for roads). Vehicles still drive on the decks as before; walking uses the new deck floors.
+  - All bridge decks are one mesh and all railings another (138 meshes before).
+- **Where:**
+  - `surroundings.js`: `walkRects` and `openEdges` (pure), the seams in `terrainFloors()` and in the obstacles, the edge fence, trees drawn near in the whole walkable square, `buildingTop`, the sea's block height.
+  - `game-kayak.js`: `deckProfile` and `box` (pure), bridges as walk floors (`bridge.floor`, `bridge.surface`), railings and decks as 2 m obstacle pieces, merged deck and railing meshes.
+  - `game-main.js`: `terrainAt` (the ground without the decks) for walking, plus the deck floors; vehicles keep `groundAt`.
+  - `catacomb-layout.js`: stair walls one cell at a time, wall tops kept under the ground (`underGround`).
+  - Tests: `tests/invisible-walls.test.cjs` (new).
+- **Checked:**
+  - `node --test tests/*.cjs`: 143 pass (5 new).
+  - The survey, before and after: points where you were stopped with nothing drawn: 37 → 0 (the survey still flags four, but they are things you see: a bench by the fire pit, a roof edge 14 cm high, and the water at knee height on two low shores). The unwalkable strip and the invisible world edge are gone.
+  - Bridges: walking from one end to the other works 58 of 71 times (4 of 77 before); the others stop at a building at the far end or at the edge of the world. Walking along a bank under a bridge works 30 of 76 times (5 of 77 before); the others stop at a deck too low to walk under, at a bridge end on the bank, or at a tree.
+  - In the game loop (simulated controller): over the Marcus Thranes gate bridge on its deck, and along the bank under a footbridge 6.5 m up. Along Akerselva's right bank from Myrens into Grünerløkka across the old strip.
+  - Cost at six test views (home, Muselunden, the north edge, Bjølsen, the seam, Torshovdalen): +2 to +11 draw calls and +19,000 to +49,000 triangles per frame (+1–4 %): the fence (68 pieces, only those within 450 m are drawn), the corner trees and the bridge decks.
+  - Not checked: on the user's own PC and controller; online with others.
+- **Status:** branch `fix/invisible-walls`, [PR #80](https://github.com/jonatsl/haarklous-online/pull/80) (not merged yet).
 
 ### 2026-11-04 · Kiwi Storgata: the regulars, their tasks and Sopp-Sigvald's magic (issue #65)
 - **What:**
@@ -90,6 +121,32 @@ Live site: runs `main` (Worker version 281119ea, deployed 3 Nov 2026 after PR #7
   - Performance at Kiwi Storgata: +58 draw calls (shadow pass included) and +46,000 triangles while you are within 170 m; nothing elsewhere. No light was added in total.
   - Not checked: a real DualShock 4, sounds by ear, the remote players' orb and a pushed vehicle online with two players (no lobby server here), saving to a real account on the live server.
 - **Status:** branch `feat/kiwi-storgata`, [PR #79](https://github.com/jonatsl/haarklous-online/pull/79) open (not merged, not deployed).
+
+### 2026-11-03 · Akerselva has water again (issue #63)
+- **What:**
+  - Akerselva's water shows along the whole river, from Bjølsen to Vaterland: from the banks and bridges, from a car, from the air and from far away.
+  - Three things hid it:
+    1. The water surface was built upside down. Its triangles faced down, so the graphics card skipped all of them when you looked from above. This alone hid all the water. Now they face up.
+    2. In about 8 % of the water area the drawn ground was above the water. The ground is drawn with 4 m and 8 m triangles, and the river bed was only lowered at the grid points inside the river and not near buildings, so the triangles between the bed and the bank came up through the water (most near the falls and where buildings stand at the river). Now the game lowers the grid corners just enough that the drawn ground is under the water at about 53,000 points on the water (every metre, nine points across, the banks twice). The walls of buildings by the river now reach down to the lowered ground, so no building floats.
+    3. From more than 450 m away (1.6–9 km in the air) only the far ground is drawn, and it had no water. Now the far ground is also lowered along the river and a simple water ribbon lies on it.
+  - The water looks like water: dark green-blue with soft sky reflections and smaller ripples (it looked like pale ice before).
+  - On a few sharp bends the water strip folded over itself (triangles facing down, two layers that can flicker). There it now stays inside the bend.
+- **Why:** issue #63, "There is no water in akerselva, fix that." (tester, 3 Nov 2026). The water was in the code (PR #51) but could not be seen.
+- **Decided here:**
+  - Lower the ground (never raise it) instead of drawing the water on top of the ground, so there are no two surfaces at the same height (no flicker).
+  - Lower only as much as needed and never deeper than the river bed (0.7 m under the water); ground under building walls may now be lowered, and those walls go down with it.
+  - Keep the water 1.5 m wider than the river on each side, as before (wider strips folded on sharp bends).
+- **Where:**
+  - `game-kayak.js`: `waterStrip` (the water surface, facing up, inside sharp bends), `waterSamples`, `cellWeights`, `sinkGrid` (lowers the drawn ground under the water), `prepare` (now also sinks the 4 m and 8 m grids and sets each riverside building's lowest ground `gm`), the far water ribbon and the far ground (`farWater`), the water material.
+  - `surroundings.js`: ground meshes record their grid (`userData.grid`), and district buildings honour `gm`.
+  - Tests: `tests/akerselva-water.test.cjs` (new).
+- **Checked:**
+  - `node --test tests/*.cjs`: 131 pass (3 new).
+  - With the real map data: 0 of about 144,000 points on the water have drawn ground above them (before: about 8.6 % of the points, and the whole surface faced down). Lowered grid points are all within 12 m of the water.
+  - In the browser (offline): pictures from the banks, a bridge, 45 m and 300 m up and from 2 km away along the whole river show the water; from both banks every 40 m along the river (238 sight lines from eye height, 6 m from the water) the middle of the river is never hidden by ground; in the game's real meshes 0 water points are under the near ground.
+  - Cost: +1 draw call and +2,400 triangles (the far ribbon); the near water strips were drawn before too (just upside down). The start takes about 50–80 ms longer (the lowering).
+  - Not checked: on the user's own PC; with aerial imagery on.
+- **Status:** branch `fix/akerselva-water`, [PR #78](https://github.com/jonatsl/haarklous-online/pull/78) (not merged yet).
 
 ### 2026-11-03 · Forgot password and the email check (issue #55)
 - **What:**
