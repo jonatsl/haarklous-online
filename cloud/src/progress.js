@@ -9,9 +9,9 @@
  * DELETE /api/photos/<id>                               -> {count, limit}
  */
 import {sessionUser} from './auth.js';
+import {PHOTO_BYTES, checkSave} from './progress-rules.js';
 
 export const PHOTO_LIMIT = 60;
-const PHOTO_BYTES = 1500000, VALUE_CHARS = 200000, MAX_KEYS = 40, KEY = /^haarklous-[a-z0-9-]{1,60}$/;
 const json = (body, status = 200) => Response.json(body, {status, headers: {'Cache-Control': 'no-store'}});
 
 export async function handleProgress(request, env, ctx) {
@@ -40,10 +40,8 @@ export class Profile {
       if (method === 'PUT') {
         const text = await request.text();if (text.length > 1e6) return json({error: 'Too large'}, 413);
         let body;try {body = JSON.parse(text);} catch {return json({error: 'Bad JSON'}, 400);}
-        const set = body && typeof body.set === 'object' && body.set ? Object.entries(body.set) : [], del = Array.isArray(body && body.del) ? body.del : [];
-        if (set.length + del.length > MAX_KEYS) return json({error: 'Too many keys'}, 400);
-        for (const [k, v] of set) if (!KEY.test(k) || typeof v !== 'string' || v.length > VALUE_CHARS) return json({error: `Bad value for ${String(k).slice(0, 70)}`}, 400);
-        for (const k of del) if (typeof k !== 'string' || !KEY.test(k)) return json({error: 'Bad key'}, 400);
+        const checked = checkSave(body);if (checked.error) return json({error: checked.error}, 400);
+        const {set, del} = checked;
         // Every save gets a later time than the one before, so a client can tell whether the account changed since it last saw it.
         const at = Math.max(Date.now(), this.lastAt() + 1);
         for (const [k, v] of set) this.sql.exec('insert into progress (k, v, at) values (?, ?, ?) on conflict(k) do update set v = excluded.v, at = excluded.at', k, v, at);
