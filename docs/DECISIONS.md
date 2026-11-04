@@ -31,7 +31,7 @@ On `main`:
 - Account emails (issue #55): a "confirm your email" link after sign-up and *Forgot password?* with a reset link that opens the game; both links work for an hour, the reset link once. Sent through Brevo once the user has added its key (until then the button is hidden).
 - Soundtrack: 2.5-minute open-world loop plus one loop per minigame and the mission; ambient sound by location.
 - Gamle Oslo, Ensjø and the way there: real streets, ground heights and about 7,900 buildings south of the old world (3.4 × 3.4 km, down Trondheimsveien to Bjørvika); churches, MUNCH, the Opera (walkable roof) and tall chimneys modelled; a timed Ensjø → Rathkes gate run (PR #48, issue #38).
-- Kayaking down Akerselva from three put-ins (Bjølsen, Sagene, Grünerløkka) to Vaterland: the real river, its falls and bridges (issue #45).
+- Kayaking down Akerselva from three put-ins (Bjølsen, Sagene, Grünerløkka) to Vaterland: the real river, its falls and bridges (issue #45). Its water shows along the whole river, close up and from far away (issue #63).
 - Schous plass: playable table tennis against Ola; Deichman Grünerløkka with thousands of books, *The Inner Game of Tennis* and a readable *Moby-Dick*, and a librarian who shushes runners and loud voices (issues #44, #47).
 - Rathkes gate 1: the gate, the passage and the backyard with door 1C, ready for the second flat (issue #44, preparation).
 - Klatreverket Torshov at its real place (Myrens verksted 3K) in its real building: 14 m hall, 7 m overhanging competition wall, Galleriet, autobelay tower, bouldering on three floors, the training room with the Moonwall; reception with the real prices and rental; climb with L2 / R2 (bouldering, top rope with Siri belaying, lead with clips, autobelay), pump, falls on the rope, the brattkort test and belaying Siri.
@@ -81,6 +81,32 @@ Live site: runs `main` (Worker version 281119ea, deployed 3 Nov 2026 after PR #7
   - Performance at Kiwi Storgata: +58 draw calls (shadow pass included) and +46,000 triangles while you are within 170 m; nothing elsewhere. No light was added in total.
   - Not checked: a real DualShock 4, sounds by ear, the remote players' orb and a pushed vehicle online with two players (no lobby server here), saving to a real account on the live server.
 - **Status:** branch `feat/kiwi-storgata`, [PR #79](https://github.com/jonatsl/haarklous-online/pull/79) open (not merged, not deployed).
+
+### 2026-11-03 · Akerselva has water again (issue #63)
+- **What:**
+  - Akerselva's water shows along the whole river, from Bjølsen to Vaterland: from the banks and bridges, from a car, from the air and from far away.
+  - Three things hid it:
+    1. The water surface was built upside down. Its triangles faced down, so the graphics card skipped all of them when you looked from above. This alone hid all the water. Now they face up.
+    2. In about 8 % of the water area the drawn ground was above the water. The ground is drawn with 4 m and 8 m triangles, and the river bed was only lowered at the grid points inside the river and not near buildings, so the triangles between the bed and the bank came up through the water (most near the falls and where buildings stand at the river). Now the game lowers the grid corners just enough that the drawn ground is under the water at about 53,000 points on the water (every metre, nine points across, the banks twice). The walls of buildings by the river now reach down to the lowered ground, so no building floats.
+    3. From more than 450 m away (1.6–9 km in the air) only the far ground is drawn, and it had no water. Now the far ground is also lowered along the river and a simple water ribbon lies on it.
+  - The water looks like water: dark green-blue with soft sky reflections and smaller ripples (it looked like pale ice before).
+  - On a few sharp bends the water strip folded over itself (triangles facing down, two layers that can flicker). There it now stays inside the bend.
+- **Why:** issue #63, "There is no water in akerselva, fix that." (tester, 3 Nov 2026). The water was in the code (PR #51) but could not be seen.
+- **Decided here:**
+  - Lower the ground (never raise it) instead of drawing the water on top of the ground, so there are no two surfaces at the same height (no flicker).
+  - Lower only as much as needed and never deeper than the river bed (0.7 m under the water); ground under building walls may now be lowered, and those walls go down with it.
+  - Keep the water 1.5 m wider than the river on each side, as before (wider strips folded on sharp bends).
+- **Where:**
+  - `game-kayak.js`: `waterStrip` (the water surface, facing up, inside sharp bends), `waterSamples`, `cellWeights`, `sinkGrid` (lowers the drawn ground under the water), `prepare` (now also sinks the 4 m and 8 m grids and sets each riverside building's lowest ground `gm`), the far water ribbon and the far ground (`farWater`), the water material.
+  - `surroundings.js`: ground meshes record their grid (`userData.grid`), and district buildings honour `gm`.
+  - Tests: `tests/akerselva-water.test.cjs` (new).
+- **Checked:**
+  - `node --test tests/*.cjs`: 131 pass (3 new).
+  - With the real map data: 0 of about 144,000 points on the water have drawn ground above them (before: about 8.6 % of the points, and the whole surface faced down). Lowered grid points are all within 12 m of the water.
+  - In the browser (offline): pictures from the banks, a bridge, 45 m and 300 m up and from 2 km away along the whole river show the water; from both banks every 40 m along the river (238 sight lines from eye height, 6 m from the water) the middle of the river is never hidden by ground; in the game's real meshes 0 water points are under the near ground.
+  - Cost: +1 draw call and +2,400 triangles (the far ribbon); the near water strips were drawn before too (just upside down). The start takes about 50–80 ms longer (the lowering).
+  - Not checked: on the user's own PC; with aerial imagery on.
+- **Status:** branch `fix/akerselva-water`, [PR #78](https://github.com/jonatsl/haarklous-online/pull/78) (not merged yet).
 
 ### 2026-11-03 · Forgot password and the email check (issue #55)
 - **What:**
