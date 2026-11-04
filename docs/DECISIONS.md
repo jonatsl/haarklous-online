@@ -45,6 +45,7 @@ On `main`:
 - Helicopter and drone flight closer to the real thing: the rotor's lift tilts with pitch and bank, so tilting takes lift away from climbing and turns it into speed; add collective or thrust to keep your height (issue #73, PR #75).
 - Kiwi Storgata 33 at its real place in the city centre, with a hot-food counter; the regulars outside give small tasks (bottles for the deposit, a harmonica on the Opera roof, coffee and a hot dog, a note for Rolf at Schous plass, a photo of Grønland kirke), in Norwegian with English below; Sopp-Sigvald the mushroom wizard teaches four magic powers after mushroom hunts in Torshovdalen, along Akerselva, in the catacomb and at MUNCH: levitation, blink, a gust and a light orb (R1 / X, D-pad ← chooses, keys 1–4); saved with your progress (issue #65).
 - Licences for every vehicle, each won by a test with a theory part and a practical part (rings, the speed limit, no crash, park or land): førerkort B and A at Soria Moria Trafikkskole on Vogts gate (a school car and motorcycle, a test route on the real streets), class C, the machine certificate and the crane certificate at the site office, PPL(A) and PPL(H) at the airstrip, the drone certificate A1/A3 on the phone (free); bikes, e-scooters, the kayak and riding along need none; saved with your progress (issue #59).
+- Ground with real detail up close (grass, asphalt, paving slabs, gravel, pavements and kerbs) with or without the aerial photo, and buildings that look like their part of town – Torshov brick and Harald Hals' plastered blocks, Grünerløkka's tenements with shop fronts, buff brick, wooden houses, new blocks – chosen from OpenStreetMap and Street View notes (issues #67 and #68, PR #81, not merged yet).
 
 Live site: runs `main` (Worker version 281119ea, deployed 3 Nov 2026 after PR #75; `main` builds byte-for-byte to the live page), so everything above is online.
 
@@ -58,6 +59,47 @@ Live site: runs `main` (Worker version 281119ea, deployed 3 Nov 2026 after PR #7
 - **Why:** the user said the README was too long and too complicated; players find things out in the game (3 Nov 2026).
 - **Where:** `README.md`, `docs/HANDOFF.md`, `AGENTS.md`.
 - **Status:** branch `docs/short-readme`, [PR #74](https://github.com/jonatsl/haarklous-online/pull/74), not merged. Only documents change, so the live game does not need a new deploy.
+
+### 2026-11-04 · Better ground and building textures (issues #67 and #68)
+- **What:**
+  - **Ground (issue #67):**
+    - Up close the ground now has grass blades and clumps, asphalt grain with cracks and repairs, granite paving slabs, gravel and soil, with worn spots and bare rock on steep slopes and a little relief in the sunlight.
+    - It works with and without the aerial photo: the game picks the kind of ground from the colour under it, in the old square and in Gamle Oslo, Ensjø and Myrens.
+    - Large, slow changes in the colour break up the repeat, and the fine detail fades out with distance.
+    - The map painting (no photo) has pavements along the car streets with a granite kerb line, asphalt pavements in Torshov, Sandaker, Myrens and Ensjø and slab pavements in Grünerløkka, Tøyen, Grønland, Kampen and Bjørvika, warmer gravel paths, and each park its own green.
+  - **Buildings (issue #68):**
+    - Every building gets a look from its type, height, part of town and its OpenStreetMap tags (colour, material, roof colour, roof shape, year, heritage, architect).
+    - Torshov: dark red-brown brick blocks with brown or cream window frames and stone or concrete plinths; Harald Hals' pale yellow, cream and pink plastered blocks with small-paned dark green or white windows and red tile roofs; white 1950s blocks.
+    - Grünerløkka: 1880–1900 tenements in white, cream, grey, ochre, deep red, pale green and blue, with window surrounds, pediments, rusticated ground floors and cornices.
+    - Sandaker, Grønland and Tøyen: buff brick, tenements and 1960s concrete; Kampen and Vålerenga: painted wooden houses; Ensjø and Bjørvika: new blocks in dark or red-brown brick, light render and glass; halls in ribbed metal.
+    - Shops and cafés from OpenStreetMap (about 2,000) get shop fronts with big windows and a sign band on the wall they are on.
+    - Windows differ: net curtains, blinds, now and then a lit room.
+    - The flat's own building and its neighbours are the real dark brick with brown frames and a grey concrete plinth (as on Street View at Haarklous plass 19).
+- **Why:** the tester's issues: #67 "The ground texture is completely flat many places and should be improved", #68 "Use more accurate textures on buildings etc by inspecting Google maps streetview".
+  - Street View notes (looked at on 3 Nov 2026 only, nothing copied or stored, Google's terms): Haarklous plass 19 dark red-brown brick, brown 2-pane windows, grey concrete plinth, steel balconies; Hegermanns plass and Nordkappgata pale yellow plaster, dark green small-paned windows, red tile hip roofs, arched gates; Edvard Griegs allé brick with a pink stone plinth and cream frames; Torshovgata pink and white plaster and brick; Vogts gate buff-yellow brick and plastered tenements; Thorvald Meyers gate and Schæffers gate coloured tenements, cornices, shops with awnings, granite slab pavements; Grønlandsleiret buff brick, orange plaster, shops on every ground floor, red cycle lanes; Tøyengata 1960s concrete, asphalt with granite kerbs and a cobble gutter; Ensjø dark and red-brown brick, light render, glass, dark granite plazas.
+  - Decided here:
+    - Textures are painted by the game (no photos), in one shared atlas, so each tile of buildings is one draw call (it was up to seven).
+    - OpenStreetMap has few look tags here (79 building colours, 96 roof colours), so the part of town decides the rest; neighbouring buildings share a look more often than not. The town parts are rough boxes, written down in `city-textures.js`.
+    - In Torshov, mappers tag the brick blocks reddish and the plastered blocks yellow or pink, so a reddish colour tag means brick.
+    - Old halls inside the brick districts are brick, not ribbed metal (that is kept for Ensjø, Bjørvika and Myrens).
+    - With the aerial photo, all grey ground gets asphalt detail (a slab pattern on a road would be worse than none on a pavement), and the brightened photo's asphalt is taken down to look like asphalt.
+    - Joker, Kiwi and the eight stairwell buildings keep the brick of the shop fill and stair towers; their painted shop fronts are left out because the shops are modelled.
+    - Kiwi Storgata (merged in from PR #79) keeps its office building's own look (glass): the building gets no painted shop fronts, and the wall above the shop is drawn in the same atlas look by `facadeFill`, so its storeys line up with the rest of the front.
+    - The brick of `lib.brick()` (the flat's facade walls, churches, Klatreverket, stair towers) is a little darker, like Torshov's.
+- **Where:**
+  - `city-textures.js` (new): town parts, which look a building gets, wall bands, the facade atlas and its shader, the ground detail and its shader.
+  - `building-looks-data.js` (new) from `tools/make-building-looks.cjs` (new) and `assets/osm/building-looks-osm-2026-11-03.json.gz` (new, OpenStreetMap).
+  - `surroundings.js`: buildings in the atlas (near) and vertex colours (far), shop walls, the ground shader on the terrain, pavements and kerbs in the painting.
+  - `materials.js`: `lib.facade()` and `lib.plinth()` use the atlas's brick and plinth cells; darker default brick. `game-shops.js`: the shop fill is no longer darkened.
+  - `index.html` (two scripts), `README.md`, `docs/HANDOFF.md`; test `tests/city-textures.test.cjs`.
+- **Checked:**
+  - Node tests 136/136 (8 new).
+  - In the browser, from the same 12 camera spots before and after (street level and from the air in Torshov, Grünerløkka, Grønland, Gamle Oslo and Ensjø), with and without the aerial photo. Screenshots are kept out of the commit.
+  - Draw calls fewer at every spot (1–41 %, e.g. Torshovgata 288 → 216, Grønlandsleiret 191 → 136); triangles at most +5 % (+84,000 in the near buildings); near building meshes 682 → 118.
+  - Texture memory: building textures 8.1 → 14.6 MB plus 5.3 MB of ground detail (the ground paintings, about 243 MB, are unchanged). Mipmaps and anisotropy on; no faces on top of each other.
+  - The game starts and you can walk; Joker's front and fill match the building; no new console errors.
+  - Not checked: frame rate (the shared PC's GPU is busy, so only draw calls and triangles were counted), a real DualShock 4, the live server.
+- **Status:** branch `feat/better-textures`, [PR #81](https://github.com/jonatsl/haarklous-online/pull/81) for review (not merged, not deployed).
 
 ### 2026-11-04 · Rathkes gate 1C, flat 501 from the user's video (issue #72)
 - **What:**

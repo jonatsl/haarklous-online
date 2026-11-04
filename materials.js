@@ -127,8 +127,9 @@
     function floorTiles() {const s = tileSet('floorTiles', {count: 10, color: 0xc9c8c3, grout: 0x8f908c, size: .10, diagonal: true, variance: .07, groutPx: 4});return standard({map: s.map, normalMap: s.normal, normalScale: new T.Vector2(.7, .7), roughnessMap: s.rough, roughness: 1, metalness: 0});}
     function brickPainter(ctx, w, h, hx, opts = {}) {
       const course = opts.course || 16, brickW = opts.brickW || 46, mortar = opts.mortar || 2.5;
-      ctx.fillStyle = '#b7aa9b';ctx.fillRect(0, 0, w, h);if (hx) {hx.fillStyle = '#383838';hx.fillRect(0, 0, w, h);}
-      const palette = opts.palette || [0x8f4f3b, 0x9b5a43, 0xa4634a, 0x87483a, 0x97563f, 0x7c4334, 0xab6c50];
+      ctx.fillStyle = opts.mortarColour || '#9a8f83';ctx.fillRect(0, 0, w, h);if (hx) {hx.fillStyle = '#383838';hx.fillRect(0, 0, w, h);}
+      // Torshov's brick is a dark red-brown (Street View, issue #68), a little darker than the old orange-red.
+      const palette = opts.palette || [0x7e4535, 0x8a4f3c, 0x934f3d, 0x763f33, 0x85493a, 0x6d3b30, 0x99573f];
       for (let r = 0, y = 0; y < h; r++, y += course) {
         const offset = (r % 2) * brickW / 2;
         for (let x = -brickW; x < w + brickW; x += brickW) {
@@ -146,8 +147,11 @@
       const tile = [2.4, 2.4];return {map: texture(c, tile), normal: texture(normalFrom(blurInto(height, .7), 2.5), tile, false)};
     });
     function brick() {const s = brickSet();return standard({map: s.map, normalMap: s.normal, normalScale: new T.Vector2(.9, .9), roughness: .92, metalness: 0});}
-    // Facade bays for surrounding buildings: four 3 m bays x one 2.85 m storey per texture.
+    // Facade bays for surrounding buildings: one 3 m bay x one 2.85 m storey of Torshov's dark red-brown brick with brown window frames,
+    // the same cell the neighbouring blocks use (CityTextures, issue #68); the older painting stays as a fallback.
     const facadeSet = () => memo('facade', () => {
+      const CT = typeof window !== 'undefined' && window.CityTextures;
+      if (CT) {const c = CT.create(T, renderer).cellCanvas('brick');return {map: texture(c.colour, [3, 2.85]), normal: texture(normalFrom(blurInto(c.height, .6), 2), [3, 2.85], false)};}
       const w = 1024, h = 244, c = canvas(w, h), ctx = c.getContext('2d'), height = canvas(w, h), hx = height.getContext('2d');
       brickPainter(ctx, w, h, hx, {course: 6.4, brickW: 25, mortar: 1.3});
       const bay = w / 4, mpp = 12 / w;
@@ -166,6 +170,8 @@
     });
     function facade() {const s = facadeSet();return standard({map: s.map, normalMap: s.normal, normalScale: new T.Vector2(.7, .7), roughness: .85, metalness: 0});}
     const plinthSet = () => memo('plinth', () => {
+      const CT = typeof window !== 'undefined' && window.CityTextures;
+      if (CT) return {map: texture(CT.create(T, renderer).cellCanvas('plinthConcrete').colour, [3, 1.425])};// grey concrete with basement windows (Street View)
       const w = 1024, h = 122, c = canvas(w, h), ctx = c.getContext('2d');brickPainter(ctx, w, h, null, {course: 6.4, brickW: 25, mortar: 1.3, palette: [0x7c4334, 0x87483a, 0x8f4f3b]});
       for (let i = 0; i < 4; i++) {const x = i * 256 + 98;ctx.fillStyle = '#3a3a36';ctx.fillRect(x, 30, 60, 34);ctx.fillStyle = '#8e9aa3';ctx.fillRect(x + 4, 34, 52, 26);}
       ctx.fillStyle = '#6d6a64';ctx.fillRect(0, h - 22, w, 22);
