@@ -32,6 +32,7 @@ On `main`:
 - Soundtrack: 2.5-minute open-world loop plus one loop per minigame and the mission; ambient sound by location.
 - Gamle Oslo, Ensjø and the way there: real streets, ground heights and about 7,900 buildings south of the old world (3.4 × 3.4 km, down Trondheimsveien to Bjørvika); churches, MUNCH, the Opera (walkable roof) and tall chimneys modelled; a timed Ensjø → Rathkes gate run (PR #48, issue #38).
 - Kayaking down Akerselva from three put-ins (Bjølsen, Sagene, Grünerløkka) to Vaterland: the real river, its falls and bridges (issue #45).
+- Nothing invisible stops you: you walk over the Akerselva bridges and along the banks under them, from Myrens on to Grünerløkka along the river, across the lawn over the catacomb, up to the trees in Torshov's corners and to the water's edge in Bjørvika; a low wooden fence marks the edge of the walkable world (issue #64).
 - Schous plass: playable table tennis against Ola; Deichman Grünerløkka with thousands of books, *The Inner Game of Tennis* and a readable *Moby-Dick*, and a librarian who shushes runners and loud voices (issues #44, #47).
 - Rathkes gate 1: the gate, the passage and the backyard with door 1C, ready for the second flat (issue #44, preparation).
 - Klatreverket Torshov at its real place (Myrens verksted 3K) in its real building: 14 m hall, 7 m overhanging competition wall, Galleriet, autobelay tower, bouldering on three floors, the training room with the Moonwall; reception with the real prices and rental; climb with L2 / R2 (bouldering, top rope with Siri belaying, lead with clips, autobelay), pump, falls on the rope, the brattkort test and belaying Siri.
@@ -46,6 +47,36 @@ On `main`:
 Live site: runs `main` (Worker version 281119ea, deployed 3 Nov 2026 after PR #75; `main` builds byte-for-byte to the live page), so everything above is online.
 
 ## Log
+
+### 2026-11-04 · No more invisible walls (issue #64)
+- **What:**
+  - A survey of the whole walkable world found every place where something stopped you with nothing drawn there: about 85,000 points (every 8 m in Torshov and Myrens, every 16 m in Gamle Oslo), a 1 m step in eight directions from each, what stopped the step, and whether anything is drawn there. These invisible walls are gone:
+    1. **Between Myrens and Gamle Oslo** an 80 m strip (west of the old square, where Akerselva runs from Sagene to Grünerløkka) was ground you could see but not enter: each map patch is walkable only to 40 m inside its own edges, and these two meet. A seam joins them now, and its trees and buildings are solid.
+    2. **All 46 Akerselva bridges.** The whole rectangle of a bridge counted as the ground, so walking along a bank you hit a wall where the deck was overhead (up to 3.6 m), and 43 of the 46 decks ended in a ledge you could not step onto (the lowered river bed had pulled the ground down at their ends). Now each deck reaches out until it meets the ground at both ends and is a floor of its own: you walk over it, and along the bank under it. Railings, and the underside of a deck too low to walk under, still stop you (you see them).
+    3. **The catacomb's three stairs.** Their side walls took the height of the mausoleum's roof along the whole 28–36 m stair, so six walls stood up to 4 m out of the lawn in Torshovdalen. Now each piece of wall follows its own step and never reaches above the ground.
+    4. **453 trees in Torshov's corners** (more than 820 m from home; the walkable area is a square out to 760 m), among them trees in Muselunden: they were drawn only for the distance, vanished when you came within 15 m, and still blocked you. They are drawn close up now.
+    5. **The edge of the walkable world** (about 16 km) was an invisible line in open ground. A low wooden fence stands on it now.
+    6. **Buildings dug into a slope** (37 with the ground next to them at or above the roof, 26 more within 1 m): a building blocked you up to 4 m above its roof, so on the uphill side you stopped in front of a roof at your feet. They block only up to the roof now (an edge under 10 cm high is stepped over).
+    7. **The sea in Bjørvika** blocked you up to 0.8 m above the water, so on low shores you stopped on dry ground, metres from the water. It now stops you where the ground goes under the drawn water.
+- **Why:** issue #64, "In some places it is impossible to walk/move like an invisible wall even though there is nothing around the user. Fix." (tester, 3 Nov 2026).
+- **Decided here:**
+  - The walkable world keeps its size; its edge gets a fence you can see (beyond it there is no detailed ground to walk on).
+  - Bridge decks run straight between the points where they meet the ground (at the real bridge's height, or the top of the bank, with ramps no steeper than 30 %) and stay at least 1.8 m over the water (2.2 m for roads). Vehicles still drive on the decks as before; walking uses the new deck floors.
+  - All bridge decks are one mesh and all railings another (138 meshes before).
+- **Where:**
+  - `surroundings.js`: `walkRects` and `openEdges` (pure), the seams in `terrainFloors()` and in the obstacles, the edge fence, trees drawn near in the whole walkable square, `buildingTop`, the sea's block height.
+  - `game-kayak.js`: `deckProfile` and `box` (pure), bridges as walk floors (`bridge.floor`, `bridge.surface`), railings and decks as 2 m obstacle pieces, merged deck and railing meshes.
+  - `game-main.js`: `terrainAt` (the ground without the decks) for walking, plus the deck floors; vehicles keep `groundAt`.
+  - `catacomb-layout.js`: stair walls one cell at a time, wall tops kept under the ground (`underGround`).
+  - Tests: `tests/invisible-walls.test.cjs` (new).
+- **Checked:**
+  - `node --test tests/*.cjs`: 143 pass (5 new).
+  - The survey, before and after: points where you were stopped with nothing drawn: 37 → 0 (the survey still flags four, but they are things you see: a bench by the fire pit, a roof edge 14 cm high, and the water at knee height on two low shores). The unwalkable strip and the invisible world edge are gone.
+  - Bridges: walking from one end to the other works 58 of 71 times (4 of 77 before); the others stop at a building at the far end or at the edge of the world. Walking along a bank under a bridge works 30 of 76 times (5 of 77 before); the others stop at a deck too low to walk under, at a bridge end on the bank, or at a tree.
+  - In the game loop (simulated controller): over the Marcus Thranes gate bridge on its deck, and along the bank under a footbridge 6.5 m up. Along Akerselva's right bank from Myrens into Grünerløkka across the old strip.
+  - Cost at six test views (home, Muselunden, the north edge, Bjølsen, the seam, Torshovdalen): +2 to +11 draw calls and +19,000 to +49,000 triangles per frame (+1–4 %): the fence (68 pieces, only those within 450 m are drawn), the corner trees and the bridge decks.
+  - Not checked: on the user's own PC and controller; online with others.
+- **Status:** branch `fix/invisible-walls`, pull request (not merged yet).
 
 ### 2026-11-03 · Forgot password and the email check (issue #55)
 - **What:**
