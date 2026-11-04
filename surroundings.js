@@ -68,7 +68,9 @@
   }
   // holes: rectangles of the local frame ({x0, s0, x1, s1}) kept free of trees and bushes (the paved paintball yard, the building site).
   function create({T, lib, data, renderer, onStatus = () => {}, holes = [], districts = []}) {
-    const DZ = (typeof window === 'undefined' ? globalThis : window).District;
+    const W = typeof window === 'undefined' ? globalThis : window, DZ = W.District;
+    // Shared ground detail and facade atlas (issues #67 and #68).
+    const CT = W.CityTextures, city = CT.create(T, renderer), looks = CT.looksOf(W.BUILDING_LOOKS);
     const near = new T.Group(), far = new T.Group();near.name = 'Surroundings (near)';far.name = 'Surroundings (far)';
     const ground = data.ground, theta = data.geo.theta, cT = Math.cos(theta), sT = Math.sin(theta);
     const geoFrame = parent => {const g = new T.Group();g.rotation.y = theta;g.position.set(data.geo.x, 0, data.geo.z);parent.add(g);return g;};
@@ -97,7 +99,7 @@
     }
     const yLocal = (x, s) => ground + relLocal(x, s);
     const heightWorld = (x, z) => {const l = toLocal(x, z);return yLocal(l.x, l.s);};
-    function terrainMesh(parent, extent, res, canvas, name, drop = 0, hole = 0, cut = []) {
+    function terrainMesh(parent, extent, res, canvas, name, drop = 0, hole = 0, cut = [], detail = true) {
       const count = Math.round(2 * extent / res) + 1, pos = new Float32Array(count * count * 3), uv = new Float32Array(count * count * 2), index = [];
       for (let j = 0; j < count; j++) for (let i = 0; i < count; i++) {
         const x = -extent + i * res, s = -extent + j * res, k = j * count + i;
@@ -109,23 +111,38 @@
       for (let j = 0; j < count - 1; j++) for (let i = 0; i < count - 1; i++) {if (inHole(i, j) || inCut(i, j)) continue;const a = j * count + i, b = a + 1, c = a + count, d = c + 1;index.push(a, c, b, b, c, d);}
       const g = new T.BufferGeometry();g.setAttribute('position', new T.BufferAttribute(pos, 3));g.setAttribute('uv', new T.BufferAttribute(uv, 2));g.setIndex(index);g.computeVertexNormals();
       const tex = new T.CanvasTexture(canvas);tex.colorSpace = T.SRGBColorSpace;tex.anisotropy = 8;
-      const m = new T.Mesh(g, new T.MeshStandardMaterial({map: tex, color: 0xa6a6a6, roughness: .97, metalness: 0, envMapIntensity: .35}));
-      m.receiveShadow = true;m.name = name;m.userData.grid = {x0: -extent, s0: -extent, step: res, nx: count, ns: count};parent.add(m);return {mesh: m, tex};
+      const mat = new T.MeshStandardMaterial({map: tex, color: 0xa6a6a6, roughness: .97, metalness: 0, envMapIntensity: .35});if (detail) city.ground(mat);
+      const m = new T.Mesh(g, mat);m.receiveShadow = true;m.name = name;m.userData.grid = {x0: -extent, s0: -extent, step: res, nx: count, ns: count};parent.add(m);return {mesh: m, tex};
     }
 
     // ---------- Map painting (offline ground texture) and surface classes ----------
     const colors = {grass: '#5d7a3a', wood: '#3f5a2c', playground: '#a8946a', pitch: '#4d7944', parking: '#6c6d6f', yard: '#9a958a', flowerbed: '#5e5136', water: '#4a6a80'};
     const roadOrder = ['footway', 'path', 'cycleway', 'steps', 'pedestrian', 'service', 'track', 'living_street', 'unclassified', 'residential', 'tertiary', 'secondary', 'primary', 'trunk_link', 'trunk', 'tram'];
     const isPath = k => ['footway', 'path', 'steps', 'cycleway', 'pedestrian', 'track'].includes(k);
+    // Issue #67: pavements of the car streets (light grey, with a granite kerb line at the road edge), gravel paths a little warmer than
+    // paved footways, asphalt cycleways, each grass or park area a slightly different green, and less pixel noise (the terrain shader
+    // adds the detail now). Pavement widths are typical for Oslo streets (Street View, 3 Nov 2026).
+    const SIDEWALK = {residential: 2.2, living_street: 1.4, unclassified: 1.8, tertiary: 2.8, tertiary_link: 2, secondary: 3, secondary_link: 2, primary: 3.2, primary_link: 2};
+    const pathColour = k => ({footway: '#a9a59b', path: '#aea38e', track: '#a99c84', bridleway: '#a99c84', cycleway: '#5f6062', steps: '#a09d96', pedestrian: '#a3a099'})[k] || '#a7a296';
+    // The same tone for an area in every painting (near, outer, far, and again when the aerial photo is switched off): keyed, not random.
+    const jitter = (hex, amount, key) => {const c = new T.Color(hex), f = 1 + (CT.hash(key * 2 + 1) - .5) * amount, g = 1 + (CT.hash(key * 2 + 2) - .5) * amount * .6;c.r *= f;c.g *= f * g;c.b *= f;return '#' + c.getHexString();};
+    function paintStreets(ctx, roads, P, k, classes) {
+      const line = (r, width, colour) => {ctx.strokeStyle = colour;ctx.lineWidth = width * k;ctx.lineCap = ctx.lineJoin = 'round';ctx.beginPath();for (let i = 0; i + 1 < r.p.length; i += 2) {const [x, y] = P(r.p[i], r.p[i + 1]);i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);}ctx.stroke();};
+      // Torshov, Sandaker, Myrens and Ensjø have asphalt pavements; Grünerløkka, Tøyen, Grønland, Kampen and Bjørvika granite slabs.
+      const slabs = r => ['lokka', 'toyen', 'gronland', 'kampen', 'bjorvika'].includes(CT.zoneAt(r.p[0], r.p[1]));
+      for (const r of roads) if (SIDEWALK[r.k]) line(r, r.w + 2 * SIDEWALK[r.k], classes ? '#020000' : slabs(r) ? '#a29f98' : '#646567');
+      for (const r of roads) if (SIDEWALK[r.k]) line(r, r.w + .5, classes ? '#020000' : '#aeaba3');
+    }
     function paint(size, ext, classes = false) {
       const c = document.createElement('canvas');c.width = c.height = size;const ctx = c.getContext('2d'), s = size / (2 * ext), P = (x, y) => [(x + ext) * s, (y + ext) * s];
       const col = (kind, normal) => classes ? ({grass: '#010000', asphalt: '#020000', gravel: '#030000', sand: '#040000', none: '#050000'})[kind] : normal;
       ctx.fillStyle = col('grass', '#62783f');ctx.fillRect(0, 0, size, size);
       const ring = (flat, color) => {ctx.fillStyle = color;ctx.beginPath();pairs(flat).forEach((p, i) => {const [x, y] = P(p[0], p[1]);i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);});ctx.closePath();ctx.fill();};
-      for (const a of data.areas) if (a.k === 'grass' || a.k === 'wood') ring(a.o, col('grass', colors[a.k]));
-      for (const a of data.areas) if (a.k !== 'grass' && a.k !== 'wood') ring(a.o, col(a.k === 'parking' ? 'asphalt' : a.k === 'playground' ? 'sand' : a.k === 'yard' ? 'gravel' : 'grass', colors[a.k] || '#888'));
+      data.areas.forEach((a, i) => {if (a.k === 'grass' || a.k === 'wood') ring(a.o, col('grass', jitter(colors[a.k], .16, i)));});
+      data.areas.forEach((a, i) => {if (a.k !== 'grass' && a.k !== 'wood') ring(a.o, col(a.k === 'parking' ? 'asphalt' : a.k === 'playground' ? 'sand' : a.k === 'yard' ? 'gravel' : 'grass', jitter(colors[a.k] || '#888', .1, i)));});
+      paintStreets(ctx, data.roads, P, s, classes);
       for (const r of data.roads.slice().sort((a, b) => roadOrder.indexOf(a.k) - roadOrder.indexOf(b.k))) {
-        ctx.strokeStyle = col(isPath(r.k) ? 'gravel' : 'asphalt', r.k === 'tram' ? '#5a5650' : isPath(r.k) ? '#a7a296' : '#4d4f52');ctx.lineWidth = r.w * s;ctx.lineCap = ctx.lineJoin = 'round';
+        ctx.strokeStyle = col(isPath(r.k) && r.k !== 'cycleway' ? 'gravel' : 'asphalt', r.k === 'tram' ? '#545556' : isPath(r.k) ? pathColour(r.k) : '#57595c');ctx.lineWidth = r.w * s;ctx.lineCap = ctx.lineJoin = 'round';
         ctx.beginPath();pairs(r.p).forEach((p, i) => {const [x, y] = P(p[0], p[1]);i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);});ctx.stroke();
       }
       const yard = data.courtyard;
@@ -133,7 +150,7 @@
       if (data.petanque) {const p = data.petanque, cx = Math.cos(p.rot), sx = Math.sin(p.rot);ring([[-1, -1], [1, -1], [1, 1], [-1, 1]].flatMap(([a, b]) => [p.x + cx * a * (p.length / 2 + .3) - sx * b * (p.width / 2 + .3), p.s + sx * a * (p.length / 2 + .3) + cx * b * (p.width / 2 + .3)]), col('gravel', '#c2b49a'));}
       for (const h of data.discgolf || []) {const [tx, ts] = h.tee;ctx.fillStyle = col('gravel', '#59544c');ctx.beginPath();const [px, py] = P(tx, ts);ctx.arc(px, py, 1.4 * s, 0, 7);ctx.fill();}
       for (const b of data.buildings) ring(b.r.o, col('none', '#5a5652'));
-      if (!classes) {const img = ctx.getImageData(0, 0, size, size), d = img.data;for (let i = 0; i < d.length; i += 4) {const n = (lib.rand() - .5) * 26;d[i] += n;d[i + 1] += n;d[i + 2] += n;}ctx.putImageData(img, 0, 0);}
+      if (!classes) {const img = ctx.getImageData(0, 0, size, size), d = img.data;for (let i = 0; i < d.length; i += 4) {const n = (lib.rand() - .5) * 12;d[i] += n;d[i + 1] += n;d[i + 2] += n;}ctx.putImageData(img, 0, 0);}
       return c;
     }
     const NEAR_EXT = 300, FAR_EXT = 800;// the terrain data reaches ±800 m
@@ -149,7 +166,7 @@
     const nearTerrain = terrainMesh(geoNear, NEAR_EXT, 4, nearPaint, 'Terrain (near)', 0, 0, holes.filter(h => h.cutGround));
     // Walkable ground from ±300 m out to ±PLAY_HALF: same 4 m grid as the walking surface, so what you see is what you stand on.
     const outerTerrain = terrainMesh(geoNear, PLAY_HALF, 4, outerPaint, 'Terrain (outer)', 0, NEAR_EXT, holes.filter(h => h.cutGround));
-    const farTerrain = terrainMesh(geoFar, FAR_EXT, 8, farPaint, 'Terrain (district)', .5);
+    const farTerrain = terrainMesh(geoFar, FAR_EXT, 8, farPaint, 'Terrain (district)', .5, 0, [], false);
     // Beyond the mapped district: a generic Oslo townscape tile (blocks of roofs, streets, gardens and parks), repeated about every
     // 1.5 km, so the land seen from the aircraft is not one flat colour. The inner Oslofjord lies about 3 km to the south.
     const horizonCanvas = document.createElement('canvas');horizonCanvas.width = horizonCanvas.height = 512;
@@ -217,7 +234,8 @@
     function finish(b) {
       if (!b.pos.length) return null;
       const g = new T.BufferGeometry();g.setAttribute('position', new T.Float32BufferAttribute(b.pos, 3));g.setAttribute('normal', new T.Float32BufferAttribute(b.nor, 3));
-      g.setAttribute('uv', new T.Float32BufferAttribute(b.uv, 2));if (b.col.length) g.setAttribute('color', new T.Float32BufferAttribute(b.col, 3));g.setIndex(b.index);g.computeBoundingSphere();return g;
+      g.setAttribute('uv', new T.Float32BufferAttribute(b.uv, 2));if (b.col.length) g.setAttribute('color', new T.Float32BufferAttribute(b.col, 3));
+      if (b.cell && b.cell.length) {g.setAttribute('aCell', new T.Float32BufferAttribute(b.cell, 3));g.setAttribute('aTint', new T.Float32BufferAttribute(b.tint, 3));}g.setIndex(b.index);g.computeBoundingSphere();return g;
     }
     function quad(b, a, c, y0, y1, u0, u1, v0, v1, color) {
       const dx = c[0] - a[0], dz = c[1] - a[1], len = Math.hypot(dx, dz) || 1, nx = -dz / len, nz = dx / len, base = b.pos.length / 3;
@@ -250,25 +268,84 @@
         b.index.push(base, base + 1, base + 2);if (pts.length === 4) b.index.push(base, base + 2, base + 3);
       }
     }
-    const makeSet = () => ({facade: builder(), plinth: builder(), plaster: builder(), roof: builder(), shed: builder()});
-    const nearCells = new Map(), farSet = makeSet(), cellKey = (x, s) => `${Math.floor((x + CELL / 2) / CELL)},${Math.floor((s + CELL / 2) / CELL)}`;
-    const nearCell = (x, s) => {const k = cellKey(x, s);if (!nearCells.has(k)) nearCells.set(k, makeSet());return nearCells.get(k);};
-    const plasterColors = [0xe3dccb, 0xd8cfbd, 0xcdd2cb, 0xe6e0d4, 0xd9c7a8];
+    // Facades (issue #68): every building gets a look (CityTextures.classify: its type, height, place and OSM tags) and its walls
+    // are cut into plinth / ground-floor / storey / cornice bands that pick cells of one shared atlas, so a tile of buildings is
+    // one mesh with one material (walls and roofs). Far away the same looks are vertex colours.
+    const cityMat = city.material(), farMat = new T.MeshStandardMaterial({vertexColors: true, roughness: .9, metalness: 0});
+    const cityBuilder = () => ({pos: [], nor: [], uv: [], col: [], cell: [], tint: [], index: []});
+    // Give the vertices added by fn() their atlas cell, tint and building seed (and scale their UVs to cell units).
+    function attrs(b, fn, cell, mode, seed, tint, us = 1, vs = 1) {
+      const n0 = b.pos.length / 3;fn();const n1 = b.pos.length / 3, i = CT.CELLS[cell].i;
+      for (let k = n0; k < n1; k++) {b.uv[k * 2] *= us;b.uv[k * 2 + 1] *= vs;b.cell.push(i, mode, seed);b.tint.push(tint.r, tint.g, tint.b);}
+    }
+    // Ground-floor shops and cafés (OSM nodes): each marks the nearest wall of the building it is in or next to (within 6 m).
+    const shopGrid = new Map();
+    for (let k = 0; k + 1 < looks.shops?.length; k += 2) {const x = looks.shops[k], s = looks.shops[k + 1], key = `${Math.floor(x / 50)},${Math.floor(s / 50)}`;if (!shopGrid.has(key)) shopGrid.set(key, []);shopGrid.get(key).push([x, s]);}
+    const segDist = (p, a, c) => {const dx = c[0] - a[0], ds = c[1] - a[1], t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * ds) / (dx * dx + ds * ds || 1)));return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * ds);};
+    const insideRing = (p, ring) => {let r = false;for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {const a = ring[i], c = ring[j];if ((a[1] > p[1]) !== (c[1] > p[1]) && p[0] < (c[0] - a[0]) * (p[1] - a[1]) / (c[1] - a[1]) + a[0]) r = !r;}return r;};
+    function shopEdges(ring) {
+      let x0 = Infinity, s0 = Infinity, x1 = -Infinity, s1 = -Infinity;for (const [x, s] of ring) {x0 = Math.min(x0, x);x1 = Math.max(x1, x);s0 = Math.min(s0, s);s1 = Math.max(s1, s);}
+      const marked = new Set();
+      for (let i = Math.floor((x0 - 6) / 50); i <= Math.floor((x1 + 6) / 50); i++) for (let j = Math.floor((s0 - 6) / 50); j <= Math.floor((s1 + 6) / 50); j++) for (const p of shopGrid.get(`${i},${j}`) || []) {
+        if (p[0] < x0 - 6 || p[0] > x1 + 6 || p[1] < s0 - 6 || p[1] > s1 + 6) continue;
+        let best = -1, bd = 6;ring.forEach((a, e) => {const d = segDist(p, a, ring[(e + 1) % ring.length]);if (d < bd || (best < 0 && insideRing(p, ring) && d < 40)) {bd = d;best = e;}});
+        if (best >= 0) marked.add(best);
+      }
+      return marked;
+    }
+    // Walls of one building in the atlas builder (near) and in a vertex-coloured builder (far).
+    function cityWalls(b, ring, look, bottom, g0, top, tint, seed) {
+      const cw = signedArea(ring) > 0, r = cw ? ring.slice().reverse() : ring, shops = shopEdges(ring), n = r.length;
+      const hasShop = shops.size > 0 && look.shops !== false, L = hasShop ? CT.shopLook(look) : look, plain = CT.wallBands(L, g0, bottom, top, false), shop = hasShop ? CT.wallBands(L, g0, bottom, top, true) : plain;
+      for (let i = 0; i < n; i++) {
+        const a = r[i], c = r[(i + 1) % n], len = Math.hypot(c[0] - a[0], c[1] - a[1]);if (len < .02) continue;
+        const e = cw ? (n - 2 - i + n) % n : i;// the same edge in the unreversed ring
+        for (const band of shops.has(e) ? shop : plain) attrs(b, () => quad(b, a, c, band.y0, band.y1, 0, CT.edgeU(len, band.bay), band.v0, band.v1), band.cell, band.mode, seed, tint);
+      }
+    }
+    // The wall above a shop cut into a district building (Kiwi Storgata, game-shops.js), in the building's own look: the front edge
+    // p0 -> p1 of the notch (local x, s, in the ring's order) from height y0 up to the roof. Added to the near buildings.
+    function facadeFill(b, p0, p1, y0) {
+      if (!b || !b.city) return null;
+      const {look, tint, seed} = b.city, set = cityBuilder(), [a, c] = signedArea(b.ring) > 0 ? [p1, p0] : [p0, p1], len = Math.hypot(c[0] - a[0], c[1] - a[1]);
+      for (const band of CT.wallBands(look, b.base, b.bottom, b.top, false)) {
+        const lo = Math.max(band.y0, y0), hi = Math.min(band.y1, b.top);if (hi - lo < .01) continue;
+        const v = y => band.v0 + (band.v1 - band.v0) * (y - band.y0) / (band.y1 - band.y0);
+        attrs(set, () => quad(set, a, c, lo, hi, 0, CT.edgeU(len, band.bay), v(lo), v(hi)), band.cell, band.mode, seed, tint);
+      }
+      const m = add(geoNear, finish(set), cityMat);if (m) {m.name = 'Buildings (wall above a shop)';m.userData.noMerge = true;}
+      return m;
+    }
+    const roofTile = cell => [1 / CT.CELLS[cell].w, 1 / CT.CELLS[cell].h];
+    function cityRoof(b, ring, hip, top, look, seed) {
+      const t = new T.Color(look.roofTint), [us, vs] = roofTile(look.roof), i0 = b.index.length;
+      attrs(b, () => hip ? hipRoof(b, hip, top) : cap(b, ring, null, top), look.roof, 0, seed, t, us, vs);
+      // The atlas material is single-sided: turn a flat roof's triangles to face up if the outline ran the other way.
+      if (!hip && b.index.length > i0) {
+        const P = k => [b.pos[k * 3], b.pos[k * 3 + 2]], [a, c, d] = [P(b.index[i0]), P(b.index[i0 + 1]), P(b.index[i0 + 2])];
+        if ((c[1] - a[1]) * (d[0] - a[0]) - (c[0] - a[0]) * (d[1] - a[1]) < 0) for (let k = i0; k < b.index.length; k += 3) {const tmp = b.index[k + 1];b.index[k + 1] = b.index[k + 2];b.index[k + 2] = tmp;}
+      }
+    }
+    function farBuilding(f, ring, hip, look, bottom, top, tint) {
+      walls(f, ring, bottom, top, 0, city.farColour(look.upper, tint));
+      const rc = city.farColour(look.roof, new T.Color(look.roofTint)), n0 = f.pos.length / 3;
+      if (hip) {hipRoof(f, hip, top);for (let k = n0; k < f.pos.length / 3; k++) f.col.push(rc.r, rc.g, rc.b);} else cap(f, ring, null, top, rc);
+    }
+    const lookCount = {}, hashSeed = n => CT.hash(n * 7919 + 17);
+    const keepBrick = new Set((W.GameShops?.SHOPS || []).map(s => s.building));// the shop fills use lib.facade (district shops: facadeFill)
+    const nearCells = new Map(), farSet = cityBuilder(), cellKey = (x, s) => `${Math.floor((x + CELL / 2) / CELL)},${Math.floor((s + CELL / 2) / CELL)}`;
+    const nearCell = (x, s) => {const k = cellKey(x, s);if (!nearCells.has(k)) nearCells.set(k, cityBuilder());return nearCells.get(k);};
     data.buildings.forEach((b, i) => {
       const ring = pairs(b.r.o), cx = ring.reduce((s, p) => s + p[0], 0) / ring.length, cs = ring.reduce((s, p) => s + p[1], 0) / ring.length;
       const g0 = ground + (b.g || 0), bottom = ground + (b.gm ?? b.g ?? 0) - .6, top = g0 + b.h;
       b.base = g0;b.top = top;b.bottom = bottom;
-      const targets = Math.hypot(cx, cs) < NEAR_REACH ? [farSet, nearCell(cx, cs)] : [farSet];
-      for (const set of targets) {
-        if (b.s === 'brick') {
-          walls(set.plinth, ring, bottom, Math.min(g0 + data.plinth, top), g0);
-          if (top > g0 + data.plinth) walls(set.facade, ring, g0 + data.plinth, top, g0 + data.plinth);
-          if (b.k) hipRoof(set.roof, pairs(b.k), top);else cap(set.roof, ring, null, top);
-        } else {
-          const color = new T.Color(b.s === 'shed' ? 0x8d7f6d : b.c || plasterColors[i % plasterColors.length]);
-          walls(b.s === 'shed' ? set.shed : set.plaster, ring, bottom, top, g0, color);cap(set.roof, ring, null, top);
-        }
-      }
+      const tags = looks.old(i) || {}, keep = b.enter !== undefined || keepBrick.has(i) ? 'brick' : null;
+      const look = CT.classify({style: b.s, kind: tags.kind || (b.s === 'brick' ? 'apartments' : ''), h: b.h, x: cx, s: cs, colour: tags.colour || b.c, roofColour: tags.roofColour, roofShape: tags.roofShape,
+        material: tags.material, year: tags.year, heritage: tags.heritage, architect: tags.architect, seed: i + 1, keep});
+      b.look = look.cls;lookCount[look.cls] = (lookCount[look.cls] || 0) + 1;
+      const tint = new T.Color(look.tint), seed = hashSeed(i + 1), hip = b.k ? pairs(b.k) : null;
+      if (Math.hypot(cx, cs) < NEAR_REACH) {const set = nearCell(cx, cs);cityWalls(set, ring, look, bottom, g0, top, tint, seed);cityRoof(set, ring, hip, top, look, seed);}
+      farBuilding(farSet, ring, hip, look, bottom, top, tint);
     });
     const own = data.own, ownSet = {facade: builder(), plinth: builder(), roof: builder()}, plinthTop = ground + data.plinth;
     const ownBottom = ground + Math.min(...pairs(data.ownLocal).map(p => relLocal(p[0], p[1]))) - .6;
@@ -276,18 +353,12 @@
     for (const part of own.band) walls(ownSet.facade, pairs(part.o), -.16, own.bandTop, plinthTop);
     for (const part of own.upper) {walls(ownSet.facade, pairs(part.o), own.bandTop, own.top, plinthTop);cap(ownSet.roof, pairs(part.o), part.h.map(pairs), own.top);}
     for (const r of own.roof) hipRoof(ownSet.roof, pairs(r), own.top);
-    const facadeMat = lib.facade(), plinthMat = lib.plinth(), roofMat = lib.roof(), plasterMat = lib.plaster(0xd9d2c3), shedMat = lib.wood(0x7a6a58, .8);
-    plasterMat.vertexColors = shedMat.vertexColors = true;plasterMat.color.setScalar(.85);shedMat.color.set(0xffffff);
-    roofMat.side = T.DoubleSide;facadeMat.color.setScalar(.78);plinthMat.color.setScalar(.75);
+    // The own building keeps its own materials (lib.facade / lib.plinth are painted from the same atlas cells as its neighbours).
+    const facadeMat = lib.facade(), plinthMat = lib.plinth(), roofMat = lib.roof();roofMat.side = T.DoubleSide;
     const add = (parent, geometry, material, shadows = true) => {if (!geometry) return null;const m = new T.Mesh(geometry, material);m.castShadow = m.receiveShadow = shadows;parent.add(m);return m;};
-    const addSet = (parent, set, shadows, tile) => {
-      for (const [geometry, material] of [[set.facade, facadeMat], [set.plinth, plinthMat], [set.roof, roofMat], [set.plaster, plasterMat], [set.shed, shedMat]]) {
-        const m = add(parent, finish(geometry), material, shadows);if (m && tile) {m.name = 'Buildings (tile)';m.userData.noMerge = true;}
-      }
-    };
     // Near buildings stay in 270 m tiles (not merged together) so the camera and the sun's shadow pass skip tiles out of view.
-    for (const set of nearCells.values()) addSet(geoNear, set, true, true);
-    addSet(geoFar, farSet, false, false);
+    for (const set of nearCells.values()) {const m = add(geoNear, finish(set), cityMat);if (m) {m.name = 'Buildings (tile)';m.userData.noMerge = true;}}
+    {const m = add(geoFar, finish(farSet), farMat, false);if (m) m.name = 'Buildings (far)';}
     const ownGroup = new T.Group();ownGroup.name = 'Haarklous plass 17 (own building)';near.add(ownGroup);
     add(ownGroup, finish(ownSet.facade), facadeMat);add(ownGroup, finish(ownSet.plinth), plinthMat);add(ownGroup, finish(ownSet.roof), roofMat);
 
@@ -342,7 +413,7 @@
     async function setImagery(on) {
       const token = ++imageryToken;
       patchesImagery(on, token);
-      if (!on) {restore(nearPaint, nearBase);restore(outerPaint, outerBase);restore(farPaint, farBase);nearTerrain.tex.needsUpdate = outerTerrain.tex.needsUpdate = farTerrain.tex.needsUpdate = true;horizonMat.map = horizonTex;horizonMat.needsUpdate = true;imageryState = 'off';onStatus('Map-based ground (aerial imagery off).');return;}
+      if (!on) {restore(nearPaint, nearBase);restore(outerPaint, outerBase);restore(farPaint, farBase);nearTerrain.tex.needsUpdate = outerTerrain.tex.needsUpdate = farTerrain.tex.needsUpdate = true;horizonMat.map = horizonTex;horizonMat.needsUpdate = true;imageryState = 'off';city.setPhoto(false);onStatus('Map-based ground (aerial imagery off).');return;}
       if (typeof navigator !== 'undefined' && navigator.onLine === false) {imageryState = 'offline';onStatus('Offline: map-based ground. Aerial imagery loads when online.');return;}
       imageryState = 'loading';onStatus('Loading aerial imagery…');
       const [nearTiles, outerTiles, farTiles, horizonTiles] = await Promise.all([loadTiles(18, NEAR_EXT, token), loadTiles(17, PLAY_HALF, token), loadTiles(15, FAR_EXT, token), loadTiles(12, 9000, token)]);
@@ -352,7 +423,7 @@
       if (outerTiles.loaded > outerTiles.failed) {drawInto(outerPaint, PLAY_HALF, outerTiles, true);fillShadows(outerPaint, outerBase);maskLean(outerPaint, outerBase, PLAY_HALF);}
       drawInto(farPaint, FAR_EXT, farTiles, true);fillShadows(farPaint, farBase);
       if (horizonTiles.loaded > horizonTiles.failed) {const c = horizonImg.getContext('2d');c.drawImage(horizonCanvas, 0, 0, 2048, 2048);drawInto(horizonImg, 9000, horizonTiles, true);horizonImgTex.needsUpdate = true;horizonMat.map = horizonImgTex;horizonMat.needsUpdate = true;}
-      nearTerrain.tex.needsUpdate = outerTerrain.tex.needsUpdate = farTerrain.tex.needsUpdate = true;imageryState = 'on';onStatus('Aerial imagery: Esri World Imagery (loaded live, not stored).');
+      nearTerrain.tex.needsUpdate = outerTerrain.tex.needsUpdate = farTerrain.tex.needsUpdate = true;imageryState = 'on';city.setPhoto(true);onStatus('Aerial imagery: Esri World Imagery (loaded live, not stored).');
     }
 
     // ---------- Trees and bushes ----------
@@ -455,15 +526,16 @@
       const col = (kind, normal) => classes ? ({grass: '#010000', asphalt: '#020000', gravel: '#030000', sand: '#040000', none: '#050000'})[kind] : normal;
       ctx.fillStyle = col('grass', '#6c7559');ctx.fillRect(0, 0, size, size);
       const ring = (flat, color) => {ctx.fillStyle = color;ctx.beginPath();for (let i = 0; i < flat.length; i += 2) {const [x, y] = P(flat[i], flat[i + 1]);i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);}ctx.closePath();ctx.fill();};
-      for (const a of d.areas) ring(a.o, col(patchClass[a.k] || 'grass', patchColors[a.k] || '#888'));
+      d.areas.forEach((a, i) => ring(a.o, col(patchClass[a.k] || 'grass', jitter(patchColors[a.k] || '#888', .14, i + 7919))));
+      paintStreets(ctx, d.roads, P, kx, classes);
       for (const r of d.roads.slice().sort((a, b) => patchRoadOrder.indexOf(a.k) - patchRoadOrder.indexOf(b.k))) {
-        ctx.strokeStyle = col(isPath(r.k) || r.k === 'rail' ? 'gravel' : 'asphalt', r.k === 'tram' || r.k === 'rail' ? '#5a5650' : isPath(r.k) ? '#a7a296' : '#4d4f52');ctx.lineWidth = r.w * kx;ctx.lineCap = ctx.lineJoin = 'round';
+        ctx.strokeStyle = col((isPath(r.k) && r.k !== 'cycleway') || r.k === 'rail' ? 'gravel' : 'asphalt', r.k === 'rail' ? '#6a6259' : r.k === 'tram' ? '#545556' : isPath(r.k) ? pathColour(r.k) : '#57595c');ctx.lineWidth = r.w * kx;ctx.lineCap = ctx.lineJoin = 'round';
         ctx.beginPath();for (let i = 0; i < r.p.length; i += 2) {const [x, y] = P(r.p[i], r.p[i + 1]);i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);}ctx.stroke();
       }
       for (const s of d.sea) ring(s, col('grass', '#3e5d70'));
       for (const b of d.buildings) ring(b.ring.flat(), col('none', '#5a5652'));
       for (const l of d.landmarks) ring(l.ring, col('none', '#5a5652'));
-      if (!classes) {const img = ctx.getImageData(0, 0, size, size), px = img.data;for (let i = 0; i < px.length; i += 4) {const n = (lib.rand() - .5) * 26;px[i] += n;px[i + 1] += n;px[i + 2] += n;}ctx.putImageData(img, 0, 0);}
+      if (!classes) {const img = ctx.getImageData(0, 0, size, size), px = img.data;for (let i = 0; i < px.length; i += 4) {const n = (lib.rand() - .5) * 12;px[i] += n;px[i + 1] += n;px[i + 2] += n;}ctx.putImageData(img, 0, 0);}
       return c;
     }
     // Ground on a regular grid with normals from the height data itself, so neighbouring tiles light the same at their seams.
@@ -484,22 +556,12 @@
       const g = new T.BufferGeometry();g.setAttribute('position', new T.BufferAttribute(pos, 3));g.setAttribute('normal', new T.BufferAttribute(nor, 3));g.setAttribute('uv', new T.BufferAttribute(uv, 2));g.setIndex(index);g.computeBoundingSphere();
       const m = new T.Mesh(g, material);m.receiveShadow = true;m.name = name;m.userData.noMerge = true;m.userData.grid = {x0, s0, step: res, nx: ni + 1, ns: nj + 1, ownNormals: true};return m;
     }
-    const texFrom = (w, h, draw, mw, mh) => {const c = document.createElement('canvas');c.width = w;c.height = h;draw(c.getContext('2d'), w, h);const t = new T.CanvasTexture(c);t.colorSpace = T.SRGBColorSpace;t.wrapS = t.wrapT = T.RepeatWrapping;t.repeat.set(1 / mw, 1 / mh);t.anisotropy = 8;return t;};
-    // Plaster with four windows per 12 m and storey (3 m); glass bands with mullions every 1.5 m (3.6 m storeys); ribbed metal.
-    const winTex = texFrom(512, 128, (x, w, h) => {x.fillStyle = '#ece7dc';x.fillRect(0, 0, w, h);for (let i = 0; i < 4; i++) {const bx = i * 128;x.fillStyle = '#f7f4ee';x.fillRect(bx + 36, 18, 56, 80);x.fillStyle = '#34404a';x.fillRect(bx + 40, 22, 48, 72);x.fillStyle = '#5d6a74';x.fillRect(bx + 63, 22, 2, 72);x.fillRect(bx + 40, 50, 48, 2);x.fillStyle = '#d9d3c6';x.fillRect(bx + 34, 98, 60, 5);}}, 12, 3);
-    const modernTex = texFrom(256, 128, (x, w, h) => {const g = x.createLinearGradient(0, 30, 0, h);g.addColorStop(0, '#7d93a5');g.addColorStop(1, '#465a6c');x.fillStyle = '#d4d8dc';x.fillRect(0, 0, w, h);x.fillStyle = g;x.fillRect(0, 30, w, h - 30);x.fillStyle = '#2b333b';for (let i = 0; i < w; i += 64) x.fillRect(i, 30, 3, h - 30);x.fillRect(0, 30, w, 2);}, 6, 3.6);
-    const ribTex = texFrom(128, 128, (x, w, h) => {for (let i = 0; i < w; i += 8) {x.fillStyle = i % 16 ? '#c4c8ca' : '#e4e7e8';x.fillRect(i, 0, 8, h);}x.fillStyle = 'rgba(0,0,0,.25)';x.fillRect(0, 0, w, 3);}, 2, 3);
-    const patchMats = {plaster: new T.MeshStandardMaterial({map: winTex, vertexColors: true, roughness: .9, metalness: 0}), modern: new T.MeshStandardMaterial({map: modernTex, vertexColors: true, roughness: .35, metalness: .35}),
-      industrial: new T.MeshStandardMaterial({map: ribTex, vertexColors: true, roughness: .6, metalness: .3}), far: new T.MeshStandardMaterial({vertexColors: true, roughness: .9, metalness: 0}),
-      water: new T.MeshStandardMaterial({color: 0x3e5d70, roughness: .15, metalness: .2, side: T.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2})};// always in front of the sea-level ground under it
+    const patchMats = {water: new T.MeshStandardMaterial({color: 0x3e5d70, roughness: .15, metalness: .2, side: T.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2})};// always in front of the sea-level ground under it
     const groundOf = canvas => {const tex = new T.CanvasTexture(canvas);tex.colorSpace = T.SRGBColorSpace;tex.anisotropy = 8;return {tex, mat: new T.MeshStandardMaterial({map: tex, color: 0xa6a6a6, roughness: .97, metalness: 0, envMapIntensity: .35})};};
-    const tint = {brick: [0x9a6a55, 0x8f5d4b, 0xa47462, 0x87604f], plaster: [0xe3dccb, 0xd8cfbd, 0xcdd2cb, 0xe6e0d4, 0xd9c7a8, 0xdcc292, 0xcfae95, 0xe4d6a8], shed: [0x8d7f6d],
-      modern: [0xffffff, 0xdfe6ee, 0xcfd6dc, 0xe8e2d8], industrial: [0xd8dcde, 0xbfc5c9, 0xc4b9a8, 0xaab4b8]};
-    const pick = (list, i) => new T.Color(list[i % list.length]), farRoof = new T.Color(0x5f6466);
     const patches = districts.map(d => {
       const P = {d, farTrees: [], nearImagery: 'none'}, W = d.x1 - d.x0, H = d.s1 - d.s0;
       P.nearSize = Math.min(4096, 2 ** Math.ceil(Math.log2(Math.max(W, H) / .8)));P.farSize = Math.min(2048, P.nearSize / 2);
-      P.near = groundOf(paintPatch(d, P.nearSize));P.far = groundOf(paintPatch(d, P.farSize));
+      P.near = groundOf(paintPatch(d, P.nearSize));P.far = groundOf(paintPatch(d, P.farSize));city.ground(P.near.mat);
       for (let tx = d.x0; tx < d.x1 - 1e-6; tx += PATCH_TILE) for (let ts = d.s0; ts < d.s1 - 1e-6; ts += PATCH_TILE) {
         const m = patchGround(d, tx, ts, Math.min(d.x1, tx + PATCH_TILE), Math.min(d.s1, ts + PATCH_TILE), d.step, P.near.mat, 'Terrain (district near)', 0, PLAY_HALF);if (m) geoNear.add(m);
       }
@@ -508,23 +570,26 @@
       P.classSize = classSize;P.classes = new Uint8Array(classSize * classSize);for (let i = 0; i < P.classes.length; i++) P.classes[i] = cls[i * 4];
       // Buildings.
       const nearTiles = new Map(), farTiles = new Map(), tilesX = d.raw.tiles.nx;
-      const nearSet = t => {if (!nearTiles.has(t)) nearTiles.set(t, {facade: builder(), plinth: builder(), roof: builder(), plaster: builder(), shed: builder(), modern: builder(), industrial: builder()});return nearTiles.get(t);};
+      const nearSet = t => {if (!nearTiles.has(t)) nearTiles.set(t, cityBuilder());return nearTiles.get(t);};
       const farSet = t => {const k = `${Math.floor((t % tilesX) / 2)},${Math.floor(Math.floor(t / tilesX) / 2)}`;if (!farTiles.has(k)) farTiles.set(k, builder());return farTiles.get(k);};
+      const STYLE_KIND = {brick: 'apartments', shed: 'shed', industrial: 'industrial', modern: '', plaster: ''};
       d.buildings.forEach((b, i) => {
         const ring = b.ring;if (ring.length < 3) return;
         let cx = 0, cs = 0, gm = Infinity;for (const p of ring) {cx += p[0];cs += p[1];gm = Math.min(gm, relLocal(p[0], p[1]));}cx /= ring.length;cs /= ring.length;
         const g0 = ground + relLocal(cx, cs), bottom = ground + Math.min(gm, b.gm ?? Infinity) - .6, top = g0 + b.h, set = nearSet(b.tile), f = farSet(b.tile);
-        // tint: the wall colour (a shop cut into the building rebuilds the wall above it in the same material, game-shops.js).
-        Object.assign(b, {cx, cs, base: g0, bottom, top, tint: tint[b.style] ? pick(tint[b.style], i).getHex() : null});
-        if (b.style === 'brick') {
-          walls(set.plinth, ring, bottom, Math.min(g0 + data.plinth, top), g0);if (top > g0 + data.plinth) walls(set.facade, ring, g0 + data.plinth, top, g0 + data.plinth);
-          if (b.hip) hipRoof(set.roof, b.hip, top);else cap(set.roof, ring, null, top);
-        } else {walls(set[b.style], ring, bottom, top, g0, pick(tint[b.style], i));cap(set.roof, ring, null, top);}
-        walls(f, ring, bottom, top, g0, pick(tint[b.style], i));cap(f, ring, null, top, farRoof);
+        Object.assign(b, {cx, cs, base: g0, bottom, top});
+        const tags = looks.byId(b.id) || {}, num = parseInt(String(b.id).slice(1), 10) || i + 1;
+        let look = CT.classify({style: b.style, kind: tags.kind || STYLE_KIND[b.style] || '', h: b.h, x: cx, s: cs, colour: tags.colour, roofColour: tags.roofColour, roofShape: tags.roofShape,
+          material: tags.material, year: tags.year, heritage: tags.heritage, architect: tags.architect, seed: num});
+        // A shop modelled in this building (Kiwi Storgata, game-shops.js) gets no painted shop fronts; facadeFill draws the wall above it.
+        if (keepBrick.has(b.id)) look = {...look, shops: false};
+        b.look = look.cls;lookCount[look.cls] = (lookCount[look.cls] || 0) + 1;
+        const tint = new T.Color(look.tint), seed = hashSeed(num);b.city = {look, tint, seed};
+        cityWalls(set, ring, look, bottom, g0, top, tint, seed);cityRoof(set, ring, b.hip, top, look, seed);
+        farBuilding(f, ring, null, look, bottom, top, tint);
       });
-      const mats = {facade: facadeMat, plinth: plinthMat, roof: roofMat, plaster: patchMats.plaster, shed: shedMat, modern: patchMats.modern, industrial: patchMats.industrial};
-      for (const set of nearTiles.values()) for (const k of Object.keys(mats)) {const m = add(geoNear, finish(set[k]), mats[k]);if (m) {m.name = 'Buildings (district tile)';m.userData.noMerge = true;}}
-      for (const set of farTiles.values()) {const m = add(geoFar, finish(set), patchMats.far, false);if (m) m.name = 'Buildings (district far)';}
+      for (const set of nearTiles.values()) {const m = add(geoNear, finish(set), cityMat);if (m) {m.name = 'Buildings (district tile)';m.userData.noMerge = true;}}
+      for (const set of farTiles.values()) {const m = add(geoFar, finish(set), farMat, false);if (m) m.name = 'Buildings (district far)';}
       // Trees: near tiles with full crowns; far tiles with light crowns, shown only within FAR_TREE_REACH of the camera.
       const treeTiles = new Map(), farTreeTiles = new Map(), tileOf = (x, s) => Math.floor((x - d.x0) / PATCH_TILE) + Math.floor((s - d.s0) / PATCH_TILE) * 1000;
       for (const t of d.trees) {
@@ -752,7 +817,7 @@
     }
 
     return {near, far, setImagery, setSun, setOvercast, get imageryState() {return imageryState;}, attribution: data.attribution, ground, heightWorld, toLocal, toWorld, terrainFloor, terrainFloors, obstacles, surfaceAt, trafficDistance, greenery, data, playHalf: PLAY_HALF, trees: allTrees,
-      districts: patches.map(P => P.d), get districtImagery() {return patches.map(P => P.nearImagery);}, update, yLocal, geoNear, geoFar, patchMaterials: {...patchMats, facade: facadeMat, plinth: plinthMat, roof: roofMat}};
+      districts: patches.map(P => P.d), get districtImagery() {return patches.map(P => P.nearImagery);}, update, yLocal, geoNear, geoFar, looks: lookCount, city, facadeFill};
   }
   return {create, walkRects, openEdges, PLAY_HALF};
 });

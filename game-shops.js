@@ -106,7 +106,7 @@
     const group = new T.Group();group.name = 'Shops';
     const floors = [], obstacles = [], hitboxes = [], built = [];
     const avatars = window.GameAvatars ? window.GameAvatars.create({T, lib}) : null;
-    const facadeMat = lib.facade(), plinthMat = lib.plinth(), roofMat = lib.roof();facadeMat.color.setScalar(.78);plinthMat.color.setScalar(.75);
+    const facadeMat = lib.facade(), plinthMat = lib.plinth(), roofMat = lib.roof();// the same atlas cells as the building around the shop (issue #68)
     const tileM = lib.floorTiles(), wallM = lib.plaster(0xf2f1ec), ceilM = new T.MeshStandardMaterial({color: 0xf4f4f2, roughness: .9});
     const aluM = lib.metal(0x5b6066, .35), glassM = new T.MeshPhysicalMaterial({color: 0xbfd3dc, transparent: true, opacity: .22, roughness: .04, metalness: .1, side: T.DoubleSide, depthWrite: false});
     const shelfM = lib.metal(0xd9dbdd, .45), darkM = lib.polymer(0x232528), fridgeM = new T.MeshStandardMaterial({color: 0xe9ecee, roughness: .4, metalness: .2});
@@ -135,12 +135,12 @@
       // Facade above the shop (same brick as the building) and, on a flat roof, the roof over the notch.
       const fillH = top - floorY - storeTop;
       if (fillH > .2) {
-        // A district building that is not brick (Kiwi Storgata: 'modern' glass bands) is rebuilt in its own wall material and tint.
-        const style = s.district ? B.style : 'brick', own = style !== 'brick' && world.patchMaterials && world.patchMaterials[style];
-        const geo = new T.PlaneGeometry(W, fillH), uv = geo.attributes.uv, vBase = (B.base + (own ? 0 : world.data.plinth)) - floorY;
-        for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * W, storeTop - vBase + uv.getY(i) * fillH);
-        if (own) {const c = new T.Color(B.tint ?? 0xffffff), col = new Float32Array(uv.count * 3);for (let i = 0; i < uv.count; i++) c.toArray(col, i * 3);geo.setAttribute('color', new T.BufferAttribute(col, 3));}
-        const f = new T.Mesh(geo, own || facadeMat);f.rotation.y = Math.PI;f.position.set(W / 2, storeTop + fillH / 2, 0);f.castShadow = f.receiveShadow = true;if (own) f.userData.noMerge = true;g.add(f);// merging drops the vertex colours
+        // In a district building (Kiwi Storgata) Surroundings draws this wall in the building's own facade look (issue #68).
+        if (!(s.district && world.facadeFill && world.facadeFill(B, L.P0, L.P1, floorY + storeTop))) {
+          const geo = new T.PlaneGeometry(W, fillH), uv = geo.attributes.uv, vBase = (B.base + world.data.plinth) - floorY;
+          for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * W, storeTop - vBase + uv.getY(i) * fillH);
+          const f = new T.Mesh(geo, facadeMat);f.rotation.y = Math.PI;f.position.set(W / 2, storeTop + fillH / 2, 0);f.castShadow = f.receiveShadow = true;g.add(f);
+        }
         if (!(s.district ? B.hip : B.k)) box(g, W, .06, D, W / 2, top - floorY + .03, D / 2, roofMat);
       }
       // Shop front: aluminium frame, glass, sliding doors, the brand sign and the opening hours on the glass.
