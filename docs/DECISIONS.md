@@ -41,7 +41,7 @@ On `main`:
 - Logged in, your progress is your account's and is there on any PC or browser: money and bottles, the bag, photos (an album of up to 60), badges, best scores, Klatreverket ticks, the catacomb map and your settings; it saves by itself. The first log-in on a browser with its own progress asks whether to move it into the account. Without an account it stays in the browser as before (issue #54, PR #70).
 - Badges and a photo hunt in the pause menu (R1 / B): 16 badges from playing and ten places to photograph (Torshovoksen, HODET N.N., Deichman Grünerløkka, Klatreverket, the catacomb's rotunda, Muselunden, MUNCH, the Opera, Rathkes gate 1, your street door); each new badge pays 50–300 kr; best scores for the minigames, the mission, skydiving and the runs; an orange landing target for skydivers at the airstrip (issue #58, PR #70).
 
-- Ground with real detail up close (grass, asphalt, paving slabs, gravel, pavements and kerbs) with or without the aerial photo, and buildings that look like their part of town – Torshov brick and Harald Hals' plastered blocks, Grünerløkka's tenements with shop fronts, buff brick, wooden houses, new blocks – chosen from OpenStreetMap and Street View notes (issues #67 and #68, branch `feat/better-textures`, not merged yet).
+- Ground with real detail up close (grass, asphalt, paving slabs, gravel, pavements and kerbs) with or without the aerial photo, and buildings that look like their part of town – Torshov brick and Harald Hals' plastered blocks, Grünerløkka's tenements with shop fronts, buff brick, wooden houses, new blocks – chosen from OpenStreetMap and Street View notes (issues #67 and #68, PR #81, not merged yet).
 
 Live site: runs `main` (Worker version a75a02dc, deployed 3 Nov 2026 after PR #70; `main` builds byte-for-byte to the live page), so everything above is online.
 
@@ -85,7 +85,7 @@ Live site: runs `main` (Worker version a75a02dc, deployed 3 Nov 2026 after PR #7
   - Texture memory: building textures 8.1 → 14.6 MB plus 5.3 MB of ground detail (the ground paintings, about 243 MB, are unchanged). Mipmaps and anisotropy on; no faces on top of each other.
   - The game starts and you can walk; Joker's front and fill match the building; no new console errors.
   - Not checked: frame rate (the shared PC's GPU is busy, so only draw calls and triangles were counted), a real DualShock 4, the live server.
-- **Status:** branch `feat/better-textures`, pull request for review (not merged, not deployed).
+- **Status:** branch `feat/better-textures`, [PR #81](https://github.com/jonatsl/haarklous-online/pull/81) for review (not merged, not deployed).
 
 ### 2026-11-03 · `main` is live (PR #70, saved progress, badges and the photo hunt)
 - **What:** saved progress for accounts, badges and the photo hunt (PR #70, issues #54 and #58) are merged into `main` (93d4f27) and deployed (Cloudflare Worker version a75a02dc).
