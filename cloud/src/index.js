@@ -3,10 +3,10 @@
  * lobby code. A lobby holds up to 12 players. It relays player states (~10 Hz), vehicle states from whoever is driving,
  * chat, door and firepit events and WebRTC voice signalling, and it arbitrates vehicle seats (one driver, one passenger).
  * It also remembers where vehicles were left, which doors are open, the fire and the last chat lines for players who join.
- * /api/auth/* is the player accounts (Better Auth + Supabase, see auth.js); /api/progress and /api/photos/* are a logged-in
+ * /api/auth/* is the player accounts (Better Auth + Supabase, see auth.js; emails through Brevo, mail.js); /api/progress and /api/photos/* are a logged-in
  * player's saved progress and photos (one Durable Object per account, see progress.js).
  */
-import {handleAuth} from './auth.js';
+import {accountFeatures, handleAuth} from './auth.js';
 import {handleProgress, Profile} from './progress.js';
 export {Profile};
 // A lobby holds 12 players (6 v 6 paintball; the user's decision for the Unreal version, 28 Oct 2026).
@@ -24,6 +24,8 @@ export default {
     }
     if (url.pathname === '/health') return new Response('ok');
     if (url.pathname.startsWith('/api/auth/')) return handleAuth(request, env, ctx);
+    // Can this server send account emails (confirm your email, forgot password)? Issue #55.
+    if (url.pathname === '/api/account-features') return Response.json(accountFeatures(env), {headers: {'cache-control': 'no-store'}});
     if (url.pathname === '/api/progress' || url.pathname === '/api/photos' || url.pathname.startsWith('/api/photos/')) return handleProgress(request, env, ctx);
     // Real weather (issue #23): one shared cache of MET Norway's forecast for Haarklous plass.
     if (url.pathname === '/weather') return env.WEATHER.get(env.WEATHER.idFromName('haarklous')).fetch(request);

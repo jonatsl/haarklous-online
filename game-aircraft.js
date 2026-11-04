@@ -155,10 +155,14 @@
         if (!this.active && this.grounded && this.rpm < .01) return;
         const lx = inp.lx || 0, ly = on ? inp.ly || 0 : 1, rx = on ? inp.rx || 0 : 0, ry = on ? inp.ry || 0 : 0;
         const prev = this.pos.clone(), {u} = this.axes(), v = this.vel, sp = v.length(), gh = heightAt(this.pos.x, this.pos.z);
-        // Collective: centre holds a hover in the air; on the ground you lift it a little to get light on the skids.
+        // Collective: centre gives the rotor thrust that holds a level hover; on the ground you lift it a little to get light on the skids.
+        // Full collective is 1.4 × the weight (an H125's margin: about 9 m/s climb). The thrust acts along the rotor's axis, so pitch and
+        // bank tilt it: cos(tilt) of it holds you up and sin(tilt) pushes you along (issue #73). Tilted 30° at full collective you
+        // climb about half as fast, at 45° not at all; at centre collective any tilt sinks you unless you add collective.
         const coll = clamp(-ly - (this.grounded ? .18 : 0), -1, 1), agl = this.pos.y - gh;
-        const lift = this.rpm * this.rpm * G * (coll >= 0 ? 1 + coll * .85 : 1 + coll * .8) * (1 + .08 * Math.max(0, 1 - agl / 4));
-        const acc = u.clone().multiplyScalar(lift);acc.y -= G;acc.addScaledVector(v, -(.00072 * sp + .04));acc.y -= v.y * .45;
+        const lift = this.rpm * this.rpm * G * (coll >= 0 ? 1 + coll * .4 : 1 + coll * .8) * (1 + .08 * Math.max(0, 1 - agl / 4));
+        // Fuselage drag (top level speed about 285 km/h, the H125's never-exceed speed) and the rotor's heave damping.
+        const acc = u.clone().multiplyScalar(lift);acc.y -= G;acc.addScaledVector(v, -(.001 * sp + .04));acc.y -= v.y * .45;
         v.addScaledVector(acc, dt);
         // Cyclic and pedals command rates; with the stick centred it gently levels itself (as in Battlefield). At speed the tail fin
         // weathervanes into the airflow and a bank turns the nose.
@@ -395,8 +399,9 @@
           if (inp.hold) {this.pitchA = clamp(this.pitchA + ry * 1.6 * dt, -.75, .75);this.rollA = clamp(this.rollA + rx * 1.6 * dt, -.75, .75);}
           else {this.pitchA += (ry * .75 - this.pitchA) * Math.min(1, dt * 9);this.rollA += (rx * .75 - this.rollA) * Math.min(1, dt * 9);}
           this.q.setFromEuler(new T.Euler(this.pitchA, this.yawA, -this.rollA, 'YXZ'));
-          // Left stick sets the climb rate (±7 m/s); centred it holds altitude.
-          thrust = clamp(G + (-ly * 7 - this.vel.y) * 3, 0, 3.4 * G) / Math.max(.6, Math.cos(this.pitchA) * Math.cos(this.rollA));
+          // Left stick sets the climb rate (±7 m/s); centred and level it holds altitude. The thrust is not raised for the tilt
+          // (issue #73): tilted, only cos(tilt) of it holds the drone up, so it sinks (about 1.6 m/s at full tilt) unless you add thrust.
+          thrust = clamp(G + (-ly * 7 - this.vel.y) * 2, 0, 3.4 * G);
         } else {
           this.q.multiply(new T.Quaternion().setFromEuler(new T.Euler(ry * 7 * dt, -lx * 4.5 * dt, -rx * 7 * dt, 'XYZ'))).normalize();
           thrust = G * Math.max(0, 1 + -ly * 2.4);

@@ -111,14 +111,16 @@
     TX.bones = models ? models.boneWall({size: 768}) : null;
 
     // ---------- Materials: baked torch light, outdoor-light mask, your torch ----------
-    const U = {uFlick: {value: new T.Vector4(1, 1, 1, 1)}, uLamp: {value: new T.Vector4(1, .93, .82, 0)}, uLampPos: {value: new T.Vector3(.17, -.2, .05)}, uLampDir: {value: new T.Vector3(-.03, .05, -1).normalize()}, uLampCos: {value: new T.Vector2(Math.cos(.52), Math.cos(.22))}, uDark: {value: .014}};
+    const U = {uFlick: {value: new T.Vector4(1, 1, 1, 1)}, uLamp: {value: new T.Vector4(1, .93, .82, 0)}, uLampPos: {value: new T.Vector3(.17, -.2, .05)}, uLampDir: {value: new T.Vector3(-.03, .05, -1).normalize()}, uLampCos: {value: new T.Vector2(Math.cos(.52), Math.cos(.22))}, uDark: {value: .014},
+      // The light orb (issue #65, GameMagic): a point light in view space; three.js lights do not reach the dark parts down here.
+      uOrb: {value: new T.Vector4(1, .89, .69, 0)}, uOrbPos: {value: new T.Vector3()}};
     function bakeMaterial(params, {instanced = false} = {}) {
       const m = new T.MeshStandardMaterial({metalness: 0, envMapIntensity: 0, ...params}), a = instanced ? 'i' : '';
       m.onBeforeCompile = sh => {
         Object.assign(sh.uniforms, U);
         sh.vertexShader = sh.vertexShader.replace('#include <common>', `#include <common>\nattribute vec3 ${a}bake;attribute vec3 ${a}bakeDir;attribute vec2 ${a}bakeX;varying vec3 vBake;varying vec3 vBakeDir;varying vec2 vBakeX;`)
           .replace('#include <begin_vertex>', `#include <begin_vertex>\nvBake = ${a}bake;vBakeX = ${a}bakeX;vBakeDir = mat3(modelViewMatrix) * ${a}bakeDir;`);
-        sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vBake;varying vec3 vBakeDir;varying vec2 vBakeX;uniform vec4 uFlick;uniform vec4 uLamp;uniform vec3 uLampPos;uniform vec3 uLampDir;uniform vec2 uLampCos;uniform float uDark;')
+        sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vBake;varying vec3 vBakeDir;varying vec2 vBakeX;uniform vec4 uFlick;uniform vec4 uLamp;uniform vec3 uLampPos;uniform vec3 uLampDir;uniform vec2 uLampCos;uniform float uDark;uniform vec4 uOrb;uniform vec3 uOrbPos;')
           .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
           {
             float sky = vBakeX.x;
@@ -133,6 +135,11 @@
               float spot = smoothstep(uLampCos.x, uLampCos.y, dot(-ld, uLampDir));
               IncidentLight il;il.direction = ld;il.visible = true;il.color = uLamp.rgb * uLamp.w * (spot * .94 + .06) * getDistanceAttenuation(dl, 34.0, 2.0);
               RE_Direct(il, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight);
+            }
+            if (uOrb.w > 0.0) {
+              vec3 ov = uOrbPos - geometryPosition;float od = length(ov);
+              IncidentLight io;io.direction = ov / max(od, .001);io.visible = true;io.color = uOrb.rgb * uOrb.w * getDistanceAttenuation(od, 16.0, 1.6);
+              RE_Direct(io, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight);
             }
           }`);
       };
@@ -559,7 +566,9 @@
     window.addEventListener('haarklous-progress', () => {let s = null;try {s = localStorage.getItem(SAVE_KEY);} catch {}explorer.load(s);savedCount = explorer.count;dirty = true;});
 
     // ---------- Your torch ----------
-    const lamp = {on: false, level: 0};
+    const lamp = {on: false, level: 0}, orb = {level: 0};
+    // The light orb: its position in view space (camera.matrixWorldInverse applied) and brightness 0..1; null / 0 = off.
+    function setOrb(viewPos, level) {orb.level = level || 0;U.uOrb.value.w = orb.level > .01 && viewPos ? orb.level * 14 : 0;if (viewPos) U.uOrbPos.value.copy(viewPos);}
     function toggleLamp(on = !lamp.on) {lamp.on = on;if (audio) audio.sfx('click');return lamp.on;}
 
     // ---------- Sounds: dripping water, a low hum of the earth, torches crackling ----------
@@ -617,7 +626,7 @@
       // Deep down the world above is not drawn: daylight in the far-off doorways is a bright quad instead.
       const cl = world.toLocal(camera.position.x, camera.position.z), camDeep = L.deep(cl.x, cl.s, camera.position.y - 1.6);
       for (const g of doorGlows) g.visible = camDeep;
-      if (inside) {revealT -= dt;if (revealT <= 0) {revealT = .2;const r = !dark ? 13 : lamp.on ? 11 : 3.5;if (explorer.reveal(lp.x, lp.s, r)) dirty = true;}}
+      if (inside) {revealT -= dt;if (revealT <= 0) {revealT = .2;const r = !dark ? 13 : lamp.on ? 11 : orb.level > .5 ? 9 : 3.5;if (explorer.reveal(lp.x, lp.s, r)) dirty = true;}}
       saveT -= dt;if (saveT <= 0 && explorer.count !== savedCount) {saveT = 2;save();}
       let torchNear = 0;if (depth > 0) for (const t of torches) {const d = Math.hypot(t.x - lp.x, t.s - lp.s);if (d < 6) torchNear = Math.max(torchNear, 1 - d / 6);}
       sounds(dt, depth, torchNear);
@@ -675,7 +684,7 @@
     };
     let countWalk = 0;for (let c = 0; c < NX * NS; c++) if (L.walkable(c)) countWalk++;
     const poi = () => L.entrances.map(e => {const d = e.toLocal(-1.5, 0);return {x: d.x, s: d.s, color: '#3b2f2f', label: `Catacomb (${e.label.toLowerCase()} entrance)`, glyph: '☠'};});
-    return {group, layout: L, floors, obstacles, vehicleObstacles, cutsGround, poi, update, prompt, toggleLamp, lamp, mapLayer, placeName, explorer, cellLight, flames: flameMesh, chunks: chunkGroups,
+    return {group, layout: L, floors, obstacles, vehicleObstacles, cutsGround, poi, update, prompt, toggleLamp, lamp, setOrb, mapLayer, placeName, explorer, cellLight, flames: flameMesh, chunks: chunkGroups,
       get state() {return last;}, hall: id => {const r = room('hall-' + id);return world.toWorld(r.cx, r.cs);}, FLOOR_Y};
   }
   return {create};

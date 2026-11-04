@@ -44,6 +44,8 @@
     ...(window.CatacombLayout ? window.CatacombLayout.holes() : [])].filter(Boolean);
   // District patches beyond the old square (issue #38): Gamle Oslo, Ensjø and the way there, with its key buildings.
   const DISTRICTS = window.District ? (window.DISTRICTS || []).map(d => window.District.decode(d)) : [];
+  // Kiwi Storgata 33 (issue #65) is cut into its office building in the Gamle Oslo patch, like Joker and Kiwi in the old square.
+  window.GameShops.applyDistrictNotches(DISTRICTS);
   // Grünerløkka (issues #44, #45): Deichman Grünerløkka draws its own building, Rathkes gate 1 gets the passage to its
   // backyard, and Akerselva's bed is lowered along the river so its water shows in the ground grids.
   if (window.GameLibrary) window.GameLibrary.prepare(DISTRICTS);if (window.GameRathkes) window.GameRathkes.prepare(DISTRICTS, window.District && window.District.height);if (window.GameKayak && window.AKERSELVA) window.GameKayak.prepare(DISTRICTS, D);
@@ -131,27 +133,47 @@
   const pbRules = PB_DATA && window.GamePaintball ? new window.GamePaintball.Rules(PB_DATA, pbCtx) : null;
   function groundAt(x, z) {
     if (kayak) {const y = kayak.groundAt(x, z);if (y !== null) return y;}// bridge decks over Akerselva
+    return terrainAt(x, z);
+  }
+  // The ground without the bridge decks: walking has the decks as floors of their own, so you also walk under them (issue #64).
+  function terrainAt(x, z) {
     if (siteField) {const y = siteField.surface(x, z);if (y !== null) return y;}
     if (pbRules) {const y = pbRules.ground(x, z);if (y !== null) return y;}
     {const y = gym.ground(x, z);if (y !== null) return y;}// the climbing hall's floor (the terrain model rises through the building)
     return world.heightWorld(x, z);
   }
   // Inside a catacomb mausoleum the ground is not walked on: its door threshold, landing and stair take over (far below = no floor).
-  const groundFloors = world.terrainFloors().map(f => ({...f, height: p => catacomb && catacomb.cutsGround(p.x, p.z) ? -1e4 : groundAt(p.x, p.z)}));
+  const floorsOver = ground => world.terrainFloors().map(f => ({...f, height: p => catacomb && catacomb.cutsGround(p.x, p.z) ? -1e4 : ground(p.x, p.z)}));
+  const groundFloors = floorsOver(groundAt), walkGroundFloors = floorsOver(terrainAt);// vehicles drive on the decks as ground
   // Oslo city bike docks (issue #57) at their real places, from the operator's open data: posts and a totem with the name.
   const rides = window.GameRentals && window.RIDES ? window.GameRentals.create({T, lib, audio, data: window.RIDES, toWorld: world.toWorld, heightAt: groundAt}) : null;
   if (rides) scene.add(rides.group);
+  // KIWI Storgata (issue #65): the regulars outside Kiwi Storgata 33, Sopp-Sigvald the mushroom wizard on the corner, and Rolf on a
+  // bench at Schous plass (OSM-free spot beside the footway, 11 m from the table tennis table), facing the table.
+  const storgataShop = shops.shops.find(sh => sh.id === 'kiwi-storgata');
+  const storgata = storgataShop && window.GameStorgata ? window.GameStorgata.create({T, lib, avatars: window.GameAvatars.create({T, lib}), world, groundAt, front: storgataShop.local, root: view, audio,
+    rolf: (() => {const p = world.toWorld(-909.5, 1763.5), t = world.toWorld(-901.5, 1771.5);return {x: p.x, z: p.z, yaw: Math.atan2(-(t.x - p.x), -(t.z - p.z))};})()}) : null;
+  if (storgata) scene.add(storgata.group);
+  // Sopp-Sigvald's magic (GameMagic): the powers you have learned, mana and cooldowns; the particles and the light orb.
+  const magic = new window.GameMagic.Magic(storgata ? Object.keys(storgata.state.powers) : []), fx = window.GameMagic.effects({T, scene});
+  let magicKick = 0, questWp = null;// the blink's short widening of the view; the waypoint a quest set
+  window.addEventListener('haarklous-progress', () => {if (!storgata) return;magic.known = new Set();magic.sel = null;for (const id of Object.keys(storgata.state.powers)) magic.learn(id);if (!magic.knows('orb')) {magic.orb = false;fx.orb.on = false;}});
   // Job signs (issue #56) beside the doors of Joker and Kiwi; □ there opens the jobs phone. Their doors are delivery pickups too.
-  const JOB_SIGNS = shops.shops.map(sh => {
+  const JOB_SIGNS = shops.shops.filter(sh => sh.jobs !== false).map(sh => {
     const L = sh.local, at = (a, b) => world.toWorld(L.P0[0] + L.u[0] * a + L.n[0] * b, L.P0[1] + L.u[1] * a + L.n[1] * b), door = L.W - 2;
     const p = at(door - 2.3, -1.3), q = at(door - 2.3, -.3), pick = world.toLocal(at(door, -1.4).x, at(door, -1.4).z);
     return {shop: sh, x: p.x, z: p.z, yaw: Math.atan2(-(q.x - p.x), -(q.z - p.z)), pickup: {name: sh.name, kind: 'shop', shop: true, x: pick.x, s: pick.s}};
   });
-  const signObstacles = JOB_SIGNS.map(j => {const y = groundAt(j.x, j.z);return {points: [[-.5, -.15], [.5, -.15], [.5, .15], [-.5, .15]].map(([a, b]) => ({x: j.x + Math.cos(j.yaw) * a + Math.sin(j.yaw) * b, z: j.z - Math.sin(j.yaw) * a + Math.cos(j.yaw) * b})), minY: y - .3, maxY: y + 2.2, kind: 'sign'};});
-  const extraObstacles = [...(siteField ? window.GameSite.fenceObstacles(siteField, groundAt) : []), ...(pbRules ? pbRules.obstacles : []), ...(catacomb ? catacomb.obstacles : []), ...(rides ? rides.obstacles : []), ...signObstacles];
+  // Licences (issue #59): signs at the three test places (world x, z and the way the board faces). The driving school is
+  // Soria Moria Trafikkskole (OSM node 6757226536) on Krebs' gate by Vogts gate; the flight school stands beside the sport
+  // plane at the airstrip; the site office's sign is outside the construction site's north gate.
+  const LIC_SIGNS = (() => {const w = (x, s) => world.toWorld(x, s), a = w(-624.4, 35.5), b = w(-624.4 + .33, 35.5 - .94), c = w(-128.5, 367), d = w(-128.5, 366);
+    return {school: {...a, yaw: Math.atan2(-(b.x - a.x), -(b.z - a.z)) + Math.PI}, site: {...c, yaw: Math.atan2(-(d.x - c.x), -(d.z - c.z)) + Math.PI}, airfield: {x: -123.3, z: 6.2, yaw: .5236 + Math.PI / 2}};})();
+  const signObstacles = [...JOB_SIGNS, ...Object.values(LIC_SIGNS)].map(j => {const y = groundAt(j.x, j.z);return {points: [[-.5, -.15], [.5, -.15], [.5, .15], [-.5, .15]].map(([a, b]) => ({x: j.x + Math.cos(j.yaw) * a + Math.sin(j.yaw) * b, z: j.z - Math.sin(j.yaw) * a + Math.cos(j.yaw) * b})), minY: y - .3, maxY: y + 2.2, kind: 'sign'};});
+  const extraObstacles = [...(siteField ? window.GameSite.fenceObstacles(siteField, groundAt) : []), ...(pbRules ? pbRules.obstacles : []), ...(catacomb ? catacomb.obstacles : []), ...(rides ? rides.obstacles : []), ...signObstacles, ...(storgata ? storgata.obstacles : [])];
   const staticObstacles = [...apt.obstacles, ...towers.flatMap(towerObstacles), ...world.obstacles(), ...fire.obstacles, ...stash.obstacles, ...shops.obstacles, ...sculpture.obstacles, ...oksen.obstacles, ...gym.obstacles, ...extraObstacles, ...landmarks.obstacles];
-  const walkFloors = [...apt.floors, ...towers.flatMap(towerFloors), ...shops.floors, ...sculpture.floors, ...oksen.floors, ...landmarks.floors, ...gym.floors, ...(catacomb ? catacomb.floors : []), ...groundFloors];
-  staticObstacles.push(...grl.flatMap(m => m.obstacles || []));walkFloors.unshift(...grl.flatMap(m => m.floors || []));
+  const walkFloors = [...apt.floors, ...towers.flatMap(towerFloors), ...shops.floors, ...sculpture.floors, ...oksen.floors, ...landmarks.floors, ...gym.floors, ...(catacomb ? catacomb.floors : []), ...walkGroundFloors];
+  staticObstacles.push(...grl.flatMap(m => m.obstacles || []));walkFloors.unshift(...grl.flatMap(m => m.floors || []), ...(kayak ? kayak.bridges.map(b => b.floor) : []));
   const walkWorld = collision.createWorld({floors: walkFloors, obstacles: staticObstacles, radius: .18, clearance: .08});
   const vehicleWorlds = new Map();
   let vehicleBlockers = null;// the other vehicles' footprints from the last updateDynamic()
@@ -169,7 +191,7 @@
   const shootTargets = [];[apt.group, ownStair.group].forEach(g => g.traverse(o => {if (o.isMesh && !(o.material.transparent) && o.visible) shootTargets.push(o);}));
   const interactables = [];[apt.group, ...towers.map(t => t.stair.group)].forEach(g => g.traverse(o => {if (o.isMesh && (o.userData.doorId || o.userData.lockedDoor)) interactables.push(o);}));
   apt.drinks.forEach(d => d.object.traverse(o => {if (o.isMesh) {o.userData.drink = d;interactables.push(o);}}));
-  interactables.push(...stash.hitboxes, ...shops.hitboxes, ...gym.hitboxes);
+  interactables.push(...stash.hitboxes, ...shops.hitboxes, ...gym.hitboxes, ...(storgata ? storgata.hitboxes : []));
   interactables.push(...grl.flatMap(m => m.hitboxes || []));
 
   // ---------- Vehicles ----------
@@ -234,7 +256,7 @@
   let spilled = 0;
   const site = siteField && window.SiteModels ? window.GameSite.create({T, lib, audio, VH, models: window.SiteModels.create({T, lib}), data: SITE_DATA, world, field: siteField, groundAt, surfaceAt: world.surfaceAt,
     onSpill: (x, z, vol) => {spilled += vol;if (spilled < .4) return;pile(x, z, Math.max(.4, Math.min(2.2, Math.cbrt(spilled * 3 / (Math.PI * .7)))));spilled = 0;}}) : null;
-  if (site) {scene.add(site.group);vehicles.push(...site.machines);}
+  if (site) {scene.add(site.group);vehicles.push(...site.machines);for (const l of site.loads) l.home = l.p.clone();}
   // Skydiving (issue #22): the Cessna 208 Caravan jump plane beside the airstrip, flown by a player with up to 12 jumpers.
   AIR.jump = {x: -107.6, z: -16.7, yaw: .5236};
   const caravan = new AC.JumpPlane(AIR.jump.x, AIR.jump.z, AIR.jump.yaw);vehicles.push(caravan);
@@ -249,6 +271,17 @@
       const y = heightAt(p.x, p.z);return collision.canStand(w, p, 1.4, y) && collision.canStand(w, {x: p.x + .5, z: p.z}, 1.4, y) && collision.canStand(w, {x: p.x - .5, z: p.z}, 1.4, y);}});
     vehicles.push(...RV.placeScooters(spots));
   }
+  // Licences (issue #59): the driving school's car and motorcycle on Krebs' gate by Soria Moria Trafikkskole, after every older
+  // vehicle so their numbers stay the same online. Anybody with the licence may drive them; during your own test they are yours.
+  const GL = window.GameLicences, schoolAt = (p, q) => {const a = toWorld(p[0], p[1]);return {...a, yaw: localHeadingToYaw(Math.atan2(q[0] - p[0], q[1] - p[1]))};};
+  const schoolCar = (() => {const c = GL.COURSES.road, a = schoolAt(c.start, c.gates[0].p), v = new VH.Car(a.x, a.z, a.yaw, 3);v.name = 'driving school car';v.schoolOf = 'B';return v;})();
+  const schoolBike = (() => {const c = GL.COURSES.road, a = schoolAt([-646.6, 34.7], c.gates[0].p), v = new VH.Motorcycle(a.x, a.z, a.yaw, 0xd0d4d8);v.name = 'driving school motorcycle';v.schoolOf = 'A';return v;})();
+  {// A roof sign on the school car, SKOLE to the front and the back (beside where a taxi sign would go).
+    const c = document.createElement('canvas');c.width = 256;c.height = 80;const k = c.getContext('2d');k.fillStyle = '#f7f7f2';k.fillRect(0, 0, 256, 80);k.fillStyle = '#c62828';k.font = 'bold 56px system-ui, Arial';k.textAlign = 'center';k.textBaseline = 'middle';k.fillText('SKOLE', 128, 43);
+    const x = new T.CanvasTexture(c);x.colorSpace = T.SRGBColorSpace;const end = new T.MeshStandardMaterial({map: x, roughness: .5}), plain = new T.MeshStandardMaterial({color: 0xf7f7f2, roughness: .5});
+    const m = new T.Mesh(new T.BoxGeometry(.56, .18, .16), [plain, plain, plain, plain, end, end]);m.position.set(0, 1.53, .2);m.castShadow = true;schoolCar.group.add(m);
+  }
+  vehicles.push(schoolCar, schoolBike);
   vehicles.forEach(v => {v.spawn = v.netGet();});
   vehicles.forEach(v => scene.add(v.group));
   vehicles.filter(v => v.kind === 'excavator').forEach(ex => {
@@ -274,7 +307,7 @@
   const stanceSpeed = () => player.stance === 'prone' ? .28 : player.stance === 'crouch' ? .55 : 1;
   function place(x, z, yaw, y) {
     const sp = collision.findSafeSpawn(walkWorld, {x, z}, stanceEye('stand'), {y: y ?? heightAt(x, z), maxDistance: 6});
-    player.x = sp ? sp.x : x;player.z = sp ? sp.z : z;player.feet = sp ? sp.y : (y ?? heightAt(x, z));if (yaw !== undefined) player.yaw = yaw;player.pitch = 0;player.stance = 'stand';player.eyeNow = player.eye;player.jumpY = player.jumpV = 0;
+    player.x = sp ? sp.x : x;player.z = sp ? sp.z : z;player.feet = sp ? sp.y : (y ?? heightAt(x, z));if (yaw !== undefined) player.yaw = yaw;player.pitch = 0;player.stance = 'stand';player.eyeNow = player.eye;player.jumpY = player.jumpV = 0;player.floating = false;
   }
   // The hostage mission starts from its own marker on the grass beside the entrance, so the street door is a normal door.
   const MISSION_MARK = {x: 4.8, z: 14.2};
@@ -322,7 +355,7 @@
     if (caseGame?.active) list.push(...caseGame.actorObstacles());
     collision.setDynamic(walkWorld, list);
     // Other vehicles block the one being driven; it must never collide with its own (parked) footprint.
-    const vlist = vehicles.filter(v => v !== player.vehicle).flatMap(v => [].concat(v.footprint()));
+    const vlist = vehicles.filter(v => v !== player.vehicle && !v.pushed).flatMap(v => [].concat(v.footprint()));
     vehicleBlockers = vlist;vehicleWorlds.forEach(w => collision.setDynamic(w, vlist));
   }
   updateDynamic();
@@ -382,8 +415,12 @@
     {...world.toLocal(AIR.plane.x, AIR.plane.z), color: '#1565c0', label: 'Airstrip', glyph: '✈'},
     {...world.toLocal(SKY_TARGET.x, SKY_TARGET.z), color: '#ff6d00', label: 'Skydiving target', glyph: '◎'},
     {...world.toLocal(FIRE_POS.x, FIRE_POS.z), color: '#e65100', label: 'Firepit', glyph: '🔥'},
-    ...shops.shops.map(s => {const L = s.local;return {x: L.P0[0] + L.u[0] * L.W / 2 + L.n[0] * L.depth / 2, s: L.P0[1] + L.u[1] * L.W / 2 + L.n[1] * L.depth / 2, color: s.id === 'kiwi' ? '#2e9a3f' : '#d0021b', label: s.name, glyph: '🛒'};}),
+    ...shops.shops.map(s => {const L = s.local;return {x: L.P0[0] + L.u[0] * L.W / 2 + L.n[0] * L.depth / 2, s: L.P0[1] + L.u[1] * L.W / 2 + L.n[1] * L.depth / 2, color: /^kiwi/.test(s.id) ? '#2e9a3f' : '#d0021b', label: s.name, glyph: '🛒'};}),
+    ...(storgata ? storgata.poi() : []),
     ...(SITE_DATA ? [{x: SITE_DATA.rect.x0 + SITE_DATA.rect.w / 2, s: SITE_DATA.rect.s0 + SITE_DATA.rect.d / 2, color: '#f9a825', label: 'Construction site', glyph: '⛏'}] : []),
+    {...world.toLocal(LIC_SIGNS.school.x, LIC_SIGNS.school.z), color: '#0d3b66', label: 'Soria Moria Trafikkskole (driving tests)', glyph: '🪪'},
+    {...world.toLocal(LIC_SIGNS.airfield.x, LIC_SIGNS.airfield.z), color: '#0d3b66', label: 'Flight school (PPL tests)', glyph: '🪪'},
+    {...world.toLocal(LIC_SIGNS.site.x, LIC_SIGNS.site.z), color: '#0d3b66', label: 'Site office (machine, crane and class C tests)', glyph: '🪪'},
     ...(PB_DATA ? [{x: PB_DATA.centre.x, s: PB_DATA.centre.s, color: '#2e7d32', label: 'Paintball', glyph: '✚'}] : []),
     {x: SCULPTURE_AT.x, s: SCULPTURE_AT.s, color: '#7a5c3e', label: 'HODET N.N.', glyph: '◉'},
     {x: OKSEN_AT.x, s: OKSEN_AT.s, color: '#3a4436', label: 'Torshovoksen', glyph: '◉'},
@@ -445,19 +482,23 @@
     const cp = gymPrompt();if (cp) return cp;
     {const rp = route && route.prompt(player);if (rp) return rp;}
     {const cp = catacomb && player.mode === 'foot' ? catacomb.prompt() : null;if (cp) return cp;}
+    {const sg = storgataPrompt();if (sg) return sg;}
     const shp = shopPrompt();if (shp) return shp;
     const grp = grunerPrompt();if (grp) return grp;
     const fp = firePrompt();if (fp) return fp;
     const sp = stashPrompt();if (sp) return sp;
     const jp = boardPrompt();if (jp) return jp;
+    {const lp = licPrompt();if (lp) return lp;}
     const v = nearestVehicle();
     if (v) {
       const i = vehicles.indexOf(v), drv = mp.occupant(i, 'd'), pas = mp.occupant(i, 'p'), canRide = !!v.hipAnchor('p');
       // The game's pilot flown from this computer: take the controls back while it stands still.
-      if (gp && v === caravan) return v.grounded && v.speed < 3 ? {text: "□ Fly the Caravan yourself (the game's pilot gets out)", act: () => {gp = null;caravan.vel.set(0, 0, 0);enterVehicle(caravan);}} : {text: "The game's pilot is flying the Caravan", act: () => {}};
+      if (gp && v === caravan) return !v.grounded || v.speed >= 3 ? {text: "The game's pilot is flying the Caravan", act: () => {}} : licAllowed(v) ? {text: "The game's pilot is flying the Caravan · flying it yourself needs a PPL(A)", act: () => {}} : {text: "□ Fly the Caravan yourself (the game's pilot gets out)", act: () => {gp = null;caravan.vel.set(0, 0, 0);enterVehicle(caravan);}};
       // E-scooters and city bikes: unlocking costs money (issue #57).
       if (v.rental && !drv) return rentals.prompt(v, i);
-      if (!drv) return {text: `□ ${v.verb ? v.verb : v.kind === 'motorcycle' ? 'Ride the' : v.kind === 'excavator' ? 'Climb into the' : v.aircraft ? 'Fly the' : 'Drive the'} ${v.name}`, act: () => tryDrive(v)};
+      // Licences (issue #59): without the licence the prompt says which one and where; □ sets the waypoint there.
+      if (!drv) {const need = licAllowed(v);if (need) {const L = GL.byId[need], P = GL.PLACES[L.place];return {text: `🪪 The ${v.name} needs ${L.tag} – ${L.place === 'online' ? 'take the free online test on your phone' : `test at ${P.name} (${P.near})`} · □ show the way`, act: () => licWay(need)};}}
+      if (!drv) return {text: `□ ${v.verb ? v.verb : v.kind === 'motorcycle' ? 'Ride the' : v.kind === 'excavator' ? 'Climb into the' : v.aircraft ? 'Fly the' : 'Drive the'} ${v.name}${licTest && licTest.v === v ? ` – start the ${licTest.L.short} test` : ''}`, act: () => tryDrive(v)};
       if (canRide && !pas) return {text: `□ Ride along with ${driverName(i)} (${v.kind === 'motorcycle' ? 'pillion' : 'passenger'})`, act: () => tryRide(v)};
       return {text: `${driverName(i)} is ${v.aircraft ? 'flying' : 'driving'} the ${v.name}`, act: () => {}};
     }
@@ -476,8 +517,9 @@
     plane: 'Plane (Mode 2) · left stick ↑ to add throttle (it stays), ←→ rudder/nose wheel · right stick pitch/roll · pull back at about 85 km/h · L2 brakes · R3 / V view · Keyboard + mouse: W/S throttle, A/D rudder, mouse pitch/roll (up = nose down), hold Shift to look around',
     jumpplane: 'Caravan jump plane (Mode 2, flies like the plane) · left stick ↑ throttle (it stays), ←→ rudder/nose wheel · right stick pitch/roll · the flaps are automatic: pull back at about 110 km/h · L2 brakes · R3 / V view · others board at the door (□) and can jump above 300 m · △ / F: the game\'s pilot takes over (you go to the back) · ✕ / Space above 300 m: jump yourself (the game\'s pilot takes over) · Keyboard + mouse: W/S throttle, A/D rudder, mouse pitch/roll, hold Shift to look around'};
   function setClip(near, far) {if (camera.near !== near || camera.far !== far) {camera.near = near;camera.far = far;camera.updateProjectionMatrix();applyNearFog();}}
-  function enterVehicle(v) {if (v === caravan) gp = null;watch.hide();player.mode = 'vehicle';player.vehicle = v;player.siteView = 0;player.lookYaw = 0;player.lookPitch = 0;player.chase = false;player.chaseCam = null;v.enter();updateDynamic();if (v.aircraft) setClip(.12, 1600);notice(v.help ? v.help : v.aircraft ? AIR_HELP[v.kind] : v.kind === 'excavator' ? 'Tracks: L1/L2 left, R1/R2 right · Left stick: swing / stick · Right stick: boom / bucket · □ get out' : 'R2 throttle · L2 brake / reverse · Left stick steer · Right stick look · □ get off', v.aircraft || v.help ? 9 : 6);}
+  function enterVehicle(v) {{const need = licAllowed(v);if (need) {notice(licNeedText(need, v.name), 5);mp.release(vehicles.indexOf(v), 'd');return false;}}if (v === caravan) gp = null;watch.hide();player.mode = 'vehicle';player.vehicle = v;player.siteView = 0;player.lookYaw = 0;player.lookPitch = 0;player.chase = false;player.chaseCam = null;v.enter();updateDynamic();if (v.aircraft) setClip(.12, 1600);notice(v.help ? v.help : v.aircraft ? AIR_HELP[v.kind] : v.kind === 'excavator' ? 'Tracks: L1/L2 left, R1/R2 right · Left stick: swing / stick · Right stick: boom / bucket · □ get out' : 'R2 throttle · L2 brake / reverse · Left stick steer · Right stick look · □ get off', v.aircraft || v.help ? 9 : 6);}
   function tryDrive(v) {
+    {const need = licAllowed(v);if (need) {notice(licNeedText(need, v.name), 5);return;}}
     const i = vehicles.indexOf(v);if (v !== caravan) leaveGamePilot();
     mp.claim(i, 'd').then(r => {if (player.mode !== 'foot') {if (r.ok) mp.release(i, 'd');return;}if (r.ok) enterVehicle(v);else notice(r.timeout ? 'No answer from the lobby – try again.' : `${mp.nameOf(r.by)} just took it.`, 3);});
   }
@@ -543,17 +585,151 @@
   scene.add(jobs.group);for (const j of JOB_SIGNS) {jobs.addSign(j.x, j.z, j.yaw);jobs.addPickup(j.pickup);}interactables.push(...jobs.hitboxes);
   const esc = t => String(t ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
   const wpTo = w => {const l = world.toLocal(w.x, w.z);map.waypoint = {x: l.x, s: l.s};notice('Waypoint set – the purple pin and the minimap show the way.', 3);};
+  // ---------- Licences (issue #59): tests at the driving school, the airstrip and the site office; the drone test on the phone ----------
+  // Without the licence a vehicle's driver's seat stays closed (riding along stays free); the test vehicle is yours during the test.
+  const lic = GL.create({T, scene, root: view});
+  for (const [k, at] of Object.entries(LIC_SIGNS)) {
+    const lines = {school: ['TRAFIKKSKOLE', 'Soria Moria', 'Førerkort B · A', '□ teori og oppkjøring'], airfield: ['FLYSKOLE', 'Torshovdalen', 'PPL(A) · PPL(H)', '□ teori og flyprøve'], site: ['ANLEGG', 'Kompetansebevis', 'M · G · klasse C', '□ teori og prøve']}[k];
+    const g = lic.sign(lines);g.position.set(at.x, groundAt(at.x, at.z), at.z);g.rotation.y = at.yaw;scene.add(g);lib.mergeStatic(g);
+  }
+  const siteMachine = kind => site ? site.machines.find(m => m.kind === kind) : null;
+  const licVehicle = id => ({B: schoolCar, A: schoolBike, C: siteMachine('tipper'), M: siteMachine('loader'), G: siteMachine('tower'), PPLA: plane, PPLH: heli})[id] || null;
+  const licOrigin = c => c.origin === 'plane' ? AIR.plane : c.origin === 'heli' ? AIR.heli : null;
+  let licTest = null;// {id, L, v, course, gates, phase: 'goto' | 'drive' | 'failed', run, prevLoad}
+  // The licence a vehicle's driver's seat still needs (null: you may drive it).
+  function licAllowed(v) {const need = GL.need(v);if (!need || lic.has(need)) return null;if (licTest && licTest.v === v && licTest.phase !== 'failed') return null;return need;}
+  function licNeedText(need, what) {const L = GL.byId[need], P = GL.PLACES[L.place];return `${what ? `The ${what} needs` : 'You need'} ${L.tag}: ${L.place === 'online' ? 'take Luftfartstilsynet’s free online test on your phone (D-pad → / P, Licences)' : `take the test at ${P.name}, ${P.where}`}`;}
+  function licWay(need) {const L = GL.byId[need];if (L.place === 'online') openLicPhone();else wpTo(LIC_SIGNS[L.place]);}
+  function licPlaceNear() {if (player.mode !== 'foot') return null;for (const [k, at] of Object.entries(LIC_SIGNS)) if (Math.hypot(player.x - at.x, player.z - at.z) < 2.6 && Math.abs(player.feet - groundAt(at.x, at.z)) < 2) return k;return null;}
+  function licPrompt() {const k = licPlaceNear();if (!k) return null;return {text: `□ ${GL.PLACES[k].name}: licence tests (${GL.LICENCES.filter(l => l.place === k).map(l => l.short).join(', ')})`, act: () => openLicPlace(k)};}
+  function licItem(L) {
+    const have = lic.has(L.id), th = !!lic.state.theory[L.id], fee = (th ? 0 : L.fee.theory) + (L.theoryOnly ? 0 : L.fee.practical), mine = licTest && licTest.id === L.id;
+    const sub = have ? `✓ passed ${lic.state.have[L.id]} · ${L.covers}` : mine ? (licTest.phase === 'goto' ? `Your test is waiting: get into ${L.vehicle}` : 'Your test is going on') :
+      `${L.covers} · ${th ? 'theory passed, practical test' : L.theoryOnly ? 'five questions' : 'theory (five questions) and a practical test in ' + L.vehicle} · ${fee ? KR(fee) : 'free'}${lic.missing(L.id).length ? ` · needs ${lic.missing(L.id).map(r => GL.byId[r].tag).join(' and ')} first` : ''}`;
+    return {label: `${have ? '✓' : L.icon} ${L.name}`, sub, done: have, act: () => licBegin(L.id)};
+  }
+  function openLicPlace(k) {
+    watch.hide();
+    lic.menu.show({title: () => `${GL.PLACES[k].name} · ${KR(wallet.money)}`, note: () => ({school: 'Førerprøven: the theory test and the practical driving test', airfield: 'The theory test and a flight test with the examiner', site: 'Operator’s certificates (Arbeidstilsynet’s classes) and class C'})[k],
+      items: () => [...GL.LICENCES.filter(l => l.place === k).map(licItem), {label: 'Close', act: () => {}}]});
+  }
+  function licPhoneItems() {
+    const items = [];
+    if (licTest) items.push({text: `⏹ Stop the ${licTest.L.short} test`, sub: licTest.phase === 'goto' ? 'The practical fee is paid back' : 'The fee is not paid back', act: () => licEnd('cancel')});
+    for (const L of GL.LICENCES) {
+      const have = lic.has(L.id), P = GL.PLACES[L.place];
+      items.push({text: `${have ? '✓' : L.icon} ${L.name}`, sub: have ? `Passed ${lic.state.have[L.id]} · ${L.covers}` : L.place === 'online' ? `${L.covers} · take the free online test now` : `${L.covers} · at ${P.name}: set the waypoint`, off: have,
+        act: () => {if (L.place === 'online') licBegin(L.id);else if (licPlaceNear() === L.place) openLicPlace(L.place);else wpTo(LIC_SIGNS[L.place]);}});
+    }
+    items.push({text: 'Back', act: () => openPhone()});
+    return items;
+  }
+  function openLicPhone() {watch.hide();jobs.phone.show(licPhoneItems, () => `🪪 Licences · ${lic.count} of ${lic.total}`);}
+  const licInUse = v => {const d = mp.occupant(vehicles.indexOf(v), 'd');return (!!d && d !== mp.net.you) || (v === caravan && !!gp);};
+  const cap = t => t.charAt(0).toUpperCase() + t.slice(1);
+  function licBegin(id) {
+    const L = GL.byId[id];
+    if (lic.has(id)) {notice(`You already have ${L.name}.`, 3);return;}
+    if (licTest) {notice(licTest.id === id ? (licTest.phase === 'goto' ? `Your ${L.short} test is waiting: get into ${L.vehicle}.` : 'Finish the test first.') : `Finish or stop your ${licTest.L.short} test first (phone: Licences).`, 4);return;}
+    const miss = lic.missing(id);if (miss.length) {notice(`${L.name} needs ${miss.map(r => GL.byId[r].name).join(' and ')} first.`, 4);return;}
+    if (drunk > 0) {notice('The examiner smells alcohol: come back sober (the limit for driving and flying is 0.2 per mille).', 5);return;}
+    if (jobs.shift) {notice('Stop your job first (phone: D-pad → / P).', 3);return;}
+    const v = L.theoryOnly ? null : licVehicle(id);if (!L.theoryOnly && !v) {notice('The test vehicle is not in this world.', 3);return;}
+    if (v && licInUse(v)) {notice(`${cap(L.vehicle)} is in use – try again in a moment.`, 4);return;}
+    const theory = !!lic.state.theory[id], cost = (theory ? 0 : L.fee.theory) + (L.theoryOnly ? 0 : L.fee.practical);
+    if (wallet.money < cost) {notice(`Not enough money: ${theory ? 'the practical test costs' : 'the test costs'} ${KR(cost)}, you have ${KR(wallet.money)}.`, 4);return;}
+    if (theory) {licPractical(L);return;}
+    if (L.fee.theory) {wallet.pay(L.fee.theory);audio.sfx('register');walletT = 5;}
+    lic.menu.quiz(L, answers => {
+      if (!answers) {notice('You left the theory test.', 3);return;}
+      const sc = GL.score(L.quiz, answers);
+      if (sc.wrong > L.maxWrong) {
+        lic.failed(id);audio.sfx('locked');
+        notice(`Theory not passed: ${sc.right} of ${L.quiz.length} right (at most ${L.maxWrong} wrong). The right answers were: ${L.quiz.filter((q, i) => answers[i] !== q.ok).map(q => `“${q.a[q.ok]}”`).join(', ')}. Read up and try again.`, 10);return;
+      }
+      lic.passTheory(id);
+      if (L.theoryOnly) {lic.grant(id);audio.sfx('cheer');notice(`${L.icon} Passed: ${sc.right} of ${L.quiz.length} right. You have the drone certificate A1/A3 now – you may fly the FPV drone (hold △).`, 7);return;}
+      notice(`Theory passed (${sc.right} of ${L.quiz.length} right). Now the practical test.`, 4);licPractical(L);
+    });
+  }
+  function licPractical(L) {
+    const v = licVehicle(L.id);if (licInUse(v)) {notice(`${cap(L.vehicle)} is in use – try again in a moment.`, 4);return;}
+    if (!wallet.pay(L.fee.practical)) {notice(`Not enough money for the practical test (${KR(L.fee.practical)}).`, 4);return;}
+    audio.sfx('register');walletT = 5;
+    const course = GL.COURSES[L.course];
+    // The test vehicle (and the crane's loads) go back to their places first if someone left them elsewhere.
+    if (player.vehicle !== v) {
+      if (v.aircraft) {if (!v.grounded || Math.hypot(v.x - v.home.x, v.z - v.home.z) > 3) v.reset();}
+      else if (Math.hypot(v.x - v.spawn[0], v.z - v.spawn[2]) > 4) {v.netSet(v.spawn);v.speed = 0;}
+    }
+    if (course.crane && site) for (const l of site.loads) if (!l.hooked && l.home) l.p.copy(l.home);
+    licTest = {id: L.id, L, v, course, gates: GL.resolve(course, {toWorld, groundAt, origin: licOrigin(course)}), phase: 'goto', run: null, prevLoad: null};
+    lic.rings.show(licTest.gates, 0);
+    if (player.mode === 'vehicle' && player.vehicle === v) licDrive();
+    else {wpTo(v);notice(`Get into ${L.vehicle} – the waypoint shows it. The test starts when you sit in it${course.timeS ? `; it takes at most ${GL.mmss(course.timeS)}` : ''}.`, 7);}
+  }
+  function licDrive() {
+    const t = licTest;t.phase = 'drive';t.run = new GL.Practical(t.course, t.gates);t.prevLoad = t.v.hook ? t.v.hook.load : null;map.waypoint = null;audio.sfx('beep');
+    notice(`${t.L.icon} ${t.L.short} test: ${t.gates[0].say || 'through the rings in order'}${t.course.limit ? ` · keep to ${t.course.limit} km/h` : ''}`, 7);
+  }
+  function licFail(text) {
+    const t = licTest;lic.failed(t.id);lic.rings.hide();lic.hud('');audio.sfx('whistle');
+    const seat = player.mode === 'vehicle' && player.vehicle === t.v;lic.last = {id: t.id, passed: false, text, why: t.run ? t.run.why : null, at: world.toLocal(t.v.x, t.v.z), t: t.run ? t.run.t : 0};
+    notice(`${t.L.icon} Not passed: ${text}${seat ? (t.v.aircraft ? ' Land, and the examiner takes the aircraft back.' : ' The examiner stops the vehicle and takes over.') : ''} Try again at ${GL.PLACES[t.L.place].name} (${KR(t.L.fee.practical)}).`, 10);
+    // Still in the seat: the examiner takes over (a car or machine is stopped; an aircraft you land first).
+    if (player.mode === 'vehicle' && player.vehicle === t.v && GL.need(t.v) && !lic.has(GL.need(t.v))) t.phase = 'failed';else licTest = null;
+  }
+  function licEnd(why) {
+    const t = licTest;if (!t) return;
+    if (t.phase === 'drive') {t.run.fail(why);licFail(GL.failText(t.run));return;}
+    licTest = null;lic.rings.hide();lic.hud('');
+    if (t.phase === 'goto') {wallet.earn(t.L.fee.practical);walletT = 5;}
+    notice(why === 'taken' ? `Someone took ${t.L.vehicle} – the practical fee (${KR(t.L.fee.practical)}) is paid back. Try again later.` : t.phase === 'goto' ? `You stopped the test – ${KR(t.L.fee.practical)} paid back.` : 'You stopped the test.', 5);
+  }
+  // Every frame, after the vehicles have moved.
+  function licTick(dt) {
+    const t = licTest;if (!t) return;
+    const v = t.v, inV = player.mode === 'vehicle' && player.vehicle === v;
+    if (t.phase === 'goto') {
+      if (!inV) {if (licInUse(v)) {licEnd('taken');return;}lic.hud(`<b>${t.L.icon} ${t.L.short} test</b><span>Get into ${t.L.vehicle} (the waypoint shows it)</span><small>Phone (D-pad → / P) · Licences: stop the test</small>`);return;}
+      licDrive();
+    }
+    if (t.phase === 'failed') {if (!inV) licTest = null;return;}
+    const r = t.run, hook = v.hook, load = hook ? hook.load : null, agl = v.aircraft ? v.y - groundAt(v.x, v.z) : 0;
+    const before = r.i;
+    r.step({dt, x: v.x, y: v.aircraft ? v.pos.y : v.y, z: v.z, speed: v.speed || 0, agl, grounded: v.aircraft ? !!v.grounded : true, crashed: !!v.broken, inVehicle: inV,
+      point: t.course.crane && hook ? hook.p : null, loaded: !!load, dropped: t.prevLoad && !load ? {x: t.prevLoad.p.x, z: t.prevLoad.p.z} : null});
+    t.prevLoad = load;
+    if (r.state === 'passed') {lic.grant(t.id);lic.last = {id: t.id, passed: true, t: r.t};licTest = null;lic.rings.hide();lic.hud('');audio.sfx('cheer');notice(`${t.L.icon} Passed in ${GL.mmss(r.t)}! You have ${t.L.tag.replace(/^(a|the) /, '')} now – ${t.L.covers}.`, 8);return;}
+    if (r.state === 'failed') {licFail(GL.failText(r));return;}
+    if (r.i !== before) {audio.sfx('beep');if (r.gate.say) notice(r.gate.say, 5);}
+    lic.rings.show(t.gates, r.i);
+    const g = r.gate, lim = r.limitNow(), kmh = Math.round(Math.abs(v.speed || 0) * 3.6), rings = t.gates.filter(x => x.k === 'ring').length, done = t.gates.slice(0, r.i).filter(x => x.k === 'ring').length;
+    const what = g.k === 'ring' ? `ring ${done + 1} of ${rings}` : g.k === 'hold' ? `hover ${Math.min(g.hold, r.holdT).toFixed(1)} of ${g.hold} s` : g.k === 'land' ? 'land and stop' : g.k === 'stop' ? 'stop in the green ring' : g.k === 'hook' ? 'hook a load' : 'set the load down';
+    const line = t.course.crane ? (load ? 'Load on the hook' : 'No load on the hook') : `${kmh} km/h${lim ? ` · limit ${lim}` : ''}${v.aircraft ? ` · ${Math.max(0, Math.round(agl))} m up` : ''}`;
+    lic.hud(`<b>${t.L.icon} ${t.L.short} test · ${what}</b><span class="${lim && kmh > lim ? 'late' : ''}">${line}${r.left !== null ? ` · ${GL.mmss(r.left)} left` : ''}</span>${g.say ? `<small>${g.say}</small>` : ''}`);
+  }
+  // After a failed test the examiner stops a car or machine and you get out; an aircraft you land first.
+  function licExaminer(input) {
+    const t = licTest;if (!t || t.phase !== 'failed' || player.mode !== 'vehicle' || player.vehicle !== t.v) return;
+    const v = t.v;
+    if (v.aircraft) {if (v.grounded && v.speed < 2) exitVehicle();return;}
+    input.move.x = input.move.y = 0;input.look.x = input.look.y = 0;input.held.l1 = input.held.r1 = false;input.pressed.delete('cross');
+    input.r2 = v.speed < -.4 ? 1 : 0;input.l2 = v.speed > .4 ? 1 : 0;
+    if (Math.abs(v.speed) < .5) exitVehicle();
+  }
   function phoneItems() {
     const s = jobs.shift, dist = window.GameMap.distanceText, items = [], car = player.mode === 'vehicle' && player.vehicle && player.vehicle.kind === 'car' ? player.vehicle : null;
     if (s && s.kind === 'delivery') items.push({text: '🛵 Stop delivering', sub: `${s.n} delivered · ${Math.round(s.total)} kr this shift`, act: () => jobs.stop('phone')});
     else items.push({text: '🛵 Deliver food', sub: 'Pick up orders at cafés, restaurants, Joker and Kiwi and take them to street doors before the time runs out – walk, run, ride or drive', act: () => jobs.startDelivery(player)});
     if (s && s.kind === 'taxi') items.push({text: '🚕 Turn the taxi off', sub: `${s.n} fare${s.n === 1 ? '' : 's'} · ${Math.round(s.total)} kr this shift`, act: () => jobs.stop('phone')});
-    else items.push({text: '🚕 Turn on taxi', sub: car ? 'Pick up passengers and drive them where they want to go – smooth, fast driving earns tips' : 'Sit in a car as the driver first', off: !car, act: () => jobs.startTaxi(car, vehicles.indexOf(car))});
+    else items.push({text: '🚕 Turn on taxi', sub: !lic.has('B') ? 'Taxi driving needs førerkort klasse B (Soria Moria Trafikkskole)' : car ? 'Pick up passengers and drive them where they want to go – smooth, fast driving earns tips' : 'Sit in a car as the driver first', off: !car || !lic.has('B'), act: () => jobs.startTaxi(car, vehicles.indexOf(car))});
     if (rentals) {
       const t = rentals.trip;if (t && t.locked) items.push({text: `🔒 Your locked city bike · ${window.GameRentals.clock(t.t)}`, sub: `Set the waypoint to it – return it to a dock within ${window.GameRentals.NOT_RETURNED.afterS / 60} min of locking it`, act: () => wpTo(t.v)});
       const sc = rentals.nearestScooter(player);if (sc) items.push({text: `🛴 Nearest e-scooter · ${dist(sc.dist)}`, sub: `Set the waypoint · ${rentals.priceText('scooter')}`, act: () => wpTo(sc.v)});
       const dk = rentals.nearestDock(player);if (dk) items.push({text: `🚲 ${dk.dock.name} · ${dist(dk.dist)}`, sub: `${dk.dock.count.bike} bike${dk.dock.count.bike === 1 ? '' : 's'}, ${dk.dock.count.ebike} e-bike${dk.dock.count.ebike === 1 ? '' : 's'} free · set the waypoint · ${rentals.priceText('bike')} (e-bike ${window.GameRentals.PLANS.ebike.per_min_pricing[0].rate} kr/min)`, act: () => wpTo(dk.dock.centre)});
     }
+    items.push({text: `🪪 Licences · ${lic.count} of ${lic.total}`, sub: licTest ? `Your ${licTest.L.short} test is going on` : 'Your licences, and where to take the tests', keep: true, act: () => openLicPhone()});
     items.push({text: 'Close', act: () => {}});
     return items;
   }
@@ -610,7 +786,7 @@
     if (basket.length) {const total = basket.reduce((t, b) => t + b.price, 0);bk.innerHTML = '<b>Basket</b>' + basket.map(b => `<div>${b.product.name}<span>${KR(b.price)}</span></div>`).join('') + `<div class="total">Total<span>${KR(total)}</span></div><small>Pay at the till</small>`;}
   }
   // The bag: what you have bought (D-pad ↓ / ↓ key on foot).
-  const USE = {beer: 'drink: +30 s drunk, a bottle for the deposit', soda: 'drink: a bottle for the deposit', energy: 'drink: 15 s of 3× speed', food: 'eat: sobers you up', wood: 'empty onto the firepit (+3)'};
+  const USE = {beer: 'drink: +30 s drunk, a bottle for the deposit', soda: 'drink: a bottle for the deposit', energy: 'drink: 15 s of 3× speed', food: 'eat: sobers you up', coffee: 'drink: hot, sobers you up a little', wood: 'empty onto the firepit (+3)'};
   const bagItems = () => Object.entries(wallet.bag).map(([id, n]) => ({p: shops.products.find(x => x.id === id), n})).filter(e => e.p);
   function openBag() {bag = {sel: 0, stick: false};watch.hide();renderBag();}
   function renderBag() {
@@ -635,7 +811,7 @@
     } else if (p.use === 'beer') {audio.sfx('bottleOpen');audio.sfx('gulp');drunk += 30;beerT = 20;wallet.addPant(1);notice(`You drink a ${p.name}. (+30 s drunk, +1 bottle for the deposit)`, 3);}
     else if (p.use === 'soda') {audio.sfx('bottleOpen');audio.sfx('gulp');drunk = Math.max(0, drunk - 10);wallet.addPant(1);notice(`${p.name} – refreshing. (+1 bottle for the deposit)`, 3);}
     else if (p.use === 'energy') {audio.sfx('bottleOpen');audio.sfx('gulp');boost = {kind: 'speed', t: 15};wallet.addPant(1);notice(`${p.name}: 15 s of 3× speed! (+1 can for the deposit)`, 3);}
-    else {drunk = Math.max(0, drunk - (p.sober || 10));audio.sfx('gulp');notice(`You eat ${p.name}.${p.sober ? ` (−${p.sober} s drunk)` : ''}`, 3);}
+    else {drunk = Math.max(0, drunk - (p.sober || 10));audio.sfx('gulp');notice(`You ${p.use === 'coffee' ? 'drink' : 'eat'} ${p.name}.${p.sober ? ` (−${p.sober} s drunk)` : ''}`, 3);}
     wallet.take(p.id);walletT = 4;
   }
   // ---------- Klatreverket Torshov (issue #40): the reception, the routes, climbing ----------
@@ -898,7 +1074,7 @@
       held: Object.assign({}, st?.buttons || {}), pressed: new Set(edges), released: new Set(released), r2: st ? st.run : 0, l2: st ? st.aim : 0, gamepad: Boolean(gp), mouse: {...mouse}
     };
     if (kx || ky) {input.move.x = kx;input.move.y = ky;}
-    const map = {Space: 'cross', KeyC: 'circle', KeyE: 'square', KeyF: 'triangle', Escape: 'options', KeyM: 'touchpad', KeyG: 'gallery', KeyZ: 'prone', KeyR: 'reload', ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down', ShiftLeft: 'l3', KeyQ: 'l1', KeyV: 'view', KeyY: 'share', KeyP: 'phone', KeyB: 'badges', Delete: 'delete'};
+    const map = {Space: 'cross', KeyC: 'circle', KeyE: 'square', KeyF: 'triangle', Escape: 'options', KeyM: 'touchpad', KeyG: 'gallery', KeyZ: 'prone', KeyR: 'reload', ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down', ShiftLeft: 'l3', KeyQ: 'l1', KeyV: 'view', KeyY: 'share', KeyP: 'phone', KeyB: 'badges', Delete: 'delete', KeyX: 'cast', Digit1: 'magic1', Digit2: 'magic2', Digit3: 'magic3', Digit4: 'magic4'};
     for (const [code, name] of Object.entries(map)) {if (ke(code)) input.pressed.add(name);if (k(code)) input.held[name] = true;}
     // Flying (helicopter, plane, drone): hold Shift or the right mouse button to look around (Battlefield's free look, issue #16).
     const flying = player.mode === 'drone' || (player.mode === 'vehicle' && !!player.vehicle?.aircraft);
@@ -922,6 +1098,7 @@
   $('badgesOpen').onclick = () => badges.open();
   function renderSettings() {
     $('walletLine').textContent = `Money: ${shops.kr(wallet.money)} · empty bottles: ${wallet.pant} (${shops.kr(wallet.pant * shops.PANT)} at the bottle return)`;
+    {const held = window.GameLicences.LICENCES.filter(l => lic.has(l.id)).map(l => l.short);$('licLine').textContent = `Licences (${held.length} of ${lic.total}): ${held.join(', ') || 'none yet'} – the phone (D-pad → / P · Licences) lists them all, where to take the tests, and starts the drone test`;}
     $('badgesOpen').textContent = `Badges and best scores (${badges.count} of ${badges.total})`;
     $('sensPad').value = sensitivity.pad;$('sensMouse').value = sensitivity.mouse;$('sensPadOut').textContent = sensitivity.pad.toFixed(2) + '×';$('sensMouseOut').textContent = sensitivity.mouse.toFixed(2) + '×';
     $('imagery').checked = imageryWanted();$('quality').value = String(quality);$('minimapOn').checked = map.minimap;
@@ -946,6 +1123,8 @@
     const dt = Math.min(clock.getDelta(), .05), t = clock.elapsedTime, input = readInput();
     fpsAvg += (1 / Math.max(dt, .001) - fpsAvg) * .05;
     if (asking) {if (input.pressed.has('cross')) answer(true);else if (input.pressed.has('circle')) answer(false);renderFrame(0, t);return;}
+    // An email link's box (issue #55) waits over the start screen: ✕ / ○ closes a message; the password form needs the keyboard.
+    if (!$('acctLink').hidden) {if ($('acctResetForm').hidden && (input.pressed.has('cross') || input.pressed.has('circle'))) closeLink();renderFrame(0, t);return;}
     if (!started) {if (input.pressed.has('cross') || input.pressed.has('options')) begin();renderFrame(dt, t);return;}
     // Global toggles.
     if (input.pressed.has('badges') && !paused && !caseGame?.active && player.mode === 'foot') {setPaused(true);badges.open();input.pressed.delete('badges');}
@@ -970,9 +1149,11 @@
     if (quick) quickInput(input);
     if (bag) bagInput(input);
     if (gymMenu) gymMenuInput(input);
+    if (lic.menu.open) lic.menu.input(input);
+    if (storgata && storgata.talking) storgata.input(input, storgataCtx(), storgataResult);
     // The jobs phone (issue #56): D-pad → / P on foot or in a vehicle (not on the site machines, where → is the arm on a keyboard).
     if (jobs.phone.open) jobs.phone.input(input);
-    else if ((input.pressed.has('phone') || (input.pressed.has('right') && !player.vehicle?.site)) && (player.mode === 'foot' || player.mode === 'vehicle') && !pbBusy() && !map.open && !caseGame?.active && !bag && !gymMenu && !quick && !photo.active && !gear) {openPhone();input.pressed.delete('right');input.pressed.delete('phone');}
+    else if ((input.pressed.has('phone') || (input.pressed.has('right') && !player.vehicle?.site)) && (player.mode === 'foot' || player.mode === 'vehicle') && !pbBusy() && !map.open && !caseGame?.active && !bag && !gymMenu && !lic.menu.open && !quick && !photo.active && !gear && !storgata?.talking) {openPhone();input.pressed.delete('right');input.pressed.delete('phone');}
     if (library && library.reading) library.readInput(input);
     if (caseGame?.active) {
       // The mission owns ✕ (begin), ○ (leave on panels), Options (pause), □ (door or reload), triggers.
@@ -1008,6 +1189,7 @@
       if (input.pressed.has('down') && !photo.active && !gear && !bag && !gymMenu) {openBag();input.pressed.delete('down');}
     } else if (gear) {gear = null;showGear(null);}
     if (photo.active || player.mode !== 'foot') watch.hide();
+    magicTick(dt, input);
     if (photo.active) {
       if (input.pressed.has('square') || input.pressed.has('gallery')) photo.openGallery();
       if (photo.gallery) {if (input.pressed.has('left')) photo.browse(-1);if (input.pressed.has('right')) photo.browse(1);if (input.move.x > .6 && !photo.stick) {photo.browse(1);photo.stick = true;} else if (input.move.x < -.6 && !photo.stick) {photo.browse(-1);photo.stick = true;} else if (Math.abs(input.move.x) < .3) photo.stick = false;if (input.pressed.has('cross') || input.pressed.has('delete')) photo.deleteShown();if (input.pressed.has('circle') && !photo.cancelDelete()) photo.openGallery(false);renderFrame(dt, t);return;}
@@ -1019,9 +1201,10 @@
     // Drunk effect: decays in real time.
     drunk = Math.max(0, drunk - dt);const dl = drunkLevel();
     if (boost && (boost.t -= dt) <= 0) {boost = null;audio.muffle(false);notice('The boost wears off.', 2);}
-    const wdt = dt * worldScale();stash.update(dt);shopsTick(dt);gym.update(dt, player, camera);grunerTick(dt);if (route) route.tick(player, dt);world.update(camera.position);
+    const wdt = dt * worldScale();stash.update(dt);shopsTick(dt);storgataTick(dt);gym.update(dt, player, camera);grunerTick(dt);if (route) route.tick(player, dt);world.update(camera.position);
     // The jump planes move first, so a jumper's seat (and camera) is where the plane is this frame.
     updateJumpFlight(dt);updateGamePilot(dt);
+    licExaminer(input);
     if (player.mode === 'vehicle') updateVehicle(dt, input, dl);
     else if (player.mode === 'passenger') updatePassenger(dt, input, dl);
     else if (player.mode === 'sit') updateSit(dt, input, dl);
@@ -1038,7 +1221,7 @@
     cullT -= dt;if (cullT <= 0) {cullT = .4;for (const v of vehicles) {const near = Math.hypot(v.x - camera.position.x, v.z - camera.position.z) < (v.cullDistance || 170);v.group.visible = near || v === player.vehicle;}if (vehicles.some((v, i) => mp.remoteDriven(i))) updateDynamic();}
     vehicles.forEach((v, i) => {if (v === player.vehicle && player.mode === 'vehicle') return;if (mp.remoteDriven(i) || (gp && v === caravan)) return;if (!v.group.visible && Math.abs(v.speed || 0) < .01 && !v.aircraft) return;v.update(wdt, {});});
     beerT = Math.max(0, beerT - dt);mp.update(dt);updatePilotAvatar(dt);if (player.mode === 'jumpseat' && skyd.ride) seatCamera();
-    if (rentals) rentals.tick(dt, player);jobs.tick(dt, {player, drunk: dl, camera});jobs.remoteTick(mp.remotes, vehicles, dt, camera);renderJobHud(crewTick());if (jobs.phone.open) jobs.phone.render();
+    if (rentals) rentals.tick(dt, player);jobs.tick(dt, {player, drunk: dl, camera});jobs.remoteTick(mp.remotes, vehicles, dt, camera);renderJobHud(crewTick());licTick(dt);if (jobs.phone.open) jobs.phone.render();
     if (site) site.update(wdt);
     if (paintball) {
       const foot = player.mode === 'foot', p = foot ? input.pressed : new Set(), h = foot ? input.held : {};
@@ -1050,12 +1233,13 @@
     let doorsChanged = false;
     for (const d of doors) if (d.anim) {d.anim.t = Math.min(1, d.anim.t + dt * 2.2);const e = d.anim.t < .5 ? 2 * d.anim.t * d.anim.t : 1 - Math.pow(-2 * d.anim.t + 2, 2) / 2;setDoor(d, d.anim.from + (d.anim.to - d.anim.from) * e);if (d.anim.t >= 1) {d.open = d.anim.to === 1;d.anim = null;doorsChanged = true;}}
     if (doorsChanged || caseGame?.active) updateDynamic();
-    promptTimer -= dt;if (promptTimer <= 0) {promptTimer = .15;promptAction = player.mode === 'minigame' || player.mode === 'drone' || gear?.open || quick || bag || gymMenu || jobs.phone.open || photo.active || (caseGame?.active && caseGame.state !== 'play') ? null : findPrompt();prompt(promptAction?.text);}
+    promptTimer -= dt;if (promptTimer <= 0) {promptTimer = .15;promptAction = player.mode === 'minigame' || player.mode === 'drone' || gear?.open || quick || bag || gymMenu || lic.menu.open || jobs.phone.open || photo.active || storgata?.talking || (caseGame?.active && caseGame.state !== 'play') ? null : findPrompt();prompt(promptAction?.text);}
     weather.update(dt, camera, {indoor: weatherIndoor, windWorld: weatherWind});
     ambienceTimer -= dt;if (ambienceTimer <= 0) {ambienceTimer = .25;updateAmbience();if (audio.context) music.attach(audio.context);music.play(musicTrack());}
     // Adaptive resolution keeps the frame rate in the 20–30+ fps range on slower PCs.
     if (fpsAvg < 22) {if (++lowFrames > 90 && pixelRatio > .6) {pixelRatio = Math.max(.6, pixelRatio - .1);renderer.setPixelRatio(pixelRatio);resize();lowFrames = 0;}} else lowFrames = 0;
     updateGuide(dt);
+    magicFx(dt);
     renderFrame(dt, t);
   }
   // The other players' arrows on the map and the minimap (their slot colour and name).
@@ -1070,6 +1254,7 @@
     if (map.guide({dt, camera, x: at.x, z: at.z, you: player, heading, view, alt, others: lobbyArrows(), ground: groundAt, show: !photo.active}) === 'reached') notice('Waypoint reached.', 2.5);
   }
   function placeName() {if (inApartment()) return 'Haarklous plass 17A, 4th floor';{const r = rathkes && rathkes.placeName(player.x, player.z, player.feet);if (r) return r;}{const c = catacomb && catacomb.placeName(player);if (c) return c;}{const z = gym.zoneAt(player, player.feet);if (z) return `Klatreverket Torshov, ${gym.ZONE_NAME[z]}`;}const tw = towerAt(player.x, player.z, player.feet);if (tw) return tw.t.own ? 'Stairwell, Haarklous plass 17A' : 'Stairwell, Torshov';
+    if (storgata && Math.hypot(player.x - storgata.people.kjell.at.x, player.z - storgata.people.kjell.at.z) < 60) return 'Kiwi Storgata 33, Oslo';
     // In a district patch: the nearest mapped neighbourhood (Ensjø, Kampen, Vålerenga, Gamlebyen …).
     const l = world.toLocal(player.x, player.z);if (Math.abs(l.x) > world.playHalf || Math.abs(l.s) > world.playHalf) {const near = DISTRICTS.flatMap(d => d.places).sort((a, b) => Math.hypot(a.x - l.x, a.s - l.s) - Math.hypot(b.x - l.x, b.s - l.s))[0];if (near) return `${near.name}, Oslo`;}
     return 'Torshov, Oslo';}
@@ -1102,16 +1287,20 @@
       const dx = (-Math.sin(player.yaw) * fwd + Math.cos(player.yaw) * right) * speed * dt, dz = (-Math.cos(player.yaw) * fwd - Math.sin(player.yaw) * right) * speed * dt;
       const bx = player.x, bz = player.z;move(dx, dz);
       player.stride += Math.hypot(player.x - bx, player.z - bz);
-      if (player.stride > (running || speed > 2.5 ? 1.05 : .72) * (player.stance === 'stand' ? 1 : .8)) {player.stride = 0;footstep(running ? 1.2 : player.stance === 'stand' ? .8 : .45);}
+      if (player.stride > (running || speed > 2.5 ? 1.05 : .72) * (player.stance === 'stand' ? 1 : .8)) {player.stride = 0;if (!(player.jumpY > .05)) footstep(running ? 1.2 : player.stance === 'stand' ? .8 : .45);}
     } else if (!mag) player.run = false;
     // Jump and stance easing.
     player.eyeNow += (stanceEye(player.stance) - player.eyeNow) * Math.min(1, dt * 9);
-    if (player.jumpV || player.jumpY) {player.jumpV -= 9.81 * dt;player.jumpY += player.jumpV * dt;const head = collision.ceilingAt(walkWorld, player, player.feet) - .1 - player.eyeNow;if (player.jumpY > head) {player.jumpY = Math.max(0, head);player.jumpV = Math.min(0, player.jumpV);}if (player.jumpY <= 0 && player.jumpV <= 0) {if (player.jumpV < -2) footstep(1.3);player.jumpY = 0;player.jumpV = 0;}}
+    // Levitation (Svev, issue #65): rising while R1 / 1 is held, then a slow sink until you land.
+    if (magic.levitating || player.floating) {
+      const head = collision.ceilingAt(walkWorld, player, player.feet) - .1 - player.eyeNow, r = window.GameMagic.levitate({y: player.jumpY, v: player.jumpV}, dt, {hold: magic.levitating, max: 3.2, head});
+      player.jumpY = r.y;player.jumpV = r.v;if (player.floating && !r.floating) audio.sfx('land');player.floating = r.floating || magic.levitating;
+    } else if (player.jumpV || player.jumpY) {player.jumpV -= 9.81 * dt;player.jumpY += player.jumpV * dt;const head = collision.ceilingAt(walkWorld, player, player.feet) - .1 - player.eyeNow;if (player.jumpY > head) {player.jumpY = Math.max(0, head);player.jumpV = Math.min(0, player.jumpV);}if (player.jumpY <= 0 && player.jumpV <= 0) {if (player.jumpV < -2) footstep(1.3);player.jumpY = 0;player.jumpV = 0;}}
     // Camera.
     const sway = dl ? {r: Math.sin(performance.now() / 1300) * .09 * dl, y: Math.sin(performance.now() / 1700) * .05 * dl, p: Math.sin(performance.now() / 900) * .03 * dl} : {r: 0, y: 0, p: 0};
     camera.position.set(player.x, player.feet + player.eyeNow + player.jumpY, player.z);
     camera.rotation.set(0, 0, 0, 'YXZ');camera.rotation.order = 'YXZ';camera.rotation.y = player.yaw + sway.y;camera.rotation.x = player.pitch + sway.p;camera.rotation.z = sway.r;
-    const fov = photo.active && photo.raised > .5 ? 70 / photo.zoom : caseGame?.active ? camera.fov : pbArmed() ? 70 / (1 + .45 * paintball.aim) : boostIs('speed') ? 82 : 70;if (Math.abs(camera.fov - fov) > .01 && !caseGame?.active) {camera.fov = fov;camera.updateProjectionMatrix();}
+    const fov = photo.active && photo.raised > .5 ? 70 / photo.zoom : caseGame?.active ? camera.fov : pbArmed() ? 70 / (1 + .45 * paintball.aim) : boostIs('speed') ? 82 : 70 + magicKick * 16;if (Math.abs(camera.fov - fov) > .01 && !caseGame?.active) {camera.fov = fov;camera.updateProjectionMatrix();}
   }
   function footstep(soft = 1) {
     let surface = 'grass', stair = false;
@@ -1205,6 +1394,7 @@
     return best;
   }
   function startDrone() {
+    if (!lic.has('A1A3')) {notice('Flying the FPV drone needs the drone certificate A1/A3: Luftfartstilsynet’s free online test, on your phone (D-pad → / P · Licences).', 6);return;}
     const f = {x: -Math.sin(player.yaw), z: -Math.cos(player.yaw)}, p = {x: player.x + f.x * 1.1, z: player.z + f.z * 1.1}, fl = floorBelow(p, player.feet + .4);
     if (!fl || Math.abs(fl.y - player.feet) > .6 || collision.hitsSolid(walkWorld, p, fl.y, fl.y + .35)) {notice('No room to launch the drone here – face an open space.');return;}
     watch.hide();if (photo.active) photo.toggle();drone.launch(p.x, fl.y, p.z, player.yaw);player.mode = 'drone';setClip(.03, 900);view.dataset.drone = '';
@@ -1214,7 +1404,7 @@
   let osdT = 0;
   function updateDrone(dt, input, dl) {
     if (input.pressed.has('circle') || input.pressed.has('triangle')) {stopDrone();notice('Drone packed away.', 2);return;}
-    if (input.pressed.has('l1')) {drone.setMode(drone.mode === 'angle' ? 'acro' : 'angle');notice(drone.mode === 'acro' ? 'ACRO: the right stick sets rotation rates – nothing self-levels. Flips and rolls!' : 'ANGLE: the drone levels itself and holds altitude with the stick centred.', 4);}
+    if (input.pressed.has('l1')) {drone.setMode(drone.mode === 'angle' ? 'acro' : 'angle');notice(drone.mode === 'acro' ? 'ACRO: the right stick sets rotation rates – nothing self-levels. Flips and rolls!' : 'ANGLE: the drone levels itself and holds altitude with the stick centred – tilted it sinks unless you add thrust.', 4);}
     if (input.pressed.has('cross') && (drone.crashed || !drone.armed)) {if (drone.battery > 0) drone.reset();else notice('Battery empty – ○ to pack the drone away, then launch it again with a fresh pack.', 4);}
     drone.update(dt, flightSticks(input, dl, dt, drone.mode === 'acro' ? .3 : 1), {floor: floorBelow, solid: (p, a, b) => collision.hitsSolid(walkWorld, p, a, b), listener: {x: player.x, y: player.feet + 1.6, z: player.z}});
     const pose = drone.cameraPose();camera.position.copy(pose.position);camera.quaternion.copy(pose.quaternion);flightLook(input, dt);
@@ -1477,6 +1667,7 @@
     // Kayaking (issue #45): sitting in a kayak on Akerselva; running (the librarian in Deichman shushes runners, issue #47).
     if (player.mode === 'kayak' && kayak && kayak.pose) {const k = kayak.pose;s.st = 'sit';s.p = [r(k.x), r(k.y + .28), r(k.z)];s.y = r(k.yaw);s.ky = [r(k.x), r(k.y), r(k.z), r(k.yaw)];}
     if (player.running) s.rn = 1;
+    if (magic.orb) s.mg = 1;// the light orb (issue #65): others see it by your shoulder
     // Skydiving: a jump seat in the flown Caravan (a vehicle seat 'j0'..'j11'), in the scheduled flight (ja), or in the air.
     if (player.mode === 'jumpseat' && skyd.ride) {if (skyd.ride.auto) s.ja = skyd.ride.seat;else {s.v = vehicles.indexOf(caravan);s.s = 'j' + skyd.ride.seat;}}
     if (player.mode === 'skydive' && skyd.jumper) {const J = skyd.jumper;s.p = [r(J.pos.x), r(J.pos.y), r(J.pos.z)];s.y = r(J.yaw);s.sky = J.state === 'freefall' ? 'f' : 'c';}
@@ -1547,7 +1738,7 @@
   const account = window.GameAccount.create({onChange: renderAccount});
   // Saved progress (issue #54): logged in, your progress is the account's – loaded when you log in and saved by itself.
   const safeStore = {getItem: k => {try {return localStorage.getItem(k);} catch {return null;}}, setItem: (k, v) => {try {localStorage.setItem(k, v);} catch {}}, removeItem: k => {try {localStorage.removeItem(k);} catch {}}};
-  const progress = window.GameProgress.create({account, store: safeStore, camera: photo, ask, notice, rules: badges.MERGE,
+  const progress = window.GameProgress.create({account, store: safeStore, camera: photo, ask, notice, rules: {...badges.MERGE, ...(window.GameStorgata ? window.GameStorgata.MERGE : {})},
     onApplied: () => window.dispatchEvent(new Event('haarklous-progress'))});
   window.addEventListener('haarklous-progress', () => {loadSens();badges.reload();renderSettings();});
   // A yes / no question over everything (✕ / ○ on the controller, or the buttons).
@@ -1565,15 +1756,56 @@
     $('acctNameRow').hidden = !signup;$('acctPassword').autocomplete = signup ? 'new-password' : 'current-password';
     $('acctSubmit').textContent = account.busy ? 'Wait…' : signup ? 'Create account' : 'Log in';
     $('acctMode').textContent = signup ? 'I have an account – log in' : 'New here? Create an account';
-    $('acctSubmit').disabled = $('acctLogout').disabled = account.busy;
+    $('acctSubmit').disabled = $('acctLogout').disabled = $('acctForgot').disabled = $('acctConfirm').disabled = account.busy;
+    // Email (issue #55): "Forgot password?" and the reminder to confirm the email, only where the server can send emails.
+    $('acctForgot').hidden = !account.email || signup;
+    const unconfirmed = !!(u && account.email && u.emailVerified === false);
+    $('acctConfirmLine').hidden = $('acctConfirm').hidden = !unconfirmed;
+    if (unconfirmed) $('acctConfirmLine').textContent = `Your email is not confirmed yet: open the link in the email we sent to ${u.email} (it works for an hour).`;
+    $('acctNote').textContent = acctNote;
   }
+  let acctNote = '';
+  const setNote = t => {acctNote = t;$('acctNote').textContent = t;};
   // The account name is the lobby name while you are logged in.
-  const acctDone = err => {$('acctError').textContent = err;if (!err) {$('acctPassword').value = '';if (account.user) {mp.net.setName(account.user.name);renderMp();}progress.userChanged(account.user);}renderAccount();};
-  $('acctMode').onclick = () => {acctMode = acctMode === 'signup' ? 'login' : 'signup';if (!$('acctName').value) $('acctName').value = mp.net.name;$('acctError').textContent = '';renderAccount();};
+  const acctDone = err => {$('acctError').textContent = err;if (err) setNote('');if (!err) {$('acctPassword').value = '';if (account.user) {mp.net.setName(account.user.name);renderMp();}progress.userChanged(account.user);}renderAccount();};
+  $('acctMode').onclick = () => {acctMode = acctMode === 'signup' ? 'login' : 'signup';if (!$('acctName').value) $('acctName').value = mp.net.name;$('acctError').textContent = '';setNote('');renderAccount();};
   $('acctForm').onsubmit = async e => {
-    e.preventDefault();const email = $('acctEmail').value, pw = $('acctPassword').value;
-    const err = acctMode === 'signup' ? await account.signUp($('acctName').value, email, pw) : await account.logIn(email, pw);
+    e.preventDefault();const email = $('acctEmail').value, pw = $('acctPassword').value, signup = acctMode === 'signup';
+    const err = signup ? await account.signUp($('acctName').value, email, pw) : await account.logIn(email, pw);
+    setNote(!err && signup && account.email ? `We have sent a link to ${account.user.email}: open it to confirm your email (look in the spam folder too).` : '');
     acctDone(err);if (!err) notice(`Logged in as ${account.user.name}.`, 3);
+  };
+  $('acctForgot').onclick = async () => {
+    const email = $('acctEmail').value.trim(), err = await account.forgot(email);$('acctError').textContent = err;
+    setNote(err ? '' : `If there is an account for ${email}, we have sent it a link to choose a new password. It works once, for an hour (look in the spam folder too).`);
+  };
+  $('acctConfirm').onclick = async () => {
+    const err = await account.confirmAgain();$('acctError').textContent = err;
+    setNote(err ? '' : `Sent again to ${account.user.email} – the new link works for an hour.`);
+  };
+  // The links in those emails open the game again: ?verified=1 (email confirmed) or ?reset=1&token=… (choose a new password).
+  const acctLink = window.GameAccount.link(location.search);let resetToken = null;
+  function showLink(title, text, form) {
+    $('acctLinkTitle').textContent = title;$('acctLinkText').textContent = text;$('acctResetForm').hidden = !form;$('acctLinkError').textContent = '';
+    $('acctLink').hidden = false;if (form) setTimeout(() => $('acctNew').focus(), 0);
+  }
+  const closeLink = () => {$('acctLink').hidden = true;resetToken = null;};
+  const linkWords = code => ({TOKEN_EXPIRED: 'The link has run out (it works for an hour).', USER_NOT_FOUND: 'There is no account for this link any more.'})[code] || 'The link has run out or was used already.';
+  if (acctLink) {
+    if (acctLink.kind === 'verified') showLink(acctLink.error ? 'This link did not work' : 'Email confirmed ✓', acctLink.error ? `${linkWords(acctLink.error)} Log in in the pause menu (Options / Esc) and press “Send the email again”.` : 'Thanks – your email address is confirmed, and you are logged in on this browser.', false);
+    else if (acctLink.token) {resetToken = acctLink.token;showLink('Choose a new password', 'At least 8 characters. The link works once, for an hour.', true);}
+    else showLink('This link did not work', `${linkWords(acctLink.error)} Ask for a new one with “Forgot password?” under Account in the pause menu (Options / Esc).`, false);
+    // The token is not left in the address bar or the browser's history.
+    const q = new URLSearchParams(location.search);['verified', 'reset', 'token', 'error'].forEach(k => q.delete(k));
+    try {history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '') + location.hash);} catch {}
+  }
+  $('acctLinkClose').onclick = closeLink;
+  $('acctResetForm').onsubmit = async e => {
+    e.preventDefault();if (!resetToken) return;$('acctResetSave').disabled = true;
+    const err = await account.resetPassword(resetToken, $('acctNew').value, $('acctNew2').value);$('acctResetSave').disabled = false;
+    if (err) {$('acctLinkError').textContent = err;return;}
+    $('acctNew').value = $('acctNew2').value = '';resetToken = null;acctDone('');
+    showLink('Password changed ✓', 'Log in with the new password under Account in the pause menu (Options / Esc). Everywhere the account was logged in, it is logged out now.', false);
   };
   // Save once more while the session is still valid; then this browser's own progress comes back.
   $('acctLogout').onclick = async () => {await progress.beforeLogout();const err = await account.logOut();acctDone(err);if (!err) notice('Logged out. This browser’s own progress is back.', 4);};
@@ -1588,7 +1820,7 @@
     drivingIndex: () => player.mode === 'vehicle' && player.vehicle ? vehicles.indexOf(player.vehicle) : gp ? caravanIndex() : -1,
     listener: () => ({x: player.x, y: player.feet + 1.5, z: player.z}), applyDoor, onChat: chatLine, onStatus: () => {renderMp();onLobbyChange();},
     onRemoteWood: r => fire.throwLog({x: r.pos.x, y: r.pos.y + 1.3, z: r.pos.z}), holdsMarker: id => !!paintball && paintball.rules.memberPlaying(id),
-    autoAnchor: seat => autoPlane.hipAnchor('j' + seat), skyPose: (r, st, g) => {skyPose(r, st, g);kayakPose(r, st, g);},
+    autoAnchor: seat => autoPlane.hipAnchor('j' + seat), skyPose: (r, st, g) => {skyPose(r, st, g);kayakPose(r, st, g);orbPose(r, st, g);},
     // In a paintball game you see your team-mates' names, not your opponents' (issue #25).
     showTag: id => !paintball || !paintball.rules.inGame() || !paintball.rules.memberPlaying(id) || paintball.rules.teamOfMember(id) === paintball.rules.myTeam()});
   // A new lobby: vehicles go back to where everybody else has them (the lobby then sends the ones that were moved).
@@ -1674,6 +1906,191 @@
     if (dl) {ghost.width = canvas.width / 2;ghost.height = canvas.height / 2;gctx.globalAlpha = .35 * dl;const off = Math.sin(performance.now() / 650) * 12 * dl;gctx.drawImage(canvas, off, Math.cos(performance.now() / 900) * 4 * dl, ghost.width, ghost.height);}
   }
 
+  // ---------- KIWI Storgata (issue #65): the regulars' quests, the finds and Sopp-Sigvald's magic ----------
+  const SG = window.GameStorgata;
+  // Even's photo of Grønland kirke: the tower (at the narrow end of the church, like game-landmarks draws it).
+  const GRONLAND = (() => {
+    const l = DISTRICTS.flatMap(d => d.landmarks).find(x => x.name === 'Grønland kirke');if (!l) return null;
+    const a = l.tower.end * (l.L / 2 - l.tower.side), c = world.toWorld(l.c[0] + l.axis[0] * a, l.c[1] + l.axis[1] * a);
+    return {id: 'gronland', name: 'Grønland kirke', size: 40, r: 8, maxDist: 170, at: {x: c.x, y: world.heightWorld(c.x, c.z) + l.top * .42, z: c.z}};
+  })();
+  // The finds and the bottles go on walkable ground (the walk world exists now).
+  if (storgata) {
+    const snap = (x, z, y, max = 6) => {const sp = collision.findSafeSpawn(walkWorld, {x, z}, 1.65, {y: y ?? groundAt(x, z), maxDistance: max});return sp ? {x: sp.x, y: sp.y, z: sp.z} : null;};
+    const at = (x, s, y, max) => {const w = world.toWorld(x, s);return snap(w.x, w.z, y, max);};
+    const pk = {}, marks = DISTRICTS.flatMap(d => d.landmarks);
+    // Torshovdalen: west of HODET N.N., by the petanque court and by a disc golf basket.
+    pk['dalen-1'] = at(SCULPTURE_AT.x - 14, SCULPTURE_AT.s - 6);
+    if (D.petanque) pk['dalen-2'] = at(D.petanque.x + 9, D.petanque.s + 7);
+    {const h = (D.discgolf || [])[1] || (D.discgolf || [])[0];if (h) pk['dalen-3'] = at(h.basket[0] + 5, h.basket[1] + 4);}
+    // Akerselva: on the banks at Sagene, in Grünerløkka and above Vaterland (akerselva-data.js: 3 m beyond the water's edge).
+    [[-1316.9, 1380.6], [-1167.7, 1886.3], [-922.3, 2309.3]].forEach(([x, s], i) => {pk[`elva-${i + 1}`] = at(x, s);});
+    // The catacomb: beside the pillar of bones in the Rotunda.
+    {const room = catacomb && catacomb.layout.rooms.find(r => r.id === 'rotunda');if (room) {const w = world.toWorld(room.cx + 2.2, room.cs);pk['bein-1'] = snap(w.x, w.z, catacomb.FLOOR_Y, 4);}}
+    // MUNCH: the free spot round the building nearest the fjord (the southernmost one).
+    {const l = marks.find(x => x.kind === 'munch');if (l) {const u = l.axis, n = [-u[1], u[0]], c = l.c, cand = [];for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {const d = a ? l.L / 2 + 4 : l.W / 2 + 4, x = c[0] + (u[0] * a + n[0] * b) * d, s = c[1] + (u[1] * a + n[1] * b) * d, q = at(x, s, undefined, 4);if (q) cand.push({q, s});}cand.sort((p, r) => r.s - p.s);if (cand.length) pk['mane-1'] = cand[0].q;}}
+    // The Opera roof: just below the plateau, in front of the stage tower.
+    {const l = marks.find(x => x.kind === 'opera'), roof = landmarks.floors.find(f => f.name === 'Opera roof');if (l && roof) {const a = -l.L * .2 + 4, w = world.toWorld(l.c[0] + l.axis[0] * a, l.c[1] + l.axis[1] * a);pk.harmonica = snap(w.x, w.z, roof.height(w), 3);}}
+    // Empty bottles on the pavement either side of the shop and a little further along Storgata.
+    const bottleSpots = [];
+    for (const [a, o] of [[-15.6, 1.6], [-11, 2.6], [-6.4, 1.8], [-1.2, 2.9], [16.2, 2.4], [20.4, 1.7], [25.6, 2.8], [31.5, 1.9], [-20, 2.2], [36, 2.0], [8.5, 3.0], [-24, 1.5]]) {
+      const [x, s] = storgata.along(a, o), w = world.toWorld(x, s), q = snap(w.x, w.z, undefined, 1.5);if (q) bottleSpots.push(q);
+    }
+    storgata.place({pickups: Object.fromEntries(Object.entries(pk).filter(([, v]) => v)), bottleSpots});
+  }
+  const storgataCtx = () => ({pant: wallet.pant, bag: wallet.bag});
+  const POWER_HELP = {levitate: 'Hold R1 (keyboard: hold 1) to float up to 3 m; let go and you sink slowly.', blink: 'R1 (keyboard: 2) jumps you up to 8 m the way you look – not through walls.',
+    gust: 'R1 (keyboard: 3) blows a gust ahead: it pushes a parked car, motorcycle or e-scooter and scares the pigeons.', orb: 'R1 (keyboard: 4) lights the light orb by your shoulder, and puts it out again.'};
+  function storgataPrompt() {
+    if (!storgata || player.mode !== 'foot' || caseGame?.active) return null;
+    const pr = storgata.prompt(player, lookTarget());return pr ? {text: pr.text, act: () => storgataAct(pr.act)} : null;
+  }
+  function storgataAct(a) {
+    if (a.talk) {watch.hide();if (photo.active) photo.toggle();magic.release('levitate');storgata.open(a.talk, storgataCtx());return;}
+    if (a.bottle) {storgata.takeBottle(a.bottle);wallet.addPant(1);walletT = 5;audio.sfx('click');notice(`An empty bottle (+1 for the deposit, ${wallet.pant} now)${storgata.status('kjell') === 'active' ? ' · Kjell-Arne wants ten' : ''}`, 2.5);return;}
+    if (a.pick) {
+      const r = storgata.pick(a.pick);if (!r) return;const f = storgata.finds[a.pick], q = SG.QUESTS.find(x => x.id === r.quest);
+      audio.sfx(r.pickup.kind === 'harmonica' ? 'harmonica' : 'mushroom');if (f) fx.burst({x: f.at.x, y: f.at.y + .3, z: f.at.z}, 0xffe38a, 40, 1.6);
+      questWaypoint(r.quest);
+      notice(r.ready ? `${cap(r.pickup.name.en)}${r.need > 1 ? ` – that is all ${r.need}` : ''}! Take ${r.need > 1 ? 'them' : 'it'} to ${SG.PEOPLE[q.who].name} outside Kiwi Storgata (the waypoint shows the way).` : `${cap(r.pickup.name.en)}: ${r.count} of ${r.need}. The waypoint shows the next one.`, 5);
+    }
+  }
+  // Our own waypoint for a quest: the next thing to find, Rolf, the church, or back to the one who asked.
+  function questWaypoint(id) {
+    if (!storgata) return;let w = storgata.target(id, player);
+    if (!w && id === 'even' && GRONLAND && storgata.status('even') === 'active') w = GRONLAND.at;
+    if (!w) return false;const l = world.toLocal(w.x, w.z);map.waypoint = {x: l.x, s: l.s};questWp = map.waypoint;return true;
+  }
+  // What a choice in a conversation does to the rest of the game: waypoints, money, the bag, bottles, a new power.
+  function storgataResult(r, who) {
+    const P = SG.PEOPLE[who], msg = [];
+    if (r.accepted) {const q = SG.QUESTS.find(x => x.id === r.accepted);audio.sfx('quest');const wp = storgata.status(q.id) === 'active' && questWaypoint(q.id);msg.push(`New task from ${P.name}: ${q.title.en} · ${storgata.goal(q.id, storgataCtx()).en}${wp ? ' · the waypoint shows the way' : ''}`);}
+    if (r.delivered) {audio.sfx('quest');questWaypoint('mona');msg.push("Rolf has read Mona's note. Go back to Mona outside Kiwi Storgata.");}
+    if (r.reward) {
+      const rw = r.reward;
+      if (rw.takePant) wallet.takePant(rw.takePant);
+      (rw.takeItems || []).forEach(id => wallet.take(id));
+      if (rw.item) wallet.add(rw.item);
+      if (questWp && map.waypoint === questWp) map.waypoint = null;questWp = null;
+      if (rw.kr) {wallet.earn(rw.kr);audio.sfx('coin');msg.push(`+${KR(rw.kr)} from ${P.name}`);}
+      const item = rw.item ? shops.products.find(x => x.id === rw.item) : null;if (item) msg.push(`${P.name} gives you ${item.name} (in your bag: D-pad ↓)`);
+      if (r.done === 'bente') audio.sfx('harmonica');if (r.done === 'tore') audio.sfx('bark');
+      if (rw.teach) {magic.learn(rw.teach);const pw = window.GameMagic.byId(rw.teach);audio.sfx('learn');fx.burst({x: player.x, y: player.feet + 1, z: player.z}, pw.color, 90, 2.2);msg.push(`You learned ${pw.icon} ${pw.no} (${pw.en})! ${POWER_HELP[pw.id]} D-pad ← / ← chooses the power for R1 / X.`);}
+      else if (SG.REGULARS.includes(r.done)) {audio.sfx('cheer');msg.push(`Storgata trusts you a little more (${storgata.trust} of 5) – Sopp-Sigvald on the corner has noticed.`);}
+      walletT = 6;badges.check();
+    }
+    if (msg.length) notice(msg.join(' · '), 8);
+  }
+  let questT = 0, questHudKey = '';
+  function storgataTick(dt) {
+    if (!storgata) return;storgata.update(dt, player, camera);
+    questT -= dt;if (questT > 0) return;questT = .3;
+    const act = SG.QUESTS.filter(q => ['active', 'ready'].includes(storgata.status(q.id))), show = act.length && player.mode === 'foot' && !caseGame?.active && !pbBusy() && !storgata.talking;
+    const html = show ? '<b>Storgata</b>' + act.slice(0, 3).map(q => `<div>${esc(q.title.en)}<small>${esc(storgata.goal(q.id, storgataCtx()).en)}</small></div>`).join('') + (act.length > 3 ? `<small>+ ${act.length - 3} more</small>` : '') : '';
+    if (html !== questHudKey) {questHudKey = html;const el = $('questHud');el.innerHTML = html;el.hidden = !html;}
+  }
+  // ---- Magic (GameMagic): R1 / X casts the chosen power, D-pad ← / ← chooses, 1–4 cast one directly ----
+  const POWER_KEYS = ['magic1', 'magic2', 'magic3', 'magic4'];
+  const magicAllowed = () => player.mode === 'foot' && !caseGame?.active && !pbBusy() && !photo.active && !gear && !bag && !gymMenu && !jobs.phone.open && !quick && !map.open &&
+    !(storgata && storgata.talking) && !(route && route.running) && !(library && library.reading);
+  function magicTick(dt, input) {
+    magicKick = Math.max(0, magicKick - dt * 4);pushTick(dt);
+    if (!magic.known.size) {renderMagicHud(false);return;}
+    for (const e of magic.tick(dt)) {if (e.id === 'levitate') notice('Out of mana – you sink slowly to the ground.', 2.5);if (e.id === 'orb') {fx.orb.on = false;audio.sfx('orbOff');notice('Out of mana – the light orb goes out.', 2.5);}}
+    // The orb goes out in a vehicle, in the mission and at paintball; levitation stops whenever the powers are not allowed.
+    if (magic.orb && (!['foot', 'sit'].includes(player.mode) || caseGame?.active || pbBusy())) {magic.orb = false;fx.orb.on = false;}
+    const ok = magicAllowed();
+    if (!ok) {
+      magic.release('levitate');
+      if (route && route.running && player.mode === 'foot' && (input.pressed.has('r1') || input.pressed.has('cast') || POWER_KEYS.some(k => input.pressed.has(k)))) notice('No magic during the timed run – that would be cheating!', 2);
+      renderMagicHud(player.mode === 'foot' && !caseGame?.active && !pbBusy() && !(storgata && storgata.talking));return;
+    }
+    const direct = POWER_KEYS.find(k => input.pressed.has(k));
+    if (input.pressed.has('left')) {const pw = window.GameMagic.byId(magic.select(1));audio.sfx('click');notice(`${pw.icon} ${pw.no} (${pw.en}) · R1 / X`, 1.5);}
+    if (direct) {const pw = window.GameMagic.POWERS[POWER_KEYS.indexOf(direct)];if (magic.knows(pw.id)) {magic.sel = pw.id;castPower(pw.id);} else notice(`${pw.icon} ${pw.en}: not learned yet – Sopp-Sigvald in Storgata teaches it.`, 2.5);}
+    else if (input.pressed.has('r1') || input.pressed.has('cast')) castPower(magic.selected);
+    // Levitation lasts while its button is held.
+    if (magic.levitating && !(input.held.magic1 || ((input.held.r1 || input.held.cast) && magic.selected === 'levitate'))) magic.release('levitate');
+    renderMagicHud(true);
+  }
+  function castPower(id) {
+    if (!id) return false;const pw = window.GameMagic.byId(id), r = magic.cast(id);
+    if (!r.ok) {audio.sfx('noMana');notice(r.why === 'cooldown' ? `${pw.icon} ${pw.no} is not ready yet (${Math.ceil(magic.cool[id])} s)` : r.why === 'mana' ? `Not enough mana for ${pw.no} (${pw.cost} needed)` : `${pw.en}: not learned yet`, 1.5);return false;}
+    if (id === 'levitate') {audio.sfx('levitate');player.floating = true;fx.burst({x: player.x, y: player.feet + .1, z: player.z}, pw.color, 26, 1.2);}
+    else if (id === 'blink') doBlink(pw);
+    else if (id === 'gust') doGust(pw);
+    else if (id === 'orb') {fx.orb.on = r.on;if (r.on) fx.orb.pos.copy(camera.position);audio.sfx(r.on ? 'orbOn' : 'orbOff');}
+    return true;
+  }
+  // Blink: straight ahead the way you face, up to 8 m, stopping where you could no longer stand (a wall, a drop, a closed door).
+  function doBlink(pw) {
+    const eye = stanceEye(player.stance), dir = {x: -Math.sin(player.yaw), z: -Math.cos(player.yaw)};
+    const test = (p, y) => {const sp = collision.supportAt(walkWorld, p, y);return sp && collision.canStand(walkWorld, p, eye, sp.y) ? sp.y : null;};
+    const t = window.GameMagic.blinkTarget({x: player.x, z: player.z, y: player.feet}, dir, pw.dist, test);
+    if (t.d < .6) {magic.mana += pw.cost;magic.cool.blink = 0;audio.sfx('noMana');notice('Something is in the way – nowhere to blink to.', 2);return;}
+    fx.burst({x: player.x, y: player.feet + player.jumpY + 1, z: player.z}, pw.color, 55, 2.4);
+    player.x = t.x;player.z = t.z;player.feet = t.y;
+    fx.burst({x: t.x, y: t.y + player.jumpY + 1, z: t.z}, pw.color, 55, 2.4);audio.sfx('blink');magicKick = 1;
+    if (storgata) storgata.scare({x: t.x, z: t.z}, null, .8);
+  }
+  // Gust: wind streaks ahead, the pigeons fly off, and the nearest free parked car / motorcycle / e-scooter in the cone is pushed.
+  // Online the pushed vehicle is claimed like a seat while it moves, and its final place goes to the lobby when it stops.
+  const pushedList = [];let pushDynT = 0;
+  function pushable(v, i) {
+    if (!v.group.visible || v.aircraft || v.site || v.pushed || v === player.vehicle || !['car', 'motorcycle', 'scooter'].includes(v.kind)) return false;
+    if (mp.occupant(i, 'd') || mp.occupant(i, 'p') || lockedByOthers().has(i)) return false;
+    return Math.abs(v.y - player.feet) < 3;
+  }
+  function doGust(pw) {
+    const dir = {x: -Math.sin(player.yaw), z: -Math.cos(player.yaw)};
+    fx.wind({x: camera.position.x, y: camera.position.y - .35, z: camera.position.z}, dir);audio.sfx('gust');
+    if (storgata) storgata.scare({x: player.x, z: player.z}, dir, 1.3);
+    const free = vehicles.map((v, i) => ({x: v.x, z: v.z, v, i})).filter(c => pushable(c.v, c.i));
+    const hit = window.GameMagic.gustTargets({x: player.x, z: player.z}, dir, free, pw.range, pw.cone)[0];
+    if (hit) pushVehicle(hit.item.v, hit.item.i, dir, hit.k);
+  }
+  function pushVehicle(v, i, dir, k) {
+    v.pushed = {i, vx: 0, vz: 0, spin: 0, t: 0};
+    mp.claim(i, 'd').then(r => {
+      if (!r.ok || player.mode !== 'foot') {v.pushed = null;if (r.ok) mp.release(i, 'd');return;}
+      const s = (v.kind === 'car' ? 6 : 8) * k;Object.assign(v.pushed, {vx: dir.x * s, vz: dir.z * s, spin: (Math.random() - .5) * (v.kind === 'car' ? .8 : 2) * k});
+      if (v.flies) v.vy = (v.kind === 'car' ? 2.2 : 2.8) * k;// a little hop as the gust catches it
+      if (v.rental) v.rested = false;pushedList.push(v);updateDynamic();
+    });
+  }
+  function pushTick(dt) {
+    if (!pushedList.length) return;
+    for (const v of [...pushedList]) {
+      const p = v.pushed, f = Math.exp(-2.4 * dt), sp = Math.hypot(p.vx, p.vz);p.t += dt;p.vx *= f;p.vz *= f;p.spin *= f;
+      if (sp > .02) {const nx = v.x + p.vx * dt, nz = v.z + p.vz * dt;if (v.clear(nx, nz)) {v.x = nx;v.z = nz;} else {if (sp > 2) audio.sfx('thud', {gain: .6});p.vx = p.vz = 0;}}
+      v.yaw += p.spin * dt;if (v.rental) v.rested = false;
+      if (p.t > 4 || player.mode !== 'foot' || (p.t > .6 && sp < .05 && !v.airborne)) {v.pushed = null;v.speed = 0;pushedList.splice(pushedList.indexOf(v), 1);v.place();mp.release(p.i, 'd', v.netGet());updateDynamic();}
+    }
+    pushDynT -= dt;if (pushDynT <= 0 && pushedList.length) {pushDynT = .25;updateDynamic();}
+  }
+  let magicHudKey = '';
+  function renderMagicHud(show) {
+    let html = '';
+    if (show && magic.known.size) {
+      const sel = window.GameMagic.byId(magic.selected);
+      html = `<div class="mg-mana" title="Mana"><u style="width:${Math.round(magic.mana / 2) * 2}%"></u></div><div class="mg-row">` + window.GameMagic.POWERS.map(pw => {
+        const k = magic.knows(pw.id), cd = magic.cool[pw.id] || 0, f = cd > 0 ? Math.round(Math.min(1, cd / pw.cd) * 20) * 5 : 0, on = (pw.id === 'orb' && magic.orb) || (pw.id === 'levitate' && magic.levitating);
+        return `<i class="${k ? '' : 'no'}${pw.id === sel.id ? ' sel' : ''}${on ? ' on' : ''}" style="--cd:${f}%"><span>${k ? pw.icon : '·'}</span><b>${pw.key}</b></i>`;
+      }).join('') + `</div><small>${sel.no} (${sel.en}) · R1 / X · ← chooses</small>`;
+    }
+    if (html !== magicHudKey) {magicHudKey = html;const el = $('magicHud');el.innerHTML = html;el.hidden = !html;}
+  }
+  const orbView = new T.Vector3();
+  function magicFx(dt) {
+    fx.update(dt, camera);
+    if (catacomb) {if (fx.orb.level > .02) {camera.updateMatrixWorld();orbView.copy(fx.orb.pos).applyMatrix4(camera.matrixWorldInverse);catacomb.setOrb(orbView, fx.orb.level);} else catacomb.setOrb(null, 0);}
+  }
+  // Other players' light orbs: a small glowing ball by their shoulder (no light, to keep the light count fixed).
+  const remoteOrbMat = new T.MeshBasicMaterial({color: 0xfff1c8});
+  function orbPose(r, st) {
+    if (st.mg && !r.orb) {r.orb = new T.Mesh(new T.SphereGeometry(.09, 12, 8), remoteOrbMat);r.orb.name = 'Remote light orb';scene.add(r.orb);}
+    if (r.orb) {r.orb.visible = !!st.mg && r.seen !== false;if (r.orb.visible) r.orb.position.set(r.pos.x + Math.cos(r.yaw) * .55, r.pos.y + 1.85 + Math.sin(performance.now() / 500) * .05, r.pos.z - Math.sin(r.yaw) * .55);}
+  }
   // ---------- Test / inspection handle ----------
   // ---------- Photo hunt places, badge checks (issue #58) ----------
   const huntSpots = (() => {
@@ -1715,6 +2132,11 @@
   function huntPhoto() {
     const shot = {cam: camera.position.clone(), fovY: camera.fov, ndc: p => new T.Vector3(p.x, p.y, p.z).project(camera), blocked: sightBlocked};
     const msg = badges.photo(shot, huntSpots, canvas);if (msg) notice(msg, 5);
+    if (storgata && GRONLAND && storgata.status('even') === 'active') {
+      const j = window.GameBadges.judge(GRONLAND, shot);
+      if (j.ok) {storgata.photo('gronland');audio.sfx('quest');questWaypoint('even');notice('A good photo of Grønland kirke! Show it to Even outside Kiwi Storgata.', 5);}
+      else if (j.d < GRONLAND.maxDist * 1.6) notice(`Even's photo of Grønland kirke: ${{far: `come closer (within ${GRONLAND.maxDist} m)`, frame: 'aim at the tower', small: 'get the whole tower in, a bit bigger – go closer or zoom in', blocked: 'something is in the way'}[j.why] || 'try again'}.`, 5);
+    }
   }
   // Badges that come from what you do: checked twice a second (the rest come from the best scores and saved states).
   let badgeT = 0, pbSeen = 0;
@@ -1734,6 +2156,10 @@
   Object.assign(window.haarklousGame, {library, pingpong, rathkes, kayak, startKayak, hushedFor: () => hushed});
   Object.assign(window.haarklousGame, {badges, huntSpots, huntPhoto, sightBlocked, SKY_TARGET, progress, account});
   Object.assign(window.haarklousGame, {rides, get rentals() {return rentals;}, jobs, openPhone, rentDrive, JOB_SIGNS});
+  // Licences (issue #59). Browser tests that need to drive: haarklousGame.licences.grant('B') (or every id in GameLicences.IDS).
+  Object.assign(window.haarklousGame, {licences: lic, licBegin, licVehicle, openLicPlace, openLicPhone, schoolCar, schoolBike, LIC_SIGNS});
+  Object.defineProperty(window.haarklousGame, 'licTest', {get: () => licTest});
+  Object.assign(window.haarklousGame, {storgata, magic, magicFxApi: fx, castPower, GRONLAND, storgataAct, questWaypoint, collision});
   loading.remove();$('start').hidden = false;
   requestAnimationFrame(frame);
 })();
