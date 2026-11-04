@@ -85,7 +85,7 @@
     const group = new T.Group();group.name = 'Shops';
     const floors = [], obstacles = [], hitboxes = [], built = [];
     const avatars = window.GameAvatars ? window.GameAvatars.create({T, lib}) : null;
-    const facadeMat = lib.facade(), plinthMat = lib.plinth(), roofMat = lib.roof();facadeMat.color.setScalar(.78);plinthMat.color.setScalar(.75);
+    const facadeMat = lib.facade(), plinthMat = lib.plinth(), roofMat = lib.roof();// the same atlas cells as the building around the shop (issue #68)
     const tileM = lib.floorTiles(), wallM = lib.plaster(0xf2f1ec), ceilM = new T.MeshStandardMaterial({color: 0xf4f4f2, roughness: .9});
     const aluM = lib.metal(0x5b6066, .35), glassM = new T.MeshPhysicalMaterial({color: 0xbfd3dc, transparent: true, opacity: .22, roughness: .04, metalness: .1, side: T.DoubleSide, depthWrite: false});
     const shelfM = lib.metal(0xd9dbdd, .45), darkM = lib.polymer(0x232528), fridgeM = new T.MeshStandardMaterial({color: 0xe9ecee, roughness: .4, metalness: .2});

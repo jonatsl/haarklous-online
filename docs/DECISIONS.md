@@ -41,9 +41,51 @@ On `main`:
 - Logged in, your progress is your account's and is there on any PC or browser: money and bottles, the bag, photos (an album of up to 60), badges, best scores, Klatreverket ticks, the catacomb map and your settings; it saves by itself. The first log-in on a browser with its own progress asks whether to move it into the account. Without an account it stays in the browser as before (issue #54, PR #70).
 - Badges and a photo hunt in the pause menu (R1 / B): 16 badges from playing and ten places to photograph (Torshovoksen, HODET N.N., Deichman Grünerløkka, Klatreverket, the catacomb's rotunda, Muselunden, MUNCH, the Opera, Rathkes gate 1, your street door); each new badge pays 50–300 kr; best scores for the minigames, the mission, skydiving and the runs; an orange landing target for skydivers at the airstrip (issue #58, PR #70).
 
+- Ground with real detail up close (grass, asphalt, paving slabs, gravel, pavements and kerbs) with or without the aerial photo, and buildings that look like their part of town – Torshov brick and Harald Hals' plastered blocks, Grünerløkka's tenements with shop fronts, buff brick, wooden houses, new blocks – chosen from OpenStreetMap and Street View notes (issues #67 and #68, branch `feat/better-textures`, not merged yet).
+
 Live site: runs `main` (Worker version a75a02dc, deployed 3 Nov 2026 after PR #70; `main` builds byte-for-byte to the live page), so everything above is online.
 
 ## Log
+
+### 2026-11-04 · Better ground and building textures (issues #67 and #68)
+- **What:**
+  - **Ground (issue #67):**
+    - Up close the ground now has grass blades and clumps, asphalt grain with cracks and repairs, granite paving slabs, gravel and soil, with worn spots and bare rock on steep slopes and a little relief in the sunlight.
+    - It works with and without the aerial photo: the game picks the kind of ground from the colour under it, in the old square and in Gamle Oslo, Ensjø and Myrens.
+    - Large, slow changes in the colour break up the repeat, and the fine detail fades out with distance.
+    - The map painting (no photo) has pavements along the car streets with a granite kerb line, asphalt pavements in Torshov, Sandaker, Myrens and Ensjø and slab pavements in Grünerløkka, Tøyen, Grønland, Kampen and Bjørvika, warmer gravel paths, and each park its own green.
+  - **Buildings (issue #68):**
+    - Every building gets a look from its type, height, part of town and its OpenStreetMap tags (colour, material, roof colour, roof shape, year, heritage, architect).
+    - Torshov: dark red-brown brick blocks with brown or cream window frames and stone or concrete plinths; Harald Hals' pale yellow, cream and pink plastered blocks with small-paned dark green or white windows and red tile roofs; white 1950s blocks.
+    - Grünerløkka: 1880–1900 tenements in white, cream, grey, ochre, deep red, pale green and blue, with window surrounds, pediments, rusticated ground floors and cornices.
+    - Sandaker, Grønland and Tøyen: buff brick, tenements and 1960s concrete; Kampen and Vålerenga: painted wooden houses; Ensjø and Bjørvika: new blocks in dark or red-brown brick, light render and glass; halls in ribbed metal.
+    - Shops and cafés from OpenStreetMap (about 2,000) get shop fronts with big windows and a sign band on the wall they are on.
+    - Windows differ: net curtains, blinds, now and then a lit room.
+    - The flat's own building and its neighbours are the real dark brick with brown frames and a grey concrete plinth (as on Street View at Haarklous plass 19).
+- **Why:** the tester's issues: #67 "The ground texture is completely flat many places and should be improved", #68 "Use more accurate textures on buildings etc by inspecting Google maps streetview".
+  - Street View notes (looked at on 3 Nov 2026 only, nothing copied or stored, Google's terms): Haarklous plass 19 dark red-brown brick, brown 2-pane windows, grey concrete plinth, steel balconies; Hegermanns plass and Nordkappgata pale yellow plaster, dark green small-paned windows, red tile hip roofs, arched gates; Edvard Griegs allé brick with a pink stone plinth and cream frames; Torshovgata pink and white plaster and brick; Vogts gate buff-yellow brick and plastered tenements; Thorvald Meyers gate and Schæffers gate coloured tenements, cornices, shops with awnings, granite slab pavements; Grønlandsleiret buff brick, orange plaster, shops on every ground floor, red cycle lanes; Tøyengata 1960s concrete, asphalt with granite kerbs and a cobble gutter; Ensjø dark and red-brown brick, light render, glass, dark granite plazas.
+  - Decided here:
+    - Textures are painted by the game (no photos), in one shared atlas, so each tile of buildings is one draw call (it was up to seven).
+    - OpenStreetMap has few look tags here (79 building colours, 96 roof colours), so the part of town decides the rest; neighbouring buildings share a look more often than not. The town parts are rough boxes, written down in `city-textures.js`.
+    - In Torshov, mappers tag the brick blocks reddish and the plastered blocks yellow or pink, so a reddish colour tag means brick.
+    - Old halls inside the brick districts are brick, not ribbed metal (that is kept for Ensjø, Bjørvika and Myrens).
+    - With the aerial photo, all grey ground gets asphalt detail (a slab pattern on a road would be worse than none on a pavement), and the brightened photo's asphalt is taken down to look like asphalt.
+    - Joker, Kiwi and the eight stairwell buildings keep the brick of the shop fill and stair towers; their painted shop fronts are left out because the shops are modelled.
+    - The brick of `lib.brick()` (the flat's facade walls, churches, Klatreverket, stair towers) is a little darker, like Torshov's.
+- **Where:**
+  - `city-textures.js` (new): town parts, which look a building gets, wall bands, the facade atlas and its shader, the ground detail and its shader.
+  - `building-looks-data.js` (new) from `tools/make-building-looks.cjs` (new) and `assets/osm/building-looks-osm-2026-11-03.json.gz` (new, OpenStreetMap).
+  - `surroundings.js`: buildings in the atlas (near) and vertex colours (far), shop walls, the ground shader on the terrain, pavements and kerbs in the painting.
+  - `materials.js`: `lib.facade()` and `lib.plinth()` use the atlas's brick and plinth cells; darker default brick. `game-shops.js`: the shop fill is no longer darkened.
+  - `index.html` (two scripts), `README.md`, `docs/HANDOFF.md`; test `tests/city-textures.test.cjs`.
+- **Checked:**
+  - Node tests 136/136 (8 new).
+  - In the browser, from the same 12 camera spots before and after (street level and from the air in Torshov, Grünerløkka, Grønland, Gamle Oslo and Ensjø), with and without the aerial photo. Screenshots are kept out of the commit.
+  - Draw calls fewer at every spot (1–41 %, e.g. Torshovgata 288 → 216, Grønlandsleiret 191 → 136); triangles at most +5 % (+84,000 in the near buildings); near building meshes 682 → 118.
+  - Texture memory: building textures 8.1 → 14.6 MB plus 5.3 MB of ground detail (the ground paintings, about 243 MB, are unchanged). Mipmaps and anisotropy on; no faces on top of each other.
+  - The game starts and you can walk; Joker's front and fill match the building; no new console errors.
+  - Not checked: frame rate (the shared PC's GPU is busy, so only draw calls and triangles were counted), a real DualShock 4, the live server.
+- **Status:** branch `feat/better-textures`, pull request for review (not merged, not deployed).
 
 ### 2026-11-03 · `main` is live (PR #70, saved progress, badges and the photo hunt)
 - **What:** saved progress for accounts, badges and the photo hunt (PR #70, issues #54 and #58) are merged into `main` (93d4f27) and deployed (Cloudflare Worker version a75a02dc).
