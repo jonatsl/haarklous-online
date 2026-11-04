@@ -186,9 +186,9 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
 #basket{position:absolute;right:20px;top:56px;min-width:230px;padding:10px 14px;border-radius:12px;background:#0b0f14d9;border:1px solid #ffffff22;pointer-events:none;font-size:14px}
 #basket div{display:flex;justify-content:space-between;gap:16px}#basket .total{border-top:1px solid #ffffff33;margin-top:4px;padding-top:4px;font-weight:700}
 #basket small{opacity:.7}
-#bag,#gymMenu{position:absolute;left:18px;top:50%;transform:translateY(-50%);min-width:280px;max-width:min(420px,80%);max-height:calc(100% - 140px);overflow-y:auto;scrollbar-width:none;padding:12px;border-radius:12px;background:#0b0f14e6;border:1px solid #ffffff2a;pointer-events:none;display:flex;flex-direction:column;gap:3px}
-#bag div,#gymMenu div{padding:5px 10px;border-radius:7px;display:flex;flex-direction:column}#bag div small,#gymMenu div small{opacity:.75}#gymMenu div.done{opacity:.6}
-#bag div.sel,#gymMenu div.sel{background:#ffd166;color:#111;font-weight:700}#bag > small,#gymMenu > small{color:#ffffffb3;margin-top:4px}
+#bag,#gymMenu,#licMenu{position:absolute;left:18px;top:50%;transform:translateY(-50%);min-width:280px;max-width:min(420px,80%);max-height:calc(100% - 140px);overflow-y:auto;scrollbar-width:none;padding:12px;border-radius:12px;background:#0b0f14e6;border:1px solid #ffffff2a;pointer-events:none;display:flex;flex-direction:column;gap:3px}
+#bag div,#gymMenu div,#licMenu div{padding:5px 10px;border-radius:7px;display:flex;flex-direction:column}#bag div small,#gymMenu div small,#licMenu div small{opacity:.75}#gymMenu div.done,#licMenu div.done{opacity:.6}
+#bag div.sel,#gymMenu div.sel,#licMenu div.sel{background:#ffd166;color:#111;font-weight:700}#bag > small,#gymMenu > small,#licMenu > small{color:#ffffffb3;margin-top:4px}
 #bag > b,#bag > small{position:sticky;background:#0b0f14;z-index:1;padding:3px 0}#bag > b{top:-12px}#bag > small{bottom:-12px}
 #climbHud .dot{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:7px;vertical-align:-1px;border:1px solid #fff8}#climbHud .warn{color:#ffb02e}#climbHud .msg{opacity:1;color:#ffd166;font-size:14px}#climbHud .meter.pump u{transition:width .15s}
 /* Paintball (ported from the Unreal version): scores and clock, countdown / result, lobby panel, feed, ammo, crosshair, paint on the goggles. */
@@ -228,8 +228,8 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
 .lg.wp{background:#a83dff;border-radius:50% 50% 50% 0;transform:rotate(-45deg)}
 .lg.bikes{background:#1f4fa3}
 /* Jobs (issue #56): the job card top left (below the drunk and boost tags), the phone on the right. */
-#jobHud{position:absolute;left:18px;top:90px;width:min(360px,calc(100% - 36px));display:grid;gap:3px;padding:10px 14px;border-radius:10px;background:var(--card);pointer-events:none;font-size:14px}
-#jobHud b{font-size:15px;color:#fff}#jobHud small{opacity:.7}#jobHud .late{color:#ff8a65;font-weight:700}
+#jobHud,#licHud{position:absolute;left:18px;top:90px;width:min(360px,calc(100% - 36px));display:grid;gap:3px;padding:10px 14px;border-radius:10px;background:var(--card);pointer-events:none;font-size:14px}
+#jobHud b,#licHud b{font-size:15px;color:#fff}#jobHud small,#licHud small{opacity:.7}#jobHud .late,#licHud .late{color:#ff8a65;font-weight:700}#licHud[hidden],#licMenu[hidden]{display:none}
 #jobHud .meter.mood{display:block;height:6px;border-radius:3px;background:#ffffff26;overflow:hidden}#jobHud .meter.mood u{display:block;height:100%;background:linear-gradient(90deg,#e53935,#fdd835 45%,#43a047)}
 #phone{position:absolute;right:24px;top:50%;transform:translateY(-50%);width:min(300px,calc(100% - 48px));max-height:calc(100% - 120px);overflow-y:auto;scrollbar-width:none;padding:10px 12px 12px;border-radius:26px;background:#0b0f14f2;border:3px solid #2a3038;box-shadow:0 8px 30px #0008;pointer-events:none;display:flex;flex-direction:column;gap:4px}
 #phone .ph-bar{display:flex;justify-content:space-between;font-size:12px;opacity:.75;padding:0 6px 4px}
@@ -308,7 +308,7 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
       <div class="panel">
         <span class="eyebrow">HAARKLOUS PLASS 17A · TORSHOV · OSLO</span>
         <h1>Haarklous online</h1>
-        <p>Walk the neighbourhood, go home to your 4th-floor apartment (street door of 17A, up the stairs), go into the stairwells, ride the Honda CBF600, drive the parked cars or the excavator, work the machines on the construction site, go skydiving from the jump plane, go bouldering and rope climbing at Klatreverket Torshov, play paintball, disc golf in Torshovdalen and petanque in the park, take photos, earn money delivering food or driving a taxi (phone: D-pad → / P), ride e-scooters and Oslo city bikes from their real docks, and start the hostage-rescue mission at the red marker beside the entrance of number 17A. Further south the world goes on down Trondheimsveien to Gamle Oslo, Ensjø and Bjørvika – real streets, ground heights and buildings, the churches, MUNCH and the Opera's walkable roof – with a timed run from Ensjø T-bane to Rathkes gate (green ring, □). In Grünerløkka: paddle a kayak down Akerselva from Bjølsen, Sagene or Grünerløkka to Vaterland, play table tennis at Schous plass, browse Deichman Grünerløkka (walk – the librarian hears everything) and go through the gate of Rathkes gate 1 to its backyard. Play together: up to twelve players per lobby – your lobby code is in the pause menu, and there you can also log in or create an account (optional, email and password).</p>
+        <p>Walk the neighbourhood, go home to your 4th-floor apartment (street door of 17A, up the stairs), go into the stairwells, ride the Honda CBF600, drive the parked cars or the excavator, work the machines on the construction site (each needs its licence: take the tests at Soria Moria Trafikkskole on Vogts gate, the site office or the airstrip), go skydiving from the jump plane, go bouldering and rope climbing at Klatreverket Torshov, play paintball, disc golf in Torshovdalen and petanque in the park, take photos, earn money delivering food or driving a taxi (phone: D-pad → / P), ride e-scooters and Oslo city bikes from their real docks, and start the hostage-rescue mission at the red marker beside the entrance of number 17A. Further south the world goes on down Trondheimsveien to Gamle Oslo, Ensjø and Bjørvika – real streets, ground heights and buildings, the churches, MUNCH and the Opera's walkable roof – with a timed run from Ensjø T-bane to Rathkes gate (green ring, □). In Grünerløkka: paddle a kayak down Akerselva from Bjølsen, Sagene or Grünerløkka to Vaterland, play table tennis at Schous plass, browse Deichman Grünerløkka (walk – the librarian hears everything) and go through the gate of Rathkes gate 1 to its backyard. Play together: up to twelve players per lobby – your lobby code is in the pause menu, and there you can also log in or create an account (optional, email and password).</p>
         <dl class="controls">
           <dt>Move / look</dt><dd>Left stick / WASD · Right stick / mouse</dd>
           <dt>✕ / Space</dt><dd>Jump</dd>
@@ -316,7 +316,7 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
           <dt>□ / E</dt><dd>Use: doors, drinks, vehicles, games, mission</dd>
           <dt>△ / F</dt><dd>Tap: photo camera (R2 / left mouse takes a photo, □ / G gallery, ✕ / Delete twice deletes a photo) · hold: choose camera or FPV drone</dd>
           <dt>D-pad ↑ / ↑</dt><dd>Check the time on your wristwatch</dd>
-          <dt>D-pad → / P</dt><dd>Phone: delivery and taxi jobs, the nearest e-scooter and city bike dock</dd>
+          <dt>D-pad → / P</dt><dd>Phone: delivery and taxi jobs, the nearest e-scooter and city bike dock, your licences (and the drone test)</dd>
           <dt>Touchpad / M</dt><dd>Map · ✕ / click sets a waypoint (a purple pin shows the way until you are within 7 m) · □ / Delete removes it</dd>
           <dt>Share / Enter or T</dt><dd>Chat with the other players (quick chat on the controller)</dd>
           <dt>R2 / L3 / Shift</dt><dd>Run</dd>
@@ -350,6 +350,7 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
         <label>Controller look sensitivity <output id="sensPadOut"></output><input id="sensPad" type="range" min="0.25" max="3" step="0.05"></label>
         <label>Mouse look sensitivity <output id="sensMouseOut"></output><input id="sensMouse" type="range" min="0.25" max="3" step="0.05"></label>
         <p id="walletLine" class="small"></p>
+        <p id="licLine" class="small"></p>
         <p><button id="badgesOpen" type="button">Badges and best scores</button> <span class="small">Controller: R1 · keyboard: B</span></p>
         <label>Music volume <output id="musicOut"></output><input id="musicVol" type="range" min="0" max="1" step="0.05"></label>
         <p class="small">Controller: D-pad ←/→ changes the music volume. Now playing: <span id="nowPlaying">–</span></p>
@@ -409,7 +410,8 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
           <dt>Table tennis</dt><dd>Schous plass, against Ola: R2 / left mouse swing (early = cross-court, late = down the line) · aim with the camera · L2 smash · left stick / A D move · R2 serves · first to 11 · ○ quit</dd>
           <dt>Deichman Grünerløkka</dt><dd>□ on a real book: “The Inner Game of Tennis” on the sports shelf, Moby-Dick on the reading table (○ closes it) · don’t run or talk loudly on voice chat inside – the librarian will shush you</dd>
           <dt>Badges and photo hunt</dt><dd>R1 / B in this menu: your badges, the photo hunt and your best scores · photo hunt: take a good photo of each known place (in the picture, big enough – go closer or zoom in with L2 and the right stick – and nothing in the way) · every new badge pays some kroner · skydiving: land on the orange target 180 m down the airstrip (◎ on the map)</dd>
-          <dt>Account progress</dt><dd>Logged in, your money, bag, photos, badges, best scores and settings are saved to your account by themselves and are there on any PC; without an account they stay in this browser</dd>
+          <dt>Licences</dt><dd>Driving a vehicle needs its licence (riding along does not): class B for cars and A for motorcycles at Soria Moria Trafikkskole on Vogts gate, class C (the tipper), the machine certificate (dozer, excavators, wheel loader, hauler) and the crane certificate at the site office by the construction site's north gate, PPL(A) (planes) and PPL(H) (the helicopter) at the flight school by the airstrip, the drone certificate A1/A3 on the phone (free) · □ at the sign: five questions (↑↓ choose, ✕ answer, at most one wrong), then the practical test in the test vehicle: the rings in order (orange = next, green = stop or land there), keep the speed limit, do not crash, finish in time · a failed test says why; try again for the fee · phone (D-pad → / P) · Licences: the list, the way to each test place, stop a test · bikes, e-scooters and the kayak need no licence</dd>
+          <dt>Account progress</dt><dd>Logged in, your money, bag, photos, badges, best scores, licences and settings are saved to your account by themselves and are there on any PC; without an account they stay in this browser</dd>
           <dt>Rathkes gate 1</dt><dd>□ opens the iron gate under the “1” on Rathkes gate · the passage leads to the backyard and the doors 1B and 1C (the flat on the 5th floor comes later)</dd>
           <dt>Kiwi Storgata</dt><dd>Kiwi Storgata 33 in the city centre (🛒 on the map), with a counter for coffee and hot dogs · the regulars outside (☺) ask for small favours: □ / E talks (Norwegian with English below), ↑↓ choose, ✕ / Space answer, ○ / C leave · their tasks show at the top right and set the waypoint · □ on an empty bottle picks it up</dd>
           <dt>Magic (Sopp-Sigvald)</dt><dd>The mushroom wizard on the corner (🍄) teaches four powers, one for each mushroom hunt once enough of Storgata trusts you · R1 / X casts the chosen power, D-pad ← / ← chooses, keyboard 1–4 casts one directly · 1 Svev (levitation): hold to float up to 3 m, let go to sink slowly · 2 Glimt (blink): up to 8 m the way you look · 3 Vindkast (gust): pushes a parked car, motorcycle or e-scooter and scares pigeons · 4 Lyskule (light orb): on / off, lights the dark (the catacombs too) · the bar is your mana; powers work on foot, not in the mission, at paintball, in the timed run or in a vehicle</dd>
@@ -3778,7 +3780,7 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
  * photos in IndexedDB). Logged in, the same values are your account's: they come from the server when you log in, on any PC or
  * browser, and are saved there by themselves – every 20 s when something changed, and when the tab is hidden or closed.
  * The first time you log in on a browser that has progress of its own, the game asks whether to move it into the account:
- * money, bottles and the bag add up, the better best score wins, badges, climbing ticks, the catacomb map and the photos join.
+ * money, bottles and the bag add up, the better best score wins, badges, licences, climbing ticks, the catacomb map and the photos join.
  * If you say no, it stays in this browser and comes back when you log out (and you are not asked again for that account).
  * Photos go to the account's own album on the server (at most 60, cloud/src/progress.js). Graphics settings stay per device.
  *
@@ -3802,12 +3804,13 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
   const SETTINGS = ['haarklous-look-sensitivity-v1', 'haarklous-music-volume-v1', 'haarklous-minimap-v1'];
   // haarklous-storgata-v1 (issue #65): the quests of the people at Kiwi Storgata and the magic powers you have learned.
   const KEYS = ['haarklous-wallet-v1', 'haarklous-records-v1', 'haarklous-badges-v1', 'haarklous-kayak-v1', 'haarklous-route-v1',
-    'haarklous-klatreverket-v1', 'haarklous-catacomb-map-v1', 'haarklous-storgata-v1', ...SETTINGS];
+    'haarklous-klatreverket-v1', 'haarklous-catacomb-map-v1', 'haarklous-licences-v1', 'haarklous-storgata-v1', ...SETTINGS];
   const META = 'haarklous-progress-sync-v1', GUEST = 'haarklous-progress-guest-v1', DECLINED = 'haarklous-progress-declined-v1';
   const START_MONEY = 500, SAVE_EVERY = 20, KEEPALIVE_MAX = 60000;
 
   const J = t => {try {return JSON.parse(t);} catch {return null;}};
-  const obj = t => {const v = J(t);return v && typeof v === 'object' && !Array.isArray(v) ? v : {};};
+  const plain = v => v && typeof v === 'object' && !Array.isArray(v) ? v : {};
+  const obj = t => plain(J(t));
   const num = v => Number.isFinite(+v) ? +v : 0;
   const hash = s => {let h = 0x811c9dc5;for (let i = 0; i < s.length; i++) {h ^= s.charCodeAt(i);h = Math.imul(h, 0x01000193);}return (h >>> 0).toString(36) + ':' + s.length;};
 
@@ -3823,6 +3826,7 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
       if (k === 'haarklous-wallet-v1') {const w = obj(t);if (num(w.money) !== START_MONEY || num(w.pant) > 0 || Object.values(w.bag || {}).some(n => num(n) > 0)) return true;continue;}
       if (k === 'haarklous-catacomb-map-v1') {if (bitsSet(t)) return true;continue;}
       if (k === 'haarklous-badges-v1') {if (Object.keys(obj(t).got || {}).length) return true;continue;}
+      if (k === 'haarklous-licences-v1') {const l = obj(t);if (Object.keys(plain(l.have)).length || Object.keys(plain(l.theory)).length) return true;continue;}
       if (k === 'haarklous-route-v1') {const r = obj(t);if (r.best !== null && r.best !== undefined || num(r.runs) > 0) return true;continue;}
       if (k === 'haarklous-storgata-v1') {const g = obj(t);if (['q', 'powers', 'got'].some(f => Object.keys(g[f] || {}).length)) return true;continue;}
       if (Object.keys(obj(t)).length) return true;
@@ -3851,6 +3855,11 @@ window.SURROUNDINGS={"attribution":"Map data \u00a9 OpenStreetMap contributors (
       const x = obj(a), y = obj(b);
       return JSON.stringify({...y, ...x, ticks: {...(y.ticks || {}), ...(x.ticks || {})}, tries: maxEach(x.tries || {}, y.tries || {}),
         bestHang: Math.max(num(x.bestHang), num(y.bestHang)), brattkort: x.brattkort || y.brattkort || undefined});
+    },
+    // Licences (issue #59): a licence or a passed theory part is never lost (the earlier date stays); the most failed tries.
+    'haarklous-licences-v1': (a, b) => {
+      const x = obj(a), y = obj(b), join = (p, q) => {p = plain(p);q = plain(q);const o = {...q, ...p};for (const k of Object.keys(q)) if (p[k] && q[k]) o[k] = String(p[k]) < String(q[k]) ? p[k] : q[k];return o;};
+      return JSON.stringify({have: join(x.have, y.have), theory: join(x.theory, y.theory), fails: maxEach(plain(x.fails), plain(y.fails))});
     },
     'haarklous-catacomb-map-v1': (a, b) => {
       let p, q;try {p = atob(a);q = atob(b);} catch {return a;}
@@ -9161,7 +9170,7 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
  * which are part of an account's saved progress (GameProgress).
  *
  * Pure (Node-tested):
- *   BADGES [{id, icon, name, how, kr, test(facts)}]   facts = {records, gym, kayak, route, storgata, got}
+ *   BADGES [{id, icon, name, how, kr, test(facts)}]   facts = {records, gym, kayak, route, lic, storgata, got}
  *   SPOTS  [{id, name, hint, kr, size, r, maxDist}]   size = the subject's height (m), r = its own radius (the sight line
  *                                                    stops r before its centre), maxDist = how close you must be; the game
  *                                                    adds at = {x, y, z} and, for a door, face = {x, z} (the way it faces)
@@ -9180,6 +9189,7 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
 })(typeof window === 'undefined' ? globalThis : window, function () {
   'use strict';
   const KEY = 'haarklous-badges-v1', RECORDS = 'haarklous-records-v1', TARGET_R = 10, MIN_FRAC = .15, EDGE = .8;
+  const LICENCE_COUNT = 8;// GameLicences.IDS (issue #59): B, A, C, maskinførerbevis, kranførerbevis, PPL(A), PPL(H), drone A1/A3
   const n = v => Number.isFinite(+v) ? +v : 0;
   const keys = o => Object.keys(o || {});
 
@@ -9213,6 +9223,8 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
     {id: 'catacomb', icon: '💀', name: 'Into the dark', how: 'Go down into the catacomb under Torshovdalen.', kr: 50, test: f => !!f.records.marks?.catacomb},
     {id: 'moby', icon: '📖', name: 'Call me Ishmael', how: 'Open Moby-Dick at Deichman Grünerløkka.', kr: 50, test: f => !!f.records.marks?.moby},
     {id: 'fire', icon: '🔥', name: 'Keeper of the fire', how: 'Throw a log on the firepit in the park.', kr: 50, test: f => !!f.records.marks?.fire},
+    {id: 'licence', icon: '🪪', name: 'Licensed', how: 'Pass a licence test: a driving licence, a machine or crane certificate, a pilot licence or the drone certificate.', kr: 100, test: f => keys(f.lic && f.lic.have).length > 0},
+    {id: 'licences', icon: '🎓', name: 'Every licence', how: `Hold all ${LICENCE_COUNT} licences: classes B, A and C, the machine and crane certificates, PPL(A), PPL(H) and the drone certificate.`, kr: 300, test: f => keys(f.lic && f.lic.have).length >= LICENCE_COUNT},
     {id: 'airborne', icon: '🚁', name: 'Airborne', how: 'Fly the helicopter or the plane 50 m above the ground.', kr: 100, test: f => !!f.records.marks?.airborne},
     {id: 'hunter', icon: '📷', name: 'Photo hunter', how: 'Find and photograph every place in the photo hunt.', kr: 300, test: f => SPOTS.every(s => f.got[s.id])},
     // KIWI Storgata (issue #65): the regulars' quests and Sopp-Sigvald's four lessons.
@@ -9306,7 +9318,7 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
       if (!panel.hidden) render();
       return true;
     }
-    const facts = () => ({records, gym: read('haarklous-klatreverket-v1'), kayak: read('haarklous-kayak-v1'), route: read('haarklous-route-v1'), storgata: read('haarklous-storgata-v1'), got: state.got});
+    const facts = () => ({records, gym: read('haarklous-klatreverket-v1'), kayak: read('haarklous-kayak-v1'), route: read('haarklous-route-v1'), lic: read('haarklous-licences-v1'), storgata: read('haarklous-storgata-v1'), got: state.got});
     function check() {const f = facts();for (const b of BADGES) if (!state.got[b.id] && b.test(f)) award(b);}
     function addRecord(kind, data) {const r = record(records, kind, data);store(RECORDS, records);check();return r;}
     function thumbOf(canvas) {
@@ -9361,7 +9373,7 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
     };
     return api;
   }
-  return {BADGES, SPOTS, judge, record, mergeRecords, mergeBadges, MERGE, TARGET_R, create};
+  return {BADGES, SPOTS, judge, record, mergeRecords, mergeBadges, MERGE, TARGET_R, LICENCE_COUNT, create};
 });
 </script><script>/* Skydiving (issue #22): jump from the Cessna 208 Caravan jump plane, fall, open the canopy, fly it down and land.
  * Two ways up: a scheduled jump flight that everybody in the lobby can board (no pilot needed; its path is a function of
@@ -14055,6 +14067,396 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
   }
   return {create, deliveryTerms, deliveryPay, taxiFare, expectedTaxiS, Mood, WrongWay, orderFor, ORDERS, ROAD};
 });
+</script><script>/* Licences (issue #59): Norwegian-style licences for the game's vehicles, each won by a test.
+ * The user: "Require tests, similar to driving test etc, that gives you licenses for each of the vehicles in the game."
+ *
+ *   Førerkort klasse B   cars                     Soria Moria Trafikkskole (Vogts gate, the real driving school in OSM)
+ *   Førerkort klasse A   motorcycles              the same school; the Honda CBF600S gives 57 kW, more than A2's 35 kW
+ *   Førerkort klasse C   the 8x4 tipper (a lorry) the construction site office; class B first
+ *   Maskinførerbevis     dozer (M1), excavators (M2), wheel loader (M4), articulated hauler (M6)   the site office
+ *   Kranførerbevis       mobile crane (G1), tower crane (G2)                                       the site office
+ *   PPL(A)               the sport plane and the Caravan jump plane    the flight school at the airstrip
+ *   PPL(H)               the helicopter                                the flight school at the airstrip
+ *   Dronebevis A1/A3     the FPV drone             Luftfartstilsynet's online test (free): theory only, on the phone
+ * City bikes, e-scooters and the kayak need no licence (as in Norway). Riding along as a passenger is free, and so is a
+ * skydive flown by the game's pilot. Each test is a short theory part (five questions with real rules, at most one wrong)
+ * and, except for the drone, a practical part in the test vehicle: rings to pass in order, the speed limit (more than 5 km/h
+ * over it for 2 s fails), no crash, a time limit, and at the end stop / park / land in the marked place (cranes: hook a load,
+ * carry it through a ring and set it down on the mark). A passed theory part is kept; a failed practical part says why and
+ * can be taken again for its fee. Saved in localStorage KEY (part of an account's saved progress, game-progress.js).
+ *
+ * Pure (Node-tested):
+ *   KEY, LICENCES [{id, name, tag (for “needs …”), short, icon, covers, place, fee: {theory, practical}, requires, quiz [{q, a, ok}], maxWrong,
+ *     course, vehicle, theoryOnly}], IDS, byId, PLACES {id: {name, near, where}}
+ *   need(vehicle) -> licence id | null   which licence the driver's seat of a vehicle needs ({kind, rental}; kind 'drone')
+ *   load(text) -> state {have: {id: date}, theory: {id: date}, fails: {id: n}}   has(state, id)   missing(state, id) -> ids
+ *   grant(state, id, date)   passTheory(state, id, date)   (how two saved copies join: GameProgress RULES)
+ *   score(quiz, answers) -> {right, wrong}   passed(licence, answers) -> bool
+ *   COURSES {name: {frame, origin, ground, heightRef, limit, timeS, maxAgl, crane, start, gates}}
+ *   resolve(course, {toWorld, groundAt, origin}) -> world gates [{k, x, y, z, r, yaw, limit, say, hold, box}]
+ *   Practical(course, gates): step(s) -> this {state 'run' | 'passed' | 'failed', why, detail, i, t, gate, limitNow()}
+ *     s = {dt, x, y, z, speed (m/s), agl, grounded, crashed, inVehicle, point {x, y, z} (cranes: the hook), loaded, dropped {x, z}}
+ *   failText(run) -> text   mmss(seconds)
+ * GameLicences.create({T, scene, root, store, onChange}) -> browser part: state, has(id), save(), reload(), rings, hud(html),
+ *   menu (list and quiz overlay), sign(...) for the test places.
+ */
+(function (root, factory) {
+  const api = factory();
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  else root.GameLicences = api;
+})(typeof window === 'undefined' ? globalThis : window, function () {
+  'use strict';
+  const KEY = 'haarklous-licences-v1';
+  const SPEED_TOL = 5, OVER_S = 2, HIT_SPEED = 1.5, HOLD_SPEED = 1.5, HIGH_S = 3;
+
+  const PLACES = {
+    school: {name: 'Soria Moria Trafikkskole', near: 'Vogts gate', where: "Vogts gate at Krebs' gate, Sandaker (🪪 on the map)"},
+    site: {name: 'the site office', near: 'the construction site’s north gate', where: 'outside the north gate of the construction site in Torshovdalen (🪪 on the map)'},
+    airfield: {name: 'Torshovdalen flyskole', near: 'the airstrip', where: 'by the sport plane at the airstrip in Torshovdalen (🪪 on the map)'},
+    online: {name: 'flydrone.no', near: 'on your phone, free', where: 'on your phone (D-pad → / P): Luftfartstilsynet’s online test, free'}
+  };
+
+  const LICENCES = [
+    {id: 'B', name: 'Førerkort klasse B', tag: 'førerkort klasse B', short: 'Class B', icon: '🚗', covers: 'cars', place: 'school', fee: {theory: 100, practical: 200}, vehicle: 'the school car', course: 'road',
+      quiz: [
+        {q: 'What is the speed limit in a built-up area (tettbygd strøk) when no sign says otherwise?', a: ['30 km/h', '50 km/h', '60 km/h'], ok: 1},
+        {q: 'What is the highest blood alcohol level you may drive with in Norway?', a: ['0.2 per mille (promille)', '0.5 per mille', '0.8 per mille'], ok: 0},
+        {q: 'At a crossroads with no signs or lights, who goes first?', a: ['The car on the bigger road', 'Traffic from the right – you give way to the right (vikeplikt for høyre)', 'Whoever comes first'], ok: 1},
+        {q: 'A pedestrian is about to step onto a zebra crossing (gangfelt) in front of you. What do you do?', a: ['Hoot and drive on', 'Slow down only if they are already in the middle', 'Stop and let them cross – you must give way'], ok: 2},
+        {q: 'When must the dipped headlights be on?', a: ['Only in the dark', 'Always when you drive, day and night', 'Only outside built-up areas'], ok: 1}
+      ]},
+    {id: 'A', name: 'Førerkort klasse A', tag: 'førerkort klasse A', short: 'Class A', icon: '🏍', covers: 'motorcycles (the Honda CBF600S gives 57 kW – more than the 35 kW of class A2)', place: 'school', fee: {theory: 100, practical: 200}, vehicle: 'the school motorcycle', course: 'road',
+      quiz: [
+        {q: 'The Honda CBF600S gives 57 kW. Which licence class lets you ride it?', a: ['A1 (up to 11 kW)', 'A2 (up to 35 kW)', 'A (no power limit)'], ok: 2},
+        {q: 'How old must you be for class A if you have not had A2 for two years?', a: ['18', '20', '24'], ok: 2},
+        {q: 'What must the rider and the passenger always wear?', a: ['A reflective vest', 'An approved helmet', 'Nothing – it is only advice'], ok: 1},
+        {q: 'What is the speed limit outside built-up areas when no sign says otherwise?', a: ['70 km/h', '80 km/h', '90 km/h'], ok: 1},
+        {q: 'Where do you look when you ride through a bend?', a: ['At the front wheel', 'Through the bend, to where you want to go', 'At the edge of the road'], ok: 1}
+      ]},
+    {id: 'C', name: 'Førerkort klasse C', tag: 'førerkort klasse C', short: 'Class C', icon: '🚚', covers: 'lorries: the 8x4 tipper truck', place: 'site', fee: {theory: 100, practical: 300}, requires: ['B'], vehicle: 'the tipper truck', course: 'siteC',
+      quiz: [
+        {q: 'Which licence must you have before you can take class C?', a: ['None', 'Class B', 'Class A'], ok: 1},
+        {q: 'What is the highest speed for a lorry over 3500 kg, even where the sign allows more?', a: ['80 km/h', '90 km/h', '100 km/h'], ok: 0},
+        {q: 'How long may you drive before you must take a break of at least 45 minutes?', a: ['2 hours', '4.5 hours', '6 hours'], ok: 1},
+        {q: 'Before you tip the load you check…', a: ['that the radio works', 'that nobody is near the body, the ground is firm and level, and there are no power lines above', 'nothing – the body tips by itself'], ok: 1},
+        {q: 'Why do you drive slowly with a full load?', a: ['It raises the centre of gravity and makes the braking distance longer', 'Only to save the tyres', 'You do not need to'], ok: 0}
+      ]},
+    {id: 'M', name: 'Maskinførerbevis', tag: 'a maskinførerbevis', short: 'Maskinførerbevis M1–M6', icon: '🚜', covers: 'construction machines: the dozer (M1), the excavators (M2), the wheel loader (M4) and the articulated hauler (M6)', place: 'site', fee: {theory: 100, practical: 150}, vehicle: 'the wheel loader', course: 'siteM',
+      quiz: [
+        {q: 'Which class of the operator’s certificate (kompetansebevis) covers the dozer (doser)?', a: ['M1', 'M4', 'M6'], ok: 0},
+        {q: 'Which class covers the excavator (gravemaskin)?', a: ['M2', 'M3', 'M5'], ok: 0},
+        {q: 'Which class covers the wheel loader (hjullaster)?', a: ['M2', 'M4', 'M6'], ok: 1},
+        {q: 'Which class covers the articulated hauler (dumper)?', a: ['M1', 'M3', 'M6'], ok: 2},
+        {q: 'Someone walks into the danger zone round your machine. What do you do?', a: ['Sound the horn and carry on', 'Stop every movement until they are out of the danger zone', 'Work more slowly'], ok: 1}
+      ]},
+    {id: 'G', name: 'Kranførerbevis', tag: 'a kranførerbevis', short: 'Kranførerbevis G1 / G2', icon: '🏗', covers: 'cranes: the mobile crane (G1) and the tower crane (G2)', place: 'site', fee: {theory: 100, practical: 150}, vehicle: 'the tower crane', course: 'crane',
+      quiz: [
+        {q: 'Which class of crane operator’s certificate covers the tower crane (tårnkran)?', a: ['G1', 'G2', 'G8'], ok: 1},
+        {q: 'Which class covers the mobile crane (mobilkran)?', a: ['G1', 'G4', 'G11'], ok: 0},
+        {q: 'Who may walk under a hanging load?', a: ['The signaller (anhuker)', 'Nobody', 'Anyone with a helmet on'], ok: 1},
+        {q: 'What must you know before every lift?', a: ['Only where the load is going', 'The weight of the load and what the crane may lift at that radius (the load chart)', 'The time of day'], ok: 1},
+        {q: 'The wind gets stronger than the tower crane is made for. What do you do?', a: ['Lift faster to finish', 'Stop lifting, set the load down and let the jib turn freely with the wind', 'Lock the jib so it cannot turn'], ok: 1}
+      ]},
+    {id: 'PPLA', name: 'PPL(A) – private pilot licence, aeroplanes', tag: 'a PPL(A)', short: 'PPL(A)', icon: '✈', covers: 'aeroplanes: the two-seat sport plane and the Caravan jump plane', place: 'airfield', fee: {theory: 150, practical: 450}, vehicle: 'the sport plane', course: 'circuit',
+      quiz: [
+        {q: 'What does a PPL(A) let you do?', a: ['Fly aeroplanes for pay', 'Fly aeroplanes privately, without pay', 'Fly helicopters'], ok: 1},
+        {q: 'Two aircraft fly towards each other head-on. What do both pilots do?', a: ['Both turn right', 'Both turn left', 'Both climb'], ok: 0},
+        {q: 'Which way do you take off and land?', a: ['With the wind behind you', 'Into the wind', 'Across the wind'], ok: 1},
+        {q: 'What is the youngest age for a PPL(A)?', a: ['16', '17', '18'], ok: 1},
+        {q: 'Which transponder code tells air traffic control you have an emergency?', a: ['7000', '7600', '7700'], ok: 2}
+      ]},
+    {id: 'PPLH', name: 'PPL(H) – private pilot licence, helicopters', tag: 'a PPL(H)', short: 'PPL(H)', icon: '🚁', covers: 'helicopters: the Airbus H125', place: 'airfield', fee: {theory: 150, practical: 450}, vehicle: 'the helicopter on its pad by Haarklous plass', course: 'heli',
+      quiz: [
+        {q: 'Where is it most dangerous to walk near a running helicopter?', a: ['In front, where the pilot sees you', 'Near the tail rotor', 'Beside the skids'], ok: 1},
+        {q: 'What is autorotation?', a: ['Flying on autopilot', 'The airflow turns the rotor, so you can land without engine power', 'Turning on the spot in a hover'], ok: 1},
+        {q: 'What is the youngest age for a PPL(H)?', a: ['16', '17', '21'], ok: 1},
+        {q: 'You hover close to the ground. What does ground effect do?', a: ['The rotor needs less power close to the ground', 'The engine gets hotter', 'It pulls the helicopter down'], ok: 0},
+        {q: 'Two aircraft fly towards each other head-on. What do both pilots do?', a: ['Both turn right', 'Both turn left', 'Both descend'], ok: 0}
+      ]},
+    {id: 'A1A3', name: 'Dronebevis A1/A3 (kompetansebevis)', tag: 'the drone certificate A1/A3', short: 'Drone A1/A3', icon: '🛸', covers: 'the FPV drone', place: 'online', fee: {theory: 0, practical: 0}, theoryOnly: true,
+      quiz: [
+        {q: 'How high may you fly in the open category?', a: ['50 m', '120 m above the ground', '300 m'], ok: 1},
+        {q: 'You fly FPV with goggles. What does the rule ask for?', a: ['Nothing more', 'An observer beside you who keeps the drone in sight', 'That you fly only at night'], ok: 1},
+        {q: 'May you fly over a crowd of people in A1/A3?', a: ['Yes, if it is quick', 'Only above 50 m', 'No – never over gatherings of people'], ok: 2},
+        {q: 'When must you register as a drone operator?', a: ['Only for drones over 25 kg', 'When the drone weighs 250 g or more, or has a camera', 'Never'], ok: 1},
+        {q: 'Near an airport you…', a: ['may fly if it is quiet', 'keep at least 5 km away unless you have permission', 'fly below the planes'], ok: 1}
+      ]}
+  ].map(l => ({maxWrong: 1, requires: [], ...l}));
+  const IDS = LICENCES.map(l => l.id), byId = Object.fromEntries(LICENCES.map(l => [l.id, l]));
+
+  // Which licence the driver's seat needs. Rentals (city bikes, e-scooters) and the kayak need none; anything else with an
+  // engine that is not listed needs at least class B, so a new vehicle is never left open by mistake.
+  const MACHINES = ['excavator', 'excavator30', 'dozer', 'loader', 'hauler'];
+  function need(v) {
+    if (!v || v.rental) return null;
+    const k = v.kind;
+    if (k === 'scooter' || k === 'bicycle' || k === 'kayak') return null;
+    if (k === 'car') return 'B';
+    if (k === 'motorcycle') return 'A';
+    if (k === 'tipper') return 'C';
+    if (MACHINES.includes(k)) return 'M';
+    if (k === 'crane' || k === 'tower') return 'G';
+    if (k === 'plane' || k === 'jumpplane') return 'PPLA';
+    if (k === 'helicopter') return 'PPLH';
+    if (k === 'drone') return 'A1A3';
+    return 'B';
+  }
+
+  // ---------- Saved state ----------
+  const obj = v => v && typeof v === 'object' && !Array.isArray(v) ? v : {};
+  function load(text) {
+    let s = null;try {s = JSON.parse(text);} catch {}
+    s = obj(s);const clean = o => Object.fromEntries(Object.entries(obj(o)).filter(([k]) => IDS.includes(k)));
+    return {have: clean(s.have), theory: clean(s.theory), fails: clean(s.fails)};
+  }
+  const has = (state, id) => !!(state && state.have && state.have[id]);
+  const missing = (state, id) => (byId[id] ? byId[id].requires : []).filter(r => !has(state, r));
+  const today = () => new Date().toISOString().slice(0, 10);
+  function grant(state, id, date = today()) {if (!state.have[id]) state.have[id] = date;if (!state.theory[id]) state.theory[id] = date;return state;}
+  function passTheory(state, id, date = today()) {if (!state.theory[id]) state.theory[id] = date;return state;}
+
+  // ---------- Theory ----------
+  function score(quiz, answers) {let right = 0;quiz.forEach((q, i) => {if (answers[i] === q.ok) right++;});return {right, wrong: quiz.length - right};}
+  const passed = (lic, answers) => score(lic.quiz, answers).wrong <= lic.maxWrong;
+
+  // ---------- Courses ----------
+  // frame 'local': p = [x east, s south] in the game's local metres; 'runway': p = [along, right, height] from the origin
+  // vehicle's spot and heading; 'offset': p = [dx, dz, height] in world metres from the origin. Heights: above the ground
+  // under the gate ('ground'), or above the ground at the origin ('origin', for approaches over falling ground).
+  // A gate's limit (km/h) is the limit on the way to it; say = the examiner's instruction on the way to it.
+  const COURSES = {
+    // Soria Moria Trafikkskole → Krebs' gate → Per Kvibergs gate → Hegermanns gate → the roundabout at Hegermanns plass →
+    // Vogts gate → back to the school (about 710 m ring to ring) on the real streets (OSM).
+    road: {frame: 'local', ground: true, limit: 30, timeS: 240, start: [-639.1, 37.4], gates: [
+      // Placed so the straight line from ring to ring keeps 1.5 m from every building, tree and lamp post (some OSM street
+      // lamps stand in the middle of these streets), mostly on the right-hand lane.
+      {k: 'ring', p: [-597.1, 53.2], say: "Drive east along Krebs' gate, across Vogts gate (30 km/h)"},
+      {k: 'ring', p: [-552.7, 62.0]},
+      {k: 'ring', p: [-508.2, 69.4]},
+      {k: 'ring', p: [-463.8, 76.5]},
+      {k: 'ring', p: [-438.6, 86.6], say: 'Turn right into Per Kvibergs gate'},
+      {k: 'ring', p: [-432.9, 131.3]},
+      {k: 'ring', p: [-435.8, 174.2]},
+      {k: 'ring', p: [-452.3, 216.1]},
+      {k: 'ring', p: [-477.4, 231.0], say: 'Turn right into Hegermanns gate'},
+      {k: 'ring', p: [-518.5, 212.8], say: 'At the roundabout on Hegermanns plass: give way to traffic in it, keep right and take the first exit'},
+      {k: 'ring', p: [-544.2, 192.2], r: 3.8},
+      {k: 'ring', p: [-582.5, 185.0], say: 'Drive on along Hegermanns gate'},
+      {k: 'ring', p: [-623.7, 166.8]},
+      {k: 'ring', p: [-648.6, 146.4], limit: 40, say: 'Turn right into Vogts gate (40 km/h)'},
+      {k: 'ring', p: [-642.6, 130.4], limit: 40},
+      {k: 'ring', p: [-621.7, 90.5], limit: 40},
+      {k: 'ring', p: [-620.1, 83.6], limit: 40},
+      {k: 'ring', p: [-605.0, 46.4], limit: 40, say: "Turn left into Krebs' gate"},
+      {k: 'ring', p: [-624.1, 42.4], say: 'Keep left of the lamp post, then park on the right by the school'},
+      {k: 'stop', p: [-639.8, 33.7], r: 4, say: 'Stop in the green ring'}
+    ]},
+    // The sport plane: take off down the strip, a wide right-hand turn over the city to the south, and back to land on the
+    // strip the other way (the ground falls away beyond its far end; behind the plane it rises with buildings).
+    circuit: {frame: 'runway', origin: 'plane', heightRef: 'origin', maxAgl: 200, timeS: 420, gates: [
+      {k: 'ring', p: [450, 0, 30], r: 15, say: 'Take off down the strip and climb through the first ring'},
+      {k: 'ring', p: [900, -250, 70], r: 18},
+      {k: 'ring', p: [1300, -150, 90], r: 20, say: 'Turn right'},
+      {k: 'ring', p: [1450, 150, 90], r: 20, say: 'Turn back towards the airstrip'},
+      {k: 'ring', p: [1250, 300, 80], r: 20},
+      {k: 'ring', p: [950, 120, 60], r: 18, say: 'Line up with the strip'},
+      {k: 'ring', p: [700, 0, 40], r: 15},
+      {k: 'ring', p: [420, 0, 24], r: 14, say: 'Over the trees, then down onto the strip'},
+      {k: 'land', p: [150, 0], box: {len: 300, wid: 40}, say: 'Land on the strip and stop'}
+    ]},
+    // The helicopter: hover over its pad, a loop out over the airstrip and back, hover, land on the pad.
+    heli: {frame: 'offset', origin: 'heli', heightRef: 'origin', maxAgl: 120, timeS: 300, gates: [
+      {k: 'hold', p: [0, 0, 3], r: 4, hold: 5, say: 'Lift off and hover about 3 m over the pad for 5 seconds'},
+      {k: 'ring', p: [-40, -50, 35], r: 10, say: 'Climb out through the ring'},
+      {k: 'ring', p: [-150, -110, 45], r: 12, say: 'Fly out over the airstrip'},
+      {k: 'ring', p: [-190, 40, 45], r: 12},
+      {k: 'ring', p: [-60, 60, 30], r: 10, say: 'Back towards the pad'},
+      {k: 'hold', p: [0, 0, 4], r: 4, hold: 3, say: 'Hover over the pad'},
+      {k: 'land', p: [0, 0], r: 5, say: 'Land on the pad'}
+    ]},
+    // The wheel loader on the site: through the rings at site speed (15 km/h), then stop in the green ring.
+    siteM: {frame: 'local', ground: true, limit: 15, timeS: 240, gates: [
+      {k: 'ring', p: [-40, 440], r: 4, say: 'Drive through the rings – site speed 15 km/h'},
+      {k: 'ring', p: [-70, 452], r: 4},
+      {k: 'ring', p: [-80, 425], r: 4},
+      {k: 'ring', p: [-70, 395], r: 4},
+      {k: 'ring', p: [-35, 385], r: 4},
+      {k: 'stop', p: [-30, 410], r: 4.5, say: 'Stop in the green ring'}
+    ]},
+    // The tipper truck on the site.
+    siteC: {frame: 'local', ground: true, limit: 15, timeS: 240, gates: [
+      {k: 'ring', p: [-90, 398], r: 4, say: 'Drive through the rings – site speed 15 km/h'},
+      {k: 'ring', p: [-50, 392], r: 4},
+      {k: 'ring', p: [-30, 425], r: 4},
+      {k: 'ring', p: [-60, 450], r: 4},
+      {k: 'ring', p: [-85, 446], r: 4},
+      {k: 'stop', p: [-72, 418], r: 4.5, say: 'Stop in the green ring'}
+    ]},
+    // The tower crane: hook one of the loads by the mast, carry it through the ring, set it down on the green mark.
+    crane: {frame: 'local', crane: true, timeS: 360, gates: [
+      {k: 'hook', p: [-126, 403], r: 3, say: 'Lower the hook to a load by the mast and hook it (✕)'},
+      {k: 'ring', p: [-108, 396, 9], r: 3, say: 'Lift the load and carry it through the ring'},
+      {k: 'drop', p: [-98, 400], r: 1.8, say: 'Set it down on the green mark (✕)'}
+    ]}
+  };
+
+  function resolve(course, {toWorld, groundAt, origin} = {}) {
+    const O = origin || {x: 0, z: 0, yaw: 0}, f = {x: -Math.sin(O.yaw || 0), z: -Math.cos(O.yaw || 0)}, r = {x: -f.z, z: f.x}, g0 = groundAt(O.x, O.z);
+    const at = p => course.frame === 'local' ? toWorld(p[0], p[1]) : course.frame === 'runway' ? {x: O.x + f.x * p[0] + r.x * p[1], z: O.z + f.z * p[0] + r.z * p[1]} : {x: O.x + p[0], z: O.z + p[1]};
+    let prev = course.start ? at(course.start) : {x: O.x, z: O.z};
+    return course.gates.map(g => {
+      const w = at(g.p), ground = groundAt(w.x, w.z), rr = g.r || (course.ground ? 3.4 : 10), h = g.p[2];
+      const y = h == null ? ground + (g.k === 'ring' ? rr + .3 : .15) : (course.heightRef === 'origin' ? g0 : ground) + h;
+      const yaw = Math.atan2(w.x - prev.x, w.z - prev.z);prev = w;
+      const out = {k: g.k, x: w.x, y, z: w.z, r: rr, ground, yaw, air: !course.ground && !course.crane && g.k === 'ring', limit: g.limit, say: g.say, hold: g.hold};
+      if (g.box) out.box = {len: g.box.len, wid: g.box.wid, ax: course.frame === 'runway' ? f : {x: Math.sin(yaw), z: Math.cos(yaw)}};
+      if (course.crane && g.k === 'ring') out.air = true;
+      return out;
+    });
+  }
+  function inside(g, p) {
+    const dx = p.x - g.x, dz = p.z - g.z;
+    if (g.box) {const a = dx * g.box.ax.x + dz * g.box.ax.z, b = -dx * g.box.ax.z + dz * g.box.ax.x;return Math.abs(a) <= g.box.len / 2 && Math.abs(b) <= g.box.wid / 2;}
+    return Math.hypot(dx, dz) <= g.r;
+  }
+
+  // ---------- The practical part ----------
+  class Practical {
+    constructor(course, gates) {
+      this.c = course;this.gates = gates;this.i = 0;this.t = 0;this.state = 'run';this.why = null;this.detail = null;
+      this.overT = 0;this.highT = 0;this.holdT = 0;this.prevSpeed = null;this.airborne = false;this.maxKmh = 0;this.hooked = false;this.passedAt = [];
+    }
+    get gate() {return this.gates[this.i];}
+    get left() {return this.c.timeS ? Math.max(0, this.c.timeS - this.t) : null;}
+    limitNow() {const g = this.gate;return g && g.limit != null ? g.limit : this.c.limit || null;}
+    fail(why, detail) {this.state = 'failed';this.why = why;this.detail = detail || null;return this;}
+    next() {this.passedAt.push(this.t);this.i++;this.holdT = 0;this.overT = 0;if (this.i >= this.gates.length) this.state = 'passed';}
+    step(s) {
+      if (this.state !== 'run') return this;
+      const dt = Math.max(0, Math.min(.25, +s.dt || 0)), speed = Math.abs(+s.speed || 0);this.t += dt;
+      if (!s.inVehicle) return this.fail('left');
+      if (s.crashed) return this.fail('crash');
+      // Ground vehicles: a sudden stop from speed means it ran into something (the game stops a blocked vehicle at once).
+      if (this.c.ground && this.prevSpeed !== null && this.prevSpeed >= HIT_SPEED && speed < this.prevSpeed * .4) return this.fail('crash');
+      this.prevSpeed = speed;
+      if (this.c.timeS && this.t > this.c.timeS) return this.fail('time', this.c.timeS);
+      const lim = this.limitNow(), kmh = speed * 3.6;
+      if (lim) {if (kmh > lim + SPEED_TOL) {this.overT += dt;this.maxKmh = Math.max(this.maxKmh, kmh);if (this.overT > OVER_S) return this.fail('speed', {kmh: Math.round(this.maxKmh), limit: lim});} else {this.overT = 0;this.maxKmh = 0;}}
+      if (this.c.maxAgl) {if ((+s.agl || 0) > this.c.maxAgl) {if ((this.highT += dt) > HIGH_S) return this.fail('high', this.c.maxAgl);} else this.highT = 0;}
+      if ((+s.agl || 0) > 3 && !s.grounded) this.airborne = true;
+      if (this.c.crane && this.hooked && s.dropped && this.gate.k !== 'drop') return this.fail('drop');
+      const g = this.gate, p = s.point || s;
+      if (g.k === 'ring') {if ((g.air ? Math.hypot(p.x - g.x, p.y - g.y, p.z - g.z) : Math.hypot(p.x - g.x, p.z - g.z)) <= g.r) this.next();}
+      else if (g.k === 'hold') {if (Math.hypot(p.x - g.x, p.y - g.y, p.z - g.z) <= g.r && speed < HOLD_SPEED) {if ((this.holdT += dt) >= g.hold) this.next();} else this.holdT = 0;}
+      else if (g.k === 'stop') {if (inside(g, p) && speed < .3) this.next();}
+      else if (g.k === 'land') {const stopped = s.grounded && speed < 1;if (stopped && inside(g, p)) this.next();else if (stopped && this.airborne) return this.fail('outside');}
+      else if (g.k === 'hook') {if (s.loaded) {this.hooked = true;this.next();}}
+      else if (g.k === 'drop') {if (s.dropped) {if (inside(g, s.dropped)) this.next();else return this.fail('drop');}}
+      return this;
+    }
+  }
+  const mmss = t => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+  function failText(run) {
+    const d = run.detail;
+    return {
+      left: 'You got out of the test vehicle.',
+      crash: run.c.ground ? 'You ran into something.' : run.c.crane ? 'The crane hit something.' : 'You crashed.',
+      speed: d ? `Too fast: ${d.kmh} km/h where the limit is ${d.limit} km/h.` : 'Too fast.',
+      time: `Out of time: the test takes at most ${mmss(d || 0)}.`,
+      high: `You flew higher than ${d} m above the ground.`,
+      outside: 'You landed outside the marked place.',
+      drop: 'You set the load down outside the green mark.',
+      cancel: 'You stopped the test.',
+      taken: 'Someone else took the test vehicle.'
+    }[run.why] || 'The test was not passed.';
+  }
+
+  // ---------- Browser part ----------
+  function create({T, scene, root, store = (typeof localStorage !== 'undefined' ? localStorage : null), onChange} = {}) {
+    let state = load(store ? store.getItem(KEY) : null);
+    const save = () => {try {if (store) store.setItem(KEY, JSON.stringify(state));} catch {}if (onChange) onChange();};
+    const reload = () => {state = load(store ? store.getItem(KEY) : null);if (onChange) onChange();};
+    if (typeof window !== 'undefined') window.addEventListener('haarklous-progress', reload);
+
+    // Rings: the next one (bright) and the one after (faint); flat rings for stopping, landing, hovering and the crane marks.
+    const ringGeo = new T.TorusGeometry(1, .055, 8, 56);
+    const mat = (color, opacity) => new T.MeshBasicMaterial({color, transparent: opacity < 1, opacity, depthWrite: opacity >= 1, fog: false});
+    const cur = new T.Mesh(ringGeo, mat(0xffb300, 1)), nxt = new T.Mesh(ringGeo, mat(0xffffff, .45)), goal = mat(0x2ee66b, 1);
+    const ringMat = cur.material;
+    for (const m of [cur, nxt]) {m.visible = false;m.renderOrder = 2;m.frustumCulled = false;scene.add(m);}
+    function place(m, g) {
+      m.visible = !!g;if (!g) return;
+      const flat = g.k !== 'ring';m.position.set(g.x, g.y, g.z);m.rotation.set(flat ? Math.PI / 2 : 0, flat ? 0 : g.yaw, 0, 'YXZ');
+      m.scale.setScalar(g.box ? Math.min(g.box.len, g.box.wid) / 2 : g.r);
+    }
+    const rings = {
+      show(gates, i) {
+        place(cur, gates && gates[i]);place(nxt, gates && gates[i + 1]);
+        if (gates && gates[i]) cur.material = gates[i].k === 'stop' || gates[i].k === 'land' || gates[i].k === 'drop' ? goal : ringMat;
+      },
+      hide() {cur.visible = nxt.visible = false;},
+      meshes: [cur, nxt]
+    };
+
+    // HUD (top left, like the jobs card) and the overlay for the test menus and the theory questions.
+    const hudEl = document.createElement('div');hudEl.id = 'licHud';hudEl.hidden = true;root.append(hudEl);
+    let hudKey = '';
+    const hud = html => {if (html === hudKey) return;hudKey = html;hudEl.innerHTML = html || '';hudEl.hidden = !html;};
+    const menuEl = document.createElement('div');menuEl.id = 'licMenu';menuEl.hidden = true;root.append(menuEl);
+    const menu = {open: false, sel: 0, stick: false, spec: null};
+    menu.show = spec => {menu.spec = spec;menu.open = true;menu.sel = 0;menu.render();};
+    menu.close = () => {const s = menu.spec;menu.open = false;menu.spec = null;menuEl.hidden = true;if (s && s.onClose) s.onClose();};
+    // A quiz: one question at a time, then done(answers).
+    menu.quiz = (lic, done) => {const answers = [];menu.show({quiz: lic, answers, done, title: `${lic.icon} ${lic.name} · theory`});};
+    menu.render = () => {
+      menuEl.hidden = !menu.open;if (!menu.open) return;const s = menu.spec;
+      if (s.quiz) {
+        const n = s.answers.length, q = s.quiz.quiz[n];
+        menuEl.innerHTML = `<b>${s.title} · question ${n + 1} of ${s.quiz.quiz.length}</b><small>${q.q}</small>` + q.a.map((a, i) => `<div class="${i === menu.sel ? 'sel' : ''}">${a}</div>`).join('') + `<small>At most ${s.quiz.maxWrong} wrong · ↑↓ choose · ✕ / Space answer · ○ / C stop</small>`;
+        return;
+      }
+      const items = s.items();menu.sel = Math.max(0, Math.min(menu.sel, items.length - 1));
+      menuEl.innerHTML = `<b>${s.title()}</b>${s.note ? `<small>${s.note()}</small>` : ''}` + items.map((e, i) => `<div class="${i === menu.sel ? 'sel' : ''}${e.done ? ' done' : ''}">${e.label}${e.sub ? `<small>${e.sub}</small>` : ''}</div>`).join('') + '<small>↑↓ choose · ✕ / Space take it · ○ / C close</small>';
+    };
+    menu.input = input => {
+      const s = menu.spec, y = input.move.y;
+      const count = s.quiz ? s.quiz.quiz[s.answers.length].a.length : s.items().length;
+      if (input.pressed.has('up') || (y < -.5 && !menu.stick)) menu.sel = Math.max(0, menu.sel - 1);
+      if (input.pressed.has('down') || (y > .5 && !menu.stick)) menu.sel = Math.min(count - 1, menu.sel + 1);
+      menu.stick = Math.abs(y) > .5;
+      if (input.pressed.has('cross')) {
+        if (s.quiz) {
+          s.answers.push(menu.sel);menu.sel = 0;
+          if (s.answers.length >= s.quiz.quiz.length) {menu.open = false;menu.spec = null;menuEl.hidden = true;s.done(s.answers);}
+        } else {const it = s.items()[menu.sel];if (it && !it.done) {if (!it.keep) menu.close();it.act();}}
+      } else if (input.pressed.has('circle')) {if (s.quiz) {menu.open = false;menu.spec = null;menuEl.hidden = true;s.done(null);} else menu.close();}
+      if (menu.open) menu.render();
+      input.move.x = input.move.y = 0;['cross', 'circle', 'up', 'down', 'square', 'triangle', 'left', 'right', 'phone'].forEach(b => input.pressed.delete(b));
+    };
+
+    // A sign at a test place: a board on two posts with the place's name and its tests (merged per material by the caller).
+    function sign(lines, colors = {bg: '#0d3b66', band: '#f4d35e', ink: '#0d3b66'}) {
+      const c = document.createElement('canvas');c.width = 256;c.height = 320;const k = c.getContext('2d');
+      k.fillStyle = colors.bg;k.fillRect(0, 0, 256, 320);k.fillStyle = colors.band;k.fillRect(0, 0, 256, 72);
+      k.fillStyle = colors.ink;k.textAlign = 'center';k.font = 'bold 34px system-ui, Arial';k.fillText(lines[0], 128, 50);
+      k.fillStyle = '#fff';lines.slice(1).forEach((t, i) => {k.font = i === lines.length - 2 ? '22px system-ui, Arial' : 'bold 26px system-ui, Arial';k.fillText(t, 128, 120 + i * 46);});
+      const tex = new T.CanvasTexture(c);tex.colorSpace = T.SRGBColorSpace;tex.anisotropy = 4;
+      const face = new T.MeshStandardMaterial({map: tex, roughness: .5}), post = new T.MeshStandardMaterial({color: 0x3a3f45, roughness: .45, metalness: .5});
+      const g = new T.Group(), board = new T.Mesh(new T.BoxGeometry(.8, 1, .05), [post, post, post, post, face, face]);board.position.y = 1.6;board.castShadow = true;g.add(board);
+      for (const sx of [-1, 1]) {const p = new T.Mesh(new T.CylinderGeometry(.03, .03, 2.1, 8), post);p.position.set(sx * .36, 1.05, 0);p.castShadow = true;g.add(p);}
+      return g;
+    }
+
+    return {
+      get state() {return state;}, has: id => has(state, id), missing: id => missing(state, id), save, reload,
+      grant(id) {grant(state, id);save();}, passTheory(id) {passTheory(state, id);save();}, failed(id) {state.fails[id] = (+state.fails[id] || 0) + 1;save();},
+      get count() {return IDS.filter(id => has(state, id)).length;}, total: IDS.length,
+      rings, hud, menu, sign
+    };
+  }
+
+  return {KEY, LICENCES, IDS, byId, PLACES, need, load, has, missing, grant, passTheory, score, passed, COURSES, resolve, inside, Practical, failText, mmss, create, SPEED_TOL, OVER_S};
+});
 </script><script>/* Magic powers taught by Sopp-Sigvald, the mushroom wizard outside Kiwi Storgata (issue #65). Four powers, learned one by one:
  *   Svev (levitation)  hold R1 / 1: float up to 3 m, let go to sink slowly (also a slow fall after a jump); uses mana while rising
  *   Glimt (blink)      R1 / 2: a short jump through the air, up to 8 m the way you look; it stops in front of walls
@@ -15482,7 +15884,12 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     const p = at(door - 2.3, -1.3), q = at(door - 2.3, -.3), pick = world.toLocal(at(door, -1.4).x, at(door, -1.4).z);
     return {shop: sh, x: p.x, z: p.z, yaw: Math.atan2(-(q.x - p.x), -(q.z - p.z)), pickup: {name: sh.name, kind: 'shop', shop: true, x: pick.x, s: pick.s}};
   });
-  const signObstacles = JOB_SIGNS.map(j => {const y = groundAt(j.x, j.z);return {points: [[-.5, -.15], [.5, -.15], [.5, .15], [-.5, .15]].map(([a, b]) => ({x: j.x + Math.cos(j.yaw) * a + Math.sin(j.yaw) * b, z: j.z - Math.sin(j.yaw) * a + Math.cos(j.yaw) * b})), minY: y - .3, maxY: y + 2.2, kind: 'sign'};});
+  // Licences (issue #59): signs at the three test places (world x, z and the way the board faces). The driving school is
+  // Soria Moria Trafikkskole (OSM node 6757226536) on Krebs' gate by Vogts gate; the flight school stands beside the sport
+  // plane at the airstrip; the site office's sign is outside the construction site's north gate.
+  const LIC_SIGNS = (() => {const w = (x, s) => world.toWorld(x, s), a = w(-624.4, 35.5), b = w(-624.4 + .33, 35.5 - .94), c = w(-128.5, 367), d = w(-128.5, 366);
+    return {school: {...a, yaw: Math.atan2(-(b.x - a.x), -(b.z - a.z)) + Math.PI}, site: {...c, yaw: Math.atan2(-(d.x - c.x), -(d.z - c.z)) + Math.PI}, airfield: {x: -123.3, z: 6.2, yaw: .5236 + Math.PI / 2}};})();
+  const signObstacles = [...JOB_SIGNS, ...Object.values(LIC_SIGNS)].map(j => {const y = groundAt(j.x, j.z);return {points: [[-.5, -.15], [.5, -.15], [.5, .15], [-.5, .15]].map(([a, b]) => ({x: j.x + Math.cos(j.yaw) * a + Math.sin(j.yaw) * b, z: j.z - Math.sin(j.yaw) * a + Math.cos(j.yaw) * b})), minY: y - .3, maxY: y + 2.2, kind: 'sign'};});
   const extraObstacles = [...(siteField ? window.GameSite.fenceObstacles(siteField, groundAt) : []), ...(pbRules ? pbRules.obstacles : []), ...(catacomb ? catacomb.obstacles : []), ...(rides ? rides.obstacles : []), ...signObstacles, ...(storgata ? storgata.obstacles : [])];
   const staticObstacles = [...apt.obstacles, ...towers.flatMap(towerObstacles), ...world.obstacles(), ...fire.obstacles, ...stash.obstacles, ...shops.obstacles, ...sculpture.obstacles, ...oksen.obstacles, ...gym.obstacles, ...extraObstacles, ...landmarks.obstacles];
   const walkFloors = [...apt.floors, ...towers.flatMap(towerFloors), ...shops.floors, ...sculpture.floors, ...oksen.floors, ...landmarks.floors, ...gym.floors, ...(catacomb ? catacomb.floors : []), ...walkGroundFloors];
@@ -15569,7 +15976,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
   let spilled = 0;
   const site = siteField && window.SiteModels ? window.GameSite.create({T, lib, audio, VH, models: window.SiteModels.create({T, lib}), data: SITE_DATA, world, field: siteField, groundAt, surfaceAt: world.surfaceAt,
     onSpill: (x, z, vol) => {spilled += vol;if (spilled < .4) return;pile(x, z, Math.max(.4, Math.min(2.2, Math.cbrt(spilled * 3 / (Math.PI * .7)))));spilled = 0;}}) : null;
-  if (site) {scene.add(site.group);vehicles.push(...site.machines);}
+  if (site) {scene.add(site.group);vehicles.push(...site.machines);for (const l of site.loads) l.home = l.p.clone();}
   // Skydiving (issue #22): the Cessna 208 Caravan jump plane beside the airstrip, flown by a player with up to 12 jumpers.
   AIR.jump = {x: -107.6, z: -16.7, yaw: .5236};
   const caravan = new AC.JumpPlane(AIR.jump.x, AIR.jump.z, AIR.jump.yaw);vehicles.push(caravan);
@@ -15584,6 +15991,17 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
       const y = heightAt(p.x, p.z);return collision.canStand(w, p, 1.4, y) && collision.canStand(w, {x: p.x + .5, z: p.z}, 1.4, y) && collision.canStand(w, {x: p.x - .5, z: p.z}, 1.4, y);}});
     vehicles.push(...RV.placeScooters(spots));
   }
+  // Licences (issue #59): the driving school's car and motorcycle on Krebs' gate by Soria Moria Trafikkskole, after every older
+  // vehicle so their numbers stay the same online. Anybody with the licence may drive them; during your own test they are yours.
+  const GL = window.GameLicences, schoolAt = (p, q) => {const a = toWorld(p[0], p[1]);return {...a, yaw: localHeadingToYaw(Math.atan2(q[0] - p[0], q[1] - p[1]))};};
+  const schoolCar = (() => {const c = GL.COURSES.road, a = schoolAt(c.start, c.gates[0].p), v = new VH.Car(a.x, a.z, a.yaw, 3);v.name = 'driving school car';v.schoolOf = 'B';return v;})();
+  const schoolBike = (() => {const c = GL.COURSES.road, a = schoolAt([-646.6, 34.7], c.gates[0].p), v = new VH.Motorcycle(a.x, a.z, a.yaw, 0xd0d4d8);v.name = 'driving school motorcycle';v.schoolOf = 'A';return v;})();
+  {// A roof sign on the school car, SKOLE to the front and the back (beside where a taxi sign would go).
+    const c = document.createElement('canvas');c.width = 256;c.height = 80;const k = c.getContext('2d');k.fillStyle = '#f7f7f2';k.fillRect(0, 0, 256, 80);k.fillStyle = '#c62828';k.font = 'bold 56px system-ui, Arial';k.textAlign = 'center';k.textBaseline = 'middle';k.fillText('SKOLE', 128, 43);
+    const x = new T.CanvasTexture(c);x.colorSpace = T.SRGBColorSpace;const end = new T.MeshStandardMaterial({map: x, roughness: .5}), plain = new T.MeshStandardMaterial({color: 0xf7f7f2, roughness: .5});
+    const m = new T.Mesh(new T.BoxGeometry(.56, .18, .16), [plain, plain, plain, plain, end, end]);m.position.set(0, 1.53, .2);m.castShadow = true;schoolCar.group.add(m);
+  }
+  vehicles.push(schoolCar, schoolBike);
   vehicles.forEach(v => {v.spawn = v.netGet();});
   vehicles.forEach(v => scene.add(v.group));
   vehicles.filter(v => v.kind === 'excavator').forEach(ex => {
@@ -15720,6 +16138,9 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     ...shops.shops.map(s => {const L = s.local;return {x: L.P0[0] + L.u[0] * L.W / 2 + L.n[0] * L.depth / 2, s: L.P0[1] + L.u[1] * L.W / 2 + L.n[1] * L.depth / 2, color: /^kiwi/.test(s.id) ? '#2e9a3f' : '#d0021b', label: s.name, glyph: '🛒'};}),
     ...(storgata ? storgata.poi() : []),
     ...(SITE_DATA ? [{x: SITE_DATA.rect.x0 + SITE_DATA.rect.w / 2, s: SITE_DATA.rect.s0 + SITE_DATA.rect.d / 2, color: '#f9a825', label: 'Construction site', glyph: '⛏'}] : []),
+    {...world.toLocal(LIC_SIGNS.school.x, LIC_SIGNS.school.z), color: '#0d3b66', label: 'Soria Moria Trafikkskole (driving tests)', glyph: '🪪'},
+    {...world.toLocal(LIC_SIGNS.airfield.x, LIC_SIGNS.airfield.z), color: '#0d3b66', label: 'Flight school (PPL tests)', glyph: '🪪'},
+    {...world.toLocal(LIC_SIGNS.site.x, LIC_SIGNS.site.z), color: '#0d3b66', label: 'Site office (machine, crane and class C tests)', glyph: '🪪'},
     ...(PB_DATA ? [{x: PB_DATA.centre.x, s: PB_DATA.centre.s, color: '#2e7d32', label: 'Paintball', glyph: '✚'}] : []),
     {x: SCULPTURE_AT.x, s: SCULPTURE_AT.s, color: '#7a5c3e', label: 'HODET N.N.', glyph: '◉'},
     {x: OKSEN_AT.x, s: OKSEN_AT.s, color: '#3a4436', label: 'Torshovoksen', glyph: '◉'},
@@ -15787,14 +16208,17 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     const fp = firePrompt();if (fp) return fp;
     const sp = stashPrompt();if (sp) return sp;
     const jp = boardPrompt();if (jp) return jp;
+    {const lp = licPrompt();if (lp) return lp;}
     const v = nearestVehicle();
     if (v) {
       const i = vehicles.indexOf(v), drv = mp.occupant(i, 'd'), pas = mp.occupant(i, 'p'), canRide = !!v.hipAnchor('p');
       // The game's pilot flown from this computer: take the controls back while it stands still.
-      if (gp && v === caravan) return v.grounded && v.speed < 3 ? {text: "□ Fly the Caravan yourself (the game's pilot gets out)", act: () => {gp = null;caravan.vel.set(0, 0, 0);enterVehicle(caravan);}} : {text: "The game's pilot is flying the Caravan", act: () => {}};
+      if (gp && v === caravan) return !v.grounded || v.speed >= 3 ? {text: "The game's pilot is flying the Caravan", act: () => {}} : licAllowed(v) ? {text: "The game's pilot is flying the Caravan · flying it yourself needs a PPL(A)", act: () => {}} : {text: "□ Fly the Caravan yourself (the game's pilot gets out)", act: () => {gp = null;caravan.vel.set(0, 0, 0);enterVehicle(caravan);}};
       // E-scooters and city bikes: unlocking costs money (issue #57).
       if (v.rental && !drv) return rentals.prompt(v, i);
-      if (!drv) return {text: `□ ${v.verb ? v.verb : v.kind === 'motorcycle' ? 'Ride the' : v.kind === 'excavator' ? 'Climb into the' : v.aircraft ? 'Fly the' : 'Drive the'} ${v.name}`, act: () => tryDrive(v)};
+      // Licences (issue #59): without the licence the prompt says which one and where; □ sets the waypoint there.
+      if (!drv) {const need = licAllowed(v);if (need) {const L = GL.byId[need], P = GL.PLACES[L.place];return {text: `🪪 The ${v.name} needs ${L.tag} – ${L.place === 'online' ? 'take the free online test on your phone' : `test at ${P.name} (${P.near})`} · □ show the way`, act: () => licWay(need)};}}
+      if (!drv) return {text: `□ ${v.verb ? v.verb : v.kind === 'motorcycle' ? 'Ride the' : v.kind === 'excavator' ? 'Climb into the' : v.aircraft ? 'Fly the' : 'Drive the'} ${v.name}${licTest && licTest.v === v ? ` – start the ${licTest.L.short} test` : ''}`, act: () => tryDrive(v)};
       if (canRide && !pas) return {text: `□ Ride along with ${driverName(i)} (${v.kind === 'motorcycle' ? 'pillion' : 'passenger'})`, act: () => tryRide(v)};
       return {text: `${driverName(i)} is ${v.aircraft ? 'flying' : 'driving'} the ${v.name}`, act: () => {}};
     }
@@ -15813,8 +16237,9 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     plane: 'Plane (Mode 2) · left stick ↑ to add throttle (it stays), ←→ rudder/nose wheel · right stick pitch/roll · pull back at about 85 km/h · L2 brakes · R3 / V view · Keyboard + mouse: W/S throttle, A/D rudder, mouse pitch/roll (up = nose down), hold Shift to look around',
     jumpplane: 'Caravan jump plane (Mode 2, flies like the plane) · left stick ↑ throttle (it stays), ←→ rudder/nose wheel · right stick pitch/roll · the flaps are automatic: pull back at about 110 km/h · L2 brakes · R3 / V view · others board at the door (□) and can jump above 300 m · △ / F: the game\'s pilot takes over (you go to the back) · ✕ / Space above 300 m: jump yourself (the game\'s pilot takes over) · Keyboard + mouse: W/S throttle, A/D rudder, mouse pitch/roll, hold Shift to look around'};
   function setClip(near, far) {if (camera.near !== near || camera.far !== far) {camera.near = near;camera.far = far;camera.updateProjectionMatrix();applyNearFog();}}
-  function enterVehicle(v) {if (v === caravan) gp = null;watch.hide();player.mode = 'vehicle';player.vehicle = v;player.siteView = 0;player.lookYaw = 0;player.lookPitch = 0;player.chase = false;player.chaseCam = null;v.enter();updateDynamic();if (v.aircraft) setClip(.12, 1600);notice(v.help ? v.help : v.aircraft ? AIR_HELP[v.kind] : v.kind === 'excavator' ? 'Tracks: L1/L2 left, R1/R2 right · Left stick: swing / stick · Right stick: boom / bucket · □ get out' : 'R2 throttle · L2 brake / reverse · Left stick steer · Right stick look · □ get off', v.aircraft || v.help ? 9 : 6);}
+  function enterVehicle(v) {{const need = licAllowed(v);if (need) {notice(licNeedText(need, v.name), 5);mp.release(vehicles.indexOf(v), 'd');return false;}}if (v === caravan) gp = null;watch.hide();player.mode = 'vehicle';player.vehicle = v;player.siteView = 0;player.lookYaw = 0;player.lookPitch = 0;player.chase = false;player.chaseCam = null;v.enter();updateDynamic();if (v.aircraft) setClip(.12, 1600);notice(v.help ? v.help : v.aircraft ? AIR_HELP[v.kind] : v.kind === 'excavator' ? 'Tracks: L1/L2 left, R1/R2 right · Left stick: swing / stick · Right stick: boom / bucket · □ get out' : 'R2 throttle · L2 brake / reverse · Left stick steer · Right stick look · □ get off', v.aircraft || v.help ? 9 : 6);}
   function tryDrive(v) {
+    {const need = licAllowed(v);if (need) {notice(licNeedText(need, v.name), 5);return;}}
     const i = vehicles.indexOf(v);if (v !== caravan) leaveGamePilot();
     mp.claim(i, 'd').then(r => {if (player.mode !== 'foot') {if (r.ok) mp.release(i, 'd');return;}if (r.ok) enterVehicle(v);else notice(r.timeout ? 'No answer from the lobby – try again.' : `${mp.nameOf(r.by)} just took it.`, 3);});
   }
@@ -15880,17 +16305,151 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
   scene.add(jobs.group);for (const j of JOB_SIGNS) {jobs.addSign(j.x, j.z, j.yaw);jobs.addPickup(j.pickup);}interactables.push(...jobs.hitboxes);
   const esc = t => String(t ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
   const wpTo = w => {const l = world.toLocal(w.x, w.z);map.waypoint = {x: l.x, s: l.s};notice('Waypoint set – the purple pin and the minimap show the way.', 3);};
+  // ---------- Licences (issue #59): tests at the driving school, the airstrip and the site office; the drone test on the phone ----------
+  // Without the licence a vehicle's driver's seat stays closed (riding along stays free); the test vehicle is yours during the test.
+  const lic = GL.create({T, scene, root: view});
+  for (const [k, at] of Object.entries(LIC_SIGNS)) {
+    const lines = {school: ['TRAFIKKSKOLE', 'Soria Moria', 'Førerkort B · A', '□ teori og oppkjøring'], airfield: ['FLYSKOLE', 'Torshovdalen', 'PPL(A) · PPL(H)', '□ teori og flyprøve'], site: ['ANLEGG', 'Kompetansebevis', 'M · G · klasse C', '□ teori og prøve']}[k];
+    const g = lic.sign(lines);g.position.set(at.x, groundAt(at.x, at.z), at.z);g.rotation.y = at.yaw;scene.add(g);lib.mergeStatic(g);
+  }
+  const siteMachine = kind => site ? site.machines.find(m => m.kind === kind) : null;
+  const licVehicle = id => ({B: schoolCar, A: schoolBike, C: siteMachine('tipper'), M: siteMachine('loader'), G: siteMachine('tower'), PPLA: plane, PPLH: heli})[id] || null;
+  const licOrigin = c => c.origin === 'plane' ? AIR.plane : c.origin === 'heli' ? AIR.heli : null;
+  let licTest = null;// {id, L, v, course, gates, phase: 'goto' | 'drive' | 'failed', run, prevLoad}
+  // The licence a vehicle's driver's seat still needs (null: you may drive it).
+  function licAllowed(v) {const need = GL.need(v);if (!need || lic.has(need)) return null;if (licTest && licTest.v === v && licTest.phase !== 'failed') return null;return need;}
+  function licNeedText(need, what) {const L = GL.byId[need], P = GL.PLACES[L.place];return `${what ? `The ${what} needs` : 'You need'} ${L.tag}: ${L.place === 'online' ? 'take Luftfartstilsynet’s free online test on your phone (D-pad → / P, Licences)' : `take the test at ${P.name}, ${P.where}`}`;}
+  function licWay(need) {const L = GL.byId[need];if (L.place === 'online') openLicPhone();else wpTo(LIC_SIGNS[L.place]);}
+  function licPlaceNear() {if (player.mode !== 'foot') return null;for (const [k, at] of Object.entries(LIC_SIGNS)) if (Math.hypot(player.x - at.x, player.z - at.z) < 2.6 && Math.abs(player.feet - groundAt(at.x, at.z)) < 2) return k;return null;}
+  function licPrompt() {const k = licPlaceNear();if (!k) return null;return {text: `□ ${GL.PLACES[k].name}: licence tests (${GL.LICENCES.filter(l => l.place === k).map(l => l.short).join(', ')})`, act: () => openLicPlace(k)};}
+  function licItem(L) {
+    const have = lic.has(L.id), th = !!lic.state.theory[L.id], fee = (th ? 0 : L.fee.theory) + (L.theoryOnly ? 0 : L.fee.practical), mine = licTest && licTest.id === L.id;
+    const sub = have ? `✓ passed ${lic.state.have[L.id]} · ${L.covers}` : mine ? (licTest.phase === 'goto' ? `Your test is waiting: get into ${L.vehicle}` : 'Your test is going on') :
+      `${L.covers} · ${th ? 'theory passed, practical test' : L.theoryOnly ? 'five questions' : 'theory (five questions) and a practical test in ' + L.vehicle} · ${fee ? KR(fee) : 'free'}${lic.missing(L.id).length ? ` · needs ${lic.missing(L.id).map(r => GL.byId[r].tag).join(' and ')} first` : ''}`;
+    return {label: `${have ? '✓' : L.icon} ${L.name}`, sub, done: have, act: () => licBegin(L.id)};
+  }
+  function openLicPlace(k) {
+    watch.hide();
+    lic.menu.show({title: () => `${GL.PLACES[k].name} · ${KR(wallet.money)}`, note: () => ({school: 'Førerprøven: the theory test and the practical driving test', airfield: 'The theory test and a flight test with the examiner', site: 'Operator’s certificates (Arbeidstilsynet’s classes) and class C'})[k],
+      items: () => [...GL.LICENCES.filter(l => l.place === k).map(licItem), {label: 'Close', act: () => {}}]});
+  }
+  function licPhoneItems() {
+    const items = [];
+    if (licTest) items.push({text: `⏹ Stop the ${licTest.L.short} test`, sub: licTest.phase === 'goto' ? 'The practical fee is paid back' : 'The fee is not paid back', act: () => licEnd('cancel')});
+    for (const L of GL.LICENCES) {
+      const have = lic.has(L.id), P = GL.PLACES[L.place];
+      items.push({text: `${have ? '✓' : L.icon} ${L.name}`, sub: have ? `Passed ${lic.state.have[L.id]} · ${L.covers}` : L.place === 'online' ? `${L.covers} · take the free online test now` : `${L.covers} · at ${P.name}: set the waypoint`, off: have,
+        act: () => {if (L.place === 'online') licBegin(L.id);else if (licPlaceNear() === L.place) openLicPlace(L.place);else wpTo(LIC_SIGNS[L.place]);}});
+    }
+    items.push({text: 'Back', act: () => openPhone()});
+    return items;
+  }
+  function openLicPhone() {watch.hide();jobs.phone.show(licPhoneItems, () => `🪪 Licences · ${lic.count} of ${lic.total}`);}
+  const licInUse = v => {const d = mp.occupant(vehicles.indexOf(v), 'd');return (!!d && d !== mp.net.you) || (v === caravan && !!gp);};
+  const cap = t => t.charAt(0).toUpperCase() + t.slice(1);
+  function licBegin(id) {
+    const L = GL.byId[id];
+    if (lic.has(id)) {notice(`You already have ${L.name}.`, 3);return;}
+    if (licTest) {notice(licTest.id === id ? (licTest.phase === 'goto' ? `Your ${L.short} test is waiting: get into ${L.vehicle}.` : 'Finish the test first.') : `Finish or stop your ${licTest.L.short} test first (phone: Licences).`, 4);return;}
+    const miss = lic.missing(id);if (miss.length) {notice(`${L.name} needs ${miss.map(r => GL.byId[r].name).join(' and ')} first.`, 4);return;}
+    if (drunk > 0) {notice('The examiner smells alcohol: come back sober (the limit for driving and flying is 0.2 per mille).', 5);return;}
+    if (jobs.shift) {notice('Stop your job first (phone: D-pad → / P).', 3);return;}
+    const v = L.theoryOnly ? null : licVehicle(id);if (!L.theoryOnly && !v) {notice('The test vehicle is not in this world.', 3);return;}
+    if (v && licInUse(v)) {notice(`${cap(L.vehicle)} is in use – try again in a moment.`, 4);return;}
+    const theory = !!lic.state.theory[id], cost = (theory ? 0 : L.fee.theory) + (L.theoryOnly ? 0 : L.fee.practical);
+    if (wallet.money < cost) {notice(`Not enough money: ${theory ? 'the practical test costs' : 'the test costs'} ${KR(cost)}, you have ${KR(wallet.money)}.`, 4);return;}
+    if (theory) {licPractical(L);return;}
+    if (L.fee.theory) {wallet.pay(L.fee.theory);audio.sfx('register');walletT = 5;}
+    lic.menu.quiz(L, answers => {
+      if (!answers) {notice('You left the theory test.', 3);return;}
+      const sc = GL.score(L.quiz, answers);
+      if (sc.wrong > L.maxWrong) {
+        lic.failed(id);audio.sfx('locked');
+        notice(`Theory not passed: ${sc.right} of ${L.quiz.length} right (at most ${L.maxWrong} wrong). The right answers were: ${L.quiz.filter((q, i) => answers[i] !== q.ok).map(q => `“${q.a[q.ok]}”`).join(', ')}. Read up and try again.`, 10);return;
+      }
+      lic.passTheory(id);
+      if (L.theoryOnly) {lic.grant(id);audio.sfx('cheer');notice(`${L.icon} Passed: ${sc.right} of ${L.quiz.length} right. You have the drone certificate A1/A3 now – you may fly the FPV drone (hold △).`, 7);return;}
+      notice(`Theory passed (${sc.right} of ${L.quiz.length} right). Now the practical test.`, 4);licPractical(L);
+    });
+  }
+  function licPractical(L) {
+    const v = licVehicle(L.id);if (licInUse(v)) {notice(`${cap(L.vehicle)} is in use – try again in a moment.`, 4);return;}
+    if (!wallet.pay(L.fee.practical)) {notice(`Not enough money for the practical test (${KR(L.fee.practical)}).`, 4);return;}
+    audio.sfx('register');walletT = 5;
+    const course = GL.COURSES[L.course];
+    // The test vehicle (and the crane's loads) go back to their places first if someone left them elsewhere.
+    if (player.vehicle !== v) {
+      if (v.aircraft) {if (!v.grounded || Math.hypot(v.x - v.home.x, v.z - v.home.z) > 3) v.reset();}
+      else if (Math.hypot(v.x - v.spawn[0], v.z - v.spawn[2]) > 4) {v.netSet(v.spawn);v.speed = 0;}
+    }
+    if (course.crane && site) for (const l of site.loads) if (!l.hooked && l.home) l.p.copy(l.home);
+    licTest = {id: L.id, L, v, course, gates: GL.resolve(course, {toWorld, groundAt, origin: licOrigin(course)}), phase: 'goto', run: null, prevLoad: null};
+    lic.rings.show(licTest.gates, 0);
+    if (player.mode === 'vehicle' && player.vehicle === v) licDrive();
+    else {wpTo(v);notice(`Get into ${L.vehicle} – the waypoint shows it. The test starts when you sit in it${course.timeS ? `; it takes at most ${GL.mmss(course.timeS)}` : ''}.`, 7);}
+  }
+  function licDrive() {
+    const t = licTest;t.phase = 'drive';t.run = new GL.Practical(t.course, t.gates);t.prevLoad = t.v.hook ? t.v.hook.load : null;map.waypoint = null;audio.sfx('beep');
+    notice(`${t.L.icon} ${t.L.short} test: ${t.gates[0].say || 'through the rings in order'}${t.course.limit ? ` · keep to ${t.course.limit} km/h` : ''}`, 7);
+  }
+  function licFail(text) {
+    const t = licTest;lic.failed(t.id);lic.rings.hide();lic.hud('');audio.sfx('whistle');
+    const seat = player.mode === 'vehicle' && player.vehicle === t.v;lic.last = {id: t.id, passed: false, text, why: t.run ? t.run.why : null, at: world.toLocal(t.v.x, t.v.z), t: t.run ? t.run.t : 0};
+    notice(`${t.L.icon} Not passed: ${text}${seat ? (t.v.aircraft ? ' Land, and the examiner takes the aircraft back.' : ' The examiner stops the vehicle and takes over.') : ''} Try again at ${GL.PLACES[t.L.place].name} (${KR(t.L.fee.practical)}).`, 10);
+    // Still in the seat: the examiner takes over (a car or machine is stopped; an aircraft you land first).
+    if (player.mode === 'vehicle' && player.vehicle === t.v && GL.need(t.v) && !lic.has(GL.need(t.v))) t.phase = 'failed';else licTest = null;
+  }
+  function licEnd(why) {
+    const t = licTest;if (!t) return;
+    if (t.phase === 'drive') {t.run.fail(why);licFail(GL.failText(t.run));return;}
+    licTest = null;lic.rings.hide();lic.hud('');
+    if (t.phase === 'goto') {wallet.earn(t.L.fee.practical);walletT = 5;}
+    notice(why === 'taken' ? `Someone took ${t.L.vehicle} – the practical fee (${KR(t.L.fee.practical)}) is paid back. Try again later.` : t.phase === 'goto' ? `You stopped the test – ${KR(t.L.fee.practical)} paid back.` : 'You stopped the test.', 5);
+  }
+  // Every frame, after the vehicles have moved.
+  function licTick(dt) {
+    const t = licTest;if (!t) return;
+    const v = t.v, inV = player.mode === 'vehicle' && player.vehicle === v;
+    if (t.phase === 'goto') {
+      if (!inV) {if (licInUse(v)) {licEnd('taken');return;}lic.hud(`<b>${t.L.icon} ${t.L.short} test</b><span>Get into ${t.L.vehicle} (the waypoint shows it)</span><small>Phone (D-pad → / P) · Licences: stop the test</small>`);return;}
+      licDrive();
+    }
+    if (t.phase === 'failed') {if (!inV) licTest = null;return;}
+    const r = t.run, hook = v.hook, load = hook ? hook.load : null, agl = v.aircraft ? v.y - groundAt(v.x, v.z) : 0;
+    const before = r.i;
+    r.step({dt, x: v.x, y: v.aircraft ? v.pos.y : v.y, z: v.z, speed: v.speed || 0, agl, grounded: v.aircraft ? !!v.grounded : true, crashed: !!v.broken, inVehicle: inV,
+      point: t.course.crane && hook ? hook.p : null, loaded: !!load, dropped: t.prevLoad && !load ? {x: t.prevLoad.p.x, z: t.prevLoad.p.z} : null});
+    t.prevLoad = load;
+    if (r.state === 'passed') {lic.grant(t.id);lic.last = {id: t.id, passed: true, t: r.t};licTest = null;lic.rings.hide();lic.hud('');audio.sfx('cheer');notice(`${t.L.icon} Passed in ${GL.mmss(r.t)}! You have ${t.L.tag.replace(/^(a|the) /, '')} now – ${t.L.covers}.`, 8);return;}
+    if (r.state === 'failed') {licFail(GL.failText(r));return;}
+    if (r.i !== before) {audio.sfx('beep');if (r.gate.say) notice(r.gate.say, 5);}
+    lic.rings.show(t.gates, r.i);
+    const g = r.gate, lim = r.limitNow(), kmh = Math.round(Math.abs(v.speed || 0) * 3.6), rings = t.gates.filter(x => x.k === 'ring').length, done = t.gates.slice(0, r.i).filter(x => x.k === 'ring').length;
+    const what = g.k === 'ring' ? `ring ${done + 1} of ${rings}` : g.k === 'hold' ? `hover ${Math.min(g.hold, r.holdT).toFixed(1)} of ${g.hold} s` : g.k === 'land' ? 'land and stop' : g.k === 'stop' ? 'stop in the green ring' : g.k === 'hook' ? 'hook a load' : 'set the load down';
+    const line = t.course.crane ? (load ? 'Load on the hook' : 'No load on the hook') : `${kmh} km/h${lim ? ` · limit ${lim}` : ''}${v.aircraft ? ` · ${Math.max(0, Math.round(agl))} m up` : ''}`;
+    lic.hud(`<b>${t.L.icon} ${t.L.short} test · ${what}</b><span class="${lim && kmh > lim ? 'late' : ''}">${line}${r.left !== null ? ` · ${GL.mmss(r.left)} left` : ''}</span>${g.say ? `<small>${g.say}</small>` : ''}`);
+  }
+  // After a failed test the examiner stops a car or machine and you get out; an aircraft you land first.
+  function licExaminer(input) {
+    const t = licTest;if (!t || t.phase !== 'failed' || player.mode !== 'vehicle' || player.vehicle !== t.v) return;
+    const v = t.v;
+    if (v.aircraft) {if (v.grounded && v.speed < 2) exitVehicle();return;}
+    input.move.x = input.move.y = 0;input.look.x = input.look.y = 0;input.held.l1 = input.held.r1 = false;input.pressed.delete('cross');
+    input.r2 = v.speed < -.4 ? 1 : 0;input.l2 = v.speed > .4 ? 1 : 0;
+    if (Math.abs(v.speed) < .5) exitVehicle();
+  }
   function phoneItems() {
     const s = jobs.shift, dist = window.GameMap.distanceText, items = [], car = player.mode === 'vehicle' && player.vehicle && player.vehicle.kind === 'car' ? player.vehicle : null;
     if (s && s.kind === 'delivery') items.push({text: '🛵 Stop delivering', sub: `${s.n} delivered · ${Math.round(s.total)} kr this shift`, act: () => jobs.stop('phone')});
     else items.push({text: '🛵 Deliver food', sub: 'Pick up orders at cafés, restaurants, Joker and Kiwi and take them to street doors before the time runs out – walk, run, ride or drive', act: () => jobs.startDelivery(player)});
     if (s && s.kind === 'taxi') items.push({text: '🚕 Turn the taxi off', sub: `${s.n} fare${s.n === 1 ? '' : 's'} · ${Math.round(s.total)} kr this shift`, act: () => jobs.stop('phone')});
-    else items.push({text: '🚕 Turn on taxi', sub: car ? 'Pick up passengers and drive them where they want to go – smooth, fast driving earns tips' : 'Sit in a car as the driver first', off: !car, act: () => jobs.startTaxi(car, vehicles.indexOf(car))});
+    else items.push({text: '🚕 Turn on taxi', sub: !lic.has('B') ? 'Taxi driving needs førerkort klasse B (Soria Moria Trafikkskole)' : car ? 'Pick up passengers and drive them where they want to go – smooth, fast driving earns tips' : 'Sit in a car as the driver first', off: !car || !lic.has('B'), act: () => jobs.startTaxi(car, vehicles.indexOf(car))});
     if (rentals) {
       const t = rentals.trip;if (t && t.locked) items.push({text: `🔒 Your locked city bike · ${window.GameRentals.clock(t.t)}`, sub: `Set the waypoint to it – return it to a dock within ${window.GameRentals.NOT_RETURNED.afterS / 60} min of locking it`, act: () => wpTo(t.v)});
       const sc = rentals.nearestScooter(player);if (sc) items.push({text: `🛴 Nearest e-scooter · ${dist(sc.dist)}`, sub: `Set the waypoint · ${rentals.priceText('scooter')}`, act: () => wpTo(sc.v)});
       const dk = rentals.nearestDock(player);if (dk) items.push({text: `🚲 ${dk.dock.name} · ${dist(dk.dist)}`, sub: `${dk.dock.count.bike} bike${dk.dock.count.bike === 1 ? '' : 's'}, ${dk.dock.count.ebike} e-bike${dk.dock.count.ebike === 1 ? '' : 's'} free · set the waypoint · ${rentals.priceText('bike')} (e-bike ${window.GameRentals.PLANS.ebike.per_min_pricing[0].rate} kr/min)`, act: () => wpTo(dk.dock.centre)});
     }
+    items.push({text: `🪪 Licences · ${lic.count} of ${lic.total}`, sub: licTest ? `Your ${licTest.L.short} test is going on` : 'Your licences, and where to take the tests', keep: true, act: () => openLicPhone()});
     items.push({text: 'Close', act: () => {}});
     return items;
   }
@@ -16258,6 +16817,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
   $('badgesOpen').onclick = () => badges.open();
   function renderSettings() {
     $('walletLine').textContent = `Money: ${shops.kr(wallet.money)} · empty bottles: ${wallet.pant} (${shops.kr(wallet.pant * shops.PANT)} at the bottle return)`;
+    {const held = window.GameLicences.LICENCES.filter(l => lic.has(l.id)).map(l => l.short);$('licLine').textContent = `Licences (${held.length} of ${lic.total}): ${held.join(', ') || 'none yet'} – the phone (D-pad → / P · Licences) lists them all, where to take the tests, and starts the drone test`;}
     $('badgesOpen').textContent = `Badges and best scores (${badges.count} of ${badges.total})`;
     $('sensPad').value = sensitivity.pad;$('sensMouse').value = sensitivity.mouse;$('sensPadOut').textContent = sensitivity.pad.toFixed(2) + '×';$('sensMouseOut').textContent = sensitivity.mouse.toFixed(2) + '×';
     $('imagery').checked = imageryWanted();$('quality').value = String(quality);$('minimapOn').checked = map.minimap;
@@ -16308,10 +16868,11 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     if (quick) quickInput(input);
     if (bag) bagInput(input);
     if (gymMenu) gymMenuInput(input);
+    if (lic.menu.open) lic.menu.input(input);
     if (storgata && storgata.talking) storgata.input(input, storgataCtx(), storgataResult);
     // The jobs phone (issue #56): D-pad → / P on foot or in a vehicle (not on the site machines, where → is the arm on a keyboard).
     if (jobs.phone.open) jobs.phone.input(input);
-    else if ((input.pressed.has('phone') || (input.pressed.has('right') && !player.vehicle?.site)) && (player.mode === 'foot' || player.mode === 'vehicle') && !pbBusy() && !map.open && !caseGame?.active && !bag && !gymMenu && !quick && !photo.active && !gear && !storgata?.talking) {openPhone();input.pressed.delete('right');input.pressed.delete('phone');}
+    else if ((input.pressed.has('phone') || (input.pressed.has('right') && !player.vehicle?.site)) && (player.mode === 'foot' || player.mode === 'vehicle') && !pbBusy() && !map.open && !caseGame?.active && !bag && !gymMenu && !lic.menu.open && !quick && !photo.active && !gear && !storgata?.talking) {openPhone();input.pressed.delete('right');input.pressed.delete('phone');}
     if (library && library.reading) library.readInput(input);
     if (caseGame?.active) {
       // The mission owns ✕ (begin), ○ (leave on panels), Options (pause), □ (door or reload), triggers.
@@ -16362,6 +16923,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     const wdt = dt * worldScale();stash.update(dt);shopsTick(dt);storgataTick(dt);gym.update(dt, player, camera);grunerTick(dt);if (route) route.tick(player, dt);world.update(camera.position);
     // The jump planes move first, so a jumper's seat (and camera) is where the plane is this frame.
     updateJumpFlight(dt);updateGamePilot(dt);
+    licExaminer(input);
     if (player.mode === 'vehicle') updateVehicle(dt, input, dl);
     else if (player.mode === 'passenger') updatePassenger(dt, input, dl);
     else if (player.mode === 'sit') updateSit(dt, input, dl);
@@ -16378,7 +16940,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     cullT -= dt;if (cullT <= 0) {cullT = .4;for (const v of vehicles) {const near = Math.hypot(v.x - camera.position.x, v.z - camera.position.z) < (v.cullDistance || 170);v.group.visible = near || v === player.vehicle;}if (vehicles.some((v, i) => mp.remoteDriven(i))) updateDynamic();}
     vehicles.forEach((v, i) => {if (v === player.vehicle && player.mode === 'vehicle') return;if (mp.remoteDriven(i) || (gp && v === caravan)) return;if (!v.group.visible && Math.abs(v.speed || 0) < .01 && !v.aircraft) return;v.update(wdt, {});});
     beerT = Math.max(0, beerT - dt);mp.update(dt);updatePilotAvatar(dt);if (player.mode === 'jumpseat' && skyd.ride) seatCamera();
-    if (rentals) rentals.tick(dt, player);jobs.tick(dt, {player, drunk: dl, camera});jobs.remoteTick(mp.remotes, vehicles, dt, camera);renderJobHud(crewTick());if (jobs.phone.open) jobs.phone.render();
+    if (rentals) rentals.tick(dt, player);jobs.tick(dt, {player, drunk: dl, camera});jobs.remoteTick(mp.remotes, vehicles, dt, camera);renderJobHud(crewTick());licTick(dt);if (jobs.phone.open) jobs.phone.render();
     if (site) site.update(wdt);
     if (paintball) {
       const foot = player.mode === 'foot', p = foot ? input.pressed : new Set(), h = foot ? input.held : {};
@@ -16390,7 +16952,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     let doorsChanged = false;
     for (const d of doors) if (d.anim) {d.anim.t = Math.min(1, d.anim.t + dt * 2.2);const e = d.anim.t < .5 ? 2 * d.anim.t * d.anim.t : 1 - Math.pow(-2 * d.anim.t + 2, 2) / 2;setDoor(d, d.anim.from + (d.anim.to - d.anim.from) * e);if (d.anim.t >= 1) {d.open = d.anim.to === 1;d.anim = null;doorsChanged = true;}}
     if (doorsChanged || caseGame?.active) updateDynamic();
-    promptTimer -= dt;if (promptTimer <= 0) {promptTimer = .15;promptAction = player.mode === 'minigame' || player.mode === 'drone' || gear?.open || quick || bag || gymMenu || jobs.phone.open || photo.active || storgata?.talking || (caseGame?.active && caseGame.state !== 'play') ? null : findPrompt();prompt(promptAction?.text);}
+    promptTimer -= dt;if (promptTimer <= 0) {promptTimer = .15;promptAction = player.mode === 'minigame' || player.mode === 'drone' || gear?.open || quick || bag || gymMenu || lic.menu.open || jobs.phone.open || photo.active || storgata?.talking || (caseGame?.active && caseGame.state !== 'play') ? null : findPrompt();prompt(promptAction?.text);}
     weather.update(dt, camera, {indoor: weatherIndoor, windWorld: weatherWind});
     ambienceTimer -= dt;if (ambienceTimer <= 0) {ambienceTimer = .25;updateAmbience();if (audio.context) music.attach(audio.context);music.play(musicTrack());}
     // Adaptive resolution keeps the frame rate in the 20–30+ fps range on slower PCs.
@@ -16551,6 +17113,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     return best;
   }
   function startDrone() {
+    if (!lic.has('A1A3')) {notice('Flying the FPV drone needs the drone certificate A1/A3: Luftfartstilsynet’s free online test, on your phone (D-pad → / P · Licences).', 6);return;}
     const f = {x: -Math.sin(player.yaw), z: -Math.cos(player.yaw)}, p = {x: player.x + f.x * 1.1, z: player.z + f.z * 1.1}, fl = floorBelow(p, player.feet + .4);
     if (!fl || Math.abs(fl.y - player.feet) > .6 || collision.hitsSolid(walkWorld, p, fl.y, fl.y + .35)) {notice('No room to launch the drone here – face an open space.');return;}
     watch.hide();if (photo.active) photo.toggle();drone.launch(p.x, fl.y, p.z, player.yaw);player.mode = 'drone';setClip(.03, 900);view.dataset.drone = '';
@@ -17093,7 +17656,6 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     storgata.place({pickups: Object.fromEntries(Object.entries(pk).filter(([, v]) => v)), bottleSpots});
   }
   const storgataCtx = () => ({pant: wallet.pant, bag: wallet.bag});
-  const cap = t => t.charAt(0).toUpperCase() + t.slice(1);
   const POWER_HELP = {levitate: 'Hold R1 (keyboard: hold 1) to float up to 3 m; let go and you sink slowly.', blink: 'R1 (keyboard: 2) jumps you up to 8 m the way you look – not through walls.',
     gust: 'R1 (keyboard: 3) blows a gust ahead: it pushes a parked car, motorcycle or e-scooter and scares the pigeons.', orb: 'R1 (keyboard: 4) lights the light orb by your shoulder, and puts it out again.'};
   function storgataPrompt() {
@@ -17311,6 +17873,9 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
   Object.assign(window.haarklousGame, {library, pingpong, rathkes, kayak, startKayak, hushedFor: () => hushed});
   Object.assign(window.haarklousGame, {badges, huntSpots, huntPhoto, sightBlocked, SKY_TARGET, progress, account});
   Object.assign(window.haarklousGame, {rides, get rentals() {return rentals;}, jobs, openPhone, rentDrive, JOB_SIGNS});
+  // Licences (issue #59). Browser tests that need to drive: haarklousGame.licences.grant('B') (or every id in GameLicences.IDS).
+  Object.assign(window.haarklousGame, {licences: lic, licBegin, licVehicle, openLicPlace, openLicPhone, schoolCar, schoolBike, LIC_SIGNS});
+  Object.defineProperty(window.haarklousGame, 'licTest', {get: () => licTest});
   Object.assign(window.haarklousGame, {storgata, magic, magicFxApi: fx, castPower, GRONLAND, storgataAct, questWaypoint, collision});
   loading.remove();$('start').hidden = false;
   requestAnimationFrame(frame);

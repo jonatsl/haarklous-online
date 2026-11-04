@@ -2,7 +2,7 @@
  * photos in IndexedDB). Logged in, the same values are your account's: they come from the server when you log in, on any PC or
  * browser, and are saved there by themselves – every 20 s when something changed, and when the tab is hidden or closed.
  * The first time you log in on a browser that has progress of its own, the game asks whether to move it into the account:
- * money, bottles and the bag add up, the better best score wins, badges, climbing ticks, the catacomb map and the photos join.
+ * money, bottles and the bag add up, the better best score wins, badges, licences, climbing ticks, the catacomb map and the photos join.
  * If you say no, it stays in this browser and comes back when you log out (and you are not asked again for that account).
  * Photos go to the account's own album on the server (at most 60, cloud/src/progress.js). Graphics settings stay per device.
  *
@@ -26,12 +26,13 @@
   const SETTINGS = ['haarklous-look-sensitivity-v1', 'haarklous-music-volume-v1', 'haarklous-minimap-v1'];
   // haarklous-storgata-v1 (issue #65): the quests of the people at Kiwi Storgata and the magic powers you have learned.
   const KEYS = ['haarklous-wallet-v1', 'haarklous-records-v1', 'haarklous-badges-v1', 'haarklous-kayak-v1', 'haarklous-route-v1',
-    'haarklous-klatreverket-v1', 'haarklous-catacomb-map-v1', 'haarklous-storgata-v1', ...SETTINGS];
+    'haarklous-klatreverket-v1', 'haarklous-catacomb-map-v1', 'haarklous-licences-v1', 'haarklous-storgata-v1', ...SETTINGS];
   const META = 'haarklous-progress-sync-v1', GUEST = 'haarklous-progress-guest-v1', DECLINED = 'haarklous-progress-declined-v1';
   const START_MONEY = 500, SAVE_EVERY = 20, KEEPALIVE_MAX = 60000;
 
   const J = t => {try {return JSON.parse(t);} catch {return null;}};
-  const obj = t => {const v = J(t);return v && typeof v === 'object' && !Array.isArray(v) ? v : {};};
+  const plain = v => v && typeof v === 'object' && !Array.isArray(v) ? v : {};
+  const obj = t => plain(J(t));
   const num = v => Number.isFinite(+v) ? +v : 0;
   const hash = s => {let h = 0x811c9dc5;for (let i = 0; i < s.length; i++) {h ^= s.charCodeAt(i);h = Math.imul(h, 0x01000193);}return (h >>> 0).toString(36) + ':' + s.length;};
 
@@ -47,6 +48,7 @@
       if (k === 'haarklous-wallet-v1') {const w = obj(t);if (num(w.money) !== START_MONEY || num(w.pant) > 0 || Object.values(w.bag || {}).some(n => num(n) > 0)) return true;continue;}
       if (k === 'haarklous-catacomb-map-v1') {if (bitsSet(t)) return true;continue;}
       if (k === 'haarklous-badges-v1') {if (Object.keys(obj(t).got || {}).length) return true;continue;}
+      if (k === 'haarklous-licences-v1') {const l = obj(t);if (Object.keys(plain(l.have)).length || Object.keys(plain(l.theory)).length) return true;continue;}
       if (k === 'haarklous-route-v1') {const r = obj(t);if (r.best !== null && r.best !== undefined || num(r.runs) > 0) return true;continue;}
       if (k === 'haarklous-storgata-v1') {const g = obj(t);if (['q', 'powers', 'got'].some(f => Object.keys(g[f] || {}).length)) return true;continue;}
       if (Object.keys(obj(t)).length) return true;
@@ -75,6 +77,11 @@
       const x = obj(a), y = obj(b);
       return JSON.stringify({...y, ...x, ticks: {...(y.ticks || {}), ...(x.ticks || {})}, tries: maxEach(x.tries || {}, y.tries || {}),
         bestHang: Math.max(num(x.bestHang), num(y.bestHang)), brattkort: x.brattkort || y.brattkort || undefined});
+    },
+    // Licences (issue #59): a licence or a passed theory part is never lost (the earlier date stays); the most failed tries.
+    'haarklous-licences-v1': (a, b) => {
+      const x = obj(a), y = obj(b), join = (p, q) => {p = plain(p);q = plain(q);const o = {...q, ...p};for (const k of Object.keys(q)) if (p[k] && q[k]) o[k] = String(p[k]) < String(q[k]) ? p[k] : q[k];return o;};
+      return JSON.stringify({have: join(x.have, y.have), theory: join(x.theory, y.theory), fails: maxEach(plain(x.fails), plain(y.fails))});
     },
     'haarklous-catacomb-map-v1': (a, b) => {
       let p, q;try {p = atob(a);q = atob(b);} catch {return a;}

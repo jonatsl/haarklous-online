@@ -156,9 +156,9 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
 #basket{position:absolute;right:20px;top:56px;min-width:230px;padding:10px 14px;border-radius:12px;background:#0b0f14d9;border:1px solid #ffffff22;pointer-events:none;font-size:14px}
 #basket div{display:flex;justify-content:space-between;gap:16px}#basket .total{border-top:1px solid #ffffff33;margin-top:4px;padding-top:4px;font-weight:700}
 #basket small{opacity:.7}
-#bag,#gymMenu{position:absolute;left:18px;top:50%;transform:translateY(-50%);min-width:280px;max-width:min(420px,80%);max-height:calc(100% - 140px);overflow-y:auto;scrollbar-width:none;padding:12px;border-radius:12px;background:#0b0f14e6;border:1px solid #ffffff2a;pointer-events:none;display:flex;flex-direction:column;gap:3px}
-#bag div,#gymMenu div{padding:5px 10px;border-radius:7px;display:flex;flex-direction:column}#bag div small,#gymMenu div small{opacity:.75}#gymMenu div.done{opacity:.6}
-#bag div.sel,#gymMenu div.sel{background:#ffd166;color:#111;font-weight:700}#bag > small,#gymMenu > small{color:#ffffffb3;margin-top:4px}
+#bag,#gymMenu,#licMenu{position:absolute;left:18px;top:50%;transform:translateY(-50%);min-width:280px;max-width:min(420px,80%);max-height:calc(100% - 140px);overflow-y:auto;scrollbar-width:none;padding:12px;border-radius:12px;background:#0b0f14e6;border:1px solid #ffffff2a;pointer-events:none;display:flex;flex-direction:column;gap:3px}
+#bag div,#gymMenu div,#licMenu div{padding:5px 10px;border-radius:7px;display:flex;flex-direction:column}#bag div small,#gymMenu div small,#licMenu div small{opacity:.75}#gymMenu div.done,#licMenu div.done{opacity:.6}
+#bag div.sel,#gymMenu div.sel,#licMenu div.sel{background:#ffd166;color:#111;font-weight:700}#bag > small,#gymMenu > small,#licMenu > small{color:#ffffffb3;margin-top:4px}
 #bag > b,#bag > small{position:sticky;background:#0b0f14;z-index:1;padding:3px 0}#bag > b{top:-12px}#bag > small{bottom:-12px}
 #climbHud .dot{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:7px;vertical-align:-1px;border:1px solid #fff8}#climbHud .warn{color:#ffb02e}#climbHud .msg{opacity:1;color:#ffd166;font-size:14px}#climbHud .meter.pump u{transition:width .15s}
 /* Paintball (ported from the Unreal version): scores and clock, countdown / result, lobby panel, feed, ammo, crosshair, paint on the goggles. */
@@ -198,8 +198,8 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
 .lg.wp{background:#a83dff;border-radius:50% 50% 50% 0;transform:rotate(-45deg)}
 .lg.bikes{background:#1f4fa3}
 /* Jobs (issue #56): the job card top left (below the drunk and boost tags), the phone on the right. */
-#jobHud{position:absolute;left:18px;top:90px;width:min(360px,calc(100% - 36px));display:grid;gap:3px;padding:10px 14px;border-radius:10px;background:var(--card);pointer-events:none;font-size:14px}
-#jobHud b{font-size:15px;color:#fff}#jobHud small{opacity:.7}#jobHud .late{color:#ff8a65;font-weight:700}
+#jobHud,#licHud{position:absolute;left:18px;top:90px;width:min(360px,calc(100% - 36px));display:grid;gap:3px;padding:10px 14px;border-radius:10px;background:var(--card);pointer-events:none;font-size:14px}
+#jobHud b,#licHud b{font-size:15px;color:#fff}#jobHud small,#licHud small{opacity:.7}#jobHud .late,#licHud .late{color:#ff8a65;font-weight:700}#licHud[hidden],#licMenu[hidden]{display:none}
 #jobHud .meter.mood{display:block;height:6px;border-radius:3px;background:#ffffff26;overflow:hidden}#jobHud .meter.mood u{display:block;height:100%;background:linear-gradient(90deg,#e53935,#fdd835 45%,#43a047)}
 #phone{position:absolute;right:24px;top:50%;transform:translateY(-50%);width:min(300px,calc(100% - 48px));max-height:calc(100% - 120px);overflow-y:auto;scrollbar-width:none;padding:10px 12px 12px;border-radius:26px;background:#0b0f14f2;border:3px solid #2a3038;box-shadow:0 8px 30px #0008;pointer-events:none;display:flex;flex-direction:column;gap:4px}
 #phone .ph-bar{display:flex;justify-content:space-between;font-size:12px;opacity:.75;padding:0 6px 4px}
