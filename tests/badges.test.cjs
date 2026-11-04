@@ -51,7 +51,9 @@ test('badges come from the best scores and the other saved states', () => {
   assert.deepEqual(B.BADGES.filter(b => b.test(none)).map(b => b.id), []);
   const all = {records: {aces: 1, mission: {done: 1}, disc: {'Muselunden DiscGolfPark': {holes: 12}}, petanque: {won: 1}, paintball: {won: 1}, skydive: {best: 9.5},
     pingpong: {won: 1}, marks: {catacomb: 1, moby: 1, fire: 1, airborne: 1}},
-    gym: {ticks: {a: 'flash'}, brattkort: true}, kayak: {0: 400}, route: {best: 600}, got: Object.fromEntries(B.SPOTS.map(s => [s.id, {}]))};
+    gym: {ticks: {a: 'flash'}, brattkort: true}, kayak: {0: 400}, route: {best: 600}, got: Object.fromEntries(B.SPOTS.map(s => [s.id, {}])),
+    // Kiwi Storgata (issue #65): all five regulars helped, all four powers learned.
+    storgata: {q: Object.fromEntries(['kjell', 'bente', 'tore', 'mona', 'even'].map(id => [id, {s: 'done'}])), powers: {levitate: 1, blink: 1, gust: 1, orb: 1}}};
   assert.deepEqual(B.BADGES.filter(b => !b.test(all)).map(b => b.id), []);
   const near = {...none, records: {skydive: {best: B.TARGET_R + .1}, disc: {'Muselunden DiscGolfPark': {holes: 11}}}};
   assert.deepEqual(B.BADGES.filter(b => b.test(near)).map(b => b.id), [], 'just outside the target, one hole short');
