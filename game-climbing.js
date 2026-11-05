@@ -11,6 +11,8 @@
  *   brattkort. Prices: entry 155 kr before 16 on weekdays, 175 kr after 16 and at weekends; rent shoes 50, harness 50,
  *   chalk 20, all of it without a rope 100. The brattkort test can be taken when the climbing staff is on duty (after 17 on
  *   weekdays, after 11 at weekends). Opening hours (OpenStreetMap): Mo–Th 07–23, Fr 07–21, Sa–Su 09–20.
+ * In the game only the day ticket costs money (issue #91, the user's wish: paying for each thing took away from the
+ * experience): shoes, harness and chalk and the autobelay introduction come with it, and the brattkort test is free.
  * Routes are set by a seeded generator, so every computer in a lobby has the same holds. Rope grades use the Norwegian scale,
  * boulders the Fontainebleau scale (the scales used in Norway).
  * GameClimbing.prepare(districts)  – before Surroundings.create: this module builds OSM way 1031709261 itself.
@@ -29,6 +31,8 @@
   const hourOf = d => d.getHours() + d.getMinutes() / 60;
   // Entry: the day price before 16 on weekdays, the evening price after 16 and at weekends.
   const priceAt = d => weekday(d) && hourOf(d) < 16 ? PRICES.entryDay : PRICES.entryEvening;
+  // The day ticket in the game (issue #91): paid entry includes the rental and the autobelay introduction. st = the visit state.
+  const payEntry = st => {st.paid = true;st.shoes = st.harness = st.chalk = true;st.autoIntro = true;st.legal = true;return st;};
   const brattkortPriceAt = d => weekday(d) && hourOf(d) < 16 ? PRICES.brattkortDay : PRICES.brattkortEvening;
   // The climbing staff (klatrevakt) is on duty after 17 on weekdays and after 11 at weekends; only then can the test be taken.
   const staffedAt = d => hourOf(d) >= (weekday(d) ? 17 : 11);
@@ -709,7 +713,7 @@
     loadState();window.addEventListener('haarklous-progress', loadState);// an account's saved progress was loaded (issue #54)
     const save = () => {try {localStorage.setItem(KEY, JSON.stringify(st));} catch {}};
     const today = () => {const d = new Date();return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;};
-    const visit = () => {if (st.day !== today()) {st.day = today();st.paid = false;st.shoes = st.harness = st.chalk = false;}return st;};
+    const visit = () => {if (st.day !== today()) {st.day = today();st.paid = false;st.shoes = st.harness = st.chalk = false;}if (st.paid) payEntry(st);return st;};
     st.ticks = st.ticks || {};st.tries = st.tries || {};
 
     // ---------- Climbing: which hold the player looks at, starting a route, the rope and the hands ----------
@@ -837,5 +841,5 @@
     return {group, extras, floors, obstacles, hitboxes, routes, holds: holdsWorld, faces, climber, begin, end, tick, showClimb, aimAt, aimPoint, routeAt, classify: (s, h) => classify(climber, s, h), update, zoneAt, ZONE_NAME, ground, visit, save, get state() {return st;},
       lightMoon, get moonSel() {return moonSel;}, moonRoutes, startBelay, showBelay, endBelay, belaySpot, QUIZ, siri, staff, door: W(-1.2, (DOOR[0] + DOOR[1]) / 2), doorYaw: Math.atan2(ux, uz), local, floorY: Y0, toFrame, W, routeGear, session: () => session, LEVELS, priceAt, brattkortPriceAt, staffedAt, openAt, HOURS, PRICES, STYLE};
   }
-  return {PRICES, HOURS, priceAt, brattkortPriceAt, staffedAt, openAt, gradeName, ROPE_GRADES, BOULDER_GRADES, WALLS, LEVELS, HOLDS, COLOURS, STYLE, faceInfo, faceAt, makeRoutes, classify, leadCatch, steepness, Climber, Belay, QUIZ, worldHolds, prepare, hallPolygon, create, REACH, DYNO};
+  return {PRICES, HOURS, priceAt, payEntry, brattkortPriceAt, staffedAt, openAt, gradeName, ROPE_GRADES, BOULDER_GRADES, WALLS, LEVELS, HOLDS, COLOURS, STYLE, faceInfo, faceAt, makeRoutes, classify, leadCatch, steepness, Climber, Belay, QUIZ, worldHolds, prepare, hallPolygon, create, REACH, DYNO};
 });

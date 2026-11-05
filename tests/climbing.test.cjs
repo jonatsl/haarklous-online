@@ -152,3 +152,8 @@ test('belaying for the brattkort: take in, hold the brake on a fall, lower – a
   assert.ok(tight.mistakes.some(m => /tight/.test(m)), 'pulling all the time is a mistake');
   for (const q of G.QUIZ) assert.ok(q.ok >= 0 && q.ok < q.a.length);
 });
+
+test('issue #91: the day ticket is the only payment – shoes, harness, chalk and the autobelays come with it', () => {
+  const st = G.payEntry({paid: false, shoes: false, harness: false, chalk: false});
+  assert.deepEqual([st.paid, st.shoes, st.harness, st.chalk, st.autoIntro, st.legal], [true, true, true, true, true, true]);
+});
