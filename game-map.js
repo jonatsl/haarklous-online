@@ -9,11 +9,12 @@
  * GameMap.create({data, toLocal, toWorld, root, poi}) -> {open, toggle(player), draw(player), pan(dx, dy), zoom(f), markCentre(),
  *   clearWaypoint(), waypoint {x, s} | null, minimap (on/off, saved), guide(state), layer}
  *   layer: null on the surface; underground (the catacomb, issue #43) an object whose draw(ctx, {P(x, s) -> [u, v], k px/m, w, h,
- *   dpr, rotation, player}) paints the whole map instead (the minimap passes its turned P and rotation = -view). Meanwhile no
+ *   dpr, rotation, player}) paints the whole map instead (the minimap passes its P and rotation 0: north up since issue #93). Meanwhile no
  *   waypoint can be set, its on-screen pin is hidden and it is not "reached"; it is still there when you come back up.
  *   player: {x, z, headingLocal, others: [{x, z, headingLocal, color, name}]} (world x/z; headingLocal 0 = north, clockwise)
  *   guide({dt, camera, x, z, you: {x, z}, heading, view, alt, others, ground(x, z), show}) once a frame while you play: x/z = the
- *   minimap's centre, heading = your arrow, view = the camera's heading (the minimap's "up"); returns 'reached' when you got
+ *   minimap's centre, heading = your arrow, view = the camera's heading (the minimap is drawn north up since issue #93, so it no
+ *   longer turns with view); returns 'reached' when you got
  *   within 7 m of the waypoint (it is then removed).
  * Disc golf course (issue #60): map.course = a round's layout (GameMinigames' layout(): outline, holes, current, walking, lie,
  *   distance) or null. While it is set the minimap is shown (even when switched off) and zooms so the hole you play (or the way to
@@ -305,7 +306,8 @@
       const want = c ? courseRange([l.x, l.s], c.walking ? [h.tee] : [h.tee, h.basket, ...(c.lie ? [c.lie] : [])]) : minimapRange(speed, alt);
       range += (want - range) * Math.min(1, (dt || 0) * 1.5);
       const miniShown = (miniOn || !!c) && show;mini.hidden = !miniShown;root.classList.toggle('has-minimap', miniShown);
-      if (miniShown) drawMini({x, z, heading, view, others});
+      // North up (issue #93): the map stays still and your arrow turns where you look (it used to turn the map with the camera).
+      if (miniShown) drawMini({x, z, heading: view, view: 0, others});
       if (map.waypoint && show && camera && !map.layer) drawPointer(camera, you, ground);else ptr.hidden = true;
       return reached ? 'reached' : null;
     };

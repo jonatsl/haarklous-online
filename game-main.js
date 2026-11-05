@@ -431,7 +431,7 @@
     {...world.toLocal(LIC_SIGNS.site.x, LIC_SIGNS.site.z), color: '#0d3b66', label: 'Site office (machine, crane and class C tests)', glyph: '🪪'},
     ...(PB_DATA ? [{x: PB_DATA.centre.x, s: PB_DATA.centre.s, color: '#2e7d32', label: 'Paintball', glyph: '✚'}] : []),
     {x: SCULPTURE_AT.x, s: SCULPTURE_AT.s, color: '#7a5c3e', label: 'HODET N.N.', glyph: '◉'},
-    ...(cc ? [{...world.toLocal(cc.poi.x, cc.poi.z), color: '#8a6844', label: 'Construction City (garage under it)', glyph: '🏢'}] : []),
+    ...(cc ? [{...world.toLocal(cc.mapPoint.x, cc.mapPoint.z), color: '#8a6844', label: 'Construction City (garage under it)', glyph: '🏢'}] : []),
     {x: OKSEN_AT.x, s: OKSEN_AT.s, color: '#3a4436', label: 'Torshovoksen', glyph: '◉'},
     {x: gym.local.x, s: gym.local.s, color: '#c4161c', label: 'Klatreverket Torshov', glyph: '🧗'},
     {...world.toLocal(AIR.jump.x, AIR.jump.z), color: '#c8322c', label: 'Skydiving (jump plane)', glyph: '🪂'},
