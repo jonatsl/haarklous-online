@@ -55,3 +55,52 @@ test('drone (angle mode): level it holds its height, tilted it sinks unless you 
   assert.ok(drone(-1, 1).climb > 0, 'with thrust added it climbs while flying forward');
   assert.ok(tilt.speed > 10, 'and the tilt drives it forward');
 });
+
+// Issue #97: you land, get out, and the parked helicopter (now a solid for every vehicle world, its own included) spins down.
+// Its rotor-strike and body checks must skip its own footprint, or it "crashes" and is sent back to the helipad.
+test('helicopter: a parked helicopter does not crash on its own footprint while the rotor spins down', () => {
+  const WC = require('../walk-collision.js'), worlds = new Map();
+  const worldFor = r => {if (!worlds.has(r)) worlds.set(r, WC.createWorld({floors: [], obstacles: [], radius: r}));return worlds.get(r);};
+  const A = globalThis.GameAircraft.create({T, lib, audio, heightAt: () => 0, collision: WC, worldFor});
+  const h = new A.Helicopter(50, 50, 0);let crashed = 0;h.onCrash = () => {crashed++;};
+  h.enter();h.rpm = 1;h.exit();
+  const own = [].concat(h.footprint());worlds.forEach(w => WC.setDynamic(w, own));worldFor(h.rotorR);worldFor(h.radius);worlds.forEach(w => WC.setDynamic(w, own));
+  for (let i = 0; i < 20 / DT; i++) h.update(DT, {});
+  assert.equal(crashed, 0, 'no crash');
+  assert.ok(!h.broken && Math.hypot(h.x - 50, h.z - 50) < .05, `still where it was parked (${h.x.toFixed(2)}, ${h.z.toFixed(2)})`);
+  // Another aircraft's footprint is still a solid for it.
+  const other = new A.Helicopter(56, 50, 0), w = worldFor(h.radius);WC.setDynamic(w, [...own, ...[].concat(other.footprint())]);
+  assert.ok(WC.hitsSolid(w, {x: 56, z: 50}, .5, 2, h), 'another helicopter still blocks');
+  assert.ok(!WC.hitsSolid(w, {x: 50, z: 50}, .5, 2, h), 'its own footprint is skipped');
+});
+// Issue #97: landings and flying close to buildings were too strict.
+function landing(vy, vx, bank) {
+  const h = new AC.Helicopter(0, 0, 0);let crashed = 0;h.onCrash = () => {crashed++;};h.enter();h.rpm = 1;
+  h.pos.set(0, .3, 0);h.grounded = false;h.vel.set(vx, vy, 0);h.q.setFromEuler(new T.Euler(0, 0, -bank, 'YXZ'));
+  for (let i = 0; i < 30; i++) h.update(DT, {ly: 1});
+  return crashed;
+}
+test('helicopter: firm landings are fine, only really hard ones crash', () => {
+  assert.equal(landing(-8, 0, 0), 0, 'sinking 8 m/s');
+  assert.equal(landing(-3, 16, 0), 0, 'sliding 16 m/s');
+  assert.equal(landing(-2, 0, 45 * deg), 0, 'tilted 45°');
+  assert.equal(landing(-12, 0, 0), 1, 'sinking 12 m/s crashes');
+  assert.equal(landing(-2, 0, 60 * deg), 1, 'tilted 60° crashes');
+});
+test('helicopter: the rotor scrapes a wall at low speed and only crashes into it fast', () => {
+  const WC = require('../walk-collision.js'), wall = {points: [{x: 4.2, z: -3}, {x: 5, z: -3}, {x: 5, z: 3}, {x: 4.2, z: 3}], minY: -10, maxY: 100};
+  const worlds = new Map(), worldFor = r => {if (!worlds.has(r)) worlds.set(r, WC.createWorld({floors: [], obstacles: [wall], radius: r}));return worlds.get(r);};
+  const A = globalThis.GameAircraft.create({T, lib, audio, heightAt: () => 0, collision: WC, worldFor});
+  const fly = speed => {
+    const h = new A.Helicopter(0, 0, 0);let crashed = 0;h.onCrash = () => {crashed++;};h.enter();h.rpm = 1;h.pos.set(0, 20, 0);h.grounded = false;
+    h.vel.set(speed, 0, 0);for (let i = 0; i < 10; i++) h.update(DT, {});return {crashed, h};
+  };
+  const slow = fly(2);
+  assert.equal(slow.crashed, 0, 'drifting in at 2 m/s just scrapes');
+  assert.ok(slow.h.speed < 1, `and it is slowed down (${slow.h.speed.toFixed(2)} m/s)`);
+  assert.equal(fly(8).crashed, 1, 'flying in at 8 m/s is a crash');
+  // The wall 4.9 m from the mast, just under the 5.2 m blade tips, is not yet a strike.
+  const near = new A.Helicopter(0, 0, 0);near.enter();near.rpm = 1;near.pos.set(-.3 - .4, 20, 0);near.grounded = false;let c = 0;near.onCrash = () => {c++;};
+  near.vel.set(0, 0, 0);for (let i = 0; i < 10; i++) near.update(DT, {});
+  assert.equal(c, 0, 'hovering with the blade tips just over the wall');
+});

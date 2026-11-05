@@ -137,12 +137,35 @@
     const pathColour = k => ({footway: '#a9a59b', path: '#aea38e', track: '#a99c84', bridleway: '#a99c84', cycleway: '#5f6062', steps: '#a09d96', pedestrian: '#a3a099'})[k] || '#a7a296';
     // The same tone for an area in every painting (near, outer, far, and again when the aerial photo is switched off): keyed, not random.
     const jitter = (hex, amount, key) => {const c = new T.Color(hex), f = 1 + (CT.hash(key * 2 + 1) - .5) * amount, g = 1 + (CT.hash(key * 2 + 2) - .5) * amount * .6;c.r *= f;c.g *= f * g;c.b *= f;return '#' + c.getHexString();};
-    function paintStreets(ctx, roads, P, k, classes) {
-      const line = (r, width, colour) => {ctx.strokeStyle = colour;ctx.lineWidth = width * k;ctx.lineCap = ctx.lineJoin = 'round';ctx.beginPath();for (let i = 0; i + 1 < r.p.length; i += 2) {const [x, y] = P(r.p[i], r.p[i + 1]);i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);}ctx.stroke();};
-      // Torshov, Sandaker, Myrens and Ensjø have asphalt pavements; Grünerløkka, Tøyen, Grønland, Kampen and Bjørvika granite slabs.
-      const slabs = r => ['lokka', 'toyen', 'gronland', 'kampen', 'bjorvika'].includes(CT.zoneAt(r.p[0], r.p[1]));
-      for (const r of roads) if (SIDEWALK[r.k]) line(r, r.w + 2 * SIDEWALK[r.k], classes ? '#020000' : slabs(r) ? '#a29f98' : '#646567');
-      for (const r of roads) if (SIDEWALK[r.k]) line(r, r.w + .5, classes ? '#020000' : '#aeaba3');
+    // Issue #98: the road, the kerb and the pavement must read apart. The road is dark asphalt, the asphalt pavements are clearly
+    // lighter than it (they were almost the same grey), slab pavements lighter still, and the granite kerb a light line at least
+    // ~1.3 texels wide so it shows at every painting's resolution.
+    const ROAD = '#4b4d50', KERB = '#bdbab2', PAVE_ASPHALT = '#7d7e7f', PAVE_SLABS = '#aaa69e';
+    const kerbWidth = k => Math.max(.3, 1.3 / k);
+    // Torshov, Sandaker, Myrens and Ensjø have asphalt pavements; Grünerløkka, Tøyen, Grønland, Kampen and Bjørvika granite slabs.
+    const slabs = r => ['lokka', 'toyen', 'gronland', 'kampen', 'bjorvika'].includes(CT.zoneAt(r.p[0], r.p[1]));
+    const roadPath = (ctx, r, P) => {for (let i = 0; i + 1 < r.p.length; i += 2) {const [x, y] = P(r.p[i], r.p[i + 1]);i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);}};
+    // Pavements and kerbs of the car streets; with `surface` also the road itself (drawn over the aerial photo).
+    function paintStreets(ctx, roads, P, k, classes, surface = false) {
+      const line = (r, width, colour) => {ctx.strokeStyle = colour;ctx.lineWidth = width * k;ctx.lineCap = ctx.lineJoin = 'round';ctx.beginPath();roadPath(ctx, r, P);ctx.stroke();};
+      for (const r of roads) if (SIDEWALK[r.k]) line(r, r.w + 2 * SIDEWALK[r.k], classes ? '#020000' : slabs(r) ? PAVE_SLABS : PAVE_ASPHALT);
+      for (const r of roads) if (SIDEWALK[r.k]) line(r, r.w + 2 * kerbWidth(k), classes ? '#020000' : KERB);
+      if (surface) for (const r of roads) if (SIDEWALK[r.k]) line(r, r.w, ROAD);
+    }
+    // What each texel is, for the terrain shader: kept in the painting's alpha (1 other ground, .85 pavement, .7 kerb, .55 road).
+    // Each band (all streets at once) is drawn opaque into a mask, so where streets cross it is still one coverage, then cut out of
+    // the painting's alpha in one go: destination-out only scales the alpha and leaves the colour. The terrain materials are
+    // opaque, so the alpha is never blended.
+    function streetClasses(ctx, roads, P, k) {
+      const mask = document.createElement('canvas');mask.width = ctx.canvas.width;mask.height = ctx.canvas.height;const m = mask.getContext('2d');m.lineCap = m.lineJoin = 'round';m.strokeStyle = '#000';
+      const cutBand = (width, cut) => {
+        m.clearRect(0, 0, mask.width, mask.height);
+        for (const r of roads) if (SIDEWALK[r.k]) {m.lineWidth = width(r) * k;m.beginPath();roadPath(m, r, P);m.stroke();}
+        ctx.globalCompositeOperation = 'destination-out';ctx.globalAlpha = cut;ctx.drawImage(mask, 0, 0);ctx.globalAlpha = 1;ctx.globalCompositeOperation = 'source-over';
+      };
+      cutBand(r => r.w + 2 * SIDEWALK[r.k], .15);// → .85
+      cutBand(r => r.w + 2 * kerbWidth(k), 1 - .7 / .85);// → .70
+      cutBand(r => r.w, 1 - .55 / .7);// → .55
     }
     function paint(size, ext, classes = false) {
       const c = document.createElement('canvas');c.width = c.height = size;const ctx = c.getContext('2d'), s = size / (2 * ext), P = (x, y) => [(x + ext) * s, (y + ext) * s];
@@ -151,17 +174,20 @@
       const ring = (flat, color) => {ctx.fillStyle = color;ctx.beginPath();pairs(flat).forEach((p, i) => {const [x, y] = P(p[0], p[1]);i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);});ctx.closePath();ctx.fill();};
       data.areas.forEach((a, i) => {if (a.k === 'grass' || a.k === 'wood') ring(a.o, col('grass', jitter(colors[a.k], .16, i)));});
       data.areas.forEach((a, i) => {if (a.k !== 'grass' && a.k !== 'wood') ring(a.o, col(a.k === 'parking' ? 'asphalt' : a.k === 'playground' ? 'sand' : a.k === 'yard' ? 'gravel' : 'grass', jitter(colors[a.k] || '#888', .1, i)));});
-      paintStreets(ctx, data.roads, P, s, classes);
-      for (const r of data.roads.slice().sort((a, b) => roadOrder.indexOf(a.k) - roadOrder.indexOf(b.k))) {
-        ctx.strokeStyle = col(isPath(r.k) && r.k !== 'cycleway' ? 'gravel' : 'asphalt', r.k === 'tram' ? '#545556' : isPath(r.k) ? pathColour(r.k) : '#57595c');ctx.lineWidth = r.w * s;ctx.lineCap = ctx.lineJoin = 'round';
+      // Footpaths first, then the streets' pavements over them (OSM often maps a pavement as its own footway: it must not turn
+      // into a light path on the pavement, issue #98), then the roads.
+      const sorted = data.roads.slice().sort((a, b) => roadOrder.indexOf(a.k) - roadOrder.indexOf(b.k));
+      const draw = r => {
+        ctx.strokeStyle = col(isPath(r.k) && r.k !== 'cycleway' ? 'gravel' : 'asphalt', r.k === 'tram' ? '#545556' : isPath(r.k) ? pathColour(r.k) : ROAD);ctx.lineWidth = r.w * s;ctx.lineCap = ctx.lineJoin = 'round';
         ctx.beginPath();pairs(r.p).forEach((p, i) => {const [x, y] = P(p[0], p[1]);i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);});ctx.stroke();
-      }
+      };
+      sorted.filter(r => isPath(r.k)).forEach(draw);paintStreets(ctx, data.roads, P, s, classes);sorted.filter(r => !isPath(r.k)).forEach(draw);
       const yard = data.courtyard;
       if (yard) {ctx.lineCap = 'round';ctx.strokeStyle = col('gravel', '#b4a78f');ctx.lineWidth = yard.pathWidth * s;ctx.beginPath();pairs(yard.path).forEach((p, i) => {const [x, y] = P(p[0], p[1]);i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);});ctx.stroke();if (yard.playground) ring(yard.playground.o, col('sand', '#c9b48a'));}
       if (data.petanque) {const p = data.petanque, cx = Math.cos(p.rot), sx = Math.sin(p.rot);ring([[-1, -1], [1, -1], [1, 1], [-1, 1]].flatMap(([a, b]) => [p.x + cx * a * (p.length / 2 + .3) - sx * b * (p.width / 2 + .3), p.s + sx * a * (p.length / 2 + .3) + cx * b * (p.width / 2 + .3)]), col('gravel', '#c2b49a'));}
       for (const h of data.discgolf || []) {const [tx, ts] = h.tee;ctx.fillStyle = col('gravel', '#59544c');ctx.beginPath();const [px, py] = P(tx, ts);ctx.arc(px, py, 1.4 * s, 0, 7);ctx.fill();}
       for (const b of data.buildings) ring(b.r.o, col('none', '#5a5652'));
-      if (!classes) {const img = ctx.getImageData(0, 0, size, size), d = img.data;for (let i = 0; i < d.length; i += 4) {const n = (lib.rand() - .5) * 12;d[i] += n;d[i + 1] += n;d[i + 2] += n;}ctx.putImageData(img, 0, 0);}
+      if (!classes) {const img = ctx.getImageData(0, 0, size, size), d = img.data;for (let i = 0; i < d.length; i += 4) {const n = (lib.rand() - .5) * 12;d[i] += n;d[i + 1] += n;d[i + 2] += n;}ctx.putImageData(img, 0, 0);streetClasses(ctx, data.roads, P, s);}
       return c;
     }
     const NEAR_EXT = 300, FAR_EXT = 800;// the terrain data reaches ±800 m
@@ -414,13 +440,19 @@
     // Deep shadows in the photo carry no ground detail: blend them toward the map painting (kept slightly shaded).
     function fillShadows(target, base) {
       const w = target.width, h = target.height, tc = target.getContext('2d'), img = tc.getImageData(0, 0, w, h), d = img.data, b = base.getContext('2d').getImageData(0, 0, w, h).data;
+      // It also copies the map painting's alpha (what each texel is, see streetClasses), which the photo does not have.
       for (let i = 0; i < d.length; i += 4) {
-        const lum = .3 * d[i] + .59 * d[i + 1] + .11 * d[i + 2];if (lum >= 70) continue;
+        d[i + 3] = b[i + 3];const lum = .3 * d[i] + .59 * d[i + 1] + .11 * d[i + 2];if (lum >= 70) continue;
         const t = Math.min(1, (70 - lum) / 45) * .85;d[i] += (b[i] * .8 - d[i]) * t;d[i + 1] += (b[i + 1] * .8 - d[i + 1]) * t;d[i + 2] += (b[i + 2] * .8 - d[i + 2]) * t;
       }
       tc.putImageData(img, 0, 0);
     }
-    function restore(target, base) {const c = target.getContext('2d');c.drawImage(base, 0, 0);}
+    // 'copy': the base's alpha (texel classes) replaces the target's instead of being blended over it.
+    function restore(target, base) {const c = target.getContext('2d');c.globalCompositeOperation = 'copy';c.drawImage(base, 0, 0);c.globalCompositeOperation = 'source-over';}
+    // The map's streets over the aerial photo (issue #98): its blurry roads and pavements, with the parked cars on them, get the
+    // painted asphalt, kerbs and pavements at 90 %, so their edges are sharp and the photo's texture still shows a little.
+    function overlayStreets(target, roads, P, k) {const c = target.getContext('2d');c.globalAlpha = .9;paintStreets(c, roads, P, k, false, true);c.globalAlpha = 1;}
+    const squareP = (target, ext) => {const k = target.width / (2 * ext);return [(x, s) => [(x + ext) * k, (s + ext) * k], k];};
     async function setImagery(on) {
       const token = ++imageryToken;
       patchesImagery(on, token);
@@ -430,8 +462,8 @@
       const [nearTiles, outerTiles, farTiles, horizonTiles] = await Promise.all([loadTiles(18, NEAR_EXT, token), loadTiles(17, PLAY_HALF, token), loadTiles(15, FAR_EXT, token), loadTiles(12, 9000, token)]);
       if (token !== imageryToken) return;
       if (nearTiles.loaded <= nearTiles.failed) {imageryState = 'failed';onStatus('Aerial imagery could not load; map-based ground.');return;}
-      drawInto(nearPaint, NEAR_EXT, nearTiles, true);fillShadows(nearPaint, nearBase);maskLean(nearPaint, nearBase, NEAR_EXT);
-      if (outerTiles.loaded > outerTiles.failed) {drawInto(outerPaint, PLAY_HALF, outerTiles, true);fillShadows(outerPaint, outerBase);maskLean(outerPaint, outerBase, PLAY_HALF);}
+      drawInto(nearPaint, NEAR_EXT, nearTiles, true);maskLean(nearPaint, nearBase, NEAR_EXT);overlayStreets(nearPaint, data.roads, ...squareP(nearPaint, NEAR_EXT));fillShadows(nearPaint, nearBase);
+      if (outerTiles.loaded > outerTiles.failed) {drawInto(outerPaint, PLAY_HALF, outerTiles, true);maskLean(outerPaint, outerBase, PLAY_HALF);overlayStreets(outerPaint, data.roads, ...squareP(outerPaint, PLAY_HALF));fillShadows(outerPaint, outerBase);}
       drawInto(farPaint, FAR_EXT, farTiles, true);fillShadows(farPaint, farBase);
       if (horizonTiles.loaded > horizonTiles.failed) {const c = horizonImg.getContext('2d');c.drawImage(horizonCanvas, 0, 0, 2048, 2048);drawInto(horizonImg, 9000, horizonTiles, true);horizonImgTex.needsUpdate = true;horizonMat.map = horizonImgTex;horizonMat.needsUpdate = true;}
       nearTerrain.tex.needsUpdate = outerTerrain.tex.needsUpdate = farTerrain.tex.needsUpdate = true;imageryState = 'on';city.setPhoto(true);onStatus('Aerial imagery: Esri World Imagery (loaded live, not stored).');
@@ -538,15 +570,17 @@
       ctx.fillStyle = col('grass', '#6c7559');ctx.fillRect(0, 0, size, size);
       const ring = (flat, color) => {ctx.fillStyle = color;ctx.beginPath();for (let i = 0; i < flat.length; i += 2) {const [x, y] = P(flat[i], flat[i + 1]);i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);}ctx.closePath();ctx.fill();};
       d.areas.forEach((a, i) => ring(a.o, col(patchClass[a.k] || 'grass', jitter(patchColors[a.k] || '#888', .14, i + 7919))));
-      paintStreets(ctx, d.roads, P, kx, classes);
-      for (const r of d.roads.slice().sort((a, b) => patchRoadOrder.indexOf(a.k) - patchRoadOrder.indexOf(b.k))) {
-        ctx.strokeStyle = col((isPath(r.k) && r.k !== 'cycleway') || r.k === 'rail' ? 'gravel' : 'asphalt', r.k === 'rail' ? '#6a6259' : r.k === 'tram' ? '#545556' : isPath(r.k) ? pathColour(r.k) : '#57595c');ctx.lineWidth = r.w * kx;ctx.lineCap = ctx.lineJoin = 'round';
+      // Footpaths, the streets' pavements over them, then the roads (as in paint()).
+      const sorted = d.roads.slice().sort((a, b) => patchRoadOrder.indexOf(a.k) - patchRoadOrder.indexOf(b.k));
+      const draw = r => {
+        ctx.strokeStyle = col((isPath(r.k) && r.k !== 'cycleway') || r.k === 'rail' ? 'gravel' : 'asphalt', r.k === 'rail' ? '#6a6259' : r.k === 'tram' ? '#545556' : isPath(r.k) ? pathColour(r.k) : ROAD);ctx.lineWidth = r.w * kx;ctx.lineCap = ctx.lineJoin = 'round';
         ctx.beginPath();for (let i = 0; i < r.p.length; i += 2) {const [x, y] = P(r.p[i], r.p[i + 1]);i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);}ctx.stroke();
-      }
+      };
+      sorted.filter(r => isPath(r.k)).forEach(draw);paintStreets(ctx, d.roads, P, kx, classes);sorted.filter(r => !isPath(r.k)).forEach(draw);
       for (const s of d.sea) ring(s, col('grass', '#3e5d70'));
       for (const b of d.buildings) ring(b.ring.flat(), col('none', '#5a5652'));
       for (const l of d.landmarks) ring(l.ring, col('none', '#5a5652'));
-      if (!classes) {const img = ctx.getImageData(0, 0, size, size), px = img.data;for (let i = 0; i < px.length; i += 4) {const n = (lib.rand() - .5) * 12;px[i] += n;px[i + 1] += n;px[i + 2] += n;}ctx.putImageData(img, 0, 0);}
+      if (!classes) {const img = ctx.getImageData(0, 0, size, size), px = img.data;for (let i = 0; i < px.length; i += 4) {const n = (lib.rand() - .5) * 12;px[i] += n;px[i + 1] += n;px[i + 2] += n;}ctx.putImageData(img, 0, 0);streetClasses(ctx, d.roads, P, kx);}
       return c;
     }
     // Ground on a regular grid with normals from the height data itself, so neighbouring tiles light the same at their seams.
@@ -687,12 +721,14 @@
     async function loadPatchImagery(P, which, token) {
       const zoom = which === 'near' ? 17 : 15, r = await patchImagery(P, which, zoom, token);
       if (token !== imageryToken || r.loaded <= r.failed) return false;
-      const base = paintPatch(P.d, P[which].tex.image.width);fillShadows(P[which].tex.image, base);if (which === 'near') patchLean(P, which, base);
+      const img = P[which].tex.image, base = paintPatch(P.d, img.width), d = P.d, kx = img.width / (d.x1 - d.x0), ks = img.height / (d.s1 - d.s0);
+      if (which === 'near') {patchLean(P, which, base);overlayStreets(img, d.roads, (x, s) => [(x - d.x0) * kx, (s - d.s0) * ks], kx);}
+      fillShadows(img, base);
       P[which].tex.needsUpdate = true;return true;
     }
     function patchesImagery(on, token) {
       for (const P of patches) {
-        if (!on) {for (const w of ['near', 'far']) {P[w].tex.image.getContext('2d').drawImage(paintPatch(P.d, P[w].tex.image.width), 0, 0);P[w].tex.needsUpdate = true;}P.nearImagery = 'none';continue;}
+        if (!on) {for (const w of ['near', 'far']) {restore(P[w].tex.image, paintPatch(P.d, P[w].tex.image.width));P[w].tex.needsUpdate = true;}P.nearImagery = 'none';continue;}
         P.nearImagery = 'wanted';loadPatchImagery(P, 'far', token);
       }
     }
