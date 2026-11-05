@@ -826,11 +826,10 @@
   }
   // ---------- Klatreverket Torshov (issue #40): the reception, the routes, climbing ----------
   const GC = window.GameClimbing;let gymMenu = null, gripPrev = {L: false, R: false}, climbMsgT = 0;
-  const ropeNeeded = r => r.kind === 'rope' || r.kind === 'lead' || r.kind === 'auto';
   function gymPrompt() {
     if (!gym.zoneAt(player, player.feet)) return null;
     const o = lookTarget(), u = (o && o.userData) || {};
-    if (u.gymDesk) return {text: '□ Reception: day ticket, rental, autobelay introduction', act: () => openGymMenu()};
+    if (u.gymDesk) return {text: '□ Reception: day ticket (shoes, harness and chalk included)', act: () => openGymMenu()};
     if (u.gymPartner) {const v = gym.visit();return gym.state.brattkort && v.paid && v.harness && player.mode === 'foot' ? {text: '□ Belay Siri – she climbs a top-rope route in Galleriet (you have a brattkort)', act: () => startBelay(false)} : {text: '□ Talk to Siri (your climbing partner)', act: () => siriTalk()};}
     if (u.gymHang) return {text: '□ Hang on the hangboard (hold L2 + R2)', act: () => startHang()};
     if (u.gymMoon) {const n = gym.moonRoutes.length, next = gym.moonSel + 1 >= n ? -1 : gym.moonSel + 1;return {text: next < 0 ? '□ Moonwall: switch the LEDs off' : `□ Moonwall: light up ${gym.moonRoutes[next].name}`, act: () => {const r = gym.lightMoon(next);audio.sfx('beep');notice(r ? `${r.name}: start on the green hold, blue are the hands, finish on the red one.` : 'Moonwall LEDs off.', 4);}};}
@@ -842,9 +841,6 @@
   function routePrompt(r) {
     const v = gym.visit(), label = `${r.name} (${GC.STYLE[r.kind]})`, tell = t => ({text: `${label} – ${t}`, act: () => {notice(t[0].toUpperCase() + t.slice(1) + '.', 3);}});
     if (!v.paid) return tell(`pay entry at the reception first (${GC.priceAt(new Date())} kr)`);
-    if (!v.shoes) return tell('rent climbing shoes at the reception first (50 kr)');
-    if (ropeNeeded(r) && !v.harness) return tell('you need a harness – rent one at the reception (50 kr)');
-    if (r.kind === 'auto' && !gym.state.autoIntro) return tell('get the free autobelay introduction at the reception first');
     const verb = r.kind === 'auto' ? 'Clip into the autobelay' : r.kind === 'lead' ? 'Lead' : r.kind === 'rope' ? 'Tie in and climb' : 'Climb', tick = gym.state.ticks[r.id];
     return {text: `□ ${verb}: ${label}${r.kind === 'rope' ? ', Siri belays' : r.kind === 'lead' ? ', Siri belays – clip every bolt' : ''}${tick ? ` · ✓ ${tick}` : ''}`, act: () => startClimb(r)};
   }
@@ -936,27 +932,23 @@
   }
   function siriTalk() {
     const v = gym.visit(), sends = Object.keys(gym.state.ticks).length;
-    const lines = !v.paid ? ['Hei! Betal i resepsjonen, så klatrer vi. (Pay at the reception and we can climb.)'] : !v.shoes ? ['Husk klatresko – du får leid i resepsjonen.'] : !v.harness ? ['Skal vi ta tau? Lei en sele i resepsjonen, så sikrer jeg deg. (Rent a harness and I will belay you.)'] :
+    const lines = !v.paid ? ['Hei! Betal i resepsjonen, så klatrer vi. (Pay at the reception and we can climb.)'] :
       ['Jeg har brattkort – velg en rute med topptau i Galleriet, så sikrer jeg. (Pick a top-rope route.)', 'Lede på Konkurranseveggen? Husk å klippe alle boltene!', `Du har klatret ${sends} ruter her. Prøv Hula eller Discorommet for buldring.`, 'Moonwall er i fjerde etasje, innerst og øverst.'];
     gym.siri.say(lines[Math.floor(performance.now() / 4000) % lines.length]);
   }
   // The reception menu: what you can buy or get, with the real prices for this time of day.
   function gymItems() {
-    const v = gym.visit(), now = new Date(), price = GC.priceAt(now), bk = GC.brattkortPriceAt(now), staffed = GC.staffedAt(now), P = GC.PRICES;
+    const v = gym.visit(), now = new Date(), price = GC.priceAt(now), staffed = GC.staffedAt(now), P = GC.PRICES;
     const pay = (kr, what, after) => () => {if (!wallet.pay(kr)) {notice(`Not enough money: ${KR(kr)} needed, you have ${KR(wallet.money)}.`, 3);return;}audio.sfx('register');walletT = 5;after();gym.save();notice(what, 4);};
     const items = [
-      {label: v.paid ? '✓ Day ticket – paid today' : `Day ticket, adult – ${price} kr`, note: price === P.entryDay ? 'before 16 on weekdays' : 'after 16 and at weekends', done: v.paid,
-        act: pay(price, gym.state.legal ? 'Day ticket paid. God klatring!' : 'Day ticket paid – first visit: you sign the legal notice (egenerklæring). God klatring!', () => {v.paid = true;gym.state.legal = true;})},
-      {label: 'All of it without a rope – 100 kr', note: 'climbing shoes, harness and chalk for today', done: v.shoes && v.harness && v.chalk, act: pay(P.pack, 'Shoes, harness and chalk bag for today.', () => {v.shoes = v.harness = v.chalk = true;})},
-      {label: v.shoes ? '✓ Climbing shoes' : 'Climbing shoes – 50 kr', note: 'you need them on the walls', done: v.shoes, act: pay(P.shoes, 'Climbing shoes – size 42, fits.', () => {v.shoes = true;})},
-      {label: v.harness ? '✓ Harness' : 'Harness – 50 kr', note: 'for rope climbing and the autobelays', done: v.harness, act: pay(P.harness, 'Harness on.', () => {v.harness = true;})},
-      {label: v.chalk ? '✓ Chalk bag' : 'Chalk bag – 20 kr', note: 'chalk up with □ / E or ↓ when you have a free hand', done: v.chalk, act: pay(P.chalk, 'Chalk bag on your belt.', () => {v.chalk = true;})},
-      {label: gym.state.autoIntro ? '✓ Autobelay introduction' : 'Autobelay introduction – free', note: 'clip the carabiner to your harness belay loop, check the gate, climb; let go and it lowers you', done: gym.state.autoIntro, act: () => {gym.state.autoIntro = true;gym.save();gym.staff && gym.staff.say('Klipp i selen, sjekk at porten er lukket – så er du klar!');notice('Autobelay introduction done: you may use the six autobelay lines in the hall.', 4);}},
-      {label: gym.state.brattkort ? `✓ Brattkort (top rope) – passed ${gym.state.brattkort}` : `Brattkort test (top rope) – ${bk} kr`, note: gym.state.brattkort ? 'you may belay Siri: □ when you look at her' : staffed ? 'three questions, then you belay Siri on a top-rope route while the staff watches' : 'only when the climbing staff is on duty: after 17 on weekdays, after 11 at weekends', done: !!gym.state.brattkort,
+      // Issue #91: the day ticket is the only payment; shoes, harness, chalk and the autobelay introduction come with it.
+      {label: v.paid ? '✓ Day ticket – paid today' : `Day ticket, adult – ${price} kr`, note: `${price === P.entryDay ? 'before 16 on weekdays' : 'after 16 and at weekends'} · shoes, harness, chalk and the autobelays included`, done: v.paid,
+        act: pay(price, gym.state.legal ? 'Day ticket paid – shoes, harness and chalk bag are yours for today. God klatring!' : 'Day ticket paid – first visit: you sign the legal notice (egenerklæring). Shoes, harness and chalk bag are yours for today. God klatring!', () => {GC.payEntry(v);})},
+      {label: gym.state.brattkort ? `✓ Brattkort (top rope) – passed ${gym.state.brattkort}` : 'Brattkort test (top rope) – free', note: gym.state.brattkort ? 'you may belay Siri: □ when you look at her' : staffed ? 'three questions, then you belay Siri on a top-rope route while the staff watches' : 'only when the climbing staff is on duty: after 17 on weekdays, after 11 at weekends', done: !!gym.state.brattkort,
         act: () => {
           if (!staffed) {notice('The brattkort test can be taken when the climbing staff is on duty: after 17 on weekdays, after 11 at weekends.', 4);return;}
-          if (!v.paid || !v.harness) {notice('Pay entry and rent a harness first – the test is done on the rope.', 4);return;}
-          if (!wallet.pay(bk)) {notice(`Not enough money: ${KR(bk)} needed.`, 3);return;}audio.sfx('register');walletT = 5;gymMenu = {quiz: 0, sel: 0, wrong: 0};gym.staff && gym.staff.say('Først noen spørsmål, så sikrer du Siri.');}},
+          if (!v.paid) {notice('Pay entry first – the test is done on the rope.', 4);return;}
+          gymMenu = {quiz: 0, sel: 0, wrong: 0};gym.staff && gym.staff.say('Først noen spørsmål, så sikrer du Siri.');}},
       {label: 'Your climbing log', note: `${Object.keys(gym.state.ticks).length} routes and problems sent · hangboard best ${(gym.state.bestHang || 0).toFixed(1)} s`, act: () => {const t = Object.entries(gym.state.ticks).slice(-6).map(([id, how]) => `${gym.routes[id].name} (${how})`).join(', ');notice(t ? `Latest: ${t}` : 'Nothing sent yet.', 6);}}
     ];
     return items;

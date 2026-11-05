@@ -37,7 +37,7 @@ On `main`:
 - Nothing invisible stops you: you walk over the Akerselva bridges and along the banks under them, from Myrens on to Grünerløkka along the river, across the lawn over the catacomb, up to the trees in Torshov's corners and to the water's edge in Bjørvika; a low wooden fence marks the edge of the walkable world (issue #64).
 - Schous plass: playable table tennis against Ola; Deichman Grünerløkka with thousands of books, *The Inner Game of Tennis* and a readable *Moby-Dick*, and a librarian who shushes runners and loud voices (issues #44, #47).
 - Rathkes gate 1C, flat 501 – a second place to go besides the home at 17A: through the gate, the passage and the backyard, door 1C, up a winding stair to the 5th floor and into the user's real flat from their video – the hall, four bedrooms, the kitchen and living room and a small bathroom; every door opens (shared online), every room has its light; on the map (issues #44 and #72).
-- Klatreverket Torshov at its real place (Myrens verksted 3K) in its real building: 14 m hall, 7 m overhanging competition wall, Galleriet, autobelay tower, bouldering on three floors, the training room with the Moonwall; reception with the real prices and rental; climb with L2 / R2 (bouldering, top rope with Siri belaying, lead with clips, autobelay), pump, falls on the rope, the brattkort test and belaying Siri.
+- Klatreverket Torshov at its real place (Myrens verksted 3K) in its real building: 14 m hall, 7 m overhanging competition wall, Galleriet, autobelay tower, bouldering on three floors, the training room with the Moonwall; reception with the real day-ticket price (shoes, harness and chalk included, issue #91); climb with L2 / R2 (bouldering, top rope with Siri belaying, lead with clips, autobelay), pump, falls on the rope, the brattkort test and belaying Siri.
 - The ground round Myrens verksted and Akerselva (district patch 'myrens').
 - Jobs that earn money, from a phone (D-pad → / P) or the JOBB signs by Joker and Kiwi: food delivery from real cafés, restaurants and the shops to real street doors, and taxi with passengers who tip for smooth, fast driving; a friend riding along gets half (issue #56).
 - E-scooters on the pavements (10 kr + 3 kr a minute, 20 km/h, left where you get off – for everyone online) and Oslo city bikes and e-bikes in the 40 real Oslo Bysykkel docks around Torshov, Myrens and Grünerløkka, at the real prices; the map shows the free bikes at each dock (issue #57).
@@ -52,6 +52,17 @@ On `main`:
 Live site: runs `main` (Worker version a939a663, deployed 5 Nov 2026 after PR #89; `main` builds byte-for-byte to the live page), so everything above is online. Account emails (issue #55) wait for the user's Brevo key.
 
 ## Log
+
+### 2026-11-05 · Klatreverket: you pay only for entry (issue #91)
+- **What:** at Klatreverket the day ticket (155 kr before 16 on weekdays, otherwise 175 kr) is now the only thing you pay for.
+  - Climbing shoes, a harness and a chalk bag come with the ticket (they were 50, 50 and 20 kr, or 100 kr for all three).
+  - The autobelay introduction comes with the ticket too (it was a separate step at the reception).
+  - The brattkort test is free (it was 150 / 100 kr). You still answer the three questions and belay Siri, when the climbing staff is on duty.
+  - The reception menu, the prompt at the desk, Siri's lines and the help screen say so.
+- **Why:** the user (5 Nov 2026): the climbing centre should be simpler, "should only pay for entrance but not for all the other things, that just takes from the experience". Issue #91.
+- **Where:** `game-climbing.js` (`payEntry`, a paid visit always has the gear), `game-main.js` (reception menu, route prompts, Siri, the brattkort test), `index.html` (help), `tests/climbing.test.cjs`, `docs/HANDOFF.md`.
+- **Checked:** `node --test tests/*.cjs` 194 pass (one new). In the browser at the reception: the menu shows the day ticket ("shoes, harness, chalk and the autobelays included"), the free brattkort test and the climbing log; ✕ paid 155 kr and gave the shoes, harness, chalk and the autobelay introduction.
+- **Status:** branch `feat/climbing-entry-only`, [PR #92](https://github.com/jonatsl/haarklous-online/pull/92), merged and deployed at the user's request.
 
 ### 2026-11-05 · Walking 2.5 m/s, running 6 m/s (issue #88)
 - **What:** walking (standing) is now 2.5 m/s (was 3.5) and running is 6.0 m/s (was 3.6). Crouching (0.8 m/s), prone (0.4 m/s), the drunk slow-down and the 3× speed boost are unchanged. The run key stays left Shift (hold, or tap to keep running), R2 or L3 on the controller.

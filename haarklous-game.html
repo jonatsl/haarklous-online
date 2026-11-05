@@ -399,7 +399,7 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
           <dt>FPV drone</dt><dd>Hold △, pick the drone · left stick ↑↓ thrust, ←→ yaw · right stick tilt (angle) or rates (acro) – tilting costs height, so add thrust · L1 / Q angle ↔ acro · ✕ reset after a crash · ○ pack away · Keyboard + mouse: W/S thrust, A/D yaw, mouse tilt (up = nose down), hold Shift to look around</dd>
           <dt>Multiplayer</dt><dd>Up to twelve players per lobby (code above) · □ next to a vehicle someone is driving: ride along as passenger (motorcycle, cars, helicopter, plane) · Share / Enter: chat</dd>
           <dt>Firepit</dt><dd>In the park in front of the building: □ sit on a bench, R2 have a beer, □ at the woodpile throws a log on the fire</dd>
-          <dt>Klatreverket</dt><dd>The climbing centre at Myrens verksted (about 1 km west, by Akerselva): pay and rent shoes / harness at the reception (□) · look at a hold of a route and □ to start · hold L2 + R2 (both mouse buttons, or Q + R) to grip; let go with one hand, look at the next hold and grip again · left stick moves your body (push up to stand tall) · ✕ jump for a far hold · □ chalk up, on lead: clip the next bolt and the anchor · ○ drop off / take, ○ again to be lowered</dd>
+          <dt>Klatreverket</dt><dd>The climbing centre at Myrens verksted (about 1 km west, by Akerselva): pay the day ticket at the reception (□) – shoes, harness and chalk are included · look at a hold of a route and □ to start · hold L2 + R2 (both mouse buttons, or Q + R) to grip; let go with one hand, look at the next hold and grip again · left stick moves your body (push up to stand tall) · ✕ jump for a far hold · □ chalk up, on lead: clip the next bolt and the anchor · ○ drop off / take, ○ again to be lowered</dd>
           <dt>Jobs</dt><dd>Phone (D-pad → / P) or the JOBB signs by Joker and Kiwi · Delivery: □ picks up the order at the café or shop, □ hands it over at the street door (the waypoint shows the way; faster = more money, late = much less) · Taxi: in a car as the driver, turn on taxi, stop beside the waiting passenger, drive them to their address – smooth and fast earns a tip; crashes, harsh braking, wrong turns and drinking cost it · a friend riding along gets half</dd>
           <dt>E-scooters</dt><dd>On the pavements around Torshov and Grünerløkka · □ unlock (10 kr + 3 kr a started minute) · R2 / W go (20 km/h at most), L2 / S brake, left stick steer · no passenger · □ get off: the ride ends and is paid; the scooter stays there, for everyone online</dd>
           <dt>City bikes</dt><dd>Oslo Bysykkel's real docks (🚲 on the map with the free bikes) · □ take a bike or e-bike (8 kr + 1 kr a minute after the first, e-bike 2 kr) · R2 / W pedal (harder uphill; the e-bike helps up to 25 km/h) · □ at any dock with a free slot returns it · elsewhere □ locks it and the trip goes on – return it within 15 minutes or pay 250 kr</dd>
@@ -5461,6 +5461,8 @@ window.KLATREVERKET={"attribution":"Building: OpenStreetMap way 1031709261 (ODbL
  *   brattkort. Prices: entry 155 kr before 16 on weekdays, 175 kr after 16 and at weekends; rent shoes 50, harness 50,
  *   chalk 20, all of it without a rope 100. The brattkort test can be taken when the climbing staff is on duty (after 17 on
  *   weekdays, after 11 at weekends). Opening hours (OpenStreetMap): Mo–Th 07–23, Fr 07–21, Sa–Su 09–20.
+ * In the game only the day ticket costs money (issue #91, the user's wish: paying for each thing took away from the
+ * experience): shoes, harness and chalk and the autobelay introduction come with it, and the brattkort test is free.
  * Routes are set by a seeded generator, so every computer in a lobby has the same holds. Rope grades use the Norwegian scale,
  * boulders the Fontainebleau scale (the scales used in Norway).
  * GameClimbing.prepare(districts)  – before Surroundings.create: this module builds OSM way 1031709261 itself.
@@ -5479,6 +5481,8 @@ window.KLATREVERKET={"attribution":"Building: OpenStreetMap way 1031709261 (ODbL
   const hourOf = d => d.getHours() + d.getMinutes() / 60;
   // Entry: the day price before 16 on weekdays, the evening price after 16 and at weekends.
   const priceAt = d => weekday(d) && hourOf(d) < 16 ? PRICES.entryDay : PRICES.entryEvening;
+  // The day ticket in the game (issue #91): paid entry includes the rental and the autobelay introduction. st = the visit state.
+  const payEntry = st => {st.paid = true;st.shoes = st.harness = st.chalk = true;st.autoIntro = true;st.legal = true;return st;};
   const brattkortPriceAt = d => weekday(d) && hourOf(d) < 16 ? PRICES.brattkortDay : PRICES.brattkortEvening;
   // The climbing staff (klatrevakt) is on duty after 17 on weekdays and after 11 at weekends; only then can the test be taken.
   const staffedAt = d => hourOf(d) >= (weekday(d) ? 17 : 11);
@@ -6159,7 +6163,7 @@ window.KLATREVERKET={"attribution":"Building: OpenStreetMap way 1031709261 (ODbL
     loadState();window.addEventListener('haarklous-progress', loadState);// an account's saved progress was loaded (issue #54)
     const save = () => {try {localStorage.setItem(KEY, JSON.stringify(st));} catch {}};
     const today = () => {const d = new Date();return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;};
-    const visit = () => {if (st.day !== today()) {st.day = today();st.paid = false;st.shoes = st.harness = st.chalk = false;}return st;};
+    const visit = () => {if (st.day !== today()) {st.day = today();st.paid = false;st.shoes = st.harness = st.chalk = false;}if (st.paid) payEntry(st);return st;};
     st.ticks = st.ticks || {};st.tries = st.tries || {};
 
     // ---------- Climbing: which hold the player looks at, starting a route, the rope and the hands ----------
@@ -6287,7 +6291,7 @@ window.KLATREVERKET={"attribution":"Building: OpenStreetMap way 1031709261 (ODbL
     return {group, extras, floors, obstacles, hitboxes, routes, holds: holdsWorld, faces, climber, begin, end, tick, showClimb, aimAt, aimPoint, routeAt, classify: (s, h) => classify(climber, s, h), update, zoneAt, ZONE_NAME, ground, visit, save, get state() {return st;},
       lightMoon, get moonSel() {return moonSel;}, moonRoutes, startBelay, showBelay, endBelay, belaySpot, QUIZ, siri, staff, door: W(-1.2, (DOOR[0] + DOOR[1]) / 2), doorYaw: Math.atan2(ux, uz), local, floorY: Y0, toFrame, W, routeGear, session: () => session, LEVELS, priceAt, brattkortPriceAt, staffedAt, openAt, HOURS, PRICES, STYLE};
   }
-  return {PRICES, HOURS, priceAt, brattkortPriceAt, staffedAt, openAt, gradeName, ROPE_GRADES, BOULDER_GRADES, WALLS, LEVELS, HOLDS, COLOURS, STYLE, faceInfo, faceAt, makeRoutes, classify, leadCatch, steepness, Climber, Belay, QUIZ, worldHolds, prepare, hallPolygon, create, REACH, DYNO};
+  return {PRICES, HOURS, priceAt, payEntry, brattkortPriceAt, staffedAt, openAt, gradeName, ROPE_GRADES, BOULDER_GRADES, WALLS, LEVELS, HOLDS, COLOURS, STYLE, faceInfo, faceAt, makeRoutes, classify, leadCatch, steepness, Climber, Belay, QUIZ, worldHolds, prepare, hallPolygon, create, REACH, DYNO};
 });
 </script><script>/* HODET N.N. (Marianne Heske, 2014): the 7 m bronze doll's head at the north end of Torshovdalen (OSM node 2965223021),
  * a giant copy of a doll's head the artist found at a Paris flea market. It stands straight on the grass, faces south down
@@ -18509,11 +18513,10 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
   }
   // ---------- Klatreverket Torshov (issue #40): the reception, the routes, climbing ----------
   const GC = window.GameClimbing;let gymMenu = null, gripPrev = {L: false, R: false}, climbMsgT = 0;
-  const ropeNeeded = r => r.kind === 'rope' || r.kind === 'lead' || r.kind === 'auto';
   function gymPrompt() {
     if (!gym.zoneAt(player, player.feet)) return null;
     const o = lookTarget(), u = (o && o.userData) || {};
-    if (u.gymDesk) return {text: '□ Reception: day ticket, rental, autobelay introduction', act: () => openGymMenu()};
+    if (u.gymDesk) return {text: '□ Reception: day ticket (shoes, harness and chalk included)', act: () => openGymMenu()};
     if (u.gymPartner) {const v = gym.visit();return gym.state.brattkort && v.paid && v.harness && player.mode === 'foot' ? {text: '□ Belay Siri – she climbs a top-rope route in Galleriet (you have a brattkort)', act: () => startBelay(false)} : {text: '□ Talk to Siri (your climbing partner)', act: () => siriTalk()};}
     if (u.gymHang) return {text: '□ Hang on the hangboard (hold L2 + R2)', act: () => startHang()};
     if (u.gymMoon) {const n = gym.moonRoutes.length, next = gym.moonSel + 1 >= n ? -1 : gym.moonSel + 1;return {text: next < 0 ? '□ Moonwall: switch the LEDs off' : `□ Moonwall: light up ${gym.moonRoutes[next].name}`, act: () => {const r = gym.lightMoon(next);audio.sfx('beep');notice(r ? `${r.name}: start on the green hold, blue are the hands, finish on the red one.` : 'Moonwall LEDs off.', 4);}};}
@@ -18525,9 +18528,6 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
   function routePrompt(r) {
     const v = gym.visit(), label = `${r.name} (${GC.STYLE[r.kind]})`, tell = t => ({text: `${label} – ${t}`, act: () => {notice(t[0].toUpperCase() + t.slice(1) + '.', 3);}});
     if (!v.paid) return tell(`pay entry at the reception first (${GC.priceAt(new Date())} kr)`);
-    if (!v.shoes) return tell('rent climbing shoes at the reception first (50 kr)');
-    if (ropeNeeded(r) && !v.harness) return tell('you need a harness – rent one at the reception (50 kr)');
-    if (r.kind === 'auto' && !gym.state.autoIntro) return tell('get the free autobelay introduction at the reception first');
     const verb = r.kind === 'auto' ? 'Clip into the autobelay' : r.kind === 'lead' ? 'Lead' : r.kind === 'rope' ? 'Tie in and climb' : 'Climb', tick = gym.state.ticks[r.id];
     return {text: `□ ${verb}: ${label}${r.kind === 'rope' ? ', Siri belays' : r.kind === 'lead' ? ', Siri belays – clip every bolt' : ''}${tick ? ` · ✓ ${tick}` : ''}`, act: () => startClimb(r)};
   }
@@ -18619,27 +18619,23 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
   }
   function siriTalk() {
     const v = gym.visit(), sends = Object.keys(gym.state.ticks).length;
-    const lines = !v.paid ? ['Hei! Betal i resepsjonen, så klatrer vi. (Pay at the reception and we can climb.)'] : !v.shoes ? ['Husk klatresko – du får leid i resepsjonen.'] : !v.harness ? ['Skal vi ta tau? Lei en sele i resepsjonen, så sikrer jeg deg. (Rent a harness and I will belay you.)'] :
+    const lines = !v.paid ? ['Hei! Betal i resepsjonen, så klatrer vi. (Pay at the reception and we can climb.)'] :
       ['Jeg har brattkort – velg en rute med topptau i Galleriet, så sikrer jeg. (Pick a top-rope route.)', 'Lede på Konkurranseveggen? Husk å klippe alle boltene!', `Du har klatret ${sends} ruter her. Prøv Hula eller Discorommet for buldring.`, 'Moonwall er i fjerde etasje, innerst og øverst.'];
     gym.siri.say(lines[Math.floor(performance.now() / 4000) % lines.length]);
   }
   // The reception menu: what you can buy or get, with the real prices for this time of day.
   function gymItems() {
-    const v = gym.visit(), now = new Date(), price = GC.priceAt(now), bk = GC.brattkortPriceAt(now), staffed = GC.staffedAt(now), P = GC.PRICES;
+    const v = gym.visit(), now = new Date(), price = GC.priceAt(now), staffed = GC.staffedAt(now), P = GC.PRICES;
     const pay = (kr, what, after) => () => {if (!wallet.pay(kr)) {notice(`Not enough money: ${KR(kr)} needed, you have ${KR(wallet.money)}.`, 3);return;}audio.sfx('register');walletT = 5;after();gym.save();notice(what, 4);};
     const items = [
-      {label: v.paid ? '✓ Day ticket – paid today' : `Day ticket, adult – ${price} kr`, note: price === P.entryDay ? 'before 16 on weekdays' : 'after 16 and at weekends', done: v.paid,
-        act: pay(price, gym.state.legal ? 'Day ticket paid. God klatring!' : 'Day ticket paid – first visit: you sign the legal notice (egenerklæring). God klatring!', () => {v.paid = true;gym.state.legal = true;})},
-      {label: 'All of it without a rope – 100 kr', note: 'climbing shoes, harness and chalk for today', done: v.shoes && v.harness && v.chalk, act: pay(P.pack, 'Shoes, harness and chalk bag for today.', () => {v.shoes = v.harness = v.chalk = true;})},
-      {label: v.shoes ? '✓ Climbing shoes' : 'Climbing shoes – 50 kr', note: 'you need them on the walls', done: v.shoes, act: pay(P.shoes, 'Climbing shoes – size 42, fits.', () => {v.shoes = true;})},
-      {label: v.harness ? '✓ Harness' : 'Harness – 50 kr', note: 'for rope climbing and the autobelays', done: v.harness, act: pay(P.harness, 'Harness on.', () => {v.harness = true;})},
-      {label: v.chalk ? '✓ Chalk bag' : 'Chalk bag – 20 kr', note: 'chalk up with □ / E or ↓ when you have a free hand', done: v.chalk, act: pay(P.chalk, 'Chalk bag on your belt.', () => {v.chalk = true;})},
-      {label: gym.state.autoIntro ? '✓ Autobelay introduction' : 'Autobelay introduction – free', note: 'clip the carabiner to your harness belay loop, check the gate, climb; let go and it lowers you', done: gym.state.autoIntro, act: () => {gym.state.autoIntro = true;gym.save();gym.staff && gym.staff.say('Klipp i selen, sjekk at porten er lukket – så er du klar!');notice('Autobelay introduction done: you may use the six autobelay lines in the hall.', 4);}},
-      {label: gym.state.brattkort ? `✓ Brattkort (top rope) – passed ${gym.state.brattkort}` : `Brattkort test (top rope) – ${bk} kr`, note: gym.state.brattkort ? 'you may belay Siri: □ when you look at her' : staffed ? 'three questions, then you belay Siri on a top-rope route while the staff watches' : 'only when the climbing staff is on duty: after 17 on weekdays, after 11 at weekends', done: !!gym.state.brattkort,
+      // Issue #91: the day ticket is the only payment; shoes, harness, chalk and the autobelay introduction come with it.
+      {label: v.paid ? '✓ Day ticket – paid today' : `Day ticket, adult – ${price} kr`, note: `${price === P.entryDay ? 'before 16 on weekdays' : 'after 16 and at weekends'} · shoes, harness, chalk and the autobelays included`, done: v.paid,
+        act: pay(price, gym.state.legal ? 'Day ticket paid – shoes, harness and chalk bag are yours for today. God klatring!' : 'Day ticket paid – first visit: you sign the legal notice (egenerklæring). Shoes, harness and chalk bag are yours for today. God klatring!', () => {GC.payEntry(v);})},
+      {label: gym.state.brattkort ? `✓ Brattkort (top rope) – passed ${gym.state.brattkort}` : 'Brattkort test (top rope) – free', note: gym.state.brattkort ? 'you may belay Siri: □ when you look at her' : staffed ? 'three questions, then you belay Siri on a top-rope route while the staff watches' : 'only when the climbing staff is on duty: after 17 on weekdays, after 11 at weekends', done: !!gym.state.brattkort,
         act: () => {
           if (!staffed) {notice('The brattkort test can be taken when the climbing staff is on duty: after 17 on weekdays, after 11 at weekends.', 4);return;}
-          if (!v.paid || !v.harness) {notice('Pay entry and rent a harness first – the test is done on the rope.', 4);return;}
-          if (!wallet.pay(bk)) {notice(`Not enough money: ${KR(bk)} needed.`, 3);return;}audio.sfx('register');walletT = 5;gymMenu = {quiz: 0, sel: 0, wrong: 0};gym.staff && gym.staff.say('Først noen spørsmål, så sikrer du Siri.');}},
+          if (!v.paid) {notice('Pay entry first – the test is done on the rope.', 4);return;}
+          gymMenu = {quiz: 0, sel: 0, wrong: 0};gym.staff && gym.staff.say('Først noen spørsmål, så sikrer du Siri.');}},
       {label: 'Your climbing log', note: `${Object.keys(gym.state.ticks).length} routes and problems sent · hangboard best ${(gym.state.bestHang || 0).toFixed(1)} s`, act: () => {const t = Object.entries(gym.state.ticks).slice(-6).map(([id, how]) => `${gym.routes[id].name} (${how})`).join(', ');notice(t ? `Latest: ${t}` : 'Nothing sent yet.', 6);}}
     ];
     return items;
