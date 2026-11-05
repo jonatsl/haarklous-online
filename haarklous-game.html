@@ -441,6 +441,7 @@ window.APARTMENT={"title":"Haarklous plass 17A · proposed kitchen + bedroom","c
  * Every query takes the person's feet height y (default 0), so stacked storeys do not interfere.
  * supportAt(world, point, y) -> {floor, y} the walkable surface under the feet, or null
  * canStand(world, point, eyeHeight, y=0) -> boolean
+ * hitsSolid(world, point, y0, y1, owner) -> boolean (a solid between y0 and y1; solids with o.owner === owner are skipped)
  * move(world, point, delta, eyeHeight, y=0) -> {x,z,y} (swept/substepped, with sliding; y follows ramps)
  * findSafeSpawn(world, requested, eyeHeight, {maxDistance=20,step=.08,y=0}={}) -> {x,z,y}|null
  * ceilingAt(world, point, y=0) -> lowest clearance above the feet touched by the person's footprint
@@ -594,9 +595,10 @@ window.APARTMENT={"title":"Haarklous plass 17A · proposed kitchen + bedroom","c
     return !solidsNear(world,p).some(o=>overhead(o,feet,eyeHeight) && nearBounds(p,o.bounds,world.radius) && distanceToPolygon(p,o.points)<world.radius-EPS);
   }
   // Flying objects: does any solid (building, tree, wall, vehicle) come within the world's radius of p between heights y0 and y1?
-  function hitsSolid(world,p,y0,y1) {
+  // owner (optional): skip the solids marked with this owner (a vehicle's own parked footprint, issue #97).
+  function hitsSolid(world,p,y0,y1,owner) {
     if (!Number.isFinite(p.x) || !Number.isFinite(p.z)) return true;
-    return solidsNear(world,p).some(o=>o.maxY>y0 && o.minY<y1 && nearBounds(p,o.bounds,world.radius) && (inside(p,o.points) || distanceToPolygon(p,o.points)<world.radius-EPS));
+    return solidsNear(world,p).some(o=>o.maxY>y0 && o.minY<y1 && (!owner || o.owner!==owner) && nearBounds(p,o.bounds,world.radius) && (inside(p,o.points) || distanceToPolygon(p,o.points)<world.radius-EPS));
   }
   function move(world,position,delta,eyeHeight,y=0) {
     const start=supportAt(world,position,y);
@@ -1976,16 +1978,21 @@ window.BUILDING_LOOKS = {"table":[[],["school"],["retail"],["apartments"],["apar
           vec3 gPerturb(vec3 pos, vec3 n, vec2 dh){vec3 sx = dFdx(pos), sy = dFdy(pos), r1 = cross(sy, n), r2 = cross(n, sx);float det = dot(sx, r1);vec3 g = sign(det) * (dh.x * r1 + dh.y * r2);return normalize(abs(det) * n - g);}
           ` + sh.fragmentShader
           .replace('#include <map_fragment>', `
-            vec3 gMacro = texture2D(map, vMapUv).rgb;
+            vec4 gTexel = texture2D(map, vMapUv);
+            vec3 gMacro = gTexel.rgb;
             vec3 gs = sqrt(gMacro);
             float gLum = dot(gs, vec3(.3, .59, .11)), gGreen = gs.g - max(gs.r, gs.b), gWarm = gs.r - gs.b;
-            float wGrass = smoothstep(.012, .055, gGreen);
-            float wDirt = (1.0 - wGrass) * smoothstep(.035, .1, gWarm);
-            // Grey ground: dark = asphalt, light = paving slabs in the map painting. The photo is brightened, so there grey is all
-            // asphalt (its sidewalks and roads look alike from the air; a slab pattern on a road would be worse than none on slabs).
-            float wNeutral = (1.0 - wGrass) * (1.0 - wDirt);
-            float wAsph = wNeutral * mix(1.0 - smoothstep(.43, .56, gLum), 1.0, uPhoto);
-            float wPave = wNeutral - wAsph;
+            // What the texel is (issue #98, surroundings.js streetClasses): alpha 1 other ground, .85 pavement, .7 kerb, .55 road.
+            float cRoad = 1.0 - smoothstep(.6, .64, gTexel.a), cKerb = smoothstep(.6, .64, gTexel.a) * (1.0 - smoothstep(.75, .79, gTexel.a));
+            float cPave = smoothstep(.75, .79, gTexel.a) * (1.0 - smoothstep(.91, .95, gTexel.a)), cOther = 1.0 - cRoad - cKerb - cPave;
+            float wGrass = cOther * smoothstep(.012, .055, gGreen);
+            float wDirt = (cOther - wGrass) * smoothstep(.035, .1, gWarm);
+            // Other grey ground: dark = asphalt, light = paving slabs in the map painting. The photo is brightened, so there grey is all
+            // asphalt (its squares and yards look alike from the air; a slab pattern on asphalt would be worse than none on slabs).
+            float wNeutral = cOther - wGrass - wDirt;
+            float gSlab = smoothstep(.5, .58, gLum);// a pavement is slabs where it is painted light (Grünerløkka), else asphalt
+            float wAsph = wNeutral * mix(1.0 - smoothstep(.43, .56, gLum), 1.0, uPhoto) + cRoad + cPave * (1.0 - gSlab);
+            float wPave = wNeutral * (1.0 - mix(1.0 - smoothstep(.43, .56, gLum), 1.0, uPhoto)) + cPave * gSlab;
             float gDist = length(vViewPosition), gNear = 1.0 - smoothstep(35.0, 140.0, gDist), gMid = 1.0 - smoothstep(120.0, 520.0, gDist);
             vec2 gp = vGround;
             vec4 d1 = texture2D(uDetail, gp * .5556);
@@ -2002,18 +2009,20 @@ window.BUILDING_LOOKS = {"table":[[],["school"],["retail"],["apartments"],["apar
             vec3 soil = vec3(.13, .10, .07) * (.7 + d1.a * .6);
             grass = mix(grass, mix(soil, vec3(.24, .23, .22) * (.6 + d1.a * .7), smoothstep(.35, .6, vSlope)), min(.75, worn * .6));
             // The photo is brightened for its shadows; its asphalt would look like concrete, so it is taken down again.
-            vec3 asph = gCol * mix(1.0, .7, uPhoto) * (1.0 + (mix(.5, d1.g, gNear) - .5) * 1.1 + (mix(.5, d2.g, gMid) - .5) * .55 + (n0 - .5) * .12 * gMid);
+            vec3 asph = gCol * mix(1.0, .7, uPhoto * cOther) * (1.0 + (mix(.5, d1.g, gNear) - .5) * 1.1 + (mix(.5, d2.g, gMid) - .5) * .55 + (n0 - .5) * .12 * gMid);
             vec3 pave = gCol * (1.0 + (mix(.5, d1.b, 1.0 - smoothstep(25.0, 90.0, gDist)) - .5) * .6 + (mix(.5, d2.g, gMid) - .5) * .2);
             vec3 dirt = gCol * (1.0 + (mix(.5, d1.a, gNear) - .5) * .9 + (mix(.5, d2.a, gMid) - .5) * .4);
-            gCol = grass * wGrass + asph * wAsph + pave * wPave + dirt * wDirt;
-            float gHeight = (d1.r * wGrass * .7 + d1.g * wAsph * .25 + d1.b * wPave * 1.0 + d1.a * wDirt * .9) * gNear;
+            // The granite kerb: light stone with a fine grain; its band stands up in the relief, so its edges catch the light.
+            vec3 kerb = gCol * (1.0 + (mix(.5, d1.a, gNear) - .5) * .35 + (n0 - .5) * .06);
+            gCol = grass * wGrass + asph * wAsph + pave * wPave + dirt * wDirt + kerb * cKerb;
+            float gHeight = (d1.r * wGrass * .7 + d1.g * wAsph * .25 + d1.b * wPave * 1.0 + d1.a * wDirt * .9 + (1.2 + d1.a * .3) * cKerb) * gNear;
             diffuseColor.rgb *= gCol;`)
           .replace('#include <normal_fragment_maps>', `
             #include <normal_fragment_maps>
             normal = gPerturb(-vViewPosition, normal, vec2(dFdx(gHeight), dFdy(gHeight)) * .045);`)
           .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = roughness - wAsph * .08 * gNear;');
       };
-      mat.customProgramCacheKey = () => 'city-ground-v1';
+      mat.customProgramCacheKey = () => 'city-ground-v2';
       return mat;
     }
     const bytes = {atlas: AW * AH * 4 * 4 / 3, normal: AW * AH / 4 * 4 * 4 / 3, ground: GS * GS * 4 * 4 / 3};
@@ -2162,12 +2171,35 @@ window.BUILDING_LOOKS = {"table":[[],["school"],["retail"],["apartments"],["apar
     const pathColour = k => ({footway: '#a9a59b', path: '#aea38e', track: '#a99c84', bridleway: '#a99c84', cycleway: '#5f6062', steps: '#a09d96', pedestrian: '#a3a099'})[k] || '#a7a296';
     // The same tone for an area in every painting (near, outer, far, and again when the aerial photo is switched off): keyed, not random.
     const jitter = (hex, amount, key) => {const c = new T.Color(hex), f = 1 + (CT.hash(key * 2 + 1) - .5) * amount, g = 1 + (CT.hash(key * 2 + 2) - .5) * amount * .6;c.r *= f;c.g *= f * g;c.b *= f;return '#' + c.getHexString();};
-    function paintStreets(ctx, roads, P, k, classes) {
-      const line = (r, width, colour) => {ctx.strokeStyle = colour;ctx.lineWidth = width * k;ctx.lineCap = ctx.lineJoin = 'round';ctx.beginPath();for (let i = 0; i + 1 < r.p.length; i += 2) {const [x, y] = P(r.p[i], r.p[i + 1]);i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);}ctx.stroke();};
-      // Torshov, Sandaker, Myrens and Ensjø have asphalt pavements; Grünerløkka, Tøyen, Grønland, Kampen and Bjørvika granite slabs.
-      const slabs = r => ['lokka', 'toyen', 'gronland', 'kampen', 'bjorvika'].includes(CT.zoneAt(r.p[0], r.p[1]));
-      for (const r of roads) if (SIDEWALK[r.k]) line(r, r.w + 2 * SIDEWALK[r.k], classes ? '#020000' : slabs(r) ? '#a29f98' : '#646567');
-      for (const r of roads) if (SIDEWALK[r.k]) line(r, r.w + .5, classes ? '#020000' : '#aeaba3');
+    // Issue #98: the road, the kerb and the pavement must read apart. The road is dark asphalt, the asphalt pavements are clearly
+    // lighter than it (they were almost the same grey), slab pavements lighter still, and the granite kerb a light line at least
+    // ~1.3 texels wide so it shows at every painting's resolution.
+    const ROAD = '#4b4d50', KERB = '#bdbab2', PAVE_ASPHALT = '#7d7e7f', PAVE_SLABS = '#aaa69e';
+    const kerbWidth = k => Math.max(.3, 1.3 / k);
+    // Torshov, Sandaker, Myrens and Ensjø have asphalt pavements; Grünerløkka, Tøyen, Grønland, Kampen and Bjørvika granite slabs.
+    const slabs = r => ['lokka', 'toyen', 'gronland', 'kampen', 'bjorvika'].includes(CT.zoneAt(r.p[0], r.p[1]));
+    const roadPath = (ctx, r, P) => {for (let i = 0; i + 1 < r.p.length; i += 2) {const [x, y] = P(r.p[i], r.p[i + 1]);i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);}};
+    // Pavements and kerbs of the car streets; with `surface` also the road itself (drawn over the aerial photo).
+    function paintStreets(ctx, roads, P, k, classes, surface = false) {
+      const line = (r, width, colour) => {ctx.strokeStyle = colour;ctx.lineWidth = width * k;ctx.lineCap = ctx.lineJoin = 'round';ctx.beginPath();roadPath(ctx, r, P);ctx.stroke();};
+      for (const r of roads) if (SIDEWALK[r.k]) line(r, r.w + 2 * SIDEWALK[r.k], classes ? '#020000' : slabs(r) ? PAVE_SLABS : PAVE_ASPHALT);
+      for (const r of roads) if (SIDEWALK[r.k]) line(r, r.w + 2 * kerbWidth(k), classes ? '#020000' : KERB);
+      if (surface) for (const r of roads) if (SIDEWALK[r.k]) line(r, r.w, ROAD);
+    }
+    // What each texel is, for the terrain shader: kept in the painting's alpha (1 other ground, .85 pavement, .7 kerb, .55 road).
+    // Each band (all streets at once) is drawn opaque into a mask, so where streets cross it is still one coverage, then cut out of
+    // the painting's alpha in one go: destination-out only scales the alpha and leaves the colour. The terrain materials are
+    // opaque, so the alpha is never blended.
+    function streetClasses(ctx, roads, P, k) {
+      const mask = document.createElement('canvas');mask.width = ctx.canvas.width;mask.height = ctx.canvas.height;const m = mask.getContext('2d');m.lineCap = m.lineJoin = 'round';m.strokeStyle = '#000';
+      const cutBand = (width, cut) => {
+        m.clearRect(0, 0, mask.width, mask.height);
+        for (const r of roads) if (SIDEWALK[r.k]) {m.lineWidth = width(r) * k;m.beginPath();roadPath(m, r, P);m.stroke();}
+        ctx.globalCompositeOperation = 'destination-out';ctx.globalAlpha = cut;ctx.drawImage(mask, 0, 0);ctx.globalAlpha = 1;ctx.globalCompositeOperation = 'source-over';
+      };
+      cutBand(r => r.w + 2 * SIDEWALK[r.k], .15);// → .85
+      cutBand(r => r.w + 2 * kerbWidth(k), 1 - .7 / .85);// → .70
+      cutBand(r => r.w, 1 - .55 / .7);// → .55
     }
     function paint(size, ext, classes = false) {
       const c = document.createElement('canvas');c.width = c.height = size;const ctx = c.getContext('2d'), s = size / (2 * ext), P = (x, y) => [(x + ext) * s, (y + ext) * s];
@@ -2176,17 +2208,20 @@ window.BUILDING_LOOKS = {"table":[[],["school"],["retail"],["apartments"],["apar
       const ring = (flat, color) => {ctx.fillStyle = color;ctx.beginPath();pairs(flat).forEach((p, i) => {const [x, y] = P(p[0], p[1]);i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);});ctx.closePath();ctx.fill();};
       data.areas.forEach((a, i) => {if (a.k === 'grass' || a.k === 'wood') ring(a.o, col('grass', jitter(colors[a.k], .16, i)));});
       data.areas.forEach((a, i) => {if (a.k !== 'grass' && a.k !== 'wood') ring(a.o, col(a.k === 'parking' ? 'asphalt' : a.k === 'playground' ? 'sand' : a.k === 'yard' ? 'gravel' : 'grass', jitter(colors[a.k] || '#888', .1, i)));});
-      paintStreets(ctx, data.roads, P, s, classes);
-      for (const r of data.roads.slice().sort((a, b) => roadOrder.indexOf(a.k) - roadOrder.indexOf(b.k))) {
-        ctx.strokeStyle = col(isPath(r.k) && r.k !== 'cycleway' ? 'gravel' : 'asphalt', r.k === 'tram' ? '#545556' : isPath(r.k) ? pathColour(r.k) : '#57595c');ctx.lineWidth = r.w * s;ctx.lineCap = ctx.lineJoin = 'round';
+      // Footpaths first, then the streets' pavements over them (OSM often maps a pavement as its own footway: it must not turn
+      // into a light path on the pavement, issue #98), then the roads.
+      const sorted = data.roads.slice().sort((a, b) => roadOrder.indexOf(a.k) - roadOrder.indexOf(b.k));
+      const draw = r => {
+        ctx.strokeStyle = col(isPath(r.k) && r.k !== 'cycleway' ? 'gravel' : 'asphalt', r.k === 'tram' ? '#545556' : isPath(r.k) ? pathColour(r.k) : ROAD);ctx.lineWidth = r.w * s;ctx.lineCap = ctx.lineJoin = 'round';
         ctx.beginPath();pairs(r.p).forEach((p, i) => {const [x, y] = P(p[0], p[1]);i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);});ctx.stroke();
-      }
+      };
+      sorted.filter(r => isPath(r.k)).forEach(draw);paintStreets(ctx, data.roads, P, s, classes);sorted.filter(r => !isPath(r.k)).forEach(draw);
       const yard = data.courtyard;
       if (yard) {ctx.lineCap = 'round';ctx.strokeStyle = col('gravel', '#b4a78f');ctx.lineWidth = yard.pathWidth * s;ctx.beginPath();pairs(yard.path).forEach((p, i) => {const [x, y] = P(p[0], p[1]);i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);});ctx.stroke();if (yard.playground) ring(yard.playground.o, col('sand', '#c9b48a'));}
       if (data.petanque) {const p = data.petanque, cx = Math.cos(p.rot), sx = Math.sin(p.rot);ring([[-1, -1], [1, -1], [1, 1], [-1, 1]].flatMap(([a, b]) => [p.x + cx * a * (p.length / 2 + .3) - sx * b * (p.width / 2 + .3), p.s + sx * a * (p.length / 2 + .3) + cx * b * (p.width / 2 + .3)]), col('gravel', '#c2b49a'));}
       for (const h of data.discgolf || []) {const [tx, ts] = h.tee;ctx.fillStyle = col('gravel', '#59544c');ctx.beginPath();const [px, py] = P(tx, ts);ctx.arc(px, py, 1.4 * s, 0, 7);ctx.fill();}
       for (const b of data.buildings) ring(b.r.o, col('none', '#5a5652'));
-      if (!classes) {const img = ctx.getImageData(0, 0, size, size), d = img.data;for (let i = 0; i < d.length; i += 4) {const n = (lib.rand() - .5) * 12;d[i] += n;d[i + 1] += n;d[i + 2] += n;}ctx.putImageData(img, 0, 0);}
+      if (!classes) {const img = ctx.getImageData(0, 0, size, size), d = img.data;for (let i = 0; i < d.length; i += 4) {const n = (lib.rand() - .5) * 12;d[i] += n;d[i + 1] += n;d[i + 2] += n;}ctx.putImageData(img, 0, 0);streetClasses(ctx, data.roads, P, s);}
       return c;
     }
     const NEAR_EXT = 300, FAR_EXT = 800;// the terrain data reaches ±800 m
@@ -2439,13 +2474,19 @@ window.BUILDING_LOOKS = {"table":[[],["school"],["retail"],["apartments"],["apar
     // Deep shadows in the photo carry no ground detail: blend them toward the map painting (kept slightly shaded).
     function fillShadows(target, base) {
       const w = target.width, h = target.height, tc = target.getContext('2d'), img = tc.getImageData(0, 0, w, h), d = img.data, b = base.getContext('2d').getImageData(0, 0, w, h).data;
+      // It also copies the map painting's alpha (what each texel is, see streetClasses), which the photo does not have.
       for (let i = 0; i < d.length; i += 4) {
-        const lum = .3 * d[i] + .59 * d[i + 1] + .11 * d[i + 2];if (lum >= 70) continue;
+        d[i + 3] = b[i + 3];const lum = .3 * d[i] + .59 * d[i + 1] + .11 * d[i + 2];if (lum >= 70) continue;
         const t = Math.min(1, (70 - lum) / 45) * .85;d[i] += (b[i] * .8 - d[i]) * t;d[i + 1] += (b[i + 1] * .8 - d[i + 1]) * t;d[i + 2] += (b[i + 2] * .8 - d[i + 2]) * t;
       }
       tc.putImageData(img, 0, 0);
     }
-    function restore(target, base) {const c = target.getContext('2d');c.drawImage(base, 0, 0);}
+    // 'copy': the base's alpha (texel classes) replaces the target's instead of being blended over it.
+    function restore(target, base) {const c = target.getContext('2d');c.globalCompositeOperation = 'copy';c.drawImage(base, 0, 0);c.globalCompositeOperation = 'source-over';}
+    // The map's streets over the aerial photo (issue #98): its blurry roads and pavements, with the parked cars on them, get the
+    // painted asphalt, kerbs and pavements at 90 %, so their edges are sharp and the photo's texture still shows a little.
+    function overlayStreets(target, roads, P, k) {const c = target.getContext('2d');c.globalAlpha = .9;paintStreets(c, roads, P, k, false, true);c.globalAlpha = 1;}
+    const squareP = (target, ext) => {const k = target.width / (2 * ext);return [(x, s) => [(x + ext) * k, (s + ext) * k], k];};
     async function setImagery(on) {
       const token = ++imageryToken;
       patchesImagery(on, token);
@@ -2455,8 +2496,8 @@ window.BUILDING_LOOKS = {"table":[[],["school"],["retail"],["apartments"],["apar
       const [nearTiles, outerTiles, farTiles, horizonTiles] = await Promise.all([loadTiles(18, NEAR_EXT, token), loadTiles(17, PLAY_HALF, token), loadTiles(15, FAR_EXT, token), loadTiles(12, 9000, token)]);
       if (token !== imageryToken) return;
       if (nearTiles.loaded <= nearTiles.failed) {imageryState = 'failed';onStatus('Aerial imagery could not load; map-based ground.');return;}
-      drawInto(nearPaint, NEAR_EXT, nearTiles, true);fillShadows(nearPaint, nearBase);maskLean(nearPaint, nearBase, NEAR_EXT);
-      if (outerTiles.loaded > outerTiles.failed) {drawInto(outerPaint, PLAY_HALF, outerTiles, true);fillShadows(outerPaint, outerBase);maskLean(outerPaint, outerBase, PLAY_HALF);}
+      drawInto(nearPaint, NEAR_EXT, nearTiles, true);maskLean(nearPaint, nearBase, NEAR_EXT);overlayStreets(nearPaint, data.roads, ...squareP(nearPaint, NEAR_EXT));fillShadows(nearPaint, nearBase);
+      if (outerTiles.loaded > outerTiles.failed) {drawInto(outerPaint, PLAY_HALF, outerTiles, true);maskLean(outerPaint, outerBase, PLAY_HALF);overlayStreets(outerPaint, data.roads, ...squareP(outerPaint, PLAY_HALF));fillShadows(outerPaint, outerBase);}
       drawInto(farPaint, FAR_EXT, farTiles, true);fillShadows(farPaint, farBase);
       if (horizonTiles.loaded > horizonTiles.failed) {const c = horizonImg.getContext('2d');c.drawImage(horizonCanvas, 0, 0, 2048, 2048);drawInto(horizonImg, 9000, horizonTiles, true);horizonImgTex.needsUpdate = true;horizonMat.map = horizonImgTex;horizonMat.needsUpdate = true;}
       nearTerrain.tex.needsUpdate = outerTerrain.tex.needsUpdate = farTerrain.tex.needsUpdate = true;imageryState = 'on';city.setPhoto(true);onStatus('Aerial imagery: Esri World Imagery (loaded live, not stored).');
@@ -2563,15 +2604,17 @@ window.BUILDING_LOOKS = {"table":[[],["school"],["retail"],["apartments"],["apar
       ctx.fillStyle = col('grass', '#6c7559');ctx.fillRect(0, 0, size, size);
       const ring = (flat, color) => {ctx.fillStyle = color;ctx.beginPath();for (let i = 0; i < flat.length; i += 2) {const [x, y] = P(flat[i], flat[i + 1]);i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);}ctx.closePath();ctx.fill();};
       d.areas.forEach((a, i) => ring(a.o, col(patchClass[a.k] || 'grass', jitter(patchColors[a.k] || '#888', .14, i + 7919))));
-      paintStreets(ctx, d.roads, P, kx, classes);
-      for (const r of d.roads.slice().sort((a, b) => patchRoadOrder.indexOf(a.k) - patchRoadOrder.indexOf(b.k))) {
-        ctx.strokeStyle = col((isPath(r.k) && r.k !== 'cycleway') || r.k === 'rail' ? 'gravel' : 'asphalt', r.k === 'rail' ? '#6a6259' : r.k === 'tram' ? '#545556' : isPath(r.k) ? pathColour(r.k) : '#57595c');ctx.lineWidth = r.w * kx;ctx.lineCap = ctx.lineJoin = 'round';
+      // Footpaths, the streets' pavements over them, then the roads (as in paint()).
+      const sorted = d.roads.slice().sort((a, b) => patchRoadOrder.indexOf(a.k) - patchRoadOrder.indexOf(b.k));
+      const draw = r => {
+        ctx.strokeStyle = col((isPath(r.k) && r.k !== 'cycleway') || r.k === 'rail' ? 'gravel' : 'asphalt', r.k === 'rail' ? '#6a6259' : r.k === 'tram' ? '#545556' : isPath(r.k) ? pathColour(r.k) : ROAD);ctx.lineWidth = r.w * kx;ctx.lineCap = ctx.lineJoin = 'round';
         ctx.beginPath();for (let i = 0; i < r.p.length; i += 2) {const [x, y] = P(r.p[i], r.p[i + 1]);i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);}ctx.stroke();
-      }
+      };
+      sorted.filter(r => isPath(r.k)).forEach(draw);paintStreets(ctx, d.roads, P, kx, classes);sorted.filter(r => !isPath(r.k)).forEach(draw);
       for (const s of d.sea) ring(s, col('grass', '#3e5d70'));
       for (const b of d.buildings) ring(b.ring.flat(), col('none', '#5a5652'));
       for (const l of d.landmarks) ring(l.ring, col('none', '#5a5652'));
-      if (!classes) {const img = ctx.getImageData(0, 0, size, size), px = img.data;for (let i = 0; i < px.length; i += 4) {const n = (lib.rand() - .5) * 12;px[i] += n;px[i + 1] += n;px[i + 2] += n;}ctx.putImageData(img, 0, 0);}
+      if (!classes) {const img = ctx.getImageData(0, 0, size, size), px = img.data;for (let i = 0; i < px.length; i += 4) {const n = (lib.rand() - .5) * 12;px[i] += n;px[i + 1] += n;px[i + 2] += n;}ctx.putImageData(img, 0, 0);streetClasses(ctx, d.roads, P, kx);}
       return c;
     }
     // Ground on a regular grid with normals from the height data itself, so neighbouring tiles light the same at their seams.
@@ -2712,12 +2755,14 @@ window.BUILDING_LOOKS = {"table":[[],["school"],["retail"],["apartments"],["apar
     async function loadPatchImagery(P, which, token) {
       const zoom = which === 'near' ? 17 : 15, r = await patchImagery(P, which, zoom, token);
       if (token !== imageryToken || r.loaded <= r.failed) return false;
-      const base = paintPatch(P.d, P[which].tex.image.width);fillShadows(P[which].tex.image, base);if (which === 'near') patchLean(P, which, base);
+      const img = P[which].tex.image, base = paintPatch(P.d, img.width), d = P.d, kx = img.width / (d.x1 - d.x0), ks = img.height / (d.s1 - d.s0);
+      if (which === 'near') {patchLean(P, which, base);overlayStreets(img, d.roads, (x, s) => [(x - d.x0) * kx, (s - d.s0) * ks], kx);}
+      fillShadows(img, base);
       P[which].tex.needsUpdate = true;return true;
     }
     function patchesImagery(on, token) {
       for (const P of patches) {
-        if (!on) {for (const w of ['near', 'far']) {P[w].tex.image.getContext('2d').drawImage(paintPatch(P.d, P[w].tex.image.width), 0, 0);P[w].tex.needsUpdate = true;}P.nearImagery = 'none';continue;}
+        if (!on) {for (const w of ['near', 'far']) {restore(P[w].tex.image, paintPatch(P.d, P[w].tex.image.width));P[w].tex.needsUpdate = true;}P.nearImagery = 'none';continue;}
         P.nearImagery = 'wanted';loadPatchImagery(P, 'far', token);
       }
     }
@@ -6477,10 +6522,12 @@ window.KLATREVERKET={"attribution":"Building: OpenStreetMap way 1031709261 (ODbL
       get yaw() {return new T.Euler().setFromQuaternion(this.q, 'YXZ').y;}
       axes() {return {f: V3(0, 0, -1).applyQuaternion(this.q), u: V3(0, 1, 0).applyQuaternion(this.q), r: V3(1, 0, 0).applyQuaternion(this.q)};}
       forward() {const f = V3(0, 0, -1).applyQuaternion(this.q), l = Math.hypot(f.x, f.z) || 1;return {x: f.x / l, z: f.z / l};}
-      // Walkers bump into the parked aircraft: one or more rectangles [along forward, to the right, length, width].
+      // Walkers bump into the parked aircraft: one or more rectangles [along forward, to the right, length, width]. They carry
+      // owner: this, so the aircraft's own checks skip them (issue #97: after you got out, the spinning-down rotor hit the
+      // helicopter's own footprint, counted as a crash, and 3 s later it was back on the helipad).
       footprint() {
         const f = this.forward(), r = {x: -f.z, z: f.x};
-        return this.rects.map(([a0, b0, L, W]) => ({points: [[L / 2, W / 2], [L / 2, -W / 2], [-L / 2, -W / 2], [-L / 2, W / 2]].map(([a, b]) => ({x: this.pos.x + f.x * (a + a0) + r.x * (b + b0), z: this.pos.z + f.z * (a + a0) + r.z * (b + b0)})), minY: this.y - .2, maxY: this.y + this.height, kind: 'vehicle'}));
+        return this.rects.map(([a0, b0, L, W]) => ({points: [[L / 2, W / 2], [L / 2, -W / 2], [-L / 2, -W / 2], [-L / 2, W / 2]].map(([a, b]) => ({x: this.pos.x + f.x * (a + a0) + r.x * (b + b0), z: this.pos.z + f.z * (a + a0) + r.z * (b + b0)})), minY: this.y - .2, maxY: this.y + this.height, kind: 'vehicle', owner: this}));
       }
       exitPoint() {const f = this.forward(), r = {x: -f.z, z: f.x}, d = this.exitSide;return {x: this.pos.x - r.x * d + f.x * this.exitFwd, z: this.pos.z - r.z * d + f.z * this.exitFwd};}
       place() {this.group.position.copy(this.pos);this.group.quaternion.copy(this.q);}
@@ -6490,9 +6537,17 @@ window.KLATREVERKET={"attribution":"Building: OpenStreetMap way 1031709261 (ODbL
       crash() {this.broken = true;this.crashT = 3;this.vel.set(0, 0, 0);this.w.set(0, 0, 0);audio.sfx('crash');if (this.onCrash) this.onCrash(this);}
       // Buildings, trees and vehicles: slow touches bounce off, faster ones are crashes.
       obstacles(prev, bottom) {
-        // Rotor strike (helicopter): anything inside the rotor disc at rotor height is a crash, whatever the speed.
-        if (this.rotorR) {this.group.position.copy(this.pos);this.group.quaternion.copy(this.q);this.group.updateMatrixWorld(true);const c = this.rotor.getWorldPosition(V3());if (collision.hitsSolid(worldFor(this.rotorR), c, c.y - .25, c.y + .25)) {this.crash();return true;}}
-        if (!collision.hitsSolid(worldFor(this.radius), this.pos, bottom + .35, this.pos.y + this.top)) return false;
+        // Rotor strike (helicopter): something inside the rotor disc at rotor height. The check reaches rotorR (a little inside the
+        // 5.2 m blade tips) and only while the rotor turns; under rotorSlow m/s the blades just scrape and you are slowed down,
+        // faster it is a crash (issue #97: it crashed too easily close to buildings).
+        if (this.rotorR && this.rpm > .3) {
+          this.group.position.copy(this.pos);this.group.quaternion.copy(this.q);this.group.updateMatrixWorld(true);const c = this.rotor.getWorldPosition(V3());
+          if (collision.hitsSolid(worldFor(this.rotorR), c, c.y - .25, c.y + .25, this)) {
+            if (this.speed > this.rotorSlow) {this.crash();return true;}
+            this.vel.multiplyScalar(.5);if (!(this.scrapeT > 0)) {audio.sfx('hit', {gain: .35});this.scrapeT = .5;}
+          }
+        }
+        if (!collision.hitsSolid(worldFor(this.radius), this.pos, bottom + .35, this.pos.y + this.top, this)) return false;
         if (this.speed > this.crashSpeed) {this.crash();return true;}
         this.pos.copy(prev);this.vel.multiplyScalar(-.3);audio.sfx('hit', {gain: .5});return false;
       }
@@ -6522,7 +6577,7 @@ window.KLATREVERKET={"attribution":"Building: OpenStreetMap way 1031709261 (ODbL
     class Helicopter extends Craft {
       constructor(x, z, yaw) {
         super(x, z, yaw, 0);this.kind = 'helicopter';this.name = 'Airbus H125 helicopter';this.length = 6;this.width = 2.6;this.height = 3.4;
-        this.rects = [[-.2, 0, 4.2, 2.6], [-4.4, 0, 5.6, .7]];this.radius = 1.7;this.rotorR = 5.2;this.top = 2.4;this.crashSpeed = 9;this.exitSide = 2.6;this.exitFwd = 0;
+        this.rects = [[-.2, 0, 4.2, 2.6], [-4.4, 0, 5.6, .7]];this.radius = 1.7;this.rotorR = 4.6;this.rotorSlow = 3;this.scrapeT = 0;this.top = 2.4;this.crashSpeed = 12;this.exitSide = 2.6;this.exitFwd = 0;
         this.seat = V3(.42, 1.86, -.32);this.seatPitch = -.12;this.chaseDist = 15;this.rotorAngle = 0;
         this.hips = {d: {pos: V3(.42, 1.15, .25)}, p: {pos: V3(-.42, 1.15, .25)}};this.passengerEye = V3(-.42, 1.86, -.32);
         const g = this.group, red = paintMat(0xb3121b), white = paintMat(0xf2f2ee), glass = glassMat();
@@ -6599,10 +6654,12 @@ window.KLATREVERKET={"attribution":"Building: OpenStreetMap way 1031709261 (ODbL
         if (this.grounded && !light) tw.set(0, light ? tw.y : 0, 0);
         this.w.lerp(tw, Math.min(1, dt * 5));this.rotate(dt);
         this.pos.addScaledVector(v, dt);
-        const g2 = heightAt(this.pos.x, this.pos.z);
+        const g2 = heightAt(this.pos.x, this.pos.z);this.scrapeT -= dt;
         if (this.pos.y - this.gearH <= g2) {
-          if (!this.grounded && (-v.y > 7 || Math.hypot(v.x, v.z) > 14 || this.axes().u.y < .8)) {this.pos.y = g2 + this.gearH;this.crash();return;}
-          if (!this.grounded && -v.y > 1) audio.sfx('thud', {gain: .5});
+          // Touchdown: a crash only when it is really hard – sinking faster than 10 m/s, sliding faster than 20 m/s or tilted more
+          // than about 53° (issue #97: landings were too strict at 7 m/s, 14 m/s and 37°). Hard but survivable gets a loud thud.
+          if (!this.grounded && (-v.y > 10 || Math.hypot(v.x, v.z) > 20 || this.axes().u.y < .6)) {this.pos.y = g2 + this.gearH;this.crash();return;}
+          if (!this.grounded && -v.y > 1) audio.sfx('thud', {gain: -v.y > 5 ? 1 : .5});
           this.pos.y = g2 + this.gearH;if (v.y < 0) v.y = 0;const k = Math.max(0, 1 - dt * (light ? 1 : 4));v.x *= k;v.z *= k;this.grounded = true;
           if (!light) {const e = new T.Euler().setFromQuaternion(this.q, 'YXZ');this.q.slerp(new T.Quaternion().setFromEuler(new T.Euler(0, e.y, 0, 'YXZ')), Math.min(1, dt * 4));}
         } else if (this.pos.y - this.gearH > g2 + .08) this.grounded = false;
@@ -18055,7 +18112,9 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     const target = d.open ? 0 : 1;setDoor(d, target);const poly = doorPolygon(d);setDoor(d, d.open ? 1 : 0);
     const me = [{x: player.x - .2, z: player.z - .2}, {x: player.x + .2, z: player.z - .2}, {x: player.x + .2, z: player.z + .2}, {x: player.x - .2, z: player.z + .2}];
     if (poly.maxY > player.feet && poly.minY < player.feet + 1.8 && polygonsOverlap(poly.points, me)) {notice('Step back from the door, then try again.');return;}
-    if (caseGame?.active && caseGame.actorObstacles().some(o => polygonsOverlap(poly.points, o.points))) {notice('Someone is standing in the door’s path.');return;}
+    // Only someone at the door's own height blocks it: in the stair tower a hostile on a landing above the street door used to
+    // keep it shut (issue #99).
+    if (caseGame?.active && caseGame.actorObstacles().some(o => o.maxY > poly.minY && o.minY < poly.maxY && polygonsOverlap(poly.points, o.points))) {notice('Someone is standing in the door’s path.');return;}
     d.anim = {from: d.open ? 1 : 0, to: target, t: 0};audio.sfx(target ? 'doorOpen' : 'doorClose', {reverb: towerAt(player.x, player.z, player.feet) ? .6 : .1});if (mp) mp.sendDoor(d.id, target === 1);
   }
   function closeAllDoors() {doors.forEach(d => {d.anim = null;d.open = false;setDoor(d, 0);});updateDynamic();}

@@ -6,6 +6,7 @@
  * Every query takes the person's feet height y (default 0), so stacked storeys do not interfere.
  * supportAt(world, point, y) -> {floor, y} the walkable surface under the feet, or null
  * canStand(world, point, eyeHeight, y=0) -> boolean
+ * hitsSolid(world, point, y0, y1, owner) -> boolean (a solid between y0 and y1; solids with o.owner === owner are skipped)
  * move(world, point, delta, eyeHeight, y=0) -> {x,z,y} (swept/substepped, with sliding; y follows ramps)
  * findSafeSpawn(world, requested, eyeHeight, {maxDistance=20,step=.08,y=0}={}) -> {x,z,y}|null
  * ceilingAt(world, point, y=0) -> lowest clearance above the feet touched by the person's footprint
@@ -159,9 +160,10 @@
     return !solidsNear(world,p).some(o=>overhead(o,feet,eyeHeight) && nearBounds(p,o.bounds,world.radius) && distanceToPolygon(p,o.points)<world.radius-EPS);
   }
   // Flying objects: does any solid (building, tree, wall, vehicle) come within the world's radius of p between heights y0 and y1?
-  function hitsSolid(world,p,y0,y1) {
+  // owner (optional): skip the solids marked with this owner (a vehicle's own parked footprint, issue #97).
+  function hitsSolid(world,p,y0,y1,owner) {
     if (!Number.isFinite(p.x) || !Number.isFinite(p.z)) return true;
-    return solidsNear(world,p).some(o=>o.maxY>y0 && o.minY<y1 && nearBounds(p,o.bounds,world.radius) && (inside(p,o.points) || distanceToPolygon(p,o.points)<world.radius-EPS));
+    return solidsNear(world,p).some(o=>o.maxY>y0 && o.minY<y1 && (!owner || o.owner!==owner) && nearBounds(p,o.bounds,world.radius) && (inside(p,o.points) || distanceToPolygon(p,o.points)<world.radius-EPS));
   }
   function move(world,position,delta,eyeHeight,y=0) {
     const start=supportAt(world,position,y);

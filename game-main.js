@@ -353,7 +353,9 @@
     const target = d.open ? 0 : 1;setDoor(d, target);const poly = doorPolygon(d);setDoor(d, d.open ? 1 : 0);
     const me = [{x: player.x - .2, z: player.z - .2}, {x: player.x + .2, z: player.z - .2}, {x: player.x + .2, z: player.z + .2}, {x: player.x - .2, z: player.z + .2}];
     if (poly.maxY > player.feet && poly.minY < player.feet + 1.8 && polygonsOverlap(poly.points, me)) {notice('Step back from the door, then try again.');return;}
-    if (caseGame?.active && caseGame.actorObstacles().some(o => polygonsOverlap(poly.points, o.points))) {notice('Someone is standing in the door’s path.');return;}
+    // Only someone at the door's own height blocks it: in the stair tower a hostile on a landing above the street door used to
+    // keep it shut (issue #99).
+    if (caseGame?.active && caseGame.actorObstacles().some(o => o.maxY > poly.minY && o.minY < poly.maxY && polygonsOverlap(poly.points, o.points))) {notice('Someone is standing in the door’s path.');return;}
     d.anim = {from: d.open ? 1 : 0, to: target, t: 0};audio.sfx(target ? 'doorOpen' : 'doorClose', {reverb: towerAt(player.x, player.z, player.feet) ? .6 : .1});if (mp) mp.sendDoor(d.id, target === 1);
   }
   function closeAllDoors() {doors.forEach(d => {d.anim = null;d.open = false;setDoor(d, 0);});updateDynamic();}
