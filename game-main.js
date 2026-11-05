@@ -311,7 +311,7 @@
   // ---------- Player ----------
   const player = {x: 0, z: 0, feet: D.ground, yaw: 0, pitch: 0, stance: 'stand', eye: 1.65, eyeNow: 1.65, jumpY: 0, jumpV: 0, run: false, stride: 0, mode: 'foot', vehicle: null, minigame: null};
   const stanceEye = s => s === 'prone' ? .32 : s === 'crouch' ? 1.05 : player.eye;
-  const WALK_SPEED = 3.5;
+  const WALK_SPEED = 2.5, RUN_SPEED = 6.0;// issue #88 (5 Nov 2026): a walk and a clearly faster run (were 3.5 and 3.6)
   const stanceSpeed = () => player.stance === 'prone' ? .28 : player.stance === 'crouch' ? .55 : 1;
   function place(x, z, yaw, y) {
     const sp = collision.findSafeSpawn(walkWorld, {x, z}, stanceEye('stand'), {y: y ?? heightAt(x, z), maxDistance: 6});
@@ -1317,9 +1317,9 @@
     player.running = false;
     if (canMove && mag > .05) {
       const running = player.stance === 'stand' && !(hushed > 0) && (player.run || (!caseGame?.active && !photo.active && !pbArmed() && input.r2 > .3) || input.held.l3);player.running = running;
-      // Standing: 3.5 m/s (the user's wish for the Unreal version, 28 Oct 2026); crouching and prone keep 1.45 x .55 and x .28.
+      // Standing: walk 2.5 m/s, run 6.0 m/s (issue #88, 5 Nov 2026); crouching and prone keep 1.45 x .55 and x .28.
       const base = player.stance === 'stand' ? WALK_SPEED : 1.45 * stanceSpeed();
-      const speed = (running ? 3.6 : base) * (caseGame?.active ? caseGame.moveScale() : 1) * (1 - dl * .25) * (boostIs('speed') ? 3 : 1), fwd = -my, right = mx;
+      const speed = (running ? RUN_SPEED : base) * (caseGame?.active ? caseGame.moveScale() : 1) * (1 - dl * .25) * (boostIs('speed') ? 3 : 1), fwd = -my, right = mx;
       const dx = (-Math.sin(player.yaw) * fwd + Math.cos(player.yaw) * right) * speed * dt, dz = (-Math.cos(player.yaw) * fwd - Math.sin(player.yaw) * right) * speed * dt;
       const bx = player.x, bz = player.z;move(dx, dz);
       player.stride += Math.hypot(player.x - bx, player.z - bz);

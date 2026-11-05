@@ -11,7 +11,7 @@ Live game: https://haarklous-online.server-smoke.workers.dev · Source: https://
 On `main`:
 - Open world around Haarklous plass 17A, Torshov: real buildings and streets (OpenStreetMap), real ground heights (Kartverket), optional aerial photos; walkable out to about 760 m (540 m before PR #13), drawn properly everywhere you can walk.
 - Your 4th-floor apartment (your kitchen + bedroom design) and stairwell; the street door and stairs work without the mission; eight neighbouring stairwells.
-- Walking (3.5 m/s), running, crouch (tap ○), prone (hold ○), jump (✕); PS4 controller (USB / Bluetooth) plus keyboard and mouse; look sensitivity setting.
+- Walking (2.5 m/s), running (6 m/s), crouch (tap ○), prone (hold ○), jump (✕); PS4 controller (USB / Bluetooth) plus keyboard and mouse; look sensitivity setting.
 - Vehicles: Honda CBF600S motorcycle and 7 more motorcycles, 30 cars, excavator, helicopter, two-seat plane, Caravan jump plane; hands on bars / wheel / sticks.
 - Cars and motorcycles follow gravity (9.81 m/s²) and fly over crests and bumps taken fast (PR #5).
 - FPV drone (hold △), photo camera with gallery (tap △), wristwatch (D-pad ↑), map (touchpad).
@@ -52,6 +52,14 @@ On `main`:
 Live site: runs `main` (Worker version a893f1fd, deployed 4 Nov 2026 after PR #86; `main` builds byte-for-byte to the live page), so everything above is online. Account emails (issue #55) wait for the user's Brevo key.
 
 ## Log
+
+### 2026-11-05 · Walking 2.5 m/s, running 6 m/s (issue #88)
+- **What:** walking (standing) is now 2.5 m/s (was 3.5) and running is 6.0 m/s (was 3.6). Crouching (0.8 m/s), prone (0.4 m/s), the drunk slow-down and the 3× speed boost are unchanged. The run key stays left Shift (hold, or tap to keep running), R2 or L3 on the controller.
+- **Why:** issue #88: "Make walk speed 2.5 m/s and run speed 6 m/s." The user had noticed that running was only 0.1 m/s faster than walking (walking was raised to 3.5 m/s on 28 Oct; running was never raised with it). For comparison, a realistic walk is about 1.5–2 m/s and a game run about 5–7 m/s.
+  - Delivery jobs still assume about 3.2 m/s on average, so they can be made in time by running or riding.
+- **Where:** `game-main.js` (`WALK_SPEED`, `RUN_SPEED`), `docs/HANDOFF.md`, `docs/UE5-PARITY.md` (the web version now differs from the Unreal version's 3.5 m/s).
+- **Checked:** `node --test tests/*.cjs` 193 pass. In the browser (headless Chrome, the built file), holding W measured 2.52 m/s and holding W + left Shift 6.01 m/s (against the game's own frame time).
+- **Status:** branch `feat/walk-run-speeds`, [PR #89](https://github.com/jonatsl/haarklous-online/pull/89), merged and deployed at the user's request ("Implement merge and deploy issue 88").
 
 ### 2026-11-04 · Construction City with its inside and garage, and the area from Torshov to it (issue #85)
 - **What:**

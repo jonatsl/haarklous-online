@@ -50,7 +50,7 @@ simulated DualShock 4, `window.haarklousGame`).
 | Aiming lowers the marker to the lower right (UE work in progress) | `game-paintball.js` marker pose | screenshot |
 | Others in a game: the marker in their hands, goggles, team armbands (`HKGamePaintball`, `HKAvatars`) | `game-avatars.js` `joints`, `pose({marker})` | screenshot of the other player |
 | 12 players a lobby, 12 slot colours (`server/`, `HKAvatars`) | `cloud/src/index.js`, `game-net.js`, `game-avatars.js` | `tests/online-paintball.mjs`: 12 joined one lobby, the 13th was turned away (`full`) |
-| Walking 3.5 m/s standing (UE work in progress, `HKFoot::Speed`) | `game-main.js` `WALK_SPEED` | measured 3.51 m/s |
+| Walking 3.5 m/s standing (UE work in progress, `HKFoot::Speed`) | `game-main.js` `WALK_SPEED` | measured 3.51 m/s; changed on 5 Nov 2026 by issue #88 to walk 2.5 m/s and run 6.0 m/s (differs from the UE version now) |
 | Balcony-door prompt fix (UE work in progress) | already fine here: the web raycast only tests interactables | prompt shown from 10 of 10 places |
 | New sounds: diesel engine, paintball shot, splat, bounce, whistle (`HKAudioImpl`) | `game-audio.js` | used by the machines and paintball |
 
