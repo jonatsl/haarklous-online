@@ -62,7 +62,7 @@ Live site: runs `main` (Worker version 6c660a48, deployed 5 Nov 2026 after PR #9
 - **Why:** the user (5 Nov 2026): "if i fail the drivers/flying licence, make retries free". Free retries are per part, so failing the cheap theory on purpose does not make the expensive practical free.
 - **Where:** `game-licences.js` (`fail(state, id, part)`, `fees(state, licence)`, a new saved count `theoryFails`), `game-main.js` (`licBegin`, `licPractical`, `licFail`, `licEnd`, the test-place list and the phone; `licTest.paid`), `game-progress.js` (two saved copies keep the most theory fails), `tests/licences.test.cjs`, `docs/HANDOFF.md`.
 - **Checked:** `node --test tests/*.cjs` pass. In the browser (offline): the first class B practical took 200 kr (paid back when stopped before driving); after a fail the retry took 0 kr and paid nothing back; a PPL(H) retry after a fail took 0 kr; class A still costs 100 + 200 kr.
-- **Status:** branch `feat/free-licence-retries`, merged and deployed at the user's request.
+- **Status:** branch `feat/free-licence-retries`, [PR #96](https://github.com/jonatsl/haarklous-online/pull/96), merged and deployed at the user's request.
 
 ### 2026-11-05 · Minimap: north up, your arrow turns (issue #93), and the map's places error fixed
 - **What:**
