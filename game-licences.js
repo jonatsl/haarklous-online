@@ -13,15 +13,17 @@
  * skydive flown by the game's pilot. Each test is a short theory part (five questions with real rules, at most one wrong)
  * and, except for the drone, a practical part in the test vehicle: rings to pass in order, the speed limit (more than 5 km/h
  * over it for 2 s fails), no crash, a time limit, and at the end stop / park / land in the marked place (cranes: hook a load,
- * carry it through a ring and set it down on the mark). A passed theory part is kept; a failed practical part says why and
- * can be taken again for its fee. Saved in localStorage KEY (part of an account's saved progress, game-progress.js).
+ * carry it through a ring and set it down on the mark). A passed theory part is kept; a failed practical part says why.
+ * A part you have failed can be taken again for free (the user: "if i fail the drivers/flying licence, make retries free").
+ * Saved in localStorage KEY (part of an account's saved progress, game-progress.js).
  *
  * Pure (Node-tested):
  *   KEY, LICENCES [{id, name, tag (for “needs …”), short, icon, covers, place, fee: {theory, practical}, requires, quiz [{q, a, ok}], maxWrong,
  *     course, vehicle, theoryOnly}], IDS, byId, PLACES {id: {name, near, where}}
  *   need(vehicle) -> licence id | null   which licence the driver's seat of a vehicle needs ({kind, rental}; kind 'drone')
- *   load(text) -> state {have: {id: date}, theory: {id: date}, fails: {id: n}}   has(state, id)   missing(state, id) -> ids
- *   grant(state, id, date)   passTheory(state, id, date)   (how two saved copies join: GameProgress RULES)
+ *   load(text) -> state {have: {id: date}, theory: {id: date}, fails: {id: n}, theoryFails: {id: n}}   has(state, id)   missing(state, id) -> ids
+ *   grant(state, id, date)   passTheory(state, id, date)   fail(state, id, part 'theory' | 'practical')   (how two saved copies join: GameProgress RULES)
+ *   fees(state, licence) -> {theory, practical} kroner still to pay: 0 for a passed theory part and for a part failed before
  *   score(quiz, answers) -> {right, wrong}   passed(licence, answers) -> bool
  *   COURSES {name: {frame, origin, ground, heightRef, limit, timeS, maxAgl, crane, start, gates}}
  *   resolve(course, {toWorld, groundAt, origin}) -> world gates [{k, x, y, z, r, yaw, limit, say, hold, box}]
@@ -138,13 +140,24 @@
   function load(text) {
     let s = null;try {s = JSON.parse(text);} catch {}
     s = obj(s);const clean = o => Object.fromEntries(Object.entries(obj(o)).filter(([k]) => IDS.includes(k)));
-    return {have: clean(s.have), theory: clean(s.theory), fails: clean(s.fails)};
+    return {have: clean(s.have), theory: clean(s.theory), fails: clean(s.fails), theoryFails: clean(s.theoryFails)};
   }
   const has = (state, id) => !!(state && state.have && state.have[id]);
   const missing = (state, id) => (byId[id] ? byId[id].requires : []).filter(r => !has(state, r));
   const today = () => new Date().toISOString().slice(0, 10);
   function grant(state, id, date = today()) {if (!state.have[id]) state.have[id] = date;if (!state.theory[id]) state.theory[id] = date;return state;}
   function passTheory(state, id, date = today()) {if (!state.theory[id]) state.theory[id] = date;return state;}
+  // fails counts every failed try; theoryFails the theory ones (saves from before free retries have none: their fails before
+  // the theory was passed were theory, after it practical).
+  function fail(state, id, part) {
+    state.fails[id] = (+state.fails[id] || 0) + 1;
+    if (part === 'theory') state.theoryFails[id] = (+(state.theoryFails || (state.theoryFails = {}))[id] || 0) + 1;
+    return state;
+  }
+  function fees(state, lic) {
+    const id = lic.id, fails = +state.fails[id] || 0, theoryFails = +(state.theoryFails || {})[id] || 0;
+    return {theory: state.theory[id] || fails > 0 ? 0 : lic.fee.theory, practical: lic.theoryOnly || fails > theoryFails && state.theory[id] ? 0 : lic.fee.practical};
+  }
 
   // ---------- Theory ----------
   function score(quiz, answers) {let right = 0;quiz.forEach((q, i) => {if (answers[i] === q.ok) right++;});return {right, wrong: quiz.length - right};}
@@ -380,11 +393,11 @@
 
     return {
       get state() {return state;}, has: id => has(state, id), missing: id => missing(state, id), save, reload,
-      grant(id) {grant(state, id);save();}, passTheory(id) {passTheory(state, id);save();}, failed(id) {state.fails[id] = (+state.fails[id] || 0) + 1;save();},
+      grant(id) {grant(state, id);save();}, passTheory(id) {passTheory(state, id);save();}, failed(id, part) {fail(state, id, part);save();}, fees: L => fees(state, L),
       get count() {return IDS.filter(id => has(state, id)).length;}, total: IDS.length,
       rings, hud, menu, sign
     };
   }
 
-  return {KEY, LICENCES, IDS, byId, PLACES, need, load, has, missing, grant, passTheory, score, passed, COURSES, resolve, inside, Practical, failText, mmss, create, SPEED_TOL, OVER_S};
+  return {KEY, LICENCES, IDS, byId, PLACES, need, load, has, missing, grant, passTheory, fail, fees, score, passed, COURSES, resolve, inside, Practical, failText, mmss, create, SPEED_TOL, OVER_S};
 });

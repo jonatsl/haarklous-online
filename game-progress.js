@@ -78,10 +78,10 @@
       return JSON.stringify({...y, ...x, ticks: {...(y.ticks || {}), ...(x.ticks || {})}, tries: maxEach(x.tries || {}, y.tries || {}),
         bestHang: Math.max(num(x.bestHang), num(y.bestHang)), brattkort: x.brattkort || y.brattkort || undefined});
     },
-    // Licences (issue #59): a licence or a passed theory part is never lost (the earlier date stays); the most failed tries.
+    // Licences (issue #59): a licence or a passed theory part is never lost (the earlier date stays); the most failed tries (a failed part is free to retake).
     'haarklous-licences-v1': (a, b) => {
       const x = obj(a), y = obj(b), join = (p, q) => {p = plain(p);q = plain(q);const o = {...q, ...p};for (const k of Object.keys(q)) if (p[k] && q[k]) o[k] = String(p[k]) < String(q[k]) ? p[k] : q[k];return o;};
-      return JSON.stringify({have: join(x.have, y.have), theory: join(x.theory, y.theory), fails: maxEach(plain(x.fails), plain(y.fails))});
+      return JSON.stringify({have: join(x.have, y.have), theory: join(x.theory, y.theory), fails: maxEach(plain(x.fails), plain(y.fails)), theoryFails: maxEach(plain(x.theoryFails), plain(y.theoryFails))});
     },
     'haarklous-catacomb-map-v1': (a, b) => {
       let p, q;try {p = atob(a);q = atob(b);} catch {return a;}
