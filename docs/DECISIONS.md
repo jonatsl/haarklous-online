@@ -49,9 +49,18 @@ On `main`:
 - Licences for every vehicle, each won by a test with a theory part and a practical part (rings, the speed limit, no crash, park or land): førerkort B and A at Soria Moria Trafikkskole on Vogts gate (a school car and motorcycle, a test route on the real streets), class C, the machine certificate and the crane certificate at the site office, PPL(A) and PPL(H) at the airstrip, the drone certificate A1/A3 on the phone (free); bikes, e-scooters, the kayak and riding along need none; saved with your progress (issue #59).
 - Ground with real detail up close (grass, asphalt, paving slabs, gravel, pavements and kerbs) with or without the aerial photo, and buildings that look like their part of town – Torshov brick and Harald Hals' plastered blocks, Grünerløkka's tenements with shop fronts, buff brick, wooden houses, new blocks – chosen from OpenStreetMap and Street View notes (issues #67 and #68, PR #81, not merged yet).
 
-Live site: runs `main` (Worker version a939a663, deployed 5 Nov 2026 after PR #89; `main` builds byte-for-byte to the live page), so everything above is online. Account emails (issue #55) wait for the user's Brevo key.
+Live site: runs `main` (Worker version 6c660a48, deployed 5 Nov 2026 after PR #92; `main` builds byte-for-byte to the live page), so everything above is online. Account emails (issue #55) wait for the user's Brevo key.
 
 ## Log
+
+### 2026-11-05 · Minimap: north up, your arrow turns (issue #93), and the map's places error fixed
+- **What:**
+  - The minimap now keeps north up and stays still; your arrow turns to where you look (the camera's direction, so it is right in vehicles, with the drone and when skydiving too). Other players' arrows turn with them. The catacomb's map in the minimap is north up as well.
+  - Fixed an error from Construction City (PR #86): the map gathers places with `poi()` from every district module, and Construction City's `poi` was a point, not a function, so drawing the map's places threw an error every frame while the minimap or map was open. It is now called `mapPoint`.
+- **Why:** the user (5 Nov 2026): "when i turn on minimap and turn around only the minimpa moves, and i dont." Issue #93. The minimap used to turn with the camera (heading up), so your arrow always pointed straight up. The error was found while testing this.
+- **Where:** `game-map.js` (`map.guide` draws the minimap with view 0 and your arrow along the camera), `game-construction-city.js` / `game-main.js` (`mapPoint`), `docs/HANDOFF.md`.
+- **Checked:** `node --test tests/*.cjs` pass. In the browser: turning 90° changed no pixel of the minimap's map and only the arrow in its middle (98 pixels); the minimap and the big map draw without errors.
+- **Status:** branch `fix/minimap-north-up`, [PR #94](https://github.com/jonatsl/haarklous-online/pull/94), merged and deployed at the user's request.
 
 ### 2026-11-05 · Klatreverket: you pay only for entry (issue #91)
 - **What:** at Klatreverket the day ticket (155 kr before 16 on weekdays, otherwise 175 kr) is now the only thing you pay for.
@@ -62,7 +71,7 @@ Live site: runs `main` (Worker version a939a663, deployed 5 Nov 2026 after PR #8
 - **Why:** the user (5 Nov 2026): the climbing centre should be simpler, "should only pay for entrance but not for all the other things, that just takes from the experience". Issue #91.
 - **Where:** `game-climbing.js` (`payEntry`, a paid visit always has the gear), `game-main.js` (reception menu, route prompts, Siri, the brattkort test), `index.html` (help), `tests/climbing.test.cjs`, `docs/HANDOFF.md`.
 - **Checked:** `node --test tests/*.cjs` 194 pass (one new). In the browser at the reception: the menu shows the day ticket ("shoes, harness, chalk and the autobelays included"), the free brattkort test and the climbing log; ✕ paid 155 kr and gave the shoes, harness, chalk and the autobelay introduction.
-- **Status:** branch `feat/climbing-entry-only`, [PR #92](https://github.com/jonatsl/haarklous-online/pull/92), merged and deployed at the user's request.
+- **Status:** on `main` ([PR #92](https://github.com/jonatsl/haarklous-online/pull/92), merged 5 Nov 2026 at the user's request) and live (Cloudflare Worker version 6c660a48, deployed from the merge commit 2ff9555; the live page is byte-for-byte that build).
 
 ### 2026-11-05 · Walking 2.5 m/s, running 6 m/s (issue #88)
 - **What:** walking (standing) is now 2.5 m/s (was 3.5) and running is 6.0 m/s (was 3.6). Crouching (0.8 m/s), prone (0.4 m/s), the drunk slow-down and the 3× speed boost are unchanged. The run key stays left Shift (hold, or tap to keep running), R2 or L3 on the controller.

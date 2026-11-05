@@ -534,7 +534,7 @@
     return {group, far, floors: L.floors, obstacles: L.obstacles, vehicleFloors: L.vehicleFloors, groundAt: L.vehicleGround, cutsGround: L.cutsGround,
       inside: L.inside, indoor: L.indoor, where: L.where, placeName: L.placeName, surfaceAt: L.surfaceAt, liftAt: L.liftAt, lifts, ride, driveSpots: L.driveSpots, tick, levelName, centre,
       blockName: b => BLOCKS[b] || b, liftNote,
-      offset, H, poi: {x: centre.x, z: centre.z}, layout: L};
+      offset, H, mapPoint: {x: centre.x, z: centre.z}, layout: L};// not `poi`: game-main calls poi() on every district module
   }
 
   return {prepare, create, layout, offsetFor, cutPolygons, mapBuildings, levelName, liftNote, FOOT, OSM_ID};
