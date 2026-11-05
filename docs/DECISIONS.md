@@ -46,12 +46,23 @@ On `main`:
 - Badges and a photo hunt in the pause menu (R1 / B): 20 badges from playing and ten places to photograph (Torshovoksen, HODET N.N., Deichman Grünerløkka, Klatreverket, the catacomb's rotunda, Muselunden, MUNCH, the Opera, Rathkes gate 1, your street door); each new badge pays 50–300 kr; best scores for the minigames, the mission, skydiving and the runs; an orange landing target for skydivers at the airstrip (issue #58, PR #70).
 - Helicopter and drone flight closer to the real thing: the rotor's lift tilts with pitch and bank, so tilting takes lift away from climbing and turns it into speed; add collective or thrust to keep your height (issue #73, PR #75).
 - Kiwi Storgata 33 at its real place in the city centre, with a hot-food counter; the regulars outside give small tasks (bottles for the deposit, a harmonica on the Opera roof, coffee and a hot dog, a note for Rolf at Schous plass, a photo of Grønland kirke), in Norwegian with English below; Sopp-Sigvald the mushroom wizard teaches four magic powers after mushroom hunts in Torshovdalen, along Akerselva, in the catacomb and at MUNCH: levitation, blink, a gust and a light orb (R1 / X, D-pad ← chooses, keys 1–4); saved with your progress (issue #65).
-- Licences for every vehicle, each won by a test with a theory part and a practical part (rings, the speed limit, no crash, park or land): førerkort B and A at Soria Moria Trafikkskole on Vogts gate (a school car and motorcycle, a test route on the real streets), class C, the machine certificate and the crane certificate at the site office, PPL(A) and PPL(H) at the airstrip, the drone certificate A1/A3 on the phone (free); bikes, e-scooters, the kayak and riding along need none; saved with your progress (issue #59).
+- Licences for every vehicle, each won by a test with a theory part and a practical part (rings, the speed limit, no crash, park or land): førerkort B and A at Soria Moria Trafikkskole on Vogts gate (a school car and motorcycle, a test route on the real streets), class C, the machine certificate and the crane certificate at the site office, PPL(A) and PPL(H) at the airstrip, the drone certificate A1/A3 on the phone (free); a part you fail is free to take again; bikes, e-scooters, the kayak and riding along need none; saved with your progress (issue #59).
 - Ground with real detail up close (grass, asphalt, paving slabs, gravel, pavements and kerbs) with or without the aerial photo, and buildings that look like their part of town – Torshov brick and Harald Hals' plastered blocks, Grünerløkka's tenements with shop fronts, buff brick, wooden houses, new blocks – chosen from OpenStreetMap and Street View notes (issues #67 and #68, PR #81, not merged yet).
 
 Live site: runs `main` (Worker version 6c660a48, deployed 5 Nov 2026 after PR #92; `main` builds byte-for-byte to the live page), so everything above is online. Account emails (issue #55) wait for the user's Brevo key.
 
 ## Log
+
+### 2026-11-05 · Licence tests: a retry after a fail is free
+- **What:** if you fail a licence test, taking that part again costs nothing.
+  - Failed the theory: the next theory tries are free. The practical test still costs its fee the first time.
+  - Failed the practical (driving, machine, crane or flight test): every next practical try is free.
+  - The test places and the phone say "free retry", and the fail message says "the next try is free". Stopping a free try pays nothing back.
+  - Saves from before this count too: a fail after the theory was passed makes the practical free.
+- **Why:** the user (5 Nov 2026): "if i fail the drivers/flying licence, make retries free". Free retries are per part, so failing the cheap theory on purpose does not make the expensive practical free.
+- **Where:** `game-licences.js` (`fail(state, id, part)`, `fees(state, licence)`, a new saved count `theoryFails`), `game-main.js` (`licBegin`, `licPractical`, `licFail`, `licEnd`, the test-place list and the phone; `licTest.paid`), `game-progress.js` (two saved copies keep the most theory fails), `tests/licences.test.cjs`, `docs/HANDOFF.md`.
+- **Checked:** `node --test tests/*.cjs` pass. In the browser (offline): the first class B practical took 200 kr (paid back when stopped before driving); after a fail the retry took 0 kr and paid nothing back; a PPL(H) retry after a fail took 0 kr; class A still costs 100 + 200 kr.
+- **Status:** branch `feat/free-licence-retries`, merged and deployed at the user's request.
 
 ### 2026-11-05 · Minimap: north up, your arrow turns (issue #93), and the map's places error fixed
 - **What:**

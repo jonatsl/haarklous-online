@@ -42,7 +42,24 @@ test('the saved state: licences, passed theory parts and what is still needed fi
   assert.deepEqual(L.missing(L.load(''), 'C'), ['B']);assert.deepEqual(L.missing(s, 'C'), []);
   L.grant(s, 'PPLH', '2026-11-04');assert.equal(s.have.PPLH, '2026-11-04');assert.equal(s.theory.PPLH, '2026-11-04');
   L.passTheory(s, 'A', '2026-11-05');assert.equal(L.has(s, 'A'), false);assert.equal(s.theory.A, '2026-11-05');
-  assert.deepEqual(L.load('not json'), {have: {}, theory: {}, fails: {}});
+  assert.deepEqual(L.load('not json'), {have: {}, theory: {}, fails: {}, theoryFails: {}});
+});
+
+test('a part you failed is free to take again (the user: "if i fail the drivers/flying licence, make retries free")', () => {
+  const s = L.load(''), B = L.byId.B, H = L.byId.PPLH;
+  assert.deepEqual(L.fees(s, B), {theory: 100, practical: 200}, 'the first try costs the fees');
+  L.fail(s, 'B', 'theory');
+  assert.deepEqual(L.fees(s, B), {theory: 0, practical: 200}, 'a failed theory part is free again; the practical still costs');
+  L.passTheory(s, 'B');assert.deepEqual(L.fees(s, B), {theory: 0, practical: 200}, 'failing the theory does not make the practical free');
+  L.fail(s, 'B', 'practical');L.fail(s, 'B', 'practical');
+  assert.deepEqual(L.fees(s, B), {theory: 0, practical: 0}, 'a failed practical part is free again, every time');
+  assert.equal(s.fails.B, 3);assert.equal(s.theoryFails.B, 1);
+  L.passTheory(s, 'PPLH');L.fail(s, 'PPLH', 'practical');assert.deepEqual(L.fees(s, H), {theory: 0, practical: 0}, 'a failed flight test is free again');
+  assert.deepEqual(L.fees(s, L.byId.A), {theory: 100, practical: 200}, 'other licences still cost');
+  // A save from before free retries counts fails only: the ones after the theory was passed were practical.
+  const old = L.load('{"theory": {"C": "2026-11-03"}, "fails": {"C": 1, "A": 2}}');
+  assert.deepEqual(L.fees(old, L.byId.C), {theory: 0, practical: 0});assert.deepEqual(L.fees(old, L.byId.A), {theory: 0, practical: 200});
+  assert.deepEqual(L.fees(L.load(''), L.byId.A1A3), {theory: 0, practical: 0}, 'the drone test stays free');
 });
 
 test('licences are saved progress: the server accepts the key, and two copies join without losing a licence', async () => {
@@ -50,11 +67,11 @@ test('licences are saved progress: the server accepts the key, and two copies jo
   assert.equal(L.KEY, K);assert.ok(P.KEYS.includes(K));
   assert.equal(P.hasProgress({[K]: '{"have": {}, "theory": {}, "fails": {}}'}), false, 'an empty licence list is a fresh start');
   assert.equal(P.hasProgress({[K]: '{"have": {"B": "2026-11-03"}}'}), true);
-  const account = {[K]: JSON.stringify({have: {B: '2026-11-04'}, theory: {B: '2026-11-04'}, fails: {A: 1}})};
+  const account = {[K]: JSON.stringify({have: {B: '2026-11-04'}, theory: {B: '2026-11-04'}, fails: {A: 1}, theoryFails: {A: 1}})};
   const browser = {[K]: JSON.stringify({have: {B: '2026-11-01', PPLA: '2026-11-02'}, theory: {M: '2026-11-02'}, fails: {A: 3}})};
   for (const mode of ['move', 'sync']) {
     const m = JSON.parse(P.merge(account, browser, {}, mode)[K]);
-    assert.deepEqual(m.have, {B: '2026-11-01', PPLA: '2026-11-02'}, mode);assert.equal(m.theory.M, '2026-11-02');assert.equal(m.fails.A, 3);
+    assert.deepEqual(m.have, {B: '2026-11-01', PPLA: '2026-11-02'}, mode);assert.equal(m.theory.M, '2026-11-02');assert.equal(m.fails.A, 3);assert.equal(m.theoryFails.A, 1);
   }
   const rules = await import(pathToFileURL(path.join(__dirname, '../cloud/src/progress-check.js')).href);
   const all = Object.fromEntries(P.KEYS.map(k => [k, '{}']));

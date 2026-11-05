@@ -605,7 +605,7 @@
   const siteMachine = kind => site ? site.machines.find(m => m.kind === kind) : null;
   const licVehicle = id => ({B: schoolCar, A: schoolBike, C: siteMachine('tipper'), M: siteMachine('loader'), G: siteMachine('tower'), PPLA: plane, PPLH: heli})[id] || null;
   const licOrigin = c => c.origin === 'plane' ? AIR.plane : c.origin === 'heli' ? AIR.heli : null;
-  let licTest = null;// {id, L, v, course, gates, phase: 'goto' | 'drive' | 'failed', run, prevLoad}
+  let licTest = null;// {id, L, v, course, gates, phase: 'goto' | 'drive' | 'failed', run, prevLoad, paid (the practical fee paid, 0 for a free retry)}
   // The licence a vehicle's driver's seat still needs (null: you may drive it).
   function licAllowed(v) {const need = GL.need(v);if (!need || lic.has(need)) return null;if (licTest && licTest.v === v && licTest.phase !== 'failed') return null;return need;}
   function licNeedText(need, what) {const L = GL.byId[need], P = GL.PLACES[L.place];return `${what ? `The ${what} needs` : 'You need'} ${L.tag}: ${L.place === 'online' ? 'take Luftfartstilsynet’s free online test on your phone (D-pad → / P, Licences)' : `take the test at ${P.name}, ${P.where}`}`;}
@@ -613,9 +613,9 @@
   function licPlaceNear() {if (player.mode !== 'foot') return null;for (const [k, at] of Object.entries(LIC_SIGNS)) if (Math.hypot(player.x - at.x, player.z - at.z) < 2.6 && Math.abs(player.feet - groundAt(at.x, at.z)) < 2) return k;return null;}
   function licPrompt() {const k = licPlaceNear();if (!k) return null;return {text: `□ ${GL.PLACES[k].name}: licence tests (${GL.LICENCES.filter(l => l.place === k).map(l => l.short).join(', ')})`, act: () => openLicPlace(k)};}
   function licItem(L) {
-    const have = lic.has(L.id), th = !!lic.state.theory[L.id], fee = (th ? 0 : L.fee.theory) + (L.theoryOnly ? 0 : L.fee.practical), mine = licTest && licTest.id === L.id;
+    const have = lic.has(L.id), th = !!lic.state.theory[L.id], f = lic.fees(L), fee = f.theory + f.practical, mine = licTest && licTest.id === L.id;
     const sub = have ? `✓ passed ${lic.state.have[L.id]} · ${L.covers}` : mine ? (licTest.phase === 'goto' ? `Your test is waiting: get into ${L.vehicle}` : 'Your test is going on') :
-      `${L.covers} · ${th ? 'theory passed, practical test' : L.theoryOnly ? 'five questions' : 'theory (five questions) and a practical test in ' + L.vehicle} · ${fee ? KR(fee) : 'free'}${lic.missing(L.id).length ? ` · needs ${lic.missing(L.id).map(r => GL.byId[r].tag).join(' and ')} first` : ''}`;
+      `${L.covers} · ${th ? 'theory passed, practical test' : L.theoryOnly ? 'five questions' : 'theory (five questions) and a practical test in ' + L.vehicle} · ${fee ? KR(fee) + (L.fee.theory && !th && !f.theory ? ' (the theory retry is free)' : '') : lic.state.fails[L.id] ? 'free retry' : 'free'}${lic.missing(L.id).length ? ` · needs ${lic.missing(L.id).map(r => GL.byId[r].tag).join(' and ')} first` : ''}`;
     return {label: `${have ? '✓' : L.icon} ${L.name}`, sub, done: have, act: () => licBegin(L.id)};
   }
   function openLicPlace(k) {
@@ -625,7 +625,7 @@
   }
   function licPhoneItems() {
     const items = [];
-    if (licTest) items.push({text: `⏹ Stop the ${licTest.L.short} test`, sub: licTest.phase === 'goto' ? 'The practical fee is paid back' : 'The fee is not paid back', act: () => licEnd('cancel')});
+    if (licTest) items.push({text: `⏹ Stop the ${licTest.L.short} test`, sub: licTest.phase === 'goto' && licTest.paid ? 'The practical fee is paid back' : licTest.paid ? 'The fee is not paid back' : 'This try was free', act: () => licEnd('cancel')});
     for (const L of GL.LICENCES) {
       const have = lic.has(L.id), P = GL.PLACES[L.place];
       items.push({text: `${have ? '✓' : L.icon} ${L.name}`, sub: have ? `Passed ${lic.state.have[L.id]} · ${L.covers}` : L.place === 'online' ? `${L.covers} · take the free online test now` : `${L.covers} · at ${P.name}: set the waypoint`, off: have,
@@ -646,16 +646,17 @@
     if (jobs.shift) {notice('Stop your job first (phone: D-pad → / P).', 3);return;}
     const v = L.theoryOnly ? null : licVehicle(id);if (!L.theoryOnly && !v) {notice('The test vehicle is not in this world.', 3);return;}
     if (v && licInUse(v)) {notice(`${cap(L.vehicle)} is in use – try again in a moment.`, 4);return;}
-    const theory = !!lic.state.theory[id], cost = (theory ? 0 : L.fee.theory) + (L.theoryOnly ? 0 : L.fee.practical);
+    // A part you failed before is free to take again.
+    const theory = !!lic.state.theory[id], fee = lic.fees(L), cost = fee.theory + fee.practical;
     if (wallet.money < cost) {notice(`Not enough money: ${theory ? 'the practical test costs' : 'the test costs'} ${KR(cost)}, you have ${KR(wallet.money)}.`, 4);return;}
     if (theory) {licPractical(L);return;}
-    if (L.fee.theory) {wallet.pay(L.fee.theory);audio.sfx('register');walletT = 5;}
+    if (fee.theory) {wallet.pay(fee.theory);audio.sfx('register');walletT = 5;}
     lic.menu.quiz(L, answers => {
       if (!answers) {notice('You left the theory test.', 3);return;}
       const sc = GL.score(L.quiz, answers);
       if (sc.wrong > L.maxWrong) {
-        lic.failed(id);audio.sfx('locked');
-        notice(`Theory not passed: ${sc.right} of ${L.quiz.length} right (at most ${L.maxWrong} wrong). The right answers were: ${L.quiz.filter((q, i) => answers[i] !== q.ok).map(q => `“${q.a[q.ok]}”`).join(', ')}. Read up and try again.`, 10);return;
+        lic.failed(id, 'theory');audio.sfx('locked');
+        notice(`Theory not passed: ${sc.right} of ${L.quiz.length} right (at most ${L.maxWrong} wrong). The right answers were: ${L.quiz.filter((q, i) => answers[i] !== q.ok).map(q => `“${q.a[q.ok]}”`).join(', ')}. Read up and try again${L.fee.theory ? ' – the next try is free' : ''}.`, 10);return;
       }
       lic.passTheory(id);
       if (L.theoryOnly) {lic.grant(id);audio.sfx('cheer');notice(`${L.icon} Passed: ${sc.right} of ${L.quiz.length} right. You have the drone certificate A1/A3 now – you may fly the FPV drone (hold △).`, 7);return;}
@@ -664,8 +665,8 @@
   }
   function licPractical(L) {
     const v = licVehicle(L.id);if (licInUse(v)) {notice(`${cap(L.vehicle)} is in use – try again in a moment.`, 4);return;}
-    if (!wallet.pay(L.fee.practical)) {notice(`Not enough money for the practical test (${KR(L.fee.practical)}).`, 4);return;}
-    audio.sfx('register');walletT = 5;
+    const paid = lic.fees(L).practical;
+    if (paid) {if (!wallet.pay(paid)) {notice(`Not enough money for the practical test (${KR(paid)}).`, 4);return;}audio.sfx('register');walletT = 5;}
     const course = GL.COURSES[L.course];
     // The test vehicle (and the crane's loads) go back to their places first if someone left them elsewhere.
     if (player.vehicle !== v) {
@@ -673,7 +674,7 @@
       else if (Math.hypot(v.x - v.spawn[0], v.z - v.spawn[2]) > 4) {v.netSet(v.spawn);v.speed = 0;}
     }
     if (course.crane && site) for (const l of site.loads) if (!l.hooked && l.home) l.p.copy(l.home);
-    licTest = {id: L.id, L, v, course, gates: GL.resolve(course, {toWorld, groundAt, origin: licOrigin(course)}), phase: 'goto', run: null, prevLoad: null};
+    licTest = {id: L.id, L, v, course, gates: GL.resolve(course, {toWorld, groundAt, origin: licOrigin(course)}), phase: 'goto', run: null, prevLoad: null, paid};
     lic.rings.show(licTest.gates, 0);
     if (player.mode === 'vehicle' && player.vehicle === v) licDrive();
     else {wpTo(v);notice(`Get into ${L.vehicle} – the waypoint shows it. The test starts when you sit in it${course.timeS ? `; it takes at most ${GL.mmss(course.timeS)}` : ''}.`, 7);}
@@ -683,9 +684,9 @@
     notice(`${t.L.icon} ${t.L.short} test: ${t.gates[0].say || 'through the rings in order'}${t.course.limit ? ` · keep to ${t.course.limit} km/h` : ''}`, 7);
   }
   function licFail(text) {
-    const t = licTest;lic.failed(t.id);lic.rings.hide();lic.hud('');audio.sfx('whistle');
+    const t = licTest;lic.failed(t.id, 'practical');lic.rings.hide();lic.hud('');audio.sfx('whistle');
     const seat = player.mode === 'vehicle' && player.vehicle === t.v;lic.last = {id: t.id, passed: false, text, why: t.run ? t.run.why : null, at: world.toLocal(t.v.x, t.v.z), t: t.run ? t.run.t : 0};
-    notice(`${t.L.icon} Not passed: ${text}${seat ? (t.v.aircraft ? ' Land, and the examiner takes the aircraft back.' : ' The examiner stops the vehicle and takes over.') : ''} Try again at ${GL.PLACES[t.L.place].name} (${KR(t.L.fee.practical)}).`, 10);
+    notice(`${t.L.icon} Not passed: ${text}${seat ? (t.v.aircraft ? ' Land, and the examiner takes the aircraft back.' : ' The examiner stops the vehicle and takes over.') : ''} Try again at ${GL.PLACES[t.L.place].name} – the next try is free.`, 10);
     // Still in the seat: the examiner takes over (a car or machine is stopped; an aircraft you land first).
     if (player.mode === 'vehicle' && player.vehicle === t.v && GL.need(t.v) && !lic.has(GL.need(t.v))) t.phase = 'failed';else licTest = null;
   }
@@ -693,8 +694,8 @@
     const t = licTest;if (!t) return;
     if (t.phase === 'drive') {t.run.fail(why);licFail(GL.failText(t.run));return;}
     licTest = null;lic.rings.hide();lic.hud('');
-    if (t.phase === 'goto') {wallet.earn(t.L.fee.practical);walletT = 5;}
-    notice(why === 'taken' ? `Someone took ${t.L.vehicle} – the practical fee (${KR(t.L.fee.practical)}) is paid back. Try again later.` : t.phase === 'goto' ? `You stopped the test – ${KR(t.L.fee.practical)} paid back.` : 'You stopped the test.', 5);
+    const back = t.phase === 'goto' ? t.paid : 0;if (back) {wallet.earn(back);walletT = 5;}
+    notice(why === 'taken' ? `Someone took ${t.L.vehicle}${back ? ` – the practical fee (${KR(back)}) is paid back` : ''}. Try again later.` : back ? `You stopped the test – ${KR(back)} paid back.` : 'You stopped the test.', 5);
   }
   // Every frame, after the vehicles have moved.
   function licTick(dt) {
@@ -2181,7 +2182,7 @@
     }
     badges.check();
   }
-  window.haarklousGame = {player, vehicles, cc, get liftMenu() {return liftMenu;}, site, paintball, catacomb, groundAt, heli, plane, drone, watch, fire, stash, shops, gym, startClimb, openGymMenu, startBelay, get belay() {return belay;}, sculpture, oksen, weather, caravan, get skyd() {return skyd;}, get autoPlane() {return autoPlane;}, get jumpFlight() {return jumpFlight;}, boardAuto, boardCaravan, jump, get gp() {return gp;}, callGamePilot, handOver, CARAVAN_HOLD, applyWeather, wallet, get basket() {return basket;}, payAt, takeProduct, useItem, earn, openBag, takeBoost, get boost() {return boost;}, set boost(b) {boost = b;}, get mp() {return mp;}, sitDown, standUp, tryDrive, tryRide, openChat, startDrone, stopDrone, floorBelow, doors, mini, music, photo, map, world, apt, towers, walkWorld, route, landmarks, districts: DISTRICTS, get caseGame() {return caseGame;}, place, toggleDoor, enterVehicle, exitVehicle, startMinigame, startMission, drink, interact, findPrompt, renderFrame, begin, get fps() {return fpsAvg;}, kick: () => requestAnimationFrame(frame), get drunk() {return drunk;}, set drunk(v) {drunk = v;}, setStance, camera, scene};
+  window.haarklousGame = {player, vehicles, cc, get liftMenu() {return liftMenu;}, site, paintball, catacomb, groundAt, heli, plane, drone, watch, fire, stash, shops, gym, startClimb, openGymMenu, startBelay, get belay() {return belay;}, sculpture, oksen, weather, caravan, get skyd() {return skyd;}, get autoPlane() {return autoPlane;}, get jumpFlight() {return jumpFlight;}, boardAuto, boardCaravan, jump, get gp() {return gp;}, callGamePilot, handOver, CARAVAN_HOLD, applyWeather, wallet, get basket() {return basket;}, payAt, takeProduct, useItem, earn, openBag, takeBoost, get boost() {return boost;}, set boost(b) {boost = b;}, get mp() {return mp;}, sitDown, standUp, tryDrive, tryRide, openChat, startDrone, stopDrone, floorBelow, doors, mini, music, photo, map, world, apt, towers, walkWorld, route, landmarks, districts: DISTRICTS, get caseGame() {return caseGame;}, place, toggleDoor, enterVehicle, exitVehicle, startMinigame, startMission, drink, interact, findPrompt, renderFrame, begin, get fps() {return fpsAvg;}, kick: () => requestAnimationFrame(frame), get drunk() {return drunk;}, set drunk(v) {drunk = v;}, lic, licBegin, licEnd, get licTest() {return licTest;}, setStance, camera, scene};
   Object.assign(window.haarklousGame, {library, pingpong, rathkes, kayak, startKayak, hushedFor: () => hushed});
   Object.assign(window.haarklousGame, {badges, huntSpots, huntPhoto, sightBlocked, SKY_TARGET, progress, account});
   Object.assign(window.haarklousGame, {rides, get rentals() {return rentals;}, jobs, openPhone, rentDrive, JOB_SIGNS});
