@@ -64,14 +64,14 @@ Live site: runs `main` (Worker version 6c660a48, deployed 5 Nov 2026 after PR #9
 - **How:** each ground texel says what it is in the ground painting's alpha (1 other ground, .85 pavement, .7 kerb, .55 road). The terrain shader reads it and picks asphalt, slabs or kerb stone; elsewhere it works as before.
 - **Where:** `surroundings.js` (`paintStreets`, `streetClasses`, `overlayStreets`, `restore` and `fillShadows` keep the alpha, footpaths painted before pavements), `city-textures.js` (the ground shader), `docs/HANDOFF.md`.
 - **Checked:** `node --test tests/*.cjs` pass. Screenshots before and after (headless Chrome, same camera spots) at home, on a bigger street and in Grünerløkka, photo on and off. Draw calls and triangles are unchanged; start-up about 0.5 s slower on the busy shared PC (27.2–27.7 s before, 27.8–27.9 s after). In the districts the edges are softer than at home (their ground textures are about 0.5 m per pixel).
-- **Status:** branch `fix/heli-vanish-and-streets`, merged and deployed at the user's request.
+- **Status:** branch `fix/heli-vanish-and-streets`, [PR #100](https://github.com/jonatsl/haarklous-online/pull/100), merged and deployed at the user's request.
 
 ### 2026-11-05 · Mission: the street door always opens (issue #99)
 - **What:** in the hostage-rescue mission the street door of 17A sometimes would not open ("Someone is standing in the door's path"). It opens now.
 - **Why:** the user (5 Nov 2026): "sometimes the building door at harklous plass wont open when doing the gun mission". The check for someone in the door's way looked only at the floor plan, not the height: a hostile on a landing upstairs, right above where the street door swings, blocked it. That happened in 18 of 300 mission layouts (6 %). Now only someone at the door's own height blocks it.
 - **Where:** `game-main.js` (`toggleDoor`), `docs/HANDOFF.md`.
 - **Checked:** in the browser, missions until a hostile stood above the door: the old build kept the door shut (hostile 8.5 m above it), the new build opened it (hostile 2.8 m above it).
-- **Status:** branch `fix/heli-vanish-and-streets`, merged and deployed at the user's request.
+- **Status:** branch `fix/heli-vanish-and-streets`, [PR #100](https://github.com/jonatsl/haarklous-online/pull/100), merged and deployed at the user's request.
 
 ### 2026-11-05 · Helicopter: stays where you park it, and crashes less easily (issue #97)
 - **What:**
@@ -81,7 +81,7 @@ Live site: runs `main` (Worker version 6c660a48, deployed 5 Nov 2026 after PR #9
 - **Why:** the user (5 Nov 2026): "i parked the helicopter, turned around and then it was gone", "increase tolerance for landing the helicopter. right now it crashes too much" and "in general it crashes too easy when close to buildings. give it a little tolerance". Issue #97. The cause of the disappearing: once you got out, the parked helicopter became an obstacle for every vehicle, itself included. While its rotor spun down, it hit its own outline, counted that as a crash, and was put back on its pad 3 s later.
 - **Where:** `game-aircraft.js` (outlines carry `owner`, the rotor and body checks skip their own, landing limits, `rotorR`, `rotorSlow`, `crashSpeed`), `walk-collision.js` (`hitsSolid(…, owner)`), `tests/flight.test.cjs`, `docs/HANDOFF.md`.
 - **Checked:** `node --test tests/*.cjs` pass (new: the parked helicopter fails on the old code, landings, rotor scrape). In the browser: get in, get out, wait 10 s – the old build "crashed" 4 times and was broken, the new build 0 times and stayed put.
-- **Status:** branch `fix/heli-vanish-and-streets`, merged and deployed at the user's request.
+- **Status:** branch `fix/heli-vanish-and-streets`, [PR #100](https://github.com/jonatsl/haarklous-online/pull/100), merged and deployed at the user's request.
 
 ### 2026-11-05 · Licence tests: a retry after a fail is free
 - **What:** if you fail a licence test, taking that part again costs nothing.
