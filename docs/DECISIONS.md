@@ -49,7 +49,7 @@ On `main`:
 - Licences for every vehicle, each won by a test with a theory part and a practical part (rings, the speed limit, no crash, park or land): førerkort B and A at Soria Moria Trafikkskole on Vogts gate (a school car and motorcycle, a test route on the real streets), class C, the machine certificate and the crane certificate at the site office, PPL(A) and PPL(H) at the airstrip, the drone certificate A1/A3 on the phone (free); bikes, e-scooters, the kayak and riding along need none; saved with your progress (issue #59).
 - Ground with real detail up close (grass, asphalt, paving slabs, gravel, pavements and kerbs) with or without the aerial photo, and buildings that look like their part of town – Torshov brick and Harald Hals' plastered blocks, Grünerløkka's tenements with shop fronts, buff brick, wooden houses, new blocks – chosen from OpenStreetMap and Street View notes (issues #67 and #68, PR #81, not merged yet).
 
-Live site: runs `main` (Worker version a893f1fd, deployed 4 Nov 2026 after PR #86; `main` builds byte-for-byte to the live page), so everything above is online. Account emails (issue #55) wait for the user's Brevo key.
+Live site: runs `main` (Worker version a939a663, deployed 5 Nov 2026 after PR #89; `main` builds byte-for-byte to the live page), so everything above is online. Account emails (issue #55) wait for the user's Brevo key.
 
 ## Log
 
@@ -59,7 +59,7 @@ Live site: runs `main` (Worker version a893f1fd, deployed 4 Nov 2026 after PR #8
   - Delivery jobs still assume about 3.2 m/s on average, so they can be made in time by running or riding.
 - **Where:** `game-main.js` (`WALK_SPEED`, `RUN_SPEED`), `docs/HANDOFF.md`, `docs/UE5-PARITY.md` (the web version now differs from the Unreal version's 3.5 m/s).
 - **Checked:** `node --test tests/*.cjs` 193 pass. In the browser (headless Chrome, the built file), holding W measured 2.52 m/s and holding W + left Shift 6.01 m/s (against the game's own frame time).
-- **Status:** branch `feat/walk-run-speeds`, [PR #89](https://github.com/jonatsl/haarklous-online/pull/89), merged and deployed at the user's request ("Implement merge and deploy issue 88").
+- **Status:** on `main` ([PR #89](https://github.com/jonatsl/haarklous-online/pull/89), merged 5 Nov 2026 at the user's request: "Implement merge and deploy issue 88") and live (Cloudflare Worker version a939a663, deployed from the merge commit 62ae1eb; the live page is byte-for-byte that build).
 
 ### 2026-11-04 · Construction City with its inside and garage, and the area from Torshov to it (issue #85)
 - **What:**
