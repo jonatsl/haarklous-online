@@ -4,14 +4,22 @@
  * the others ride along. Twelve jumper places; in a lobby your place is your player number.
  *
  * Freefall: gravity against air drag, terminal velocity about 54 m/s belly-to-earth relative to the (real) wind.
- *   W tracks forward (about 19 m/s across the air, falling a little slower), S back-slides, A/D turn. ✕ pulls.
+ *   W leans forward and tracks (about 25 m/s across the air, falling a little slower), S leans back and back-slides
+ *   (about 7 m/s backwards), A/D turn. The body and the view lean with it. ✕ pulls.
+ *   Tricks (issue #102): a front loop, a back loop and a barrel roll, about 1.5 s each, one at a time.
  *   An automatic activation device opens the reserve at 300 m if you are still falling faster than 35 m/s.
  * Canopy (a 170 sq ft sport canopy): opens over 3 s; then about 10 m/s forward and 5 m/s down. A/D pull a toggle (turn,
- *   and you sink faster in a turn), W the front risers (faster and steeper), S flares (much slower for about 3 s, then it
- *   stalls). Landing: under 3.5 m/s down is a soft landing, under 6 m/s a hard one, more is a crash (you get up again).
+ *   and you sink faster in a turn). W pulls both front risers: the canopy pitches nose down and dives (about 15 m/s
+ *   forward and 12 m/s down); one front riser (riser -1 left, +1 right) dives into a turn. Let go and the canopy swings
+ *   back over a couple of seconds; the extra speed makes a flare stronger (a swoop). S flares (much slower for about 3 s,
+ *   then it stalls). Landing: under 3.5 m/s down is a soft landing, under 6 m/s a hard one, more is a crash (you get up).
  *
  * GameSkydive.Jumper({x, y, z, vx, vy, vz, yaw}) -> {state 'freefall'|'opening'|'canopy'|'landed', pos, vel, yaw, ...,
- *   update(dt, {fwd, turn, pull}, {ground(x, z), wind: {x, z}, blocked(x, y, z)}) -> event | null, agl}
+ *   update(dt, {fwd, turn, pull, riser}, {ground(x, z), wind: {x, z}, blocked(x, y, z)}) -> event | null, agl,
+ *   startTrick('front' | 'back' | 'roll', side) -> bool, trick {kind, t, side} | null, tricks (count),
+ *   pose {pitch, roll} (radians, for the body and the view: + pitch = head / nose down, + roll = to the right), dive 0..1}
+ *   events: 'pull', 'reserve', 'open', 'trick' (lastTrick = its kind), 'land'
+ * GameSkydive.TRICKS {front, back, roll: {name, dur}}
  * GameSkydive.flight(t, plan) -> {phase, x, y, z, yaw, pitch, roll, speed, green, door, visible}   (pure; t = seconds in
  *   the cycle; plan from GameSkydive.plan({start: {x, z}, yaw, groundY, gearH}))
  * GameSkydive.canopy(T, color) -> Group (a ram-air canopy with lines; origin at the jumper's harness)
@@ -25,13 +33,22 @@
 })(typeof window === 'undefined' ? globalThis : window, function () {
   'use strict';
   const G = 9.81, VT = 54, VT_TRACK = 46, AAD_ALT = 300, PULL_HINT = 1000, OPEN_S = 3;
-  const CANOPY = {fwd: 10, sink: 5, turn: 1.3, riserFwd: 12.5, riserSink: 7.5, flareS: 3};
+  const CANOPY = {fwd: 10, sink: 5, turn: 1.3, riserFwd: 15, riserSink: 12, riserTurn: 1.1, flareS: 3};
+  const TRACK = 30, BACKSLIDE = 8;// the push across the air, m/s (about 25 and 7 m/s against the drag)
+  const TRICKS = {front: {name: 'Front loop', dur: 1.5}, back: {name: 'Back loop', dur: 1.5}, roll: {name: 'Barrel roll', dur: 1.2}};
+  const ease = x => x < .5 ? 2 * x * x : 1 - 2 * (1 - x) * (1 - x);
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
   class Jumper {
     constructor({x = 0, y = 0, z = 0, vx = 0, vy = 0, vz = 0, yaw = 0} = {}) {
       this.state = 'freefall';this.pos = {x, y, z};this.vel = {x: vx, y: vy, z: vz};this.yaw = yaw;this.t = 0;this.openT = 0;
       this.flareE = 1;this.reserve = false;this.landing = null;this.agl = 0;this.air = {fwd: 0, sink: 0};
+      this.trick = null;this.tricks = 0;this.lastTrick = null;this.lean = 0;this.bank = 0;this.dive = 0;this.pose = {pitch: 0, roll: 0};
+    }
+    // A trick in freefall: one at a time. side: +1 / -1 for the barrel roll (to the right / left).
+    startTrick(kind, side = 1) {
+      if (this.state !== 'freefall' || this.trick || !TRICKS[kind]) return false;
+      this.trick = {kind, t: 0, side: side < 0 ? -1 : 1};return true;
     }
     // inp: fwd -1..1 (W / stick up = +1), turn -1..1 (A = -1, D = +1), pull (bool); env: ground(x, z), wind {x, z}, blocked(x, y, z)
     update(dt, inp = {}, env = {}) {
@@ -41,13 +58,24 @@
       const ground = env.ground ? env.ground(p.x, p.z) : 0;this.agl = p.y - ground;
       if (this.state === 'freefall') {
         this.yaw -= turn * 1.6 * dt;
+        // The body leans the way you push (forward: head low to track; back: legs low to back-slide) and banks in a turn.
+        this.lean += (fwd * (fwd > 0 ? .45 : .3) - this.lean) * Math.min(1, dt * 3);this.bank += (turn * .3 - this.bank) * Math.min(1, dt * 3);
+        let tp = 0, tr = 0;
+        if (this.trick) {
+          const T = this.trick, d = TRICKS[T.kind];T.t += dt;const a = ease(Math.min(1, T.t / d.dur)) * Math.PI * 2;
+          if (T.kind === 'front') tp = a;else if (T.kind === 'back') tp = -a;else tr = a * T.side;
+          if (T.t >= d.dur) {this.trick = null;this.tricks++;this.lastTrick = T.kind;event = 'trick';tp = tr = 0;}
+        }
+        this.pose = {pitch: this.lean + tp, roll: this.bank + tr};
         // Air drag on the speed through the air: a = -g/VT² |v_rel| v_rel (tracking: less drag down, a push forward).
         const rx = v.x - wind.x, ry = v.y, rz = v.z - wind.z, sp = Math.hypot(rx, ry, rz), vt = fwd > 0 ? VT + (VT_TRACK - VT) * fwd : VT, k = G / (vt * vt);
         v.x -= k * sp * rx * dt;v.y += (-G - k * sp * ry) * dt;v.z -= k * sp * rz * dt;
-        const want = fwd > 0 ? 22 * fwd : fwd * 5, along = rx * f.x + rz * f.z;// tracking / back-slide across the air (about 19 m/s against drag)
+        // Tracking / back-slide across the air (no push while you tumble through a trick).
+        const want = this.trick ? 0 : fwd > 0 ? TRACK * fwd : fwd * BACKSLIDE, along = rx * f.x + rz * f.z;
         v.x += f.x * (want - along) * 1.5 * dt;v.z += f.z * (want - along) * 1.5 * dt;
-        if (inp.pull) {this.state = 'opening';this.openT = 0;event = 'pull';}
-        else if (this.agl < AAD_ALT && -v.y > 35) {this.state = 'opening';this.openT = 0;this.reserve = true;event = 'reserve';}
+        if (inp.pull) {this.state = 'opening';this.openT = 0;this.trick = null;event = 'pull';}
+        else if (this.agl < AAD_ALT && -v.y > 35) {this.state = 'opening';this.openT = 0;this.reserve = true;this.trick = null;event = 'reserve';}
+        if (this.state === 'opening') this.lean = this.bank = 0, this.pose = {pitch: 0, roll: 0};
       } else if (this.state === 'opening') {
         // The canopy snivels open: the speed through the air falls to canopy flight over about 3 s.
         this.openT += dt;const k = Math.min(1, dt * 1.8);
@@ -55,14 +83,20 @@
         v.x += (tx - v.x) * k;v.z += (tz - v.z) * k;v.y += (-CANOPY.sink - v.y) * k;
         if (this.openT >= OPEN_S) {this.state = 'canopy';this.air = {fwd: CANOPY.fwd, sink: CANOPY.sink};event = 'open';}
       } else if (this.state === 'canopy') {
-        // Toggles turn (and steepen), front risers speed up, a flare trades speed for lift until it runs out.
-        const flare = fwd < 0 && this.flareE > 0 ? -fwd : 0, riser = Math.max(0, fwd), tAbs = Math.abs(turn);
+        // Toggles turn (and steepen); the front risers pitch the canopy nose down into a dive (one riser: a diving turn);
+        // a flare trades speed for lift until it runs out, and the speed left from a dive makes it stronger.
+        const one = clamp(inp.riser || 0, -1, 1), flare = fwd < 0 && this.flareE > 0 ? -fwd : 0, tAbs = Math.abs(turn);
+        const riser = Math.max(Math.max(0, fwd), Math.abs(one) * .8);
+        this.dive += (riser - this.dive) * Math.min(1, dt / (riser > this.dive ? 1.2 : 2));// nose down in about a second, back up slower
         this.flareE = flare > 0 ? Math.max(0, this.flareE - dt / CANOPY.flareS * flare) : Math.min(1, this.flareE + dt / 6);
-        const stalled = fwd < -.2 && this.flareE <= 0;
-        let F = CANOPY.fwd + (CANOPY.riserFwd - CANOPY.fwd) * riser, S = CANOPY.sink + (CANOPY.riserSink - CANOPY.sink) * riser;
-        F *= 1 - .65 * flare - .25 * tAbs;S = S * (1 - .75 * flare) + 2.5 * tAbs;if (stalled) {F = 2;S = 8;}
-        this.yaw -= turn * CANOPY.turn * dt;
-        const k = Math.min(1, dt / .8);this.air.fwd += (F - this.air.fwd) * k;this.air.sink += (S - this.air.sink) * Math.min(1, dt / (flare ? .35 : .8));
+        const stalled = fwd < -.2 && this.flareE <= 0, surplus = Math.max(0, this.air.fwd - CANOPY.fwd);
+        let F = CANOPY.fwd + (CANOPY.riserFwd - CANOPY.fwd) * this.dive, S = CANOPY.sink + (CANOPY.riserSink - CANOPY.sink) * this.dive;
+        F *= 1 - .65 * flare - .25 * tAbs;S = Math.max(.3, S * (1 - .75 * flare) + 2.5 * tAbs - surplus * 1.2 * flare);if (stalled) {F = 2;S = 8;}
+        this.yaw -= (turn * CANOPY.turn + one * CANOPY.riserTurn) * dt;
+        const k = Math.min(1, dt / (F < this.air.fwd && !flare ? 2.2 : .8));this.air.fwd += (F - this.air.fwd) * k;
+        this.air.sink += (S - this.air.sink) * Math.min(1, dt / (flare ? .35 : S < this.air.sink ? 1.6 : .8));
+        this.bank += (turn * .35 + one * .45 - this.bank) * Math.min(1, dt * 2.5);
+        this.pose = {pitch: this.dive * .55 - flare * .25, roll: this.bank};
         v.x = wind.x + f.x * this.air.fwd;v.z = wind.z + f.z * this.air.fwd;v.y = -this.air.sink;
       }
       const nx = p.x + v.x * dt, nz = p.z + v.z * dt, ny = p.y + v.y * dt;
@@ -180,5 +214,5 @@
     g.add(new T.LineSegments(lg, new T.LineBasicMaterial({color: 0xd8d8d8, transparent: true, opacity: .7})));g.userData.rib = rib;
     return g;
   }
-  return {Jumper, plan, flight, canopy, pilotGround, pilotOrbit, pilotFlight, clearToRoll, CYCLE, JUMP_AGL, AAD_ALT, PULL_HINT, VT, CANOPY, phases: {BOARD_FROM, ROLL, CLIMBOUT, SPIRAL, RUN, AWAY}};
+  return {Jumper, TRICKS, plan, flight, canopy, pilotGround, pilotOrbit, pilotFlight, clearToRoll, CYCLE, JUMP_AGL, AAD_ALT, PULL_HINT, VT, CANOPY, phases: {BOARD_FROM, ROLL, CLIMBOUT, SPIRAL, RUN, AWAY}};
 });

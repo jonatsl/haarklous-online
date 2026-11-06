@@ -395,7 +395,7 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
           <dt>Paintball</dt><dd>Walk into the lobby outside the course gate (the first one there is the admin) · ↑↓ team · admin: ←→ game, △ paint / reball, hold ✕ start · in a game: R2 / left mouse fire, L2 / right mouse aim, □ / R reload, hold △ leave</dd>
           <dt>Helicopter</dt><dd>Mode 2: left stick ↑↓ collective (centre = hover; tilting takes lift, so add collective to keep your height), ←→ pedals · right stick pitch and roll · R3 / V chase camera · □ get out after landing · Keyboard + mouse (Battlefield): W/S collective, A/D pedals, mouse pitch and roll (mouse up = nose down), hold Shift or the right mouse button to look around</dd>
           <dt>Plane</dt><dd>Mode 2: left stick ↑↓ throttle (stays where you leave it), ←→ rudder and nose wheel · right stick pitch and roll (pull back to lift off at about 95 km/h) · L2 brakes · R3 / V view · Keyboard + mouse: W/S throttle, A/D rudder, mouse pitch and roll, hold Shift to look around</dd>
-          <dt>Skydiving</dt><dd>Jump flight from the airstrip every 8 minutes, or the Caravan (fly it yourself, or board and press △ / F for the game's pilot): □ at the plane to board or get off · ✕ / Space jumps (in the Caravan's cockpit: the game's pilot takes over) · freefall: left stick ↑ / W track forward, ↓ / S back-slide, ←→ / A D turn, ✕ / Space pull at about 1000 m · canopy: ←→ / A D steer, ↑ / W front risers, ↓ / S flare just before landing · R3 / V outside view</dd>
+          <dt>Skydiving</dt><dd>Jump flight from the airstrip every 8 minutes, or the Caravan (fly it yourself, or board and press △ / F for the game's pilot): □ at the plane to board or get off · ✕ / Space jumps (in the Caravan's cockpit: the game's pilot takes over) · freefall: left stick ↑ / W lean forward and track, ↓ / S lean back and back-slide, ←→ / A D turn, tricks □ / E front loop, ○ / C back loop, △ / F barrel roll, ✕ / Space pull at about 1000 m · canopy: ←→ / A D steer, ↑ / W both front risers (dive), L1 / Q or R1 / E one front riser (diving turn), ↓ / S flare just before landing (stronger after a dive) · R3 / V outside view</dd>
           <dt>FPV drone</dt><dd>Hold △, pick the drone · left stick ↑↓ thrust, ←→ yaw · right stick tilt (angle) or rates (acro) – tilting costs height, so add thrust · L1 / Q angle ↔ acro · ✕ reset after a crash · ○ pack away · Keyboard + mouse: W/S thrust, A/D yaw, mouse tilt (up = nose down), hold Shift to look around</dd>
           <dt>Multiplayer</dt><dd>Up to twelve players per lobby (code above) · □ next to a vehicle someone is driving: ride along as passenger (motorcycle, cars, helicopter, plane) · Share / Enter: chat</dd>
           <dt>Firepit</dt><dd>In the park in front of the building: □ sit on a bench, R2 have a beer, □ at the woodpile throws a log on the fire</dd>
@@ -10050,14 +10050,22 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
  * the others ride along. Twelve jumper places; in a lobby your place is your player number.
  *
  * Freefall: gravity against air drag, terminal velocity about 54 m/s belly-to-earth relative to the (real) wind.
- *   W tracks forward (about 19 m/s across the air, falling a little slower), S back-slides, A/D turn. ✕ pulls.
+ *   W leans forward and tracks (about 25 m/s across the air, falling a little slower), S leans back and back-slides
+ *   (about 7 m/s backwards), A/D turn. The body and the view lean with it. ✕ pulls.
+ *   Tricks (issue #102): a front loop, a back loop and a barrel roll, about 1.5 s each, one at a time.
  *   An automatic activation device opens the reserve at 300 m if you are still falling faster than 35 m/s.
  * Canopy (a 170 sq ft sport canopy): opens over 3 s; then about 10 m/s forward and 5 m/s down. A/D pull a toggle (turn,
- *   and you sink faster in a turn), W the front risers (faster and steeper), S flares (much slower for about 3 s, then it
- *   stalls). Landing: under 3.5 m/s down is a soft landing, under 6 m/s a hard one, more is a crash (you get up again).
+ *   and you sink faster in a turn). W pulls both front risers: the canopy pitches nose down and dives (about 15 m/s
+ *   forward and 12 m/s down); one front riser (riser -1 left, +1 right) dives into a turn. Let go and the canopy swings
+ *   back over a couple of seconds; the extra speed makes a flare stronger (a swoop). S flares (much slower for about 3 s,
+ *   then it stalls). Landing: under 3.5 m/s down is a soft landing, under 6 m/s a hard one, more is a crash (you get up).
  *
  * GameSkydive.Jumper({x, y, z, vx, vy, vz, yaw}) -> {state 'freefall'|'opening'|'canopy'|'landed', pos, vel, yaw, ...,
- *   update(dt, {fwd, turn, pull}, {ground(x, z), wind: {x, z}, blocked(x, y, z)}) -> event | null, agl}
+ *   update(dt, {fwd, turn, pull, riser}, {ground(x, z), wind: {x, z}, blocked(x, y, z)}) -> event | null, agl,
+ *   startTrick('front' | 'back' | 'roll', side) -> bool, trick {kind, t, side} | null, tricks (count),
+ *   pose {pitch, roll} (radians, for the body and the view: + pitch = head / nose down, + roll = to the right), dive 0..1}
+ *   events: 'pull', 'reserve', 'open', 'trick' (lastTrick = its kind), 'land'
+ * GameSkydive.TRICKS {front, back, roll: {name, dur}}
  * GameSkydive.flight(t, plan) -> {phase, x, y, z, yaw, pitch, roll, speed, green, door, visible}   (pure; t = seconds in
  *   the cycle; plan from GameSkydive.plan({start: {x, z}, yaw, groundY, gearH}))
  * GameSkydive.canopy(T, color) -> Group (a ram-air canopy with lines; origin at the jumper's harness)
@@ -10071,13 +10079,22 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
 })(typeof window === 'undefined' ? globalThis : window, function () {
   'use strict';
   const G = 9.81, VT = 54, VT_TRACK = 46, AAD_ALT = 300, PULL_HINT = 1000, OPEN_S = 3;
-  const CANOPY = {fwd: 10, sink: 5, turn: 1.3, riserFwd: 12.5, riserSink: 7.5, flareS: 3};
+  const CANOPY = {fwd: 10, sink: 5, turn: 1.3, riserFwd: 15, riserSink: 12, riserTurn: 1.1, flareS: 3};
+  const TRACK = 30, BACKSLIDE = 8;// the push across the air, m/s (about 25 and 7 m/s against the drag)
+  const TRICKS = {front: {name: 'Front loop', dur: 1.5}, back: {name: 'Back loop', dur: 1.5}, roll: {name: 'Barrel roll', dur: 1.2}};
+  const ease = x => x < .5 ? 2 * x * x : 1 - 2 * (1 - x) * (1 - x);
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
   class Jumper {
     constructor({x = 0, y = 0, z = 0, vx = 0, vy = 0, vz = 0, yaw = 0} = {}) {
       this.state = 'freefall';this.pos = {x, y, z};this.vel = {x: vx, y: vy, z: vz};this.yaw = yaw;this.t = 0;this.openT = 0;
       this.flareE = 1;this.reserve = false;this.landing = null;this.agl = 0;this.air = {fwd: 0, sink: 0};
+      this.trick = null;this.tricks = 0;this.lastTrick = null;this.lean = 0;this.bank = 0;this.dive = 0;this.pose = {pitch: 0, roll: 0};
+    }
+    // A trick in freefall: one at a time. side: +1 / -1 for the barrel roll (to the right / left).
+    startTrick(kind, side = 1) {
+      if (this.state !== 'freefall' || this.trick || !TRICKS[kind]) return false;
+      this.trick = {kind, t: 0, side: side < 0 ? -1 : 1};return true;
     }
     // inp: fwd -1..1 (W / stick up = +1), turn -1..1 (A = -1, D = +1), pull (bool); env: ground(x, z), wind {x, z}, blocked(x, y, z)
     update(dt, inp = {}, env = {}) {
@@ -10087,13 +10104,24 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
       const ground = env.ground ? env.ground(p.x, p.z) : 0;this.agl = p.y - ground;
       if (this.state === 'freefall') {
         this.yaw -= turn * 1.6 * dt;
+        // The body leans the way you push (forward: head low to track; back: legs low to back-slide) and banks in a turn.
+        this.lean += (fwd * (fwd > 0 ? .45 : .3) - this.lean) * Math.min(1, dt * 3);this.bank += (turn * .3 - this.bank) * Math.min(1, dt * 3);
+        let tp = 0, tr = 0;
+        if (this.trick) {
+          const T = this.trick, d = TRICKS[T.kind];T.t += dt;const a = ease(Math.min(1, T.t / d.dur)) * Math.PI * 2;
+          if (T.kind === 'front') tp = a;else if (T.kind === 'back') tp = -a;else tr = a * T.side;
+          if (T.t >= d.dur) {this.trick = null;this.tricks++;this.lastTrick = T.kind;event = 'trick';tp = tr = 0;}
+        }
+        this.pose = {pitch: this.lean + tp, roll: this.bank + tr};
         // Air drag on the speed through the air: a = -g/VT² |v_rel| v_rel (tracking: less drag down, a push forward).
         const rx = v.x - wind.x, ry = v.y, rz = v.z - wind.z, sp = Math.hypot(rx, ry, rz), vt = fwd > 0 ? VT + (VT_TRACK - VT) * fwd : VT, k = G / (vt * vt);
         v.x -= k * sp * rx * dt;v.y += (-G - k * sp * ry) * dt;v.z -= k * sp * rz * dt;
-        const want = fwd > 0 ? 22 * fwd : fwd * 5, along = rx * f.x + rz * f.z;// tracking / back-slide across the air (about 19 m/s against drag)
+        // Tracking / back-slide across the air (no push while you tumble through a trick).
+        const want = this.trick ? 0 : fwd > 0 ? TRACK * fwd : fwd * BACKSLIDE, along = rx * f.x + rz * f.z;
         v.x += f.x * (want - along) * 1.5 * dt;v.z += f.z * (want - along) * 1.5 * dt;
-        if (inp.pull) {this.state = 'opening';this.openT = 0;event = 'pull';}
-        else if (this.agl < AAD_ALT && -v.y > 35) {this.state = 'opening';this.openT = 0;this.reserve = true;event = 'reserve';}
+        if (inp.pull) {this.state = 'opening';this.openT = 0;this.trick = null;event = 'pull';}
+        else if (this.agl < AAD_ALT && -v.y > 35) {this.state = 'opening';this.openT = 0;this.reserve = true;this.trick = null;event = 'reserve';}
+        if (this.state === 'opening') this.lean = this.bank = 0, this.pose = {pitch: 0, roll: 0};
       } else if (this.state === 'opening') {
         // The canopy snivels open: the speed through the air falls to canopy flight over about 3 s.
         this.openT += dt;const k = Math.min(1, dt * 1.8);
@@ -10101,14 +10129,20 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
         v.x += (tx - v.x) * k;v.z += (tz - v.z) * k;v.y += (-CANOPY.sink - v.y) * k;
         if (this.openT >= OPEN_S) {this.state = 'canopy';this.air = {fwd: CANOPY.fwd, sink: CANOPY.sink};event = 'open';}
       } else if (this.state === 'canopy') {
-        // Toggles turn (and steepen), front risers speed up, a flare trades speed for lift until it runs out.
-        const flare = fwd < 0 && this.flareE > 0 ? -fwd : 0, riser = Math.max(0, fwd), tAbs = Math.abs(turn);
+        // Toggles turn (and steepen); the front risers pitch the canopy nose down into a dive (one riser: a diving turn);
+        // a flare trades speed for lift until it runs out, and the speed left from a dive makes it stronger.
+        const one = clamp(inp.riser || 0, -1, 1), flare = fwd < 0 && this.flareE > 0 ? -fwd : 0, tAbs = Math.abs(turn);
+        const riser = Math.max(Math.max(0, fwd), Math.abs(one) * .8);
+        this.dive += (riser - this.dive) * Math.min(1, dt / (riser > this.dive ? 1.2 : 2));// nose down in about a second, back up slower
         this.flareE = flare > 0 ? Math.max(0, this.flareE - dt / CANOPY.flareS * flare) : Math.min(1, this.flareE + dt / 6);
-        const stalled = fwd < -.2 && this.flareE <= 0;
-        let F = CANOPY.fwd + (CANOPY.riserFwd - CANOPY.fwd) * riser, S = CANOPY.sink + (CANOPY.riserSink - CANOPY.sink) * riser;
-        F *= 1 - .65 * flare - .25 * tAbs;S = S * (1 - .75 * flare) + 2.5 * tAbs;if (stalled) {F = 2;S = 8;}
-        this.yaw -= turn * CANOPY.turn * dt;
-        const k = Math.min(1, dt / .8);this.air.fwd += (F - this.air.fwd) * k;this.air.sink += (S - this.air.sink) * Math.min(1, dt / (flare ? .35 : .8));
+        const stalled = fwd < -.2 && this.flareE <= 0, surplus = Math.max(0, this.air.fwd - CANOPY.fwd);
+        let F = CANOPY.fwd + (CANOPY.riserFwd - CANOPY.fwd) * this.dive, S = CANOPY.sink + (CANOPY.riserSink - CANOPY.sink) * this.dive;
+        F *= 1 - .65 * flare - .25 * tAbs;S = Math.max(.3, S * (1 - .75 * flare) + 2.5 * tAbs - surplus * 1.2 * flare);if (stalled) {F = 2;S = 8;}
+        this.yaw -= (turn * CANOPY.turn + one * CANOPY.riserTurn) * dt;
+        const k = Math.min(1, dt / (F < this.air.fwd && !flare ? 2.2 : .8));this.air.fwd += (F - this.air.fwd) * k;
+        this.air.sink += (S - this.air.sink) * Math.min(1, dt / (flare ? .35 : S < this.air.sink ? 1.6 : .8));
+        this.bank += (turn * .35 + one * .45 - this.bank) * Math.min(1, dt * 2.5);
+        this.pose = {pitch: this.dive * .55 - flare * .25, roll: this.bank};
         v.x = wind.x + f.x * this.air.fwd;v.z = wind.z + f.z * this.air.fwd;v.y = -this.air.sink;
       }
       const nx = p.x + v.x * dt, nz = p.z + v.z * dt, ny = p.y + v.y * dt;
@@ -10226,7 +10260,7 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
     g.add(new T.LineSegments(lg, new T.LineBasicMaterial({color: 0xd8d8d8, transparent: true, opacity: .7})));g.userData.rib = rib;
     return g;
   }
-  return {Jumper, plan, flight, canopy, pilotGround, pilotOrbit, pilotFlight, clearToRoll, CYCLE, JUMP_AGL, AAD_ALT, PULL_HINT, VT, CANOPY, phases: {BOARD_FROM, ROLL, CLIMBOUT, SPIRAL, RUN, AWAY}};
+  return {Jumper, TRICKS, plan, flight, canopy, pilotGround, pilotOrbit, pilotFlight, clearToRoll, CYCLE, JUMP_AGL, AAD_ALT, PULL_HINT, VT, CANOPY, phases: {BOARD_FROM, ROLL, CLIMBOUT, SPIRAL, RUN, AWAY}};
 });
 </script><script>/* Real weather (issue #23): MET Norway's forecast for Haarklous plass (Locationforecast 2.0 complete), fetched through the
  * game's own Cloudflare Worker (/weather adds the User-Agent MET asks for and caches the answer for everybody) when the game
@@ -19228,21 +19262,33 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     skyd.ride = null;skyd.beeps = {};player.mode = 'skydive';skyd.chase = false;skyd.chaseCam = null;audio.sfx('throw');
     if (!skyd.canopy) {const av = window.GameAvatars.create({T, lib});skyd.canopy = SKY.canopy(T, av.SLOT_COLORS[mySeat() % 12]);skyd.canopy.visible = false;scene.add(skyd.canopy);
       skyd.body = av.avatar(mySeat(), '');skyd.body.group.visible = false;scene.add(skyd.body.group);}// your own body, seen in the outside view
-    notice('Freefall! W tracks, A/D turn, S back-slides · ✕ / Space pulls at about 1000 m · R3 / V outside view', 6);
+    notice('Freefall! W / stick ↑ lean forward and track, S / ↓ lean back, A/D turn · tricks: □ / E front loop, ○ / C back loop, △ / F barrel roll · ✕ / Space pulls at about 1000 m · R3 / V outside view', 8);
   }
   function updateSkydive(dt, input, dl) {
     const J = skyd.jumper;
     if (input.pressed.has('r3') || input.pressed.has('view')) {skyd.chase = !skyd.chase;skyd.chaseCam = null;}
-    const inp = {fwd: Math.max(-1, Math.min(1, -input.move.y)), turn: Math.max(-1, Math.min(1, input.move.x)), pull: input.pressed.has('cross')};
+    // Under the canopy L1 / Q and R1 / E pull one front riser (a diving turn); in freefall □ ○ △ (E C F) are tricks.
+    const inp = {fwd: Math.max(-1, Math.min(1, -input.move.y)), turn: Math.max(-1, Math.min(1, input.move.x)), pull: input.pressed.has('cross'),
+      riser: (input.held.r1 || input.held.square ? 1 : 0) - (input.held.l1 ? 1 : 0)};
+    if (J.state === 'freefall') {
+      const kind = input.pressed.has('square') ? 'front' : input.pressed.has('circle') ? 'back' : input.pressed.has('triangle') ? 'roll' : null;
+      if (kind && J.startTrick(kind, inp.turn < -.2 ? -1 : 1)) audio.sfx('throw', {gain: .4});
+    }
     const ev = J.update(dt, inp, {ground: (x, z) => groundAt(x, z), wind: weatherWind, blocked: (x, y, z) => collision.hitsSolid(walkWorld, {x, z}, y + .2, y + 1.6)});
     const agl = J.agl;
     if (ev === 'pull') audio.sfx('throw');
     if (ev === 'reserve') notice('Your reserve opened automatically (300 m)!', 4);
-    if (ev === 'open') {audio.sfx('thud', {gain: .7});notice('Canopy open · A/D steer · W front risers · S flare just before you land', 5);}
+    if (ev === 'open') {audio.sfx('thud', {gain: .7});notice('Canopy open · A/D steer · W / stick ↑ both front risers: dive · L1 / Q, R1 / E one front riser: diving turn · S flare just before you land (a dive first makes the flare stronger)', 7);}
+    if (ev === 'trick') notice(`${SKY.TRICKS[J.lastTrick].name}!${J.tricks > 1 ? ` (${J.tricks} tricks this jump)` : ''}`, 1.8);
     for (const [h, txt] of [[1500, '1500 m'], [1000, 'PULL!']]) if (J.state === 'freefall' && agl < h && !skyd.beeps[h]) {skyd.beeps[h] = true;audio.sfx('locked');notice(txt, 1.5);}
     skyd.canopy.visible = J.state === 'opening' || J.state === 'canopy';
-    {const b = skyd.body.group;b.visible = skyd.chase;b.position.set(J.pos.x, J.pos.y, J.pos.z);b.rotation.set(0, J.yaw, 0);if (J.state === 'freefall') {b.rotateX(-Math.PI / 2);b.translateY(-.9);}skyd.body.pose({stance: 'stand', speed: 0, dt});}
-    if (skyd.canopy.visible) {const k = J.state === 'opening' ? Math.min(1, J.openT / 3) : 1;skyd.canopy.position.set(J.pos.x, J.pos.y + 1.2, J.pos.z);skyd.canopy.rotation.set(0, J.yaw, 0);skyd.canopy.scale.set(.3 + .7 * k, .3 + .7 * k, .3 + .7 * k);}
+    // The body leans and turns over with the pose (freefall: tracking, back-sliding and the tricks); the canopy pitches
+    // nose down on the front risers and banks in a turn, and you hang under it.
+    const pose = J.pose;
+    {const b = skyd.body.group;b.visible = skyd.chase;b.position.set(J.pos.x, J.pos.y, J.pos.z);b.rotation.set(0, J.yaw, 0);
+      if (J.state === 'freefall') {b.translateY(.3);b.rotateZ(-pose.roll);b.rotateX(-pose.pitch);b.rotateX(-Math.PI / 2);b.translateY(-.9);} else b.rotateZ(-pose.roll * .5);
+      skyd.body.pose({stance: 'stand', speed: 0, dt});}
+    if (skyd.canopy.visible) {const k = J.state === 'opening' ? Math.min(1, J.openT / 3) : 1, c = skyd.canopy;c.position.set(J.pos.x, J.pos.y + 1.2, J.pos.z);c.rotation.order = 'YXZ';c.rotation.set(-pose.pitch, J.yaw, -pose.roll);c.scale.set(.3 + .7 * k, .3 + .7 * k, .3 + .7 * k);}
     if (ev === 'land') {
       const off = Math.hypot(J.pos.x - SKY_TARGET.x, J.pos.z - SKY_TARGET.z), rec = badges.record('skydive', {landing: J.landing, dist: off});
       const msg = {soft: 'Nice soft landing!', hard: 'Hard landing – flare a little earlier next time (S just before the ground).', crash: 'Ouch! You hit the ground hard (no flare).'}[J.landing];
@@ -19254,24 +19300,27 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     // Camera: your eyes (looking ahead and down in freefall, ahead under the canopy), or behind you (R3 / V).
     player.lookYaw = Math.max(-2.4, Math.min(2.4, (player.lookYaw || 0) - input.mouse.dx * .0024 * sensitivity.mouse - input.look.x * 2 * sensitivity.pad * dt));
     player.lookPitch = Math.max(-1.4, Math.min(.8, (player.lookPitch || 0) - input.mouse.dy * .0024 * sensitivity.mouse - input.look.y * 1.5 * sensitivity.pad * dt));
-    const head = new T.Vector3(J.pos.x, J.pos.y + (J.state === 'freefall' ? .3 : 1.6), J.pos.z), base = J.state === 'freefall' ? -.7 : -.15;
+    const head = new T.Vector3(J.pos.x, J.pos.y + (J.state === 'freefall' ? .3 : 1.6), J.pos.z), base = (J.state === 'freefall' ? -.7 : -.15) - pose.pitch * (J.state === 'freefall' ? 1 : .7);
     if (skyd.chase) {
       const f = {x: -Math.sin(J.yaw), z: -Math.cos(J.yaw)}, want = new T.Vector3(J.pos.x - f.x * 9, J.pos.y + 4, J.pos.z - f.z * 9);
       const p = skyd.chaseCam ? skyd.chaseCam.lerp(want, .15) : want;skyd.chaseCam = p;camera.position.copy(p);camera.lookAt(J.pos.x, J.pos.y + 1, J.pos.z);
-    } else {camera.position.copy(head);camera.rotation.order = 'YXZ';camera.rotation.set(base + player.lookPitch, J.yaw + player.lookYaw, 0);}
+    } else {camera.position.copy(head);camera.rotation.order = 'YXZ';camera.rotation.set(base + player.lookPitch, J.yaw + player.lookYaw, -pose.roll * (J.state === 'freefall' ? 1 : .6));}
     if (camera.fov !== 75) {camera.fov = 75;camera.updateProjectionMatrix();}
     setClip(agl > 800 ? .4 : .12, Math.min(9000, Math.max(1600, agl * 2.5 + 1200)));
     player.x = J.pos.x;player.z = J.pos.z;player.feet = J.pos.y;player.yaw = J.yaw;
     const down = Math.max(0, -J.vel.y), sp = $('speedo');sp.hidden = false;sp.classList.add('air');
-    sp.textContent = J.state === 'freefall' ? `FREEFALL · ${Math.round(agl)} m · ${Math.round(down)} m/s down · ${agl > 1100 ? 'pull (✕) at about 1000 m' : '✕ / Space: PULL!'}`
-      : J.state === 'opening' ? `Opening… · ${Math.round(agl)} m` : `CANOPY · ${Math.round(agl)} m · ${down.toFixed(1)} m/s down · ${Math.hypot(J.vel.x, J.vel.z).toFixed(0)} m/s across · A/D steer · S flare`;
+    const w = weatherWind || {x: 0, z: 0}, f = {x: -Math.sin(J.yaw), z: -Math.cos(J.yaw)}, along = (J.vel.x - w.x) * f.x + (J.vel.z - w.z) * f.z;// your speed forward through the air
+    const ffWhat = J.trick ? SKY.TRICKS[J.trick.kind].name.toUpperCase() : along > 6 ? `TRACKING ${Math.round(along)} m/s forward` : along < -2 ? `BACK-SLIDE ${Math.round(-along)} m/s back` : 'FREEFALL';
+    sp.textContent = J.state === 'freefall' ? `${ffWhat} · ${Math.round(agl)} m · ${Math.round(down)} m/s down · ${agl > 1100 ? 'W/S lean · □ ○ △ tricks · pull (✕) at about 1000 m' : '✕ / Space: PULL!'}`
+      : J.state === 'opening' ? `Opening… · ${Math.round(agl)} m` : `${J.dive > .3 ? 'FRONT RISERS – DIVING' : 'CANOPY'} · ${Math.round(agl)} m · ${down.toFixed(1)} m/s down · ${Math.hypot(J.vel.x, J.vel.z).toFixed(0)} m/s across · A/D steer · W dive · S flare`;
   }
   // Other players skydiving: belly-down in freefall, upright under their canopy.
   const remoteCanopies = new Map();
   function skyPose(r, st, g) {
     let c = remoteCanopies.get(r.id);
-    if (st.sky === 'f') {g.rotateX(-Math.PI / 2);g.translateY(-.9);}
-    if (st.sky === 'c') {if (!c) {c = SKY.canopy(T, window.GameAvatars.create({T, lib}).SLOT_COLORS[(r.slot || 0) % 12]);remoteCanopies.set(r.id, c);scene.add(c);}c.visible = true;c.position.set(r.pos.x, r.pos.y + 1.2, r.pos.z);c.rotation.set(0, r.yaw, 0);}
+    const [pp, pr] = Array.isArray(st.sk) ? st.sk.map(Number) : [0, 0];
+    if (st.sky === 'f') {g.translateY(.3);g.rotateZ(-pr || 0);g.rotateX(-pp || 0);g.rotateX(-Math.PI / 2);g.translateY(-.9);}
+    if (st.sky === 'c') {if (!c) {c = SKY.canopy(T, window.GameAvatars.create({T, lib}).SLOT_COLORS[(r.slot || 0) % 12]);remoteCanopies.set(r.id, c);scene.add(c);}c.visible = true;c.position.set(r.pos.x, r.pos.y + 1.2, r.pos.z);c.rotation.order = 'YXZ';c.rotation.set(-pp || 0, r.yaw, -pr || 0);}
     else if (c) c.visible = false;
   }
   // ---------- The game's pilot in the Caravan (1 Nov 2026, the user's wish) ----------
@@ -19406,7 +19455,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     if (magic.orb) s.mg = 1;// the light orb (issue #65): others see it by your shoulder
     // Skydiving: a jump seat in the flown Caravan (a vehicle seat 'j0'..'j11'), in the scheduled flight (ja), or in the air.
     if (player.mode === 'jumpseat' && skyd.ride) {if (skyd.ride.auto) s.ja = skyd.ride.seat;else {s.v = vehicles.indexOf(caravan);s.s = 'j' + skyd.ride.seat;}}
-    if (player.mode === 'skydive' && skyd.jumper) {const J = skyd.jumper;s.p = [r(J.pos.x), r(J.pos.y), r(J.pos.z)];s.y = r(J.yaw);s.sky = J.state === 'freefall' ? 'f' : 'c';}
+    if (player.mode === 'skydive' && skyd.jumper) {const J = skyd.jumper;s.p = [r(J.pos.x), r(J.pos.y), r(J.pos.z)];s.y = r(J.yaw);s.sky = J.state === 'freefall' ? 'f' : 'c';if (J.pose.pitch || J.pose.roll) s.sk = [r(J.pose.pitch), r(J.pose.roll)];}
     // This computer flies the game's pilot in the Caravan: what it is doing, for the jumpers' screens.
     if (gp && gp.f) {s.gp = gp.f.phase;if (gp.f.left) s.gl = Math.round(gp.f.left);if (gp.f.green) s.gg = 1;}
     const pb = paintball && paintball.rules.localState();if (pb) s.pb = pb;

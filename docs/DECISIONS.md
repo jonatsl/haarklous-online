@@ -22,7 +22,7 @@ On `main`:
 - Three hidden stashes with 30-second boosts: 3× running speed, 3× jump height or bullet time.
 - Torshovoksen, the bull on Oksefontenen at Hegermanns plass, at its real place (issue #20).
 - Real weather from MET Norway: clouds, fog, rain, sleet and snow, wind (issue #23).
-- Skydiving: a jump flight to 3000 m every 8 minutes for the whole lobby, or the Caravan jump plane flown by a player or by the game's pilot (alone too: fly it up and jump); freefall, canopy, landing (issue #22).
+- Skydiving: a jump flight to 3000 m every 8 minutes for the whole lobby, or the Caravan jump plane flown by a player or by the game's pilot (alone too: fly it up and jump); freefall (lean forward to track, back to back-slide, and three tricks: front loop, back loop, barrel roll), canopy (front risers dive it, one riser for a diving turn), landing (issues #22 and #102).
 - HODET N.N., Marianne Heske's 7 m bronze doll's head, at its real place at the north end of Torshovdalen, with its stone steps (PR #12).
 - Construction site (140 × 90 m, two gates, in the south-west of Torshovdalen since PR #12) with seven machines: dozer, 30 t excavator, wheel loader, articulated hauler, 8x4 tipper, mobile crane, tower crane; diggable soil that keeps its volume; R3 / V changes the machine view (PR #8).
 - Paintball course on the valley floor between the sculpture and the site (since PR #12): lobby, admin, teams up to 6 v 6, team deathmatch with respawns or in rounds, capture the flag, paint or reball (PR #8).
@@ -52,6 +52,16 @@ On `main`:
 Live site: runs `main` (Worker version 6c660a48, deployed 5 Nov 2026 after PR #92; `main` builds byte-for-byte to the live page), so everything above is online. Account emails (issue #55) wait for the user's Brevo key.
 
 ## Log
+
+### 2026-11-06 · Skydiving: lean forward and back, tricks, front risers that dive (issue #102)
+- **What:**
+  - Freefall: W / S (left stick up / down) lean you forward and back. Forward you track at about 25 m/s (was 19); back you slide backwards at about 7 m/s (was 5). Your view and your body lean with it, and the screen shows "TRACKING 26 m/s forward" or "BACK-SLIDE". A and D bank you into the turn.
+  - Three tricks in freefall, one at a time (about 1.5 s each): □ / E front loop, ○ / C back loop, △ / F barrel roll (to the side you steer, else right). Your view turns over with you; others see your body do it. Pulling ends a trick.
+  - Canopy: W / stick up pulls both front risers. The canopy pitches nose down and dives (about 15 m/s forward and 12 m/s down, was 12.5 and 7.5). L1 / Q or R1 / E pulls one front riser for a diving turn. Let go and the canopy swings back over a couple of seconds; the speed left from a dive makes the flare stronger, so a dive and a flare low down is a swoop that lands softly. Diving into the ground is a crash. The canopy banks in turns and the screen shows "FRONT RISERS – DIVING".
+- **Why:** the user (6 Nov 2026): on keyboard and mouse they "could only turn but could not lean forward or backward"; "it should also be possible to do just a few tricks in air"; and under the canopy "must be possible to pull the front risers to dive down". The keys already worked, but the push was weak and nothing on screen showed it, so it felt like nothing happened.
+- **Where:** `game-skydive.js` (`Jumper`: `pose`, `lean`, `startTrick`, `TRICKS`, `dive`, one-riser input `riser`), `game-main.js` (`updateSkydive`: keys, body, canopy and view; the on-screen text; `sk` in the online state and `skyPose`), `index.html` (controls), `tests/skydive.test.cjs`, `docs/HANDOFF.md`.
+- **Checked:** `node --test tests/*.cjs` pass. In the browser (offline, real key presses): W gave 26–27 m/s forward with the body leaning, S 7 m/s backwards; E, C and F did the three tricks; Space opened the canopy; W dived it to 11 m/s down and 15 m/s across; Q turned it left. Screenshots of the dive, a front loop and a barrel roll looked right.
+- **Status:** branch `feat/skydive-controls`, merged and deployed at the user's request.
 
 ### 2026-11-06 · A secret badge (issue #95)
 - **What:** a new badge that stays secret: it is not in the badge list, its count ("X OF N") or any hint until you have earned it. Then it shows like any other badge and pays kroner. How to get it is in issue #95 only, so it stays a secret.
