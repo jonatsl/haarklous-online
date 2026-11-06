@@ -2173,7 +2173,7 @@
   function badgeTick(dt) {
     badgeT -= dt;if (badgeT > 0) return;badgeT = .5;
     if (catacomb && catacomb.state.inside) markBadge('catacomb');
-    if (library && library.reading && library.reading.which === 'moby') markBadge('moby');
+    if (library && library.reading && (library.reading.which === 'moby' || library.reading.which === 'inner')) markBadge(library.reading.which);
     const v = player.vehicle;if (player.mode === 'vehicle' && v && v.aircraft && v.y - groundAt(v.x, v.z) > 50) markBadge('airborne');
     // A paintball game you played in ended: won or lost (a win counts only with somebody on the other team).
     if (pbRules && pbRules.inGame() && pbRules.ses.state === 'end' && pbRules.ses.id !== pbSeen) {
