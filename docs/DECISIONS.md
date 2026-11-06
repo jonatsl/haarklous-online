@@ -61,7 +61,7 @@ Live site: runs `main` (Worker version 6c660a48, deployed 5 Nov 2026 after PR #9
 - **Why:** the user (6 Nov 2026): on keyboard and mouse they "could only turn but could not lean forward or backward"; "it should also be possible to do just a few tricks in air"; and under the canopy "must be possible to pull the front risers to dive down". The keys already worked, but the push was weak and nothing on screen showed it, so it felt like nothing happened.
 - **Where:** `game-skydive.js` (`Jumper`: `pose`, `lean`, `startTrick`, `TRICKS`, `dive`, one-riser input `riser`), `game-main.js` (`updateSkydive`: keys, body, canopy and view; the on-screen text; `sk` in the online state and `skyPose`), `index.html` (controls), `tests/skydive.test.cjs`, `docs/HANDOFF.md`.
 - **Checked:** `node --test tests/*.cjs` pass. In the browser (offline, real key presses): W gave 26–27 m/s forward with the body leaning, S 7 m/s backwards; E, C and F did the three tricks; Space opened the canopy; W dived it to 11 m/s down and 15 m/s across; Q turned it left. Screenshots of the dive, a front loop and a barrel roll looked right.
-- **Status:** branch `feat/skydive-controls`, merged and deployed at the user's request.
+- **Status:** branch `feat/skydive-controls`, [PR #103](https://github.com/jonatsl/haarklous-online/pull/103), merged and deployed at the user's request.
 
 ### 2026-11-06 · A secret badge (issue #95)
 - **What:** a new badge that stays secret: it is not in the badge list, its count ("X OF N") or any hint until you have earned it. Then it shows like any other badge and pays kroner. How to get it is in issue #95 only, so it stays a secret.
