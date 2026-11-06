@@ -7,7 +7,9 @@
  * which are part of an account's saved progress (GameProgress).
  *
  * Pure (Node-tested):
- *   BADGES [{id, icon, name, how, kr, test(facts)}]   facts = {records, gym, kayak, route, lic, storgata, got}
+ *   BADGES [{id, icon, name, how, kr, test(facts), hidden}]   facts = {records, gym, kayak, route, lic, storgata, got}
+ *          hidden: a secret badge, not listed or counted anywhere until you have it (issue #95)
+ *   shown(got) -> the badges to list and count: every one that is not hidden, and the hidden ones you have
  *   SPOTS  [{id, name, hint, kr, size, r, maxDist}]   size = the subject's height (m), r = its own radius (the sight line
  *                                                    stops r before its centre), maxDist = how close you must be; the game
  *                                                    adds at = {x, y, z} and, for a door, face = {x, z} (the way it faces)
@@ -68,8 +70,10 @@
     {id: 'storgata', icon: '🛒', name: 'Friend of Storgata', how: 'Help all five regulars outside Kiwi Storgata 33.', kr: 200,
       test: f => ['kjell', 'bente', 'tore', 'mona', 'even'].every(id => ((f.storgata || {}).q || {})[id]?.s === 'done')},
     {id: 'wizard', icon: '🍄', name: 'Mushroom apprentice', how: 'Learn all four magic powers from Sopp-Sigvald, the mushroom wizard in Storgata.', kr: 250,
-      test: f => ['levitate', 'blink', 'gust', 'orb'].every(id => ((f.storgata || {}).powers || {})[id])}
+      test: f => ['levitate', 'blink', 'gust', 'orb'].every(id => ((f.storgata || {}).powers || {})[id])},
+    {id: 'inner', icon: '🎾', name: 'The inner game', how: 'Open The Inner Game of Tennis at Deichman Grünerløkka.', kr: 150, hidden: true, test: f => !!f.records.marks?.inner}
   ];
+  const shown = (got = {}) => BADGES.filter(b => !b.hidden || got[b.id]);
 
   function judge(spot, shot) {
     const c = shot.cam, a = spot.at, d = Math.hypot(a.x - c.x, a.y - c.y, a.z - c.z);
@@ -176,10 +180,10 @@
       return `Photo hunt · ${x.s.name}: ${{far: `come closer (within ${x.s.maxDist} m)`, side: 'take it from the front', frame: 'it is not in the picture – aim at it', small: 'it is too small in the picture – go closer or zoom in (L2, right stick)', blocked: 'something is in the way'}[x.j.why]}.`;
     }
     function render() {
-      const R = records, f = facts(), all = [...SPOTS, ...BADGES], have = all.filter(b => state.got[b.id]).length;
+      const R = records, f = facts(), list = shown(state.got), all = [...SPOTS, ...list], have = all.filter(b => state.got[b.id]).length;
       const when = id => {const g = state.got[id];return g && g.at ? new Date(g.at).toLocaleDateString() : '';};
       const spotsHtml = SPOTS.map(s => {const g = state.got[s.id];return `<li class="${g ? 'got' : ''}">${g && g.thumb ? `<img src="${g.thumb}" alt="">` : `<i>${g ? '📷' : '?'}</i>`}<b>${esc(s.name)}</b><small>${g ? `Found ${when(s.id)}` : esc(s.hint)}</small></li>`;}).join('');
-      const badgesHtml = BADGES.map(b => `<li class="${state.got[b.id] ? 'got' : ''}"><i>${b.icon}</i><b>${esc(b.name)}</b><small>${esc(b.how)}${state.got[b.id] ? ` · ${when(b.id)}` : ` · ${b.kr} kr`}</small></li>`).join('');
+      const badgesHtml = list.map(b => `<li class="${state.got[b.id] ? 'got' : ''}"><i>${b.icon}</i><b>${esc(b.name)}</b><small>${esc(b.how)}${state.got[b.id] ? ` · ${when(b.id)}` : ` · ${b.kr} kr`}</small></li>`).join('');
       const rows = [];
       for (const [c, r] of Object.entries(R.disc || {})) rows.push([`Disc golf · ${c}`, `best ${r.best} throws (${r.best - r.par >= 0 ? '+' : ''}${r.best - r.par}) · ${r.rounds} round${r.rounds === 1 ? '' : 's'}`]);
       if (R.aces) rows.push(['Holes in one', String(R.aces)]);
@@ -193,7 +197,7 @@
       if (keys(f.gym.ticks).length || f.gym.bestHang) rows.push(['Klatreverket', `${keys(f.gym.ticks).length} routes and problems sent · hangboard ${n(f.gym.bestHang).toFixed(1)} s`]);
       panel.innerHTML = `<div class="panel"><span class="eyebrow">BADGES · ${have} OF ${all.length}</span><h2>Badges and best scores</h2>
         <h3>Photo hunt <small>${SPOTS.filter(s => state.got[s.id]).length} of ${SPOTS.length} · take a good photo of each place: in the picture, big enough, nothing in the way</small></h3><ul class="bd-spots">${spotsHtml}</ul>
-        <h3>Badges <small>${BADGES.filter(b => state.got[b.id]).length} of ${BADGES.length}</small></h3><ul class="bd-list">${badgesHtml}</ul>
+        <h3>Badges <small>${list.filter(b => state.got[b.id]).length} of ${list.length}</small></h3><ul class="bd-list">${badgesHtml}</ul>
         <h3>Best scores</h3>${rows.length ? `<dl class="bd-records">${rows.map(([a, b]) => `<dt>${esc(a)}</dt><dd>${esc(b)}</dd>`).join('')}</dl>` : '<p class="small">Nothing yet – play a minigame, the mission or a run.</p>'}
         <p class="small">Left stick / ↑↓ scroll · ○ / Esc / R1 / B close</p><button id="badgesClose">Close</button></div>`;
       panel.querySelector('#badgesClose').onclick = () => api.close();
@@ -206,9 +210,9 @@
       scroll(dy) {const p = panel.querySelector('.panel');if (p) p.scrollTop += dy;},
       reload() {state = load(KEY);state.got = state.got || {};records = load(RECORDS);if (!panel.hidden) render();},
       get isOpen() {return !panel.hidden;}, get records() {return records;}, get got() {return state.got;},
-      get count() {return [...SPOTS, ...BADGES].filter(b => state.got[b.id]).length;}, total: SPOTS.length + BADGES.length
+      get count() {return [...SPOTS, ...shown(state.got)].filter(b => state.got[b.id]).length;}, get total() {return SPOTS.length + shown(state.got).length;}
     };
     return api;
   }
-  return {BADGES, SPOTS, judge, record, mergeRecords, mergeBadges, MERGE, TARGET_R, LICENCE_COUNT, create};
+  return {BADGES, SPOTS, shown, judge, record, mergeRecords, mergeBadges, MERGE, TARGET_R, LICENCE_COUNT, create};
 });
