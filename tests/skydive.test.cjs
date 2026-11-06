@@ -82,3 +82,32 @@ test('the game\'s pilot in the air: takes the plane as it is, circles level towa
   const low = S.pilotOrbit({t0: 0, pos: {x: 0, y: 120, z: 0}, yaw: 1, speed: 30, vy: -2, ground: () => 20});
   assert.ok(S.pilotFlight(120, low).y >= 20 + 300 - 1e-6, 'climbs to 300 m above the ground');
 });
+
+test('freefall (issue #102): leaning forward tracks about 25 m/s, leaning back slides backwards, and the body leans with it', () => {
+  const j = new S.Jumper({y: 3000, yaw: 0});run(j, 15, {fwd: 1});
+  assert.ok(Math.abs(-j.vel.z - 25) < 3, `forward ${-j.vel.z}`);assert.ok(j.pose.pitch > .3, 'head down');
+  const b = new S.Jumper({y: 3000, yaw: 0});run(b, 15, {fwd: -1});
+  assert.ok(b.vel.z > 5, `backwards ${b.vel.z}`);assert.ok(b.pose.pitch < -.2, 'legs down');
+  const t = new S.Jumper({y: 3000});run(t, 3, {turn: 1});assert.ok(t.pose.roll > .2, 'banks into the turn');
+});
+
+test('tricks in freefall: front loop, back loop and barrel roll, one at a time, not under the canopy', () => {
+  const j = new S.Jumper({y: 3000});run(j, 5);
+  assert.equal(j.startTrick('front'), true);assert.equal(j.startTrick('back'), false, 'one at a time');
+  let minPitch = 0, maxPitch = 0;const ev = run(j, 2, J => {maxPitch = Math.max(maxPitch, J.pose.pitch);return {};});
+  assert.deepEqual(ev, ['trick']);assert.equal(j.lastTrick, 'front');assert.ok(maxPitch > 5, 'a whole turn over the head');
+  j.startTrick('back');run(j, 2, J => {minPitch = Math.min(minPitch, J.pose.pitch);return {};});assert.ok(minPitch < -5);
+  let roll = 0;j.startTrick('roll', -1);run(j, 2, J => {roll = Math.min(roll, J.pose.roll);return {};});assert.ok(roll < -5, 'rolls to the left');
+  assert.equal(j.tricks, 3);assert.equal(j.state, 'freefall');
+  j.startTrick('front');run(j, .5, {pull: true});assert.equal(j.trick, null, 'pulling ends the trick');assert.equal(j.startTrick('front'), false);
+});
+
+test('canopy: the front risers dive (nose down, about 12 m/s down), one riser turns, and a dive then a flare lands softly', () => {
+  const j = new S.Jumper({y: 800, yaw: 0});j.state = 'canopy';j.air = {fwd: 10, sink: 5};run(j, 5, {fwd: 1});
+  assert.ok(-j.vel.y > 10 && Math.hypot(j.vel.x, j.vel.z) > 13, `dive ${-j.vel.y} down, ${Math.hypot(j.vel.x, j.vel.z)} across`);assert.ok(j.pose.pitch > .4, 'nose down');
+  run(j, 8);assert.ok(Math.abs(-j.vel.y - 5) < .5, 'back to normal flight after letting go');
+  const r = new S.Jumper({y: 800, yaw: 0});r.state = 'canopy';r.air = {fwd: 10, sink: 5};run(r, 3, {riser: -1});
+  assert.ok(r.yaw > 2 && -r.vel.y > 8 && r.pose.roll < -.2, `left riser: turn ${r.yaw}, sink ${-r.vel.y}`);
+  const s = new S.Jumper({y: 150});s.state = 'canopy';s.air = {fwd: 10, sink: 5};run(s, 60, J => ({fwd: J.agl > 30 ? 1 : J.agl < 4 ? -1 : 0}));assert.equal(s.landing, 'soft', 'a swoop');
+  const c = new S.Jumper({y: 150});c.state = 'canopy';c.air = {fwd: 10, sink: 5};run(c, 60, {fwd: 1});assert.equal(c.landing, 'crash', 'diving into the ground');
+});
