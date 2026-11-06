@@ -58,7 +58,7 @@ Live site: runs `main` (Worker version 6c660a48, deployed 5 Nov 2026 after PR #9
 - **Why:** the user asked for it (issue #95), and asked on 6 Nov 2026 not to write openly about it.
 - **Where:** `game-badges.js` (badges can be `hidden`; `shown(got)` is the list that is shown and counted), `game-main.js` (`badgeTick`), `tests/badges.test.cjs`, `docs/HANDOFF.md`.
 - **Checked:** `node --test tests/*.cjs` pass. In the browser (offline): before, the list said 0 of 30 and had nothing about it; earning it paid the kroner and showed the message; after, the list said 1 of 31 and showed the badge.
-- **Status:** branch `feat/hidden-badge`, merged and deployed at the user's request.
+- **Status:** branch `feat/hidden-badge`, [PR #101](https://github.com/jonatsl/haarklous-online/pull/101), merged and deployed at the user's request.
 
 ### 2026-11-05 · Licence tests: a retry after a fail is free
 - **What:** if you fail a licence test, taking that part again costs nothing.
