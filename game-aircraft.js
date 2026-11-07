@@ -52,10 +52,12 @@
       get yaw() {return new T.Euler().setFromQuaternion(this.q, 'YXZ').y;}
       axes() {return {f: V3(0, 0, -1).applyQuaternion(this.q), u: V3(0, 1, 0).applyQuaternion(this.q), r: V3(1, 0, 0).applyQuaternion(this.q)};}
       forward() {const f = V3(0, 0, -1).applyQuaternion(this.q), l = Math.hypot(f.x, f.z) || 1;return {x: f.x / l, z: f.z / l};}
-      // Walkers bump into the parked aircraft: one or more rectangles [along forward, to the right, length, width].
+      // Walkers bump into the parked aircraft: one or more rectangles [along forward, to the right, length, width]. They carry
+      // owner: this, so the aircraft's own checks skip them (issue #97: after you got out, the spinning-down rotor hit the
+      // helicopter's own footprint, counted as a crash, and 3 s later it was back on the helipad).
       footprint() {
         const f = this.forward(), r = {x: -f.z, z: f.x};
-        return this.rects.map(([a0, b0, L, W]) => ({points: [[L / 2, W / 2], [L / 2, -W / 2], [-L / 2, -W / 2], [-L / 2, W / 2]].map(([a, b]) => ({x: this.pos.x + f.x * (a + a0) + r.x * (b + b0), z: this.pos.z + f.z * (a + a0) + r.z * (b + b0)})), minY: this.y - .2, maxY: this.y + this.height, kind: 'vehicle'}));
+        return this.rects.map(([a0, b0, L, W]) => ({points: [[L / 2, W / 2], [L / 2, -W / 2], [-L / 2, -W / 2], [-L / 2, W / 2]].map(([a, b]) => ({x: this.pos.x + f.x * (a + a0) + r.x * (b + b0), z: this.pos.z + f.z * (a + a0) + r.z * (b + b0)})), minY: this.y - .2, maxY: this.y + this.height, kind: 'vehicle', owner: this}));
       }
       exitPoint() {const f = this.forward(), r = {x: -f.z, z: f.x}, d = this.exitSide;return {x: this.pos.x - r.x * d + f.x * this.exitFwd, z: this.pos.z - r.z * d + f.z * this.exitFwd};}
       place() {this.group.position.copy(this.pos);this.group.quaternion.copy(this.q);}
@@ -65,9 +67,17 @@
       crash() {this.broken = true;this.crashT = 3;this.vel.set(0, 0, 0);this.w.set(0, 0, 0);audio.sfx('crash');if (this.onCrash) this.onCrash(this);}
       // Buildings, trees and vehicles: slow touches bounce off, faster ones are crashes.
       obstacles(prev, bottom) {
-        // Rotor strike (helicopter): anything inside the rotor disc at rotor height is a crash, whatever the speed.
-        if (this.rotorR) {this.group.position.copy(this.pos);this.group.quaternion.copy(this.q);this.group.updateMatrixWorld(true);const c = this.rotor.getWorldPosition(V3());if (collision.hitsSolid(worldFor(this.rotorR), c, c.y - .25, c.y + .25)) {this.crash();return true;}}
-        if (!collision.hitsSolid(worldFor(this.radius), this.pos, bottom + .35, this.pos.y + this.top)) return false;
+        // Rotor strike (helicopter): something inside the rotor disc at rotor height. The check reaches rotorR (a little inside the
+        // 5.2 m blade tips) and only while the rotor turns; under rotorSlow m/s the blades just scrape and you are slowed down,
+        // faster it is a crash (issue #97: it crashed too easily close to buildings).
+        if (this.rotorR && this.rpm > .3) {
+          this.group.position.copy(this.pos);this.group.quaternion.copy(this.q);this.group.updateMatrixWorld(true);const c = this.rotor.getWorldPosition(V3());
+          if (collision.hitsSolid(worldFor(this.rotorR), c, c.y - .25, c.y + .25, this)) {
+            if (this.speed > this.rotorSlow) {this.crash();return true;}
+            this.vel.multiplyScalar(.5);if (!(this.scrapeT > 0)) {audio.sfx('hit', {gain: .35});this.scrapeT = .5;}
+          }
+        }
+        if (!collision.hitsSolid(worldFor(this.radius), this.pos, bottom + .35, this.pos.y + this.top, this)) return false;
         if (this.speed > this.crashSpeed) {this.crash();return true;}
         this.pos.copy(prev);this.vel.multiplyScalar(-.3);audio.sfx('hit', {gain: .5});return false;
       }
@@ -97,7 +107,7 @@
     class Helicopter extends Craft {
       constructor(x, z, yaw) {
         super(x, z, yaw, 0);this.kind = 'helicopter';this.name = 'Airbus H125 helicopter';this.length = 6;this.width = 2.6;this.height = 3.4;
-        this.rects = [[-.2, 0, 4.2, 2.6], [-4.4, 0, 5.6, .7]];this.radius = 1.7;this.rotorR = 5.2;this.top = 2.4;this.crashSpeed = 9;this.exitSide = 2.6;this.exitFwd = 0;
+        this.rects = [[-.2, 0, 4.2, 2.6], [-4.4, 0, 5.6, .7]];this.radius = 1.7;this.rotorR = 4.6;this.rotorSlow = 3;this.scrapeT = 0;this.top = 2.4;this.crashSpeed = 12;this.exitSide = 2.6;this.exitFwd = 0;
         this.seat = V3(.42, 1.86, -.32);this.seatPitch = -.12;this.chaseDist = 15;this.rotorAngle = 0;
         this.hips = {d: {pos: V3(.42, 1.15, .25)}, p: {pos: V3(-.42, 1.15, .25)}};this.passengerEye = V3(-.42, 1.86, -.32);
         const g = this.group, red = paintMat(0xb3121b), white = paintMat(0xf2f2ee), glass = glassMat();
@@ -174,10 +184,12 @@
         if (this.grounded && !light) tw.set(0, light ? tw.y : 0, 0);
         this.w.lerp(tw, Math.min(1, dt * 5));this.rotate(dt);
         this.pos.addScaledVector(v, dt);
-        const g2 = heightAt(this.pos.x, this.pos.z);
+        const g2 = heightAt(this.pos.x, this.pos.z);this.scrapeT -= dt;
         if (this.pos.y - this.gearH <= g2) {
-          if (!this.grounded && (-v.y > 7 || Math.hypot(v.x, v.z) > 14 || this.axes().u.y < .8)) {this.pos.y = g2 + this.gearH;this.crash();return;}
-          if (!this.grounded && -v.y > 1) audio.sfx('thud', {gain: .5});
+          // Touchdown: a crash only when it is really hard – sinking faster than 10 m/s, sliding faster than 20 m/s or tilted more
+          // than about 53° (issue #97: landings were too strict at 7 m/s, 14 m/s and 37°). Hard but survivable gets a loud thud.
+          if (!this.grounded && (-v.y > 10 || Math.hypot(v.x, v.z) > 20 || this.axes().u.y < .6)) {this.pos.y = g2 + this.gearH;this.crash();return;}
+          if (!this.grounded && -v.y > 1) audio.sfx('thud', {gain: -v.y > 5 ? 1 : .5});
           this.pos.y = g2 + this.gearH;if (v.y < 0) v.y = 0;const k = Math.max(0, 1 - dt * (light ? 1 : 4));v.x *= k;v.z *= k;this.grounded = true;
           if (!light) {const e = new T.Euler().setFromQuaternion(this.q, 'YXZ');this.q.slerp(new T.Quaternion().setFromEuler(new T.Euler(0, e.y, 0, 'YXZ')), Math.min(1, dt * 4));}
         } else if (this.pos.y - this.gearH > g2 + .08) this.grounded = false;
