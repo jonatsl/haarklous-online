@@ -50,7 +50,7 @@ test('badges come from the best scores and the other saved states', () => {
   const none = {records: {}, gym: {}, kayak: {}, route: {}, got: {}};
   assert.deepEqual(B.BADGES.filter(b => b.test(none)).map(b => b.id), []);
   const all = {records: {aces: 1, mission: {done: 1}, disc: {'Muselunden DiscGolfPark': {holes: 12}}, petanque: {won: 1}, paintball: {won: 1}, skydive: {best: 9.5},
-    pingpong: {won: 1}, marks: {catacomb: 1, moby: 1, fire: 1, airborne: 1}},
+    pingpong: {won: 1}, marks: {catacomb: 1, moby: 1, fire: 1, airborne: 1, inner: 1}},
     gym: {ticks: {a: 'flash'}, brattkort: true}, kayak: {0: 400}, route: {best: 600}, got: Object.fromEntries(B.SPOTS.map(s => [s.id, {}])),
     lic: {have: Object.fromEntries(['B', 'A', 'C', 'M', 'G', 'PPLA', 'PPLH', 'A1A3'].map(id => [id, '2026-11-03']))},
     // Kiwi Storgata (issue #65): all five regulars helped, all four powers learned.
@@ -67,4 +67,19 @@ test('a door counts from the front, not from along the wall', () => {
   assert.equal(B.judge(door, shot({x: -18, y: 1.6, z: 3})).ok, true, 'in front');
   const along = {...door, face: {x: 0, z: 1}};
   assert.equal(B.judge(along, shot({x: -18, y: 1.6, z: 3})).why, 'side', 'from along the wall');
+});
+
+test('a hidden badge is not listed or counted until you have it (issue #95)', () => {
+  const hidden = B.BADGES.filter(b => b.hidden);
+  assert.ok(hidden.length >= 1);
+  assert.equal(B.shown({}).length, B.BADGES.length - hidden.length, 'not in the list or the count before');
+  for (const b of hidden) assert.ok(!B.shown({}).includes(b), b.id);
+  const h = hidden[0];
+  assert.ok(B.shown({[h.id]: {at: 1}}).includes(h), 'listed and counted once you have it');
+  assert.equal(B.shown({[h.id]: {at: 1}}).length, B.BADGES.length - hidden.length + 1);
+  // It comes from a mark the game sets, like the other book badge, and pays kroner.
+  const none = {records: {}, gym: {}, kayak: {}, route: {}, got: {}};
+  assert.equal(h.test(none), false);assert.equal(h.test({...none, records: {marks: {[h.id]: 1}}}), true);assert.ok(h.kr > 0);
+  // Nothing else in the badge list points at it.
+  for (const b of B.shown({})) assert.ok(!new RegExp(h.name, 'i').test(b.how), b.id);
 });

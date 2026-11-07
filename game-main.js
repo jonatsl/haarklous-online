@@ -1524,21 +1524,33 @@
     skyd.ride = null;skyd.beeps = {};player.mode = 'skydive';skyd.chase = false;skyd.chaseCam = null;audio.sfx('throw');
     if (!skyd.canopy) {const av = window.GameAvatars.create({T, lib});skyd.canopy = SKY.canopy(T, av.SLOT_COLORS[mySeat() % 12]);skyd.canopy.visible = false;scene.add(skyd.canopy);
       skyd.body = av.avatar(mySeat(), '');skyd.body.group.visible = false;scene.add(skyd.body.group);}// your own body, seen in the outside view
-    notice('Freefall! W tracks, A/D turn, S back-slides · ✕ / Space pulls at about 1000 m · R3 / V outside view', 6);
+    notice('Freefall! W / stick ↑ lean forward and track, S / ↓ lean back, A/D turn · tricks: □ / E front loop, ○ / C back loop, △ / F barrel roll · ✕ / Space pulls at about 1000 m · R3 / V outside view', 8);
   }
   function updateSkydive(dt, input, dl) {
     const J = skyd.jumper;
     if (input.pressed.has('r3') || input.pressed.has('view')) {skyd.chase = !skyd.chase;skyd.chaseCam = null;}
-    const inp = {fwd: Math.max(-1, Math.min(1, -input.move.y)), turn: Math.max(-1, Math.min(1, input.move.x)), pull: input.pressed.has('cross')};
+    // Under the canopy L1 / Q and R1 / E pull one front riser (a diving turn); in freefall □ ○ △ (E C F) are tricks.
+    const inp = {fwd: Math.max(-1, Math.min(1, -input.move.y)), turn: Math.max(-1, Math.min(1, input.move.x)), pull: input.pressed.has('cross'),
+      riser: (input.held.r1 || input.held.square ? 1 : 0) - (input.held.l1 ? 1 : 0)};
+    if (J.state === 'freefall') {
+      const kind = input.pressed.has('square') ? 'front' : input.pressed.has('circle') ? 'back' : input.pressed.has('triangle') ? 'roll' : null;
+      if (kind && J.startTrick(kind, inp.turn < -.2 ? -1 : 1)) audio.sfx('throw', {gain: .4});
+    }
     const ev = J.update(dt, inp, {ground: (x, z) => groundAt(x, z), wind: weatherWind, blocked: (x, y, z) => collision.hitsSolid(walkWorld, {x, z}, y + .2, y + 1.6)});
     const agl = J.agl;
     if (ev === 'pull') audio.sfx('throw');
     if (ev === 'reserve') notice('Your reserve opened automatically (300 m)!', 4);
-    if (ev === 'open') {audio.sfx('thud', {gain: .7});notice('Canopy open · A/D steer · W front risers · S flare just before you land', 5);}
+    if (ev === 'open') {audio.sfx('thud', {gain: .7});notice('Canopy open · A/D steer · W / stick ↑ both front risers: dive · L1 / Q, R1 / E one front riser: diving turn · S flare just before you land (a dive first makes the flare stronger)', 7);}
+    if (ev === 'trick') notice(`${SKY.TRICKS[J.lastTrick].name}!${J.tricks > 1 ? ` (${J.tricks} tricks this jump)` : ''}`, 1.8);
     for (const [h, txt] of [[1500, '1500 m'], [1000, 'PULL!']]) if (J.state === 'freefall' && agl < h && !skyd.beeps[h]) {skyd.beeps[h] = true;audio.sfx('locked');notice(txt, 1.5);}
     skyd.canopy.visible = J.state === 'opening' || J.state === 'canopy';
-    {const b = skyd.body.group;b.visible = skyd.chase;b.position.set(J.pos.x, J.pos.y, J.pos.z);b.rotation.set(0, J.yaw, 0);if (J.state === 'freefall') {b.rotateX(-Math.PI / 2);b.translateY(-.9);}skyd.body.pose({stance: 'stand', speed: 0, dt});}
-    if (skyd.canopy.visible) {const k = J.state === 'opening' ? Math.min(1, J.openT / 3) : 1;skyd.canopy.position.set(J.pos.x, J.pos.y + 1.2, J.pos.z);skyd.canopy.rotation.set(0, J.yaw, 0);skyd.canopy.scale.set(.3 + .7 * k, .3 + .7 * k, .3 + .7 * k);}
+    // The body leans and turns over with the pose (freefall: tracking, back-sliding and the tricks); the canopy pitches
+    // nose down on the front risers and banks in a turn, and you hang under it.
+    const pose = J.pose;
+    {const b = skyd.body.group;b.visible = skyd.chase;b.position.set(J.pos.x, J.pos.y, J.pos.z);b.rotation.set(0, J.yaw, 0);
+      if (J.state === 'freefall') {b.translateY(.3);b.rotateZ(-pose.roll);b.rotateX(-pose.pitch);b.rotateX(-Math.PI / 2);b.translateY(-.9);} else b.rotateZ(-pose.roll * .5);
+      skyd.body.pose({stance: 'stand', speed: 0, dt});}
+    if (skyd.canopy.visible) {const k = J.state === 'opening' ? Math.min(1, J.openT / 3) : 1, c = skyd.canopy;c.position.set(J.pos.x, J.pos.y + 1.2, J.pos.z);c.rotation.order = 'YXZ';c.rotation.set(-pose.pitch, J.yaw, -pose.roll);c.scale.set(.3 + .7 * k, .3 + .7 * k, .3 + .7 * k);}
     if (ev === 'land') {
       const off = Math.hypot(J.pos.x - SKY_TARGET.x, J.pos.z - SKY_TARGET.z), rec = badges.record('skydive', {landing: J.landing, dist: off});
       const msg = {soft: 'Nice soft landing!', hard: 'Hard landing – flare a little earlier next time (S just before the ground).', crash: 'Ouch! You hit the ground hard (no flare).'}[J.landing];
@@ -1550,24 +1562,27 @@
     // Camera: your eyes (looking ahead and down in freefall, ahead under the canopy), or behind you (R3 / V).
     player.lookYaw = Math.max(-2.4, Math.min(2.4, (player.lookYaw || 0) - input.mouse.dx * .0024 * sensitivity.mouse - input.look.x * 2 * sensitivity.pad * dt));
     player.lookPitch = Math.max(-1.4, Math.min(.8, (player.lookPitch || 0) - input.mouse.dy * .0024 * sensitivity.mouse - input.look.y * 1.5 * sensitivity.pad * dt));
-    const head = new T.Vector3(J.pos.x, J.pos.y + (J.state === 'freefall' ? .3 : 1.6), J.pos.z), base = J.state === 'freefall' ? -.7 : -.15;
+    const head = new T.Vector3(J.pos.x, J.pos.y + (J.state === 'freefall' ? .3 : 1.6), J.pos.z), base = (J.state === 'freefall' ? -.7 : -.15) - pose.pitch * (J.state === 'freefall' ? 1 : .7);
     if (skyd.chase) {
       const f = {x: -Math.sin(J.yaw), z: -Math.cos(J.yaw)}, want = new T.Vector3(J.pos.x - f.x * 9, J.pos.y + 4, J.pos.z - f.z * 9);
       const p = skyd.chaseCam ? skyd.chaseCam.lerp(want, .15) : want;skyd.chaseCam = p;camera.position.copy(p);camera.lookAt(J.pos.x, J.pos.y + 1, J.pos.z);
-    } else {camera.position.copy(head);camera.rotation.order = 'YXZ';camera.rotation.set(base + player.lookPitch, J.yaw + player.lookYaw, 0);}
+    } else {camera.position.copy(head);camera.rotation.order = 'YXZ';camera.rotation.set(base + player.lookPitch, J.yaw + player.lookYaw, -pose.roll * (J.state === 'freefall' ? 1 : .6));}
     if (camera.fov !== 75) {camera.fov = 75;camera.updateProjectionMatrix();}
     setClip(agl > 800 ? .4 : .12, Math.min(9000, Math.max(1600, agl * 2.5 + 1200)));
     player.x = J.pos.x;player.z = J.pos.z;player.feet = J.pos.y;player.yaw = J.yaw;
     const down = Math.max(0, -J.vel.y), sp = $('speedo');sp.hidden = false;sp.classList.add('air');
-    sp.textContent = J.state === 'freefall' ? `FREEFALL · ${Math.round(agl)} m · ${Math.round(down)} m/s down · ${agl > 1100 ? 'pull (✕) at about 1000 m' : '✕ / Space: PULL!'}`
-      : J.state === 'opening' ? `Opening… · ${Math.round(agl)} m` : `CANOPY · ${Math.round(agl)} m · ${down.toFixed(1)} m/s down · ${Math.hypot(J.vel.x, J.vel.z).toFixed(0)} m/s across · A/D steer · S flare`;
+    const w = weatherWind || {x: 0, z: 0}, f = {x: -Math.sin(J.yaw), z: -Math.cos(J.yaw)}, along = (J.vel.x - w.x) * f.x + (J.vel.z - w.z) * f.z;// your speed forward through the air
+    const ffWhat = J.trick ? SKY.TRICKS[J.trick.kind].name.toUpperCase() : along > 6 ? `TRACKING ${Math.round(along)} m/s forward` : along < -2 ? `BACK-SLIDE ${Math.round(-along)} m/s back` : 'FREEFALL';
+    sp.textContent = J.state === 'freefall' ? `${ffWhat} · ${Math.round(agl)} m · ${Math.round(down)} m/s down · ${agl > 1100 ? 'W/S lean · □ ○ △ tricks · pull (✕) at about 1000 m' : '✕ / Space: PULL!'}`
+      : J.state === 'opening' ? `Opening… · ${Math.round(agl)} m` : `${J.dive > .3 ? 'FRONT RISERS – DIVING' : 'CANOPY'} · ${Math.round(agl)} m · ${down.toFixed(1)} m/s down · ${Math.hypot(J.vel.x, J.vel.z).toFixed(0)} m/s across · A/D steer · W dive · S flare`;
   }
   // Other players skydiving: belly-down in freefall, upright under their canopy.
   const remoteCanopies = new Map();
   function skyPose(r, st, g) {
     let c = remoteCanopies.get(r.id);
-    if (st.sky === 'f') {g.rotateX(-Math.PI / 2);g.translateY(-.9);}
-    if (st.sky === 'c') {if (!c) {c = SKY.canopy(T, window.GameAvatars.create({T, lib}).SLOT_COLORS[(r.slot || 0) % 12]);remoteCanopies.set(r.id, c);scene.add(c);}c.visible = true;c.position.set(r.pos.x, r.pos.y + 1.2, r.pos.z);c.rotation.set(0, r.yaw, 0);}
+    const [pp, pr] = Array.isArray(st.sk) ? st.sk.map(Number) : [0, 0];
+    if (st.sky === 'f') {g.translateY(.3);g.rotateZ(-pr || 0);g.rotateX(-pp || 0);g.rotateX(-Math.PI / 2);g.translateY(-.9);}
+    if (st.sky === 'c') {if (!c) {c = SKY.canopy(T, window.GameAvatars.create({T, lib}).SLOT_COLORS[(r.slot || 0) % 12]);remoteCanopies.set(r.id, c);scene.add(c);}c.visible = true;c.position.set(r.pos.x, r.pos.y + 1.2, r.pos.z);c.rotation.order = 'YXZ';c.rotation.set(-pp || 0, r.yaw, -pr || 0);}
     else if (c) c.visible = false;
   }
   // ---------- The game's pilot in the Caravan (1 Nov 2026, the user's wish) ----------
@@ -1702,7 +1717,7 @@
     if (magic.orb) s.mg = 1;// the light orb (issue #65): others see it by your shoulder
     // Skydiving: a jump seat in the flown Caravan (a vehicle seat 'j0'..'j11'), in the scheduled flight (ja), or in the air.
     if (player.mode === 'jumpseat' && skyd.ride) {if (skyd.ride.auto) s.ja = skyd.ride.seat;else {s.v = vehicles.indexOf(caravan);s.s = 'j' + skyd.ride.seat;}}
-    if (player.mode === 'skydive' && skyd.jumper) {const J = skyd.jumper;s.p = [r(J.pos.x), r(J.pos.y), r(J.pos.z)];s.y = r(J.yaw);s.sky = J.state === 'freefall' ? 'f' : 'c';}
+    if (player.mode === 'skydive' && skyd.jumper) {const J = skyd.jumper;s.p = [r(J.pos.x), r(J.pos.y), r(J.pos.z)];s.y = r(J.yaw);s.sky = J.state === 'freefall' ? 'f' : 'c';if (J.pose.pitch || J.pose.roll) s.sk = [r(J.pose.pitch), r(J.pose.roll)];}
     // This computer flies the game's pilot in the Caravan: what it is doing, for the jumpers' screens.
     if (gp && gp.f) {s.gp = gp.f.phase;if (gp.f.left) s.gl = Math.round(gp.f.left);if (gp.f.green) s.gg = 1;}
     const pb = paintball && paintball.rules.localState();if (pb) s.pb = pb;
@@ -2175,7 +2190,7 @@
   function badgeTick(dt) {
     badgeT -= dt;if (badgeT > 0) return;badgeT = .5;
     if (catacomb && catacomb.state.inside) markBadge('catacomb');
-    if (library && library.reading && library.reading.which === 'moby') markBadge('moby');
+    if (library && library.reading && (library.reading.which === 'moby' || library.reading.which === 'inner')) markBadge(library.reading.which);
     const v = player.vehicle;if (player.mode === 'vehicle' && v && v.aircraft && v.y - groundAt(v.x, v.z) > 50) markBadge('airborne');
     // A paintball game you played in ended: won or lost (a win counts only with somebody on the other team).
     if (pbRules && pbRules.inGame() && pbRules.ses.state === 'end' && pbRules.ses.id !== pbSeen) {
