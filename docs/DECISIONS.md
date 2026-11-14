@@ -51,7 +51,7 @@ On `main`:
 - Streets you can read: dark asphalt roads, a light granite kerb, and asphalt or slab pavements by part of town, with or without the aerial photo (issue #98).
 - Ground with real detail up close (grass, asphalt, paving slabs, gravel, pavements and kerbs) with or without the aerial photo, and buildings that look like their part of town – Torshov brick and Harald Hals' plastered blocks, Grünerløkka's tenements with shop fronts, buff brick, wooden houses, new blocks – chosen from OpenStreetMap and Street View notes (issues #67 and #68, PR #81, not merged yet).
 
-Live site: runs `main` (Worker version 5a422a55, deployed 7 Nov 2026 after PR #100; `main` builds byte-for-byte to the live page), so everything above is online. Account emails (issue #55) wait for the user's Brevo key.
+Live site: runs `main` (Worker version f8651516, deployed 15 Nov 2026 after PRs #107 and #109; `main` builds byte-for-byte to the live page), so everything above is online. Account emails (issue #55) wait for the user's Brevo key.
 
 ## Log
 
@@ -89,7 +89,7 @@ Live site: runs `main` (Worker version 5a422a55, deployed 7 Nov 2026 after PR #1
   - Pictures of three flats (a 62 m² one on the 3rd floor, an 83 m² three-room one, a 44 m² one on the 1st floor).
   - Start-up: the walk world takes about 0.1 s longer to build. Frame rate as before.
 - **Not done:** a real account on the live site buying a flat (Claude does not create accounts there) – the user's own first purchase is the real test.
-- **Status:** PR #109 (branch `feat/buy-apartment`).
+- **Status:** on `main` (PR #109, merged 15 Nov 2026) and live (Worker version f8651516; the live page is byte-for-byte the build). Checked on the live site: `/api/homes` answers (no owners yet), buying without logging in is refused (401), and in the live game the sign, the menu ("Log in first") and walking into a flat's living room work.
 
 ### 2026-11-14 · Cars all over the city (issue #105)
 - **What:**
