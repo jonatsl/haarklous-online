@@ -50,9 +50,19 @@ On `main`:
 - Streets you can read: dark asphalt roads, a light granite kerb, and asphalt or slab pavements by part of town, with or without the aerial photo (issue #98).
 - Ground with real detail up close (grass, asphalt, paving slabs, gravel, pavements and kerbs) with or without the aerial photo, and buildings that look like their part of town – Torshov brick and Harald Hals' plastered blocks, Grünerløkka's tenements with shop fronts, buff brick, wooden houses, new blocks – chosen from OpenStreetMap and Street View notes (issues #67 and #68, PR #81, not merged yet).
 
-Live site: runs `main` (Worker version 6c660a48, deployed 5 Nov 2026 after PR #92; `main` builds byte-for-byte to the live page), so everything above is online. Account emails (issue #55) wait for the user's Brevo key.
+Live site: runs `main` (Worker version 5a422a55, deployed 7 Nov 2026 after PR #100; `main` builds byte-for-byte to the live page), so everything above is online. Account emails (issue #55) wait for the user's Brevo key.
 
 ## Log
+
+### 2026-11-14 · Tidying: the live line, two issues and old branches
+- **What:**
+  - The "Live site" line names the deploy that is live now (Worker version 5a422a55, 7 Nov 2026, after PR #100). It still named the deploy after PR #92, although PRs #94, #96, #101, #103 and #100 were deployed since (their entries say "merged and deployed").
+  - Issue #95 (the secret badge) is closed: PR #101 built it and it is live, but the PR did not close the issue.
+  - Issue #39 (port the code to Rust or C#) is closed as won't do, as its label already said.
+  - The branches of the merged PRs #96, #100, #101 and #103 are deleted on GitHub, and GitHub now deletes a PR's branch by itself when it is merged.
+- **Why:** the user asked for the cleanup (14 Nov 2026).
+- **Where:** `docs/DECISIONS.md`; GitHub issues, branches and the repository setting.
+- **Status:** branch `docs/log-cleanup`.
 
 ### 2026-11-06 · Skydiving: lean forward and back, tricks, front risers that dive (issue #102)
 - **What:**
