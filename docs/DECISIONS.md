@@ -73,7 +73,7 @@ Live site: runs `main` (Worker version 5a422a55, deployed 7 Nov 2026 after PR #1
   - Node tests 208/208 (6 new: kerb side and direction, crossings / tram / railway / water / kept-free circles, car parks, at most two per square, the real map: 300–450 cars, every part of town, no two within 45 m, the same every time).
   - In the browser (headless Chrome, simulated controller): 367 city cars, 684 vehicles; every one stands on the ground (at most 0.14 m off), the nearest other vehicle is 10.8 m away; pictures in Grünerløkka, Grønland, Ensjø and Økern; a car in Grünerløkka refuses without førerkort B, then drives (45 km/h after 4 s), brakes, and □ gets you out.
   - Cars far away are hidden as before (3 of the 367 were drawn in Grünerløkka), so the frame rate is as before.
-- **Status:** branch `feat/more-city-cars`, PR to follow.
+- **Status:** PR #107 (branch `feat/more-city-cars`).
 
 ### 2026-11-14 · Tidying: the live line, two issues and old branches
 - **What:**
