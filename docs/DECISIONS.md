@@ -12,7 +12,7 @@ On `main`:
 - Open world around Haarklous plass 17A, Torshov: real buildings and streets (OpenStreetMap), real ground heights (Kartverket), optional aerial photos; walkable out to about 760 m (540 m before PR #13), drawn properly everywhere you can walk.
 - Your 4th-floor apartment (your kitchen + bedroom design) and stairwell; the street door and stairs work without the mission; eight neighbouring stairwells.
 - Walking (2.5 m/s), running (6 m/s), crouch (tap ○), prone (hold ○), jump (✕); PS4 controller (USB / Bluetooth) plus keyboard and mouse; look sensitivity setting.
-- Vehicles: Honda CBF600S motorcycle and 7 more motorcycles, 30 cars, excavator, helicopter, two-seat plane, Caravan jump plane; hands on bars / wheel / sticks.
+- Vehicles: Honda CBF600S motorcycle and 7 more motorcycles, 30 cars near home and 367 more parked all over the city – by the kerb and in car parks, in every part of town (issue #105), excavator, helicopter, two-seat plane, Caravan jump plane; hands on bars / wheel / sticks.
 - Cars and motorcycles follow gravity (9.81 m/s²) and fly over crests and bumps taken fast (PR #5).
 - FPV drone (hold △), photo camera with gallery (tap △), wristwatch (D-pad ↑), map (touchpad).
 - A waypoint you set on the map (✕ or a click) and a purple pin on screen that leads you there until you are within 7 m (issue #41); an optional round minimap in the bottom-left corner like GTA IV's, turned on in the pause menu (issue #42).
@@ -53,6 +53,27 @@ On `main`:
 Live site: runs `main` (Worker version 5a422a55, deployed 7 Nov 2026 after PR #100; `main` builds byte-for-byte to the live page), so everything above is online. Account emails (issue #55) wait for the user's Brevo key.
 
 ## Log
+
+### 2026-11-14 · Cars all over the city (issue #105)
+- **What:**
+  - 367 more parked cars you can drive, in every part of the city: the rest of Torshov (48), Sagene / Myrens (8), Grünerløkka, Tøyen, Grønland, Kampen, Ensjø and the centre (261), Sinsen / Løren (22) and Økern / Ulven (28).
+  - About two in every 300 m square, at least 45 m apart, so there is a car within a couple of minutes' walk anywhere.
+  - A street car stands in the road by the kerb, on the right-hand side, facing the way the traffic goes. About 70 stand in real car parks (OpenStreetMap's parking areas), along the car park's longest side.
+  - None at a crossing, on tram rails, beside a railway, in or beside water, on a main road, in Construction City, on the driving test's route, or within 9 m of a vehicle that was there already.
+  - They are ordinary cars: the same licence rule (førerkort B), passengers, taxi job, pushing.
+  - The 30 cars near home (within 300 m) are as they were.
+- **Why:** the user: "place more cars around the entire city". Before, the only cars were within about 330 m of Haarklous plass and in Construction City's garage.
+- **Decisions (Claude's, say if you want them changed):**
+  - Two cars per 300 m square. More is a one-number change (`per` / `cell` in `GameCityCars.plan`).
+  - New cars park in the road at the kerb (the streets have clear roads, kerbs and pavements since issue #98). The 30 old ones still stand on the pavement side, so their places and numbers do not change.
+  - All cars now share one model (only the paint differs). Building a car took 15 ms and 0.8 MB each; now 0.6 ms and next to nothing. So the game starts a little faster than before even with 367 more cars (the old 39 cars cost about 590 ms, all 406 now cost about 330 ms including finding the places).
+- **Online:** the new cars come after every older vehicle (numbers 317–683), so the old numbers stay. The places are seeded and checked the same way on every computer, so a lobby agrees on them.
+- **Where:** `game-city-cars.js` (new: where the cars stand, pure), `game-main.js` (builds them, the game's own check for room and slope), `game-vehicles.js` (one shared car model), `index.html`, `tests/city-cars.test.cjs` (new).
+- **Checked:**
+  - Node tests 208/208 (6 new: kerb side and direction, crossings / tram / railway / water / kept-free circles, car parks, at most two per square, the real map: 300–450 cars, every part of town, no two within 45 m, the same every time).
+  - In the browser (headless Chrome, simulated controller): 367 city cars, 684 vehicles; every one stands on the ground (at most 0.14 m off), the nearest other vehicle is 10.8 m away; pictures in Grünerløkka, Grønland, Ensjø and Økern; a car in Grünerløkka refuses without førerkort B, then drives (45 km/h after 4 s), brakes, and □ gets you out.
+  - Cars far away are hidden as before (3 of the 367 were drawn in Grünerløkka), so the frame rate is as before.
+- **Status:** branch `feat/more-city-cars`, PR to follow.
 
 ### 2026-11-14 · Tidying: the live line, two issues and old branches
 - **What:**
