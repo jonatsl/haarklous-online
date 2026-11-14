@@ -238,65 +238,78 @@
 
     // ---------- Hatchback car (left-hand drive) ----------
     const carColors = [0x111214, 0x9e1b20, 0xb7bcc2, 0xf0f0ec, 0x1f3a63, 0x2f5d3a, 0x6b6f75], carNames = ['Black', 'Red', 'Silver', 'White', 'Blue', 'Green', 'Grey'];
+    // The car's model is built once; every car is a copy that shares its geometry and materials and has its own paint
+    // (issue #105: one car took 15 ms and 0.8 MB to build, too much for cars all over the city).
+    let carProto = null;const carPaints = [];
+    function carParts() {
+      const P = {}, paint = P.paint = new T.MeshPhysicalMaterial({color: carColors[0], metalness: .6, roughness: .3, clearcoat: 1, clearcoatRoughness: .06});
+      const glassM = new T.MeshPhysicalMaterial({color: 0x1d2328, transparent: true, opacity: .45, roughness: .03, metalness: .2}), trimM = lib.polymer(0x141516), rubber = new T.MeshStandardMaterial({color: 0x151515, roughness: .9}), rimM = lib.metal(0xa8adb2, .3);
+      const interior = lib.fabric(0x2a2b2e), dashM = lib.polymer(0x1e1f21), chrome = lib.chrome();
+      const g = P.body = new T.Group();
+      // Body: lower shell, glasshouse with pillars, bumpers, lights.
+      const shellRef = (() => {const f = profile([[-2.1, .3], [-2.12, .62], [-1.9, .8], [-.7, .92], [1.75, .95], [2.05, .9], [2.1, .5], [2.0, .3]], 1.78, .08, 0);f.computeBoundingBox();const bb = f.boundingBox.clone();f.dispose();return bb;})();
+      mesh(g, profile([[-2.1, .3], [-2.12, .62], [-1.9, .8], [-.7, .92], [-.5, .922], [-.5, .3]], 1.78, .08, .3, shellRef), paint);
+      mesh(g, profile([[1.3, .3], [1.3, .944], [1.75, .95], [2.05, .9], [2.1, .5], [2.0, .3]], 1.78, .08, .3, shellRef), paint);
+      for (const s of [-1, 1]) mesh(g, sidePanel(s, -.42, 1.22, .24, 1.0, .89, .075, shellRef), paint);
+      mesh(g, profile([[-.75, .9], [-.05, 1.42], [1.45, 1.44], [1.98, .95]], 1.6, .06), paint).scale.set(1, 1, 1);
+      // Windows (glass slightly inset), dark pillars.
+      mesh(g, profile([[-.68, .93], [-.06, 1.37], [.0, 1.37], [-.55, .93]], 1.5, .01), glassM);
+      for (const s of [-1, 1]) mesh(g, profile([[-.5, .97], [-.02, 1.36], [1.4, 1.38], [1.85, 1.0]], .02, .005), glassM).position.x = s * .81;
+      mesh(g, profile([[1.88, .98], [1.48, 1.38], [1.5, 1.4], [1.95, 1.0]], 1.46, .01), glassM);
+      box(g, 1.8, .2, .16, 0, .42, -2.05, trimM);box(g, 1.8, .2, .16, 0, .42, 2.03, trimM);
+      for (const s of [-1, 1]) {
+        mesh(g, new T.BoxGeometry(.32, .1, .05), new T.MeshStandardMaterial({color: 0xe8eef2, emissive: 0x404448, roughness: .05}), s * .62, .72, -2.1);
+        mesh(g, new T.BoxGeometry(.3, .12, .05), new T.MeshStandardMaterial({color: 0xa00000, emissive: 0x300000, roughness: .2}), s * .7, .8, 2.06);
+        const mirror = mesh(g, rounded(.18, .1, .08, .02), paint, s * .98, 1.0, -.55);
+        const handle = box(g, .02, .03, .16, s * .9, .85, .1, chrome);
+      }
+      box(g, .5, .11, .02, 0, .48, -2.14, new T.MeshStandardMaterial({color: 0xf2f2ee, roughness: .4}));
+      // Wheels (front pair steers).
+      P.wheels = [];
+      for (const [wx, wz, front] of [[-.78, -1.3, true], [.78, -1.3, true], [-.78, 1.3, false], [.78, 1.3, false]]) {
+        const holder = new T.Group();holder.position.set(wx, .31, wz);g.add(holder);const wh = wheel(holder, .31, .2, rimM, rubber, 5);P.wheels.push({holder, wheel: wh, front});
+      }
+      // Interior (left-hand drive): floor, seats, dashboard, pillars, headliner, steering wheel with the driver's hands.
+      const carpet = lib.fabric(0x1c1d1f), liner = lib.fabric(0x8d8a84);
+      box(g, 1.36, .05, 1.64, 0, .3, .4, carpet);box(g, .2, .2, .75, 0, .42, -.05, dashM);box(g, 1.3, .42, .03, 0, .5, -.4, dashM);
+      for (const sx of [-.38, .38]) {box(g, .5, .12, .5, sx, .52, .1, interior);const back = box(g, .5, .62, .12, sx, .85, .38, interior);back.rotation.x = -.18;box(g, .3, .2, .1, sx, 1.22, .45, interior);}
+      box(g, 1.3, .3, .4, 0, .5, 1.1, interior);const rearBack = box(g, 1.3, .5, .1, 0, .88, 1.3, interior);rearBack.rotation.x = -.15;
+      mesh(g, profile([[-.78, .72], [-.74, .92], [-.5, .96], [-.4, .76]], 1.4, .03, .05), dashM);
+      box(g, 1.36, .02, 1.4, 0, 1.4, .7, liner);box(g, .22, .06, .02, 0, 1.32, -.12, dashM);
+      for (const s of [-1, 1]) {rod(g, [s * .72, .97, -.66], [s * .66, 1.37, -.05], .035, dashM);rod(g, [s * .7, 1.02, .5], [s * .66, 1.38, .5], .04, liner);rod(g, [s * .7, 1.02, 1.72], [s * .64, 1.38, 1.42], .045, liner);}
+      const cluster = box(g, .34, .12, .02, -.37, .93, -.5, new T.MeshStandardMaterial({color: 0x0b1015, emissive: 0x1a3550, roughness: .2}));cluster.rotation.x = -.35;
+      // Column rises from the dash toward the driver; the wheel's local y axis points at the driver, local -z is "up" on the rim.
+      P.wheelPivot = new T.Group();P.wheelPivot.position.set(-.37, .93, -.3);P.wheelPivot.rotation.x = 1.15;g.add(P.wheelPivot);
+      cyl(P.wheelPivot, .025, .025, .3, 0, -.15, 0, dashM, 10);
+      P.steeringWheel = new T.Group();P.wheelPivot.add(P.steeringWheel);
+      const rimW = mesh(P.steeringWheel, new T.TorusGeometry(.19, .016, 10, 36), dashM);rimW.rotation.x = Math.PI / 2;
+      for (const s of [-1, 1]) box(P.steeringWheel, .14, .012, .03, s * .105, 0, 0, dashM);box(P.steeringWheel, .03, .012, .14, 0, 0, .105, dashM);
+      mesh(P.steeringWheel, new T.CylinderGeometry(.055, .055, .03, 16), dashM, 0, .01, 0);
+      // Hands at ten and two: back of the hand outward and toward the driver, fingers around the rim, wrists toward the driver.
+      P.hands = new T.Group();P.steeringWheel.add(P.hands);P.hands.visible = false;P.wrists = [];
+      for (const [phi, left] of [[-1.05, true], [1.05, false]]) {
+        const r = V3(Math.sin(phi), 0, -Math.cos(phi)), axis = V3(0, 1, 0), yh = r.clone().multiplyScalar(Math.cos(.7)).addScaledVector(axis, Math.sin(.7)).normalize();
+        const zh = axis.clone().addScaledVector(yh, -axis.dot(yh)).normalize(), xh = yh.clone().cross(zh);
+        const h = hand(P.hands, r.x * .19, 0, r.z * .19, new T.Euler().setFromRotationMatrix(new T.Matrix4().makeBasis(xh, yh, zh)), left);
+        const wrist = new T.Object3D();wrist.position.set(0, .035, .07);h.add(wrist);P.wrists.push(wrist);
+      }
+      // Forearms in the car frame, solved each frame from the shoulders to the wrists (they follow the wheel).
+      P.arms = new T.Group();P.arms.visible = false;g.add(P.arms);P.forearms = [-1, 1].map(() => mesh(P.arms, new T.CapsuleGeometry(.036, .26, 6, 12), sleeve));
+      g.traverse(o => {if (o.isMesh && o.material === glassM) o.castShadow = false;});
+      for (const w of P.wheels) w.holder.userData.noMerge = true;P.wheelPivot.userData.noMerge = true;P.arms.userData.noMerge = true;lib.mergeStatic(g);
+      return P;
+    }
     class Car extends Vehicle {
       constructor(x, z, yaw, model = 0) {
         super(x, z, yaw, .95, 4.2);this.width = 1.8;this.height = 1.45;this.kind = 'car';this.name = carNames[model % carColors.length] + ' hatchback';this.steerAngle = 0;this.rpm = 800;this.engine = null;this.wheelSpin = 0;
         this.hips = {d: {pos: V3(-.37, .62, .28), stance: 'drive'}, p: {pos: V3(.37, .62, .28), stance: 'sit'}};this.passengerEye = V3(.37, 1.24, .22);this.flies = true;
-        const paint = new T.MeshPhysicalMaterial({color: carColors[model % carColors.length], metalness: .6, roughness: .3, clearcoat: 1, clearcoatRoughness: .06});
-        const glassM = new T.MeshPhysicalMaterial({color: 0x1d2328, transparent: true, opacity: .45, roughness: .03, metalness: .2}), trimM = lib.polymer(0x141516), rubber = new T.MeshStandardMaterial({color: 0x151515, roughness: .9}), rimM = lib.metal(0xa8adb2, .3);
-        const interior = lib.fabric(0x2a2b2e), dashM = lib.polymer(0x1e1f21), chrome = lib.chrome();
-        const g = this.body = new T.Group();this.group.add(g);
-        // Body: lower shell, glasshouse with pillars, bumpers, lights.
-        const shellRef = (() => {const f = profile([[-2.1, .3], [-2.12, .62], [-1.9, .8], [-.7, .92], [1.75, .95], [2.05, .9], [2.1, .5], [2.0, .3]], 1.78, .08, 0);f.computeBoundingBox();const bb = f.boundingBox.clone();f.dispose();return bb;})();
-        mesh(g, profile([[-2.1, .3], [-2.12, .62], [-1.9, .8], [-.7, .92], [-.5, .922], [-.5, .3]], 1.78, .08, .3, shellRef), paint);
-        mesh(g, profile([[1.3, .3], [1.3, .944], [1.75, .95], [2.05, .9], [2.1, .5], [2.0, .3]], 1.78, .08, .3, shellRef), paint);
-        for (const s of [-1, 1]) mesh(g, sidePanel(s, -.42, 1.22, .24, 1.0, .89, .075, shellRef), paint);
-        mesh(g, profile([[-.75, .9], [-.05, 1.42], [1.45, 1.44], [1.98, .95]], 1.6, .06), paint).scale.set(1, 1, 1);
-        // Windows (glass slightly inset), dark pillars.
-        mesh(g, profile([[-.68, .93], [-.06, 1.37], [.0, 1.37], [-.55, .93]], 1.5, .01), glassM);
-        for (const s of [-1, 1]) mesh(g, profile([[-.5, .97], [-.02, 1.36], [1.4, 1.38], [1.85, 1.0]], .02, .005), glassM).position.x = s * .81;
-        mesh(g, profile([[1.88, .98], [1.48, 1.38], [1.5, 1.4], [1.95, 1.0]], 1.46, .01), glassM);
-        box(g, 1.8, .2, .16, 0, .42, -2.05, trimM);box(g, 1.8, .2, .16, 0, .42, 2.03, trimM);
-        for (const s of [-1, 1]) {
-          mesh(g, new T.BoxGeometry(.32, .1, .05), new T.MeshStandardMaterial({color: 0xe8eef2, emissive: 0x404448, roughness: .05}), s * .62, .72, -2.1);
-          mesh(g, new T.BoxGeometry(.3, .12, .05), new T.MeshStandardMaterial({color: 0xa00000, emissive: 0x300000, roughness: .2}), s * .7, .8, 2.06);
-          const mirror = mesh(g, rounded(.18, .1, .08, .02), paint, s * .98, 1.0, -.55);
-          const handle = box(g, .02, .03, .16, s * .9, .85, .1, chrome);
-        }
-        box(g, .5, .11, .02, 0, .48, -2.14, new T.MeshStandardMaterial({color: 0xf2f2ee, roughness: .4}));
-        // Wheels (front pair steers).
-        this.wheels = [];
-        for (const [wx, wz, front] of [[-.78, -1.3, true], [.78, -1.3, true], [-.78, 1.3, false], [.78, 1.3, false]]) {
-          const holder = new T.Group();holder.position.set(wx, .31, wz);g.add(holder);const wh = wheel(holder, .31, .2, rimM, rubber, 5);this.wheels.push({holder, wheel: wh, front});
-        }
-        // Interior (left-hand drive): floor, seats, dashboard, pillars, headliner, steering wheel with the driver's hands.
-        const carpet = lib.fabric(0x1c1d1f), liner = lib.fabric(0x8d8a84);
-        box(g, 1.36, .05, 1.64, 0, .3, .4, carpet);box(g, .2, .2, .75, 0, .42, -.05, dashM);box(g, 1.3, .42, .03, 0, .5, -.4, dashM);
-        for (const sx of [-.38, .38]) {box(g, .5, .12, .5, sx, .52, .1, interior);const back = box(g, .5, .62, .12, sx, .85, .38, interior);back.rotation.x = -.18;box(g, .3, .2, .1, sx, 1.22, .45, interior);}
-        box(g, 1.3, .3, .4, 0, .5, 1.1, interior);const rearBack = box(g, 1.3, .5, .1, 0, .88, 1.3, interior);rearBack.rotation.x = -.15;
-        mesh(g, profile([[-.78, .72], [-.74, .92], [-.5, .96], [-.4, .76]], 1.4, .03, .05), dashM);
-        box(g, 1.36, .02, 1.4, 0, 1.4, .7, liner);box(g, .22, .06, .02, 0, 1.32, -.12, dashM);
-        for (const s of [-1, 1]) {rod(g, [s * .72, .97, -.66], [s * .66, 1.37, -.05], .035, dashM);rod(g, [s * .7, 1.02, .5], [s * .66, 1.38, .5], .04, liner);rod(g, [s * .7, 1.02, 1.72], [s * .64, 1.38, 1.42], .045, liner);}
-        const cluster = box(g, .34, .12, .02, -.37, .93, -.5, new T.MeshStandardMaterial({color: 0x0b1015, emissive: 0x1a3550, roughness: .2}));cluster.rotation.x = -.35;
-        // Column rises from the dash toward the driver; the wheel's local y axis points at the driver, local -z is "up" on the rim.
-        this.wheelPivot = new T.Group();this.wheelPivot.position.set(-.37, .93, -.3);this.wheelPivot.rotation.x = 1.15;g.add(this.wheelPivot);
-        cyl(this.wheelPivot, .025, .025, .3, 0, -.15, 0, dashM, 10);
-        this.steeringWheel = new T.Group();this.wheelPivot.add(this.steeringWheel);
-        const rimW = mesh(this.steeringWheel, new T.TorusGeometry(.19, .016, 10, 36), dashM);rimW.rotation.x = Math.PI / 2;
-        for (const s of [-1, 1]) box(this.steeringWheel, .14, .012, .03, s * .105, 0, 0, dashM);box(this.steeringWheel, .03, .012, .14, 0, 0, .105, dashM);
-        mesh(this.steeringWheel, new T.CylinderGeometry(.055, .055, .03, 16), dashM, 0, .01, 0);
-        // Hands at ten and two: back of the hand outward and toward the driver, fingers around the rim, wrists toward the driver.
-        this.hands = new T.Group();this.steeringWheel.add(this.hands);this.hands.visible = false;this.wrists = [];
-        for (const [phi, left] of [[-1.05, true], [1.05, false]]) {
-          const r = V3(Math.sin(phi), 0, -Math.cos(phi)), axis = V3(0, 1, 0), yh = r.clone().multiplyScalar(Math.cos(.7)).addScaledVector(axis, Math.sin(.7)).normalize();
-          const zh = axis.clone().addScaledVector(yh, -axis.dot(yh)).normalize(), xh = yh.clone().cross(zh);
-          const h = hand(this.hands, r.x * .19, 0, r.z * .19, new T.Euler().setFromRotationMatrix(new T.Matrix4().makeBasis(xh, yh, zh)), left);
-          const wrist = new T.Object3D();wrist.position.set(0, .035, .07);h.add(wrist);this.wrists.push(wrist);
-        }
-        // Forearms in the car frame, solved each frame from the shoulders to the wrists (they follow the wheel).
-        this.arms = new T.Group();this.arms.visible = false;g.add(this.arms);this.forearms = [-1, 1].map(() => mesh(this.arms, new T.CapsuleGeometry(.036, .26, 6, 12), sleeve));
-        g.traverse(o => {if (o.isMesh && o.material === glassM) o.castShadow = false;});
-        for (const w of this.wheels) w.holder.userData.noMerge = true;this.wheelPivot.userData.noMerge = true;this.arms.userData.noMerge = true;lib.mergeStatic(g);
+        const P = carProto || (carProto = carParts()), k = model % carColors.length, g = this.body = P.body.clone(true), twin = new Map();this.group.add(g);
+        (function pair(a, b) {twin.set(a, b);a.children.forEach((c, i) => pair(c, b.children[i]));})(P.body, g);
+        const paint = carPaints[k] || (carPaints[k] = Object.assign(P.paint.clone(), {color: new T.Color(carColors[k])}));
+        g.traverse(o => {if (o.isMesh && o.material === P.paint) o.material = paint;});
+        this.wheels = P.wheels.map(w => ({holder: twin.get(w.holder), wheel: twin.get(w.wheel), front: w.front}));
+        this.wheelPivot = twin.get(P.wheelPivot);this.steeringWheel = twin.get(P.steeringWheel);this.hands = twin.get(P.hands);this.wrists = P.wrists.map(w => twin.get(w));
+        this.arms = twin.get(P.arms);this.forearms = P.forearms.map(m => twin.get(m));
         this.settle(1);this.place();
       }
       seat() {const f = this.forward(), r = {x: -f.z, z: f.x};return {x: this.x + r.x * -.37 - f.x * .22, y: this.y + 1.24 - this.squash, z: this.z + r.z * -.37 - f.z * .22, yaw: this.yaw, pitch: this.pitch, roll: this.roll || 0};}

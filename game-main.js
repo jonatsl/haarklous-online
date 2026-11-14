@@ -290,6 +290,24 @@
   vehicles.push(schoolCar, schoolBike);
   // Construction City's garage (issue #85): eight cars you can drive out up the ramp, after every older vehicle (their numbers stay).
   if (cc) cc.driveSpots.forEach((sp, i) => {const v = new VH.Car(sp.x, sp.z, sp.yaw, i % 4);v.y = sp.y;v.groundPrev = undefined;v.place();vehicles.push(v);});
+  // Cars all over the city (issue #105): two or so in every 300 m square of every part of town, by the kerb or in a car park.
+  // After every older vehicle, so their numbers stay the same online; seeded and checked the same way on every computer.
+  const cityCars = [];
+  if (window.GameCityCars) {
+    const w = worldFor(1.25), areas = [...D.areas, ...DISTRICTS.flatMap(d => d.areas)], local = v => world.toLocal(v.x, v.z);
+    // Keep free: the old street cars' part of town, every vehicle that is there already, the docks, and the driving test's route.
+    const clear = [{x: 0, s: 0, r: 300}, ...vehicles.map(v => ({...local(v), r: 9})), ...(rides ? rides.keepOut.map(k => ({...local(k), r: k.r + 3})) : [])];
+    {const g = [GL.COURSES.road.start, ...GL.COURSES.road.gates.map(q => q.p)];for (let i = 0; i + 1 < g.length; i++) {const n = Math.ceil(Math.hypot(g[i + 1][0] - g[i][0], g[i + 1][1] - g[i][1]) / 5);for (let k = 0; k <= n; k++) clear.push({x: g[i][0] + (g[i + 1][0] - g[i][0]) * k / n, s: g[i][1] + (g[i + 1][1] - g[i][1]) * k / n, r: 8});}}
+    const spots = window.GameCityCars.plan({roads: [...D.roads, ...DISTRICTS.flatMap(d => d.roads)], lots: areas.filter(a => a.k === 'parking').map(a => a.o),
+      water: [...areas.filter(a => a.k === 'water').map(a => a.o), ...DISTRICTS.flatMap(d => d.sea)], rects: window.Surroundings.walkRects(D.terrain.half, world.playHalf, DISTRICTS), clear,
+      ok: c => {
+        const p = toWorld(c.x, c.s), h = heightAt(p.x, p.z), yaw = localHeadingToYaw(c.heading), f = {x: -Math.sin(yaw), z: -Math.cos(yaw)};c.at = p;c.yaw = yaw;
+        if (cc && cc.cutsGround(p.x, p.z)) return false;
+        if (Math.abs(heightAt(p.x + f.x * 2, p.z + f.z * 2) - heightAt(p.x - f.x * 2, p.z - f.z * 2)) > .9) return false;
+        return [0, 1.6, -1.6].every(k => collision.canStand(w, {x: p.x + f.x * k, z: p.z + f.z * k}, 1.4, h));
+      }});
+    for (const c of spots) {const v = new VH.Car(c.at.x, c.at.z, c.yaw, c.model);cityCars.push(v);vehicles.push(v);}
+  }
   vehicles.forEach(v => {v.spawn = v.netGet();});
   vehicles.forEach(v => scene.add(v.group));
   vehicles.filter(v => v.kind === 'excavator').forEach(ex => {
@@ -2206,6 +2224,7 @@
   // Licences (issue #59). Browser tests that need to drive: haarklousGame.licences.grant('B') (or every id in GameLicences.IDS).
   Object.assign(window.haarklousGame, {licences: lic, licBegin, licVehicle, openLicPlace, openLicPhone, schoolCar, schoolBike, LIC_SIGNS});
   Object.defineProperty(window.haarklousGame, 'licTest', {get: () => licTest});
+  Object.assign(window.haarklousGame, {cityCars});
   Object.assign(window.haarklousGame, {storgata, magic, magicFxApi: fx, castPower, GRONLAND, storgataAct, questWaypoint, collision});
   loading.remove();$('start').hidden = false;
   requestAnimationFrame(frame);
