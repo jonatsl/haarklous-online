@@ -73,9 +73,11 @@
   const towers = [];
   const ownStair = window.Stairwell.create({T, lib, own: true, id: 'own', wallTop: D.own.top});scene.add(ownStair.group);ownStair.group.updateMatrixWorld(true);
   towers.push({stair: ownStair, matrix: ownStair.group.matrixWorld.clone(), own: true});
+  // Flats you can buy (issue #106): the flats behind the neighbouring stair towers' doors (homes-data.js).
+  const GH = window.GameHomes, HOME_LIST = GH && window.HOMES ? window.HOMES : [];
   D.enterable.forEach((e, i) => {
     const b = D.buildings[e.b], geo = new T.Group();geo.rotation.y = theta;geo.position.set(D.geo.x, 0, D.geo.z);scene.add(geo);
-    const s = window.Stairwell.create({T, lib, own: false, id: 'b' + i, wallTop: b.top - e.y});s.group.position.set(e.x, e.y, e.s);s.group.rotation.y = e.rot;geo.add(s.group);geo.updateMatrixWorld(true);
+    const s = window.Stairwell.create({T, lib, own: false, id: 'b' + i, wallTop: b.top - e.y, homes: HOME_LIST.filter(h => h.t === i)});s.group.position.set(e.x, e.y, e.s);s.group.rotation.y = e.rot;geo.add(s.group);geo.updateMatrixWorld(true);
     towers.push({stair: s, matrix: s.group.matrixWorld.clone(), building: b});
   });
   towers.forEach(t => {t.inverse = t.matrix.clone().invert();});
@@ -89,6 +91,9 @@
     });
   }
   const towerObstacles = t => t.stair.obstacles().map(o => ({points: o.points.map(p => xf(t.matrix, p.x, p.z)), minY: o.minY + t.matrix.elements[13], maxY: o.maxY + t.matrix.elements[13], kind: 'tower'}));
+  const homes = HOME_LIST.length ? GH.create({T, lib, homes: HOME_LIST, towers: towers.filter(t => !t.own), xf}) : null;if (homes) scene.add(homes.group);
+  // The flats lie inside their buildings' solid outlines: the walk world hollows them out.
+  const worldSolids = () => world.obstacles().map(o => homes && o.enter !== undefined ? {...o, voids: homes.voids(o.enter)} : o);
   // Firepit with five benches in the park in front of the building (the fire level is shared in multiplayer).
   const FIRE_POS = {x: -2.7, z: 34.7}, fire = window.GameFire.create({T, lib, heightAt: world.heightWorld, x: FIRE_POS.x, z: FIRE_POS.z});scene.add(fire.group);
   // Three hidden stashes (issue #2): the top landing of a neighbour's stairwell, the courtyard behind the building and the
@@ -177,8 +182,8 @@
     return {school: {...a, yaw: Math.atan2(-(b.x - a.x), -(b.z - a.z)) + Math.PI}, site: {...c, yaw: Math.atan2(-(d.x - c.x), -(d.z - c.z)) + Math.PI}, airfield: {x: -123.3, z: 6.2, yaw: .5236 + Math.PI / 2}};})();
   const signObstacles = [...JOB_SIGNS, ...Object.values(LIC_SIGNS)].map(j => {const y = groundAt(j.x, j.z);return {points: [[-.5, -.15], [.5, -.15], [.5, .15], [-.5, .15]].map(([a, b]) => ({x: j.x + Math.cos(j.yaw) * a + Math.sin(j.yaw) * b, z: j.z - Math.sin(j.yaw) * a + Math.cos(j.yaw) * b})), minY: y - .3, maxY: y + 2.2, kind: 'sign'};});
   const extraObstacles = [...(siteField ? window.GameSite.fenceObstacles(siteField, groundAt) : []), ...(pbRules ? pbRules.obstacles : []), ...(catacomb ? catacomb.obstacles : []), ...(rides ? rides.obstacles : []), ...signObstacles, ...(storgata ? storgata.obstacles : [])];
-  const staticObstacles = [...apt.obstacles, ...towers.flatMap(towerObstacles), ...world.obstacles(), ...fire.obstacles, ...stash.obstacles, ...shops.obstacles, ...sculpture.obstacles, ...oksen.obstacles, ...gym.obstacles, ...extraObstacles, ...landmarks.obstacles];
-  const walkFloors = [...apt.floors, ...towers.flatMap(towerFloors), ...shops.floors, ...sculpture.floors, ...oksen.floors, ...landmarks.floors, ...gym.floors, ...(catacomb ? catacomb.floors : []), ...walkGroundFloors];
+  const staticObstacles = [...apt.obstacles, ...towers.flatMap(towerObstacles), ...worldSolids(), ...(homes ? homes.obstacles : []), ...fire.obstacles, ...stash.obstacles, ...shops.obstacles, ...sculpture.obstacles, ...oksen.obstacles, ...gym.obstacles, ...extraObstacles, ...landmarks.obstacles];
+  const walkFloors = [...apt.floors, ...towers.flatMap(towerFloors), ...(homes ? homes.floors : []), ...shops.floors, ...sculpture.floors, ...oksen.floors, ...landmarks.floors, ...gym.floors, ...(catacomb ? catacomb.floors : []), ...walkGroundFloors];
   staticObstacles.push(...grl.flatMap(m => m.obstacles || []));walkFloors.unshift(...grl.flatMap(m => m.floors || []), ...(kayak ? kayak.bridges.map(b => b.floor) : []));
   const walkWorld = collision.createWorld({floors: walkFloors, obstacles: staticObstacles, radius: .18, clearance: .08});
   const vehicleWorlds = new Map();
@@ -198,7 +203,7 @@
   const interactables = [];[apt.group, ...towers.map(t => t.stair.group)].forEach(g => g.traverse(o => {if (o.isMesh && (o.userData.doorId || o.userData.lockedDoor)) interactables.push(o);}));
   apt.drinks.forEach(d => d.object.traverse(o => {if (o.isMesh) {o.userData.drink = d;interactables.push(o);}}));
   interactables.push(...stash.hitboxes, ...shops.hitboxes, ...gym.hitboxes, ...(storgata ? storgata.hitboxes : []));
-  interactables.push(...grl.flatMap(m => m.hitboxes || []));
+  interactables.push(...grl.flatMap(m => m.hitboxes || []), ...(homes ? homes.hitboxes : []));
 
   // ---------- Vehicles ----------
   const toWorld = world.toWorld, heightAt = groundAt;
@@ -459,6 +464,7 @@
     ...grl.flatMap(m => m.poi ? m.poi() : []),
     ...DISTRICTS.flatMap(d => d.stations).map(st => ({x: st.x, s: st.s, color: '#e65100', label: `${st.name} T`, glyph: 'T'})),
     ...(catacomb ? catacomb.poi() : []),
+    ...(homes && homeReg.mine && homes.byId.has(homeReg.mine) ? [(p => ({...world.toLocal(p.x, p.z), color: '#1f6f43', label: 'Your flat', glyph: '🏠'}))(homes.doorWorld(homeReg.mine))] : []),
     ...(rentals ? rentals.poi() : []),
   ]});
   // Wristwatch (D-pad ↑) shares the first-person overlay with the photo camera.
@@ -504,7 +510,7 @@
     // During the mission only doors can be used (□ otherwise reloads).
     if (caseGame?.active) {const o = lookTarget();if (o?.userData.doorId) {const d = doors.find(d => d.id === o.userData.doorId);if (d) return {text: `□ ${d.open ? 'Close' : 'Open'} ${d.name.toLowerCase()}`, act: () => toggleDoor(d)};}if (o?.userData.lockedDoor) return {text: '□ Try the door', act: () => {audio.sfx('locked');notice('Locked.');}};return null;}
     // Doors first (the street door of 17A opens normally), then the mission marker beside the entrance.
-    {const o = lookTarget();if (o?.userData.doorId) {const d = doors.find(d => d.id === o.userData.doorId);if (d) return {text: `□ ${d.open ? 'Close' : 'Open'} ${d.name.toLowerCase()}`, act: () => toggleDoor(d)};}}
+    {const o = lookTarget();if (o?.userData.homePlate) return homePlatePrompt(o.userData.homePlate);if (o?.userData.doorId) {const d = doors.find(d => d.id === o.userData.doorId);if (d && d.home) return homeDoorPrompt(d);if (d) return {text: `□ ${d.open ? 'Close' : 'Open'} ${d.name.toLowerCase()}`, act: () => toggleDoor(d)};}}
     if (Math.hypot(player.x - MISSION_MARK.x, player.z - MISSION_MARK.z) < 1.6 && Math.abs(player.feet - world.heightWorld(MISSION_MARK.x, MISSION_MARK.z)) < 2) return {text: '□ Start mission: rescue the hostage (4th floor)', act: () => startMission()};
     // Jobs (issue #56): the order's pickup and the street door, and the job signs.
     {const jp = player.mode === 'foot' ? jobs.prompt(player, lookTarget()) : null;if (jp) return jp;}
@@ -535,7 +541,8 @@
     for (const g of [...discCourses, mini.petanque, ...(pingpong ? [pingpong] : [])]) {const t = g.near({x: player.x, z: player.z, y: player.feet});if (t) return {text: t, act: () => startMinigame(g)};}
     const o = lookTarget();
     if (o?.userData.drink && !o.userData.drink.used) {const d = o.userData.drink;return {text: d.kind === 'beer' ? '□ Drink a beer' : `□ Take a sip of ${d.name}`, act: () => drink(d)};}
-    if (o?.userData.doorId) {const d = doors.find(d => d.id === o.userData.doorId);if (d) return {text: `□ ${d.open ? 'Close' : 'Open'} ${d.name.toLowerCase()}`, act: () => toggleDoor(d)};}
+    if (o?.userData.homePlate) return homePlatePrompt(o.userData.homePlate);
+    if (o?.userData.doorId) {const d = doors.find(d => d.id === o.userData.doorId);if (d && d.home) return homeDoorPrompt(d);if (d) return {text: `□ ${d.open ? 'Close' : 'Open'} ${d.name.toLowerCase()}`, act: () => toggleDoor(d)};}
     if (o?.userData.lockedDoor) return {text: '□ Try the door', act: () => {audio.sfx('locked');notice('Locked. Someone lives here.');}};
     return null;
   }
@@ -1250,7 +1257,7 @@
     // Drunk effect: decays in real time.
     drunk = Math.max(0, drunk - dt);const dl = drunkLevel();
     if (boost && (boost.t -= dt) <= 0) {boost = null;audio.muffle(false);notice('The boost wears off.', 2);}
-    const wdt = dt * worldScale();stash.update(dt);shopsTick(dt);storgataTick(dt);gym.update(dt, player, camera);grunerTick(dt);if (route) route.tick(player, dt);world.update(camera.position);
+    const wdt = dt * worldScale();stash.update(dt);shopsTick(dt);storgataTick(dt);gym.update(dt, player, camera);grunerTick(dt);homesTick(dt);if (route) route.tick(player, dt);world.update(camera.position);
     // The jump planes move first, so a jumper's seat (and camera) is where the plane is this frame.
     updateJumpFlight(dt);updateGamePilot(dt);
     licExaminer(input);
@@ -1302,7 +1309,7 @@
     const alt = player.mode === 'drone' || player.mode === 'skydive' || player.vehicle?.aircraft ? camera.position.y - groundAt(at.x, at.z) : 0;
     if (map.guide({dt, camera, x: at.x, z: at.z, you: player, heading, view, alt, others: lobbyArrows(), ground: groundAt, show: !photo.active}) === 'reached') notice('Waypoint reached.', 2.5);
   }
-  function placeName() {if (inApartment()) return 'Haarklous plass 17A, 4th floor';{const r = rathkes && rathkes.placeName(player.x, player.z, player.feet);if (r) return r;}{const c = cc && cc.placeName(player.x, player.z, player.feet);if (c) return c;}{const c = catacomb && catacomb.placeName(player);if (c) return c;}{const z = gym.zoneAt(player, player.feet);if (z) return `Klatreverket Torshov, ${gym.ZONE_NAME[z]}`;}const tw = towerAt(player.x, player.z, player.feet);if (tw) return tw.t.own ? 'Stairwell, Haarklous plass 17A' : 'Stairwell, Torshov';
+  function placeName() {if (inApartment()) return 'Haarklous plass 17A, 4th floor';{const at = homes && homes.inside(player.x, player.z, player.feet);if (at) return `${GH.address(at.home)}${homeReg.mine === at.home.id ? ' – your flat' : ''}`;}{const r = rathkes && rathkes.placeName(player.x, player.z, player.feet);if (r) return r;}{const c = cc && cc.placeName(player.x, player.z, player.feet);if (c) return c;}{const c = catacomb && catacomb.placeName(player);if (c) return c;}{const z = gym.zoneAt(player, player.feet);if (z) return `Klatreverket Torshov, ${gym.ZONE_NAME[z]}`;}const tw = towerAt(player.x, player.z, player.feet);if (tw) return tw.t.own ? 'Stairwell, Haarklous plass 17A' : 'Stairwell, Torshov';
     if (storgata && Math.hypot(player.x - storgata.people.kjell.at.x, player.z - storgata.people.kjell.at.z) < 60) return 'Kiwi Storgata 33, Oslo';
     // In a district patch: the nearest mapped neighbourhood (Ensjø, Kampen, Vålerenga, Gamlebyen …).
     const l = world.toLocal(player.x, player.z);if (Math.abs(l.x) > world.playHalf || Math.abs(l.s) > world.playHalf) {const near = DISTRICTS.flatMap(d => d.places).sort((a, b) => Math.hypot(a.x - l.x, a.s - l.s) - Math.hypot(b.x - l.x, b.s - l.s))[0];if (near) return `${near.name}, Oslo`;}
@@ -1355,7 +1362,7 @@
     let surface = 'grass', stair = false;
     if (shops.shopAt(player, player.feet)) surface = 'tile';
     else if (gym.zoneAt(player, player.feet)) {const f = collision.supportAt(walkWorld, player, player.feet)?.floor;surface = f?.surfaceKind === 'mat' ? 'sand' : f?.surfaceKind === 'metal' ? 'metal' : 'tile';stair = f?.surfaceKind === 'metal';}
-    else if (library && library.inside(player.x, player.z, player.feet)) surface = 'wood';
+    else if ((library && library.inside(player.x, player.z, player.feet)) || (homes && homes.inside(player.x, player.z, player.feet))) surface = 'wood';
     else if (cc && cc.inside(player.x, player.z, player.feet)) surface = cc.surfaceAt(player.x, player.z, player.feet);
     else if (inApartment()) {const r = roomAt();surface = r === 'bath' ? 'tile' : r ? 'wood' : 'metal';}
     else if (towerAt(player.x, player.z, player.feet) || catacomb?.state.depth > 0) {surface = 'stone';stair = true;}
@@ -1832,6 +1839,90 @@
   let acctNote = '';
   const setNote = t => {acctNote = t;$('acctNote').textContent = t;};
   // The account name is the lobby name while you are logged in.
+  // ---------- Flats you can buy (issue #106) ----------
+  // The server keeps the one list of who owns which flat (cloud/src/homes.js). The game asks for it at the start, when you log
+  // in or out, and every minute while you are in one of the stair towers. Without the server every flat shows as for sale:
+  // you can look, not buy.
+  const homeReg = {owners: {}, mine: null, mineName: '', at: -1e9, busy: false, uid: undefined, sell: null};
+  function homeApply(j) {
+    if (!homes || !j || !Array.isArray(j.homes)) return;
+    homeReg.owners = Object.fromEntries(j.homes.map(h => [h.id, h.name]));
+    if ('mine' in j) {homeReg.mine = j.mine || null;homeReg.mineName = j.name || (account.user ? account.user.name : '');}
+    if (homeReg.mine) homeReg.owners[homeReg.mine] = homeReg.mineName || homeReg.owners[homeReg.mine];
+    homes.setRegistry(homeReg);
+  }
+  async function homeFetch(path, body) {
+    const r = await fetch(path, body ? {method: 'POST', credentials: 'include', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)} : {credentials: 'include'});
+    let j = null;try {j = await r.json();} catch {}
+    return {ok: r.ok, status: r.status, j};
+  }
+  function homeRefresh() {
+    if (!homes || !account.available) return Promise.resolve();
+    homeReg.at = performance.now();const logged = !!account.user;
+    return homeFetch(logged ? '/api/homes?mine=1' : '/api/homes').then(r => {if (r.ok && r.j) homeApply(logged ? r.j : {...r.j, mine: null});}).catch(() => {});
+  }
+  function homesTick(dt) {
+    if (!homes) return;
+    homes.tick(player, dt);
+    const uid = account.user ? account.user.id || account.user.email || account.user.name : null, age = (performance.now() - homeReg.at) / 1000;
+    if (uid !== homeReg.uid) {homeReg.uid = uid;if (!uid) {homeReg.mine = null;homes.setRegistry(homeReg);}homeRefresh();}
+    else if (age > 300 || (age > 60 && (towerAt(player.x, player.z, player.feet) || homes.inside(player.x, player.z, player.feet)))) homeRefresh();
+  }
+  // A flat's door: yours opens for you; a flat for sale is open for a look; somebody else's stays locked (from the inside
+  // anybody may open it, so nobody is shut in).
+  function homeDoorPrompt(d) {
+    const h = homes.byId.get(d.home), st = GH.status(h.id, homeReg), at = homes.inside(player.x, player.z, player.feet), inIt = at && at.home === h;
+    if (st === 'mine') return {text: `□ ${d.open ? 'Close' : 'Open'} your door`, act: () => toggleDoor(d)};
+    if (st === 'taken' && !d.open && !inIt) return {text: `🔒 ${homeReg.owners[h.id] || 'Somebody'} lives here · □ try the door`, act: () => {audio.sfx('locked');notice(`Locked. ${homeReg.owners[h.id] || 'Somebody'} owns this flat.`, 3);}};
+    if (st === 'taken') return {text: `□ ${d.open ? 'Close' : 'Open'} the door`, act: () => toggleDoor(d)};
+    return {text: d.open ? '□ Close the door' : `□ Open the door – this flat is for sale, have a look (${GH.money(h.price)}, buy at the sign)`, act: () => toggleDoor(d)};
+  }
+  function homePlatePrompt(id) {
+    const h = homes.byId.get(id), st = GH.status(id, homeReg);
+    if (st === 'taken') return {text: `${homeReg.owners[id] || 'Somebody'} lives here · ${h.unit}`, act: () => notice(`${GH.address(h)} – ${homeReg.owners[id] || 'somebody'} owns this flat.`, 4)};
+    return {text: st === 'mine' ? `□ Your flat · ${h.unit}` : `□ For sale: ${GH.label(h)} · ${GH.money(h.price)}`, act: () => openHomeMenu(h)};
+  }
+  function openHomeMenu(h) {
+    watch.hide();homeReg.sell = null;homeRefresh();
+    lic.menu.show({title: () => `🏠 ${GH.status(h.id, homeReg) === 'mine' ? 'Your flat' : GH.status(h.id, homeReg) === 'taken' ? 'Sold' : 'Flat for sale'} · ${KR(wallet.money)}`,
+      note: () => `${GH.address(h)} · ${GH.label(h)}`, items: () => homeItems(h)});
+  }
+  function homeItems(h) {
+    const st = GH.status(h.id, homeReg), d = doors.find(x => x.home === h.id), items = [], rooms = `Hall, bathroom, ${h.rooms === 3 ? 'two bedrooms' : 'bedroom'}, living room with kitchen · windows to the street and the courtyard`;
+    if (st === 'sale') {
+      const why = homeReg.busy ? 'Wait…' : GH.canBuy({home: h, reg: homeReg, money: wallet.money, user: account.user, online: account.available});
+      items.push({label: `Buy this flat · ${GH.money(h.price)}`, sub: why || 'It will be yours alone: your name on the door, and only you unlock it.', done: !!why, act: () => buyHome(h)});
+      items.push({label: d.open ? 'Close the door' : 'Open the door and have a look', sub: rooms, act: () => toggleDoor(d)});
+    } else if (st === 'mine') {
+      items.push({label: d.open ? 'Close the door' : 'Open the door', sub: rooms, act: () => toggleDoor(d)});
+      items.push({label: homeReg.sell === h.id ? `Sure? Press again to sell for ${GH.money(GH.refund(h))}` : `Sell the flat · you get ${GH.money(GH.refund(h))} back`, sub: homeReg.busy ? 'Wait…' : 'It goes back on the market for anybody to buy.', done: homeReg.busy, keep: homeReg.sell !== h.id,
+        act: () => {if (homeReg.sell !== h.id) {homeReg.sell = h.id;lic.menu.render();} else sellHome();}});
+    } else items.push({label: `${homeReg.owners[h.id] || 'Somebody'} owns this flat`, sub: 'It is not for sale.', done: true, act: () => {}});
+    return items;
+  }
+  async function buyHome(h) {
+    const why = GH.canBuy({home: h, reg: homeReg, money: wallet.money, user: account.user, online: account.available});
+    if (why) {notice(why, 5);return false;}
+    if (homeReg.busy) return false;homeReg.busy = true;let done = false;
+    try {
+      const r = await homeFetch('/api/homes/buy', {id: h.id});if (r.j) homeApply(r.j);
+      if (r.ok && r.j && r.j.ok) {
+        wallet.pay(Math.min(wallet.money, h.price));walletT = 6;audio.sfx('register');done = true;
+        notice(`🏠 The flat is yours: ${GH.address(h)}. Your name is on the door, and only you unlock it.`, 8);progress.save();
+      } else notice((r.j && r.j.why) || 'The server did not answer – try again in a moment.', 5);
+    } catch {notice('The server did not answer – try again in a moment.', 4);}
+    homeReg.busy = false;return done;
+  }
+  async function sellHome() {
+    if (!homes || !homeReg.mine || homeReg.busy) return false;homeReg.busy = true;homeReg.sell = null;let done = false;
+    const h = homes.byId.get(homeReg.mine);
+    try {
+      const r = await homeFetch('/api/homes/sell', {});if (r.j) homeApply(r.j);
+      if (r.ok && r.j && r.j.ok) {earn(r.j.refund, `Sold your flat (${h ? h.unit : ''})`);done = true;progress.save();}
+      else notice((r.j && r.j.why) || 'The server did not answer – try again in a moment.', 5);
+    } catch {notice('The server did not answer – try again in a moment.', 4);}
+    homeReg.busy = false;return done;
+  }
   const acctDone = err => {$('acctError').textContent = err;if (err) setNote('');if (!err) {$('acctPassword').value = '';if (account.user) {mp.net.setName(account.user.name);renderMp();}progress.userChanged(account.user);}renderAccount();};
   $('acctMode').onclick = () => {acctMode = acctMode === 'signup' ? 'login' : 'signup';if (!$('acctName').value) $('acctName').value = mp.net.name;$('acctError').textContent = '';setNote('');renderAccount();};
   $('acctForm').onsubmit = async e => {
@@ -1934,13 +2025,13 @@
   }
   let weatherIndoor = false;
   function updateAmbience() {
-    const inApt = inFlat(), tw = towerAt(player.x, player.z, player.feet), under = catacomb?.state.depth > .3, r501 = rathkes && rathkes.inside(player.x, player.z, player.feet), indoor = inApt || tw || under || r501 || shops.shopAt(player, player.feet) || (library && library.inside(player.x, player.z, player.feet)) || gym.zoneAt(player, player.feet) || (cc && cc.indoor(player.x, player.z, player.feet)) ? 1 : player.mode === 'jumpseat' ? .6 : player.vehicle && player.vehicle.kind === 'car' ? .7 : player.vehicle && player.vehicle.aircraft ? .4 : 0;
+    const inApt = inFlat(), tw = towerAt(player.x, player.z, player.feet), under = catacomb?.state.depth > .3, r501 = rathkes && rathkes.inside(player.x, player.z, player.feet), homeAt = homes && homes.inside(player.x, player.z, player.feet), indoor = inApt || tw || under || r501 || homeAt || shops.shopAt(player, player.feet) || (library && library.inside(player.x, player.z, player.feet)) || gym.zoneAt(player, player.feet) || (cc && cc.indoor(player.x, player.z, player.feet)) ? 1 : player.mode === 'jumpseat' ? .6 : player.vehicle && player.vehicle.kind === 'car' ? .7 : player.vehicle && player.vehicle.aircraft ? .4 : 0;
     weatherIndoor = indoor >= 1 && player.mode !== 'drone';
     const skyAir = player.mode === 'skydive' && skyd.jumper ? Math.hypot(skyd.jumper.vel.x, skyd.jumper.vel.y, skyd.jumper.vel.z) : 0;const ws = weather.state, wet = ws && ['rain', 'sleet', 'snow'].includes(ws.kind) ? ws.intensity : 0;
     audio.ambience({indoor, rain: ws && ws.kind === 'rain' ? wet : ws && ws.kind === 'sleet' ? wet * .6 : 0, windSpeed: Math.max(ws ? ws.wind : 4, skyAir), green: world.greenery(player.x, player.z), traffic: world.trafficDistance(player.x, player.z), height: Math.max(0, player.feet - heightAt(player.x, player.z)) + (inApt ? 10 : 0), stair: Boolean(tw) || under || (r501 && r501.place === 'stair'), kitchen: inApt && roomAt() === 'kitchen'});
     // Stair-tower light follows the player into whichever stairwell they are in.
     // Rathkes gate 1C (issue #72): the same lamp lights the room or stair landing of flat 501 you are in.
-    const rl = !tw && r501 ? rathkes.lampAt(player.x, player.z, player.feet) : null;
+    const rl = !tw && r501 ? rathkes.lampAt(player.x, player.z, player.feet) : !tw && homeAt ? (l => l && {...l, reach: l.distance})(homes.lampAt(player.x, player.z, player.feet)) : null;
     if (tw) {const l = tw.t.stair.lampAt({x: tw.l.x, z: tw.l.z}, player.feet - tw.t.matrix.elements[13]);if (l) {const p = new T.Vector3(l.x, l.y, l.z).applyMatrix4(tw.t.matrix);towerLamp.position.copy(p);towerLamp.intensity = 5.5;towerLamp.distance = 7;}} else if (rl) {towerLamp.position.set(rl.x, rl.y, rl.z);towerLamp.intensity = rl.power;towerLamp.distance = rl.reach;} else towerLamp.intensity = 0;
     if (!['vehicle', 'passenger', 'jumpseat', 'skydive', 'kayak'].includes(player.mode)) $('speedo').hidden = true;
     const dl = drunkLevel();$('drunk').hidden = !dl;if (dl) $('drunk').textContent = `Drunk · ${Math.ceil(drunk)} s`;
@@ -1950,7 +2041,7 @@
   const ghost = $('ghost'), gctx = ghost.getContext('2d');
   function renderFrame(dt, t, forPhoto = false) {
     // Sun shadow frustum follows the player (wide outdoors, tight indoors for crisp shadows).
-    const flying = player.mode === 'drone' || player.vehicle?.aircraft, indoor = !flying && (inApartment() || towerAt(player.x, player.z, player.feet) || !!gym.zoneAt(player, player.feet) || catacomb?.state.inside || !!(rathkes && rathkes.inside(player.x, player.z, player.feet))), reach = indoor ? 16 : 42;
+    const flying = player.mode === 'drone' || player.vehicle?.aircraft, indoor = !flying && (inApartment() || towerAt(player.x, player.z, player.feet) || !!(homes && homes.inside(player.x, player.z, player.feet)) || !!gym.zoneAt(player, player.feet) || catacomb?.state.inside || !!(rathkes && rathkes.inside(player.x, player.z, player.feet))), reach = indoor ? 16 : 42;
     if (flying) {const c = camera.position;sun.target.position.set(c.x, Math.max(heightAt(c.x, c.z), c.y - 25), c.z);} else sun.target.position.set(player.x, player.feet, player.z);sun.position.copy(sun.target.position).addScaledVector(sunDir, indoor ? 45 : 110);sun.target.updateMatrixWorld();
     if (sun.shadow.camera.right !== reach) {Object.assign(sun.shadow.camera, {left: -reach, right: reach, top: reach, bottom: -reach, near: 1, far: indoor ? 100 : 240});sun.shadow.camera.updateProjectionMatrix();}
     camera.updateMatrixWorld();
@@ -2225,6 +2316,7 @@
   Object.assign(window.haarklousGame, {licences: lic, licBegin, licVehicle, openLicPlace, openLicPhone, schoolCar, schoolBike, LIC_SIGNS});
   Object.defineProperty(window.haarklousGame, 'licTest', {get: () => licTest});
   Object.assign(window.haarklousGame, {cityCars});
+  Object.assign(window.haarklousGame, {homes, homeReg, openHomeMenu, buyHome, sellHome, homeRefresh, homeDoorPrompt, homePlatePrompt});
   Object.assign(window.haarklousGame, {storgata, magic, magicFxApi: fx, castPower, GRONLAND, storgataAct, questWaypoint, collision});
   loading.remove();$('start').hidden = false;
   requestAnimationFrame(frame);

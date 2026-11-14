@@ -5,8 +5,11 @@
  * Each landing has one flat door on the left (x = -1.2) and one on the right. In our own building the right
  * door on the 4th floor is the apartment's real entrance; in other buildings every flat door is locked.
  * A typical 1930s Oslo stair (not surveyed). The same tower is reused for other enterable buildings.
- * Stairwell.create({T, lib, own=true, id='own', wallTop=3.35})
- *   -> {group, floors(), obstacles(), doors, inspectables, lampAt(position, feetY), ground, levelY, landingStart}
+ * Flats you can go into (issue #106): `homes` = [{id, n (floor 1–4), side (-1 left, 1 right)}] gives those landings a real
+ * doorway through the tower wall (a walk floor through it, a gap in the wall's collision) and a hinged door, set on the flat's
+ * side of the wall and folding back against the flat's hall wall. The flat itself is built by game-homes.js.
+ * Stairwell.create({T, lib, own=true, id='own', wallTop=3.35, homes=[]})
+ *   -> {group, floors(), obstacles(), doors, homeDoors [{home, door, sign {x, y, z, face}}], inspectables, lampAt(position, feetY), ground, levelY, landingStart}
  */
 (function (root, factory) {
   root.Stairwell = factory();
@@ -21,8 +24,20 @@
   const GROUND = levelY(1) - HALF;
   const rect = (x0, z0, x1, z1) => [{x: x0, z: z0}, {x: x1, z: z0}, {x: x1, z: z1}, {x: x0, z: z1}];
 
-  function floors(own = true) {
+  const DOOR_H = 2.1;
+  // A side wall (x0..x1, from z0 to z1) as boxes [za, zb, ya, yb] with a doorway for every home on that side.
+  function wallPieces(side, homes, z0, z1, bottom, top) {
+    const mine = homes.filter(h => h.side === side).map(h => h.n).sort((a, b) => a - b);
+    if (!mine.length) return [[z0, z1, bottom, top]];
+    const out = [[z0, DOOR.z0, bottom, top], [DOOR.z1, z1, bottom, top]];let y = bottom;
+    for (const n of mine) {out.push([DOOR.z0, DOOR.z1, y, levelY(n)]);y = levelY(n) + DOOR_H;}
+    out.push([DOOR.z0, DOOR.z1, y, top]);
+    return out;
+  }
+  function floors(own = true, homes = []) {
     const list = [];
+    // The way through the wall into each flat, level with its landing.
+    for (const h of homes) list.push({name: `Doorway ${h.id}`, points: h.side < 0 ? rect(XL, DOOR.z0, X0, DOOR.z1) : rect(X1, DOOR.z0, XA, DOOR.z1), y: levelY(h.n), ceilingHeight: DOOR_H});
     for (let n = 1; n <= TOP; n++) list.push({name: `Landing ${n}`, points: rect(X0, ZB, own && n === TOP ? XA : X1, ZL), y: levelY(n), ceilingHeight: 2.6});
     for (let n = 0; n < TOP; n++) {
       list.push({name: `Half landing ${n}.5`, points: rect(X0, ZH, X1, ZW), y: levelY(n) + HALF, ceilingHeight: 2.6});
@@ -36,22 +51,22 @@
   }
   // Walls as solid volumes (the outdoor terrain floor continues underneath the tower), plus the solid
   // ground under landing 1 and the first flights so nobody walks under the stairs.
-  function obstacles(own = true, wallTop = 3.35) {
+  function obstacles(own = true, wallTop = 3.35, homes = []) {
     const o = (x0, z0, x1, z1, minY, maxY) => ({points: rect(x0, z0, x1, z1), minY, maxY});
     const bottom = GROUND - 1, list = [
-      o(XL, ZE, X0, ZO, bottom, wallTop),
+      ...wallPieces(-1, homes, ZE, ZO, bottom, wallTop).map(([za, zb, ya, yb]) => o(XL, za, X0, zb, ya, yb)),
       o(XL, ZE, XA, ZB, bottom, own ? -.16 : wallTop), o(XL, ZE, 0, ZB, -.16, wallTop),
       o(XL, ZW, STREET.x0, ZO, bottom, wallTop), o(STREET.x1, ZW, XA, ZO, bottom, wallTop), o(STREET.x0, ZW, STREET.x1, ZO, GROUND + 2.1, wallTop),
       o(X0, ZE, X1, ZL, bottom, GROUND + 1.2), o(WELL1, ZL, X1, ZH, bottom, GROUND + 1.3), o(X0, ZL, WELL1, ZH - .9, bottom, GROUND + .4),
     ];
     if (own) list.push(o(X1, ZE, XA, ZO, bottom, -.16), o(X1, 10.0, XA, ZO, -.16, wallTop), o(X1, ZE, XA, ZO, 2.62, wallTop), o(0, ZE, XA, ZB, 2.62, wallTop));
-    else list.push(o(X1, ZE, XA, ZO, bottom, wallTop));
+    else list.push(...wallPieces(1, homes, ZE, ZO, bottom, wallTop).map(([za, zb, ya, yb]) => o(X1, za, XA, zb, ya, yb)));
     return list;
   }
 
-  function create({T, lib, own = true, id = 'own', wallTop = 3.35}) {
+  function create({T, lib, own = true, id = 'own', wallTop = 3.35, homes = []}) {
     const group = new T.Group();group.name = own ? 'Stairwell (Haarklous plass 17A)' : `Stairwell ${id}`;
-    const inspectables = [], doors = [];
+    const inspectables = [], doors = [], homeDoors = [];
     const wallPaint = lib.plaster(0xe7e0cf), dado = lib.paint(0x52685a, .35), trim = lib.paint(0xefece4, .4), stone = lib.terrazzo(), brick = lib.brick();
     const veneer = lib.wood(0x7a4a2a, .45), brass = lib.metal(0xc8a24a, .3), steel = lib.metal(0x2d3033, .5), handrailWood = lib.wood(0x5a3a22, .4), glass = lib.glass();
     const panelWood = lib.wood(0x6d4126, .45), matFabric = lib.fabric(0x3c3631), mailMetal = lib.metal(0x6f7d74, .45);
@@ -65,9 +80,11 @@
 
     // ---- Walls (inner face plaster, outer faces brick on the street side), up to the eaves.
     // Side walls stop at the facade boxes (z = ZW): no wall face may coincide with another (z-fighting flicker).
-    span(XL, X0, bottom, wallTop, ZE, ZW, wallMats(1));
+    // (A side wall with flats behind it is plastered on its outer face too: it shows round the flat's door.)
+    const flatSide = side => homes.some(h => h.side === side);
+    for (const [za, zb, ya, yb] of wallPieces(-1, homes, ZE, ZW, bottom, wallTop)) span(XL, X0, ya, yb, za, zb, wallMats(flatSide(-1) ? undefined : 1));
     if (own) {span(X1, XA, bottom, -.16, ZE, ZW, wallMats(0));span(X1, XA, 2.62, wallTop, ZE, ZW, wallMats(0));span(X1, XA, -.16, 2.62, 10.0, ZW, wallMats(0));}
-    else span(X1, XA, bottom, wallTop, ZE, ZW, wallMats(0));
+    else for (const [za, zb, ya, yb] of wallPieces(1, homes, ZE, ZW, bottom, wallTop)) span(X1, XA, ya, yb, za, zb, wallMats(flatSide(1) ? undefined : 0));
     span(XL, 0, bottom, wallTop, ZE, ZB, wallMats());
     if (own) {span(0, XA, bottom, -.16, ZE, ZB, wallMats());span(0, XA, 2.62, wallTop, ZE, ZB, wallMats());}
     else span(0, XA, bottom, wallTop, ZE, ZB, wallMats());
@@ -129,6 +146,27 @@
       const w = DOOR.z1 - DOOR.z0, frame = .06;
       for (const dz of [-w / 2 - frame / 2, w / 2 + frame / 2]) box(.04, 2.1, frame, face * .02, 1.05, dz, trim, g);
       box(.04, frame, w + frame * 2, face * .02, 2.1 + frame / 2, 0, trim, g);
+      const home = homes.find(h => h.n === n && h.side === side);
+      if (home) {
+        // A flat you can go into: the doorway is open through the wall (stone sill), and the door hangs on the flat's side of
+        // it, hinged at the back edge; opened, it folds back flat against the hall wall.
+        const xa = side < 0 ? XL : X1, xb = side < 0 ? X0 : XA, flatFace = side < 0 ? XL : XA;
+        span(xa, xb, yb - .22, yb, DOOR.z0, DOOR.z1, stoneSlab);
+        // The leaf is a little larger than the doorway and closes against the wall's flat side, so no gap shows round it.
+        const lw = w + .05, hinge = new T.Group();hinge.position.set(flatFace - face * .03, yb, DOOR.z0 - .025);hinge.userData.noMerge = true;group.add(hinge);
+        const leaf = new T.Mesh(new T.BoxGeometry(.045, 2.125, lw), veneer);leaf.position.set(0, 1.0625, lw / 2);leaf.castShadow = leaf.receiveShadow = true;lib.boxUV(leaf);hinge.add(leaf);
+        for (const f of [1, -1]) {
+          for (let p = 0; p < 3; p++) box(.004, .5, w - .2, f * .0245, .45 + p * .58, lw / 2, panelWood, hinge);
+          const handle = new T.Mesh(new T.CylinderGeometry(.011, .011, .13, 10), brass);handle.rotation.x = Math.PI / 2;handle.position.set(f * .05, 1.02, lw - .12);hinge.add(handle);
+          box(.012, .14, .045, f * .029, 1.0, lw - .12, brass, hinge);
+        }
+        const doorId = `home-${home.id}`;leaf.userData = {doorId, home: home.id, partName: `Flat door, floor ${n}`};inspectables.push(leaf);
+        const door = {id: doorId, name: 'Flat door', hinge, leaf, open: false, openAngle: -face * Math.PI * .94, sound: 'flat', home: home.id};doors.push(door);
+        // The plate beside the door (the owner's name, or the for-sale notice) is put up by game-homes.js.
+        homeDoors.push({home: home.id, door, sign: {x: (side < 0 ? X0 : X1) + face * .012, y: yb + 1.45, z: DOOR.z1 + .36, face}});
+        box(.5, .012, .75, side < 0 ? X0 + .3 : X1 - .3, yb + .006, (DOOR.z0 + DOOR.z1) / 2, matFabric);
+        return;
+      }
       for (let p = 0; p < 3; p++) box(.004, .5, w - .2, face * .054, .45 + p * .58, 0, panelWood, g);
       const handle = new T.Mesh(new T.CylinderGeometry(.011, .011, .13, 10), brass);handle.rotation.x = Math.PI / 2;handle.position.set(face * .08, 1.02, -w / 2 + .09);g.add(handle);
       box(.012, .14, .045, face * .056, 1.0, -w / 2 + .09, brass, g);box(.006, .045, .12, face * .056, 1.48, 0, brass, g);
@@ -152,8 +190,10 @@
     box(.02, .7, .9, X0 + .01, GROUND + 1.4, 9.1, lib.paint(0xc9b48a, .8));
     for (let n = 1; n <= TOP; n++) {
       const yb = levelY(n);
-      span(X0, X0 + .006, yb, yb + 1.1, ZB, ZL, dado);span(XL, own && n === TOP ? 0 : X1, yb, yb + 1.1, ZB, ZB + .006, dado);
-      if (n < TOP || !own) span(X1 - .006, X1, yb, yb + 1.1, ZB, ZL, dado);
+      // The painted band stops at the doorway of a flat you can go into.
+      const band = (x0, x1, side) => {if (homes.some(h => h.n === n && h.side === side)) {span(x0, x1, yb, yb + 1.1, ZB, DOOR.z0 - .06, dado);span(x0, x1, yb, yb + 1.1, DOOR.z1 + .06, ZL, dado);} else span(x0, x1, yb, yb + 1.1, ZB, ZL, dado);};
+      band(X0, X0 + .006, -1);span(XL, own && n === TOP ? 0 : X1, yb, yb + 1.1, ZB, ZB + .006, dado);
+      if (n < TOP || !own) band(X1 - .006, X1, 1);
     }
     for (let n = 0; n < TOP; n++) {const yh = levelY(n) + HALF;span(X0, X0 + .006, yh, yh + 1.1, ZH, ZW, dado);span(X1 - .006, X1, yh, yh + 1.1, ZH, ZW, dado);}
     const globe = new T.MeshStandardMaterial({color: 0xfff6e6, emissive: 0xfff1d6, emissiveIntensity: 1.4, roughness: .3});
@@ -171,8 +211,8 @@
       const level = Math.round((feetY - levelY(TOP)) / HALF) * HALF + levelY(TOP);
       return {x: .1, y: level + 2.3, z: position.z < 8.2 ? 6.2 : 10.0};
     }
-    return {group, floors: () => floors(own), obstacles: () => obstacles(own, wallTop), doors, inspectables, lampAt, ground: GROUND, levelY,
+    return {group, floors: () => floors(own, homes), obstacles: () => obstacles(own, wallTop, homes), doors, homeDoors, inspectables, lampAt, ground: GROUND, levelY,
       landingStart: {x: .25, z: 5.83, y: 0, yaw: -Math.PI / 2}, doorOutside: {x: (STREET.x0 + STREET.x1) / 2, z: ZO + 1.2}};
   }
-  return {create, floors, obstacles, STOREY, GROUND: (1 - TOP) * STOREY - STOREY / 2, X0, X1, XA, ZB, ZL, ZH, ZW, ZO};
+  return {create, floors, obstacles, levelY, STOREY, TOP, GROUND: (1 - TOP) * STOREY - STOREY / 2, X0, X1, XA, XL, ZB, ZE, ZL, ZH, ZW, ZO, DOOR, DOOR_H};
 });

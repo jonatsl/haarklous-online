@@ -32,6 +32,11 @@ class_name = "Weather"
 name = "PROFILE"
 class_name = "Profile"
 
+# Who owns which flat (issue #106): one object for the whole game.
+[[durable_objects.bindings]]
+name = "HOMES"
+class_name = "Homes"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["Lobby"]
@@ -45,3 +50,8 @@ new_sqlite_classes = ["Weather"]
 [[migrations]]
 tag = "v3"
 new_sqlite_classes = ["Profile"]
+
+# Flats you can buy (issue #106).
+[[migrations]]
+tag = "v4"
+new_sqlite_classes = ["Homes"]

@@ -11,6 +11,7 @@ Live game: https://haarklous-online.server-smoke.workers.dev · Source: https://
 On `main`:
 - Open world around Haarklous plass 17A, Torshov: real buildings and streets (OpenStreetMap), real ground heights (Kartverket), optional aerial photos; walkable out to about 760 m (540 m before PR #13), drawn properly everywhere you can walk.
 - Your 4th-floor apartment (your kitchen + bedroom design) and stairwell; the street door and stairs work without the mission; eight neighbouring stairwells.
+- Flats you can buy: the 64 flats in the eight neighbouring stairwells are for sale (4 600–11 100 kr); each is a real flat you walk into, with windows to the street and the courtyard; a bought flat has one owner – your name on the door, only you unlock it, it is on your map and saved with your account; one flat each, sell for 80 % (issue #106).
 - Walking (2.5 m/s), running (6 m/s), crouch (tap ○), prone (hold ○), jump (✕); PS4 controller (USB / Bluetooth) plus keyboard and mouse; look sensitivity setting.
 - Vehicles: Honda CBF600S motorcycle and 7 more motorcycles, 30 cars near home and 367 more parked all over the city – by the kerb and in car parks, in every part of town (issue #105), excavator, helicopter, two-seat plane, Caravan jump plane; hands on bars / wheel / sticks.
 - Cars and motorcycles follow gravity (9.81 m/s²) and fly over crests and bumps taken fast (PR #5).
@@ -54,6 +55,42 @@ Live site: runs `main` (Worker version 5a422a55, deployed 7 Nov 2026 after PR #1
 
 ## Log
 
+### 2026-11-15 · Flats you can buy, each owned by one player (issue #106)
+- **What:**
+  - 64 flats are for sale: the two flats on each of the four floors of the eight neighbouring stair towers round Haarklous plass (Sigurd Lies gate and Edvard Griegs allé). Before, their doors were fixed and "locked".
+  - Each flat is a real place you walk into: a hall, a bathroom, one or two bedrooms, and a living room with a kitchen. The windows are real: you look out on the street on one side and the courtyard on the other.
+  - Each flat is its own: its building, floor and side, its size (44–83 m², from the real building outline), 2 or 3 rooms, its own wall colour, floor and furniture colours, and its own price (4 600–11 100 kr; bigger and higher up cost more).
+  - A green **TIL SALGS** sign hangs beside the door of a flat that is for sale. □ on the door opens it for a look. □ on the sign opens the menu: buy, or open the door.
+  - Buying: you pay with the money you have earned. The flat is then yours alone: your name is on a brass plate beside the door, only you unlock it, and it is on your map ("Your flat").
+  - Nobody else can buy your flat or open its door (it says "🔒 *name* lives here"). From the inside anybody can open the door, so no visitor is shut in.
+  - One flat per player. □ on your own sign: sell it again for 80 % of the price; it goes back on the market.
+  - The flat belongs to your account, so it is yours on any PC. You need an account to buy (pause menu → Account); without one, or offline, you can look but not buy.
+- **Why:** the user: "At one point the players should be able to purchase an apartment, and that apartment should be unique to, and owned by, that player."
+- **Decisions (Claude's, say if you want them changed):**
+  - Which flats: the ones behind the doors that were already there, in the eight stair towers you can enter. Real addresses, a short walk from home. The home at 17A and Rathkes gate 1C are untouched.
+  - Prices 4 600–11 100 kr (115 kr per m², × 0.9 / 1.0 / 1.08 / 1.16 for floors 1–4): something to save for (a delivery pays about 50–100 kr, the mission 400 kr).
+  - One flat per account, and 80 % back when you sell.
+  - A flat for sale is open for anybody to look at; it locks when somebody buys it.
+  - The flats come furnished (plain furniture). Inner doorways have no doors.
+  - The server keeps the list of owners in one place for the whole game, so two players can never own the same flat. The price is paid from the wallet in the game, like in the shops (the wallet is not checked by the server).
+- **How it is built:**
+  - `tools/make-homes.cjs` works out from the real building outlines how much room there is beside each stair tower, and writes the list `homes-data.js` (size, rooms, price, street).
+  - The flats lie inside the buildings' solid outlines. The walk world now lets a solid have rooms hollowed out of it (`voids` in `walk-collision.js`).
+  - From inside you see out because a building's outer wall is only drawn from the outside. So the windows need no special trick, and the buildings look the same from the street.
+  - A flat's rooms are built when its door opens and thrown away a few seconds after you leave, so 64 flats cost nothing while you are elsewhere.
+  - Server: a new Durable Object `Homes` (one for the whole game) with `/api/homes`, `/api/homes/buy`, `/api/homes/sell`.
+- **Where:** `game-homes.js` (new), `homes-data.js` (new, generated), `tools/make-homes.cjs` (new), `stairwell.js` (real doorways and doors), `walk-collision.js` (hollow rooms), `surroundings.js` (marks the buildings), `game-main.js` (prompts, menu, buying, light, map), `cloud/src/homes.js` and `cloud/src/homes-rules.js` (new), `cloud/src/index.js`, `cloud/wrangler.toml` (migration v4), `index.html` (pause screen help), `README.md`, `tests/homes.test.cjs` (new).
+- **Checked:**
+  - Node tests 217/217 (9 new): the list of 64; every flat lies inside its building with its street wall on the facade; from the landing you can walk into every room of every flat and nowhere else; the building stays solid round the flats and between the storeys; doorways and furniture; who may buy; the server's rules (one owner per flat, one flat per account, selling).
+  - In the browser (headless Chrome, simulated controller) against a local copy of the server, with two test players:
+    - Kari with 500 kr: "You need 7 700 kr – you have 500 kr." With 10 000 kr: bought, 2 300 kr left, the plate says Kari, the door prompt is "Open your door". A second flat is refused by the game and by the server.
+    - Ola (the other player): the plate says "Kari lives here", the door is locked, the server answers "Kari owns this flat". Ola bought the flat across the landing, walked in, closed the door from inside, walked through the rooms, and sold it again (6 300 kr back, the sign went back to TIL SALGS).
+    - Offline (the single file): every flat shows for sale, you can look, and buying says it needs the online game.
+  - Pictures of three flats (a 62 m² one on the 3rd floor, an 83 m² three-room one, a 44 m² one on the 1st floor).
+  - Start-up: the walk world takes about 0.1 s longer to build. Frame rate as before.
+- **Not done:** a real account on the live site buying a flat (Claude does not create accounts there) – the user's own first purchase is the real test.
+- **Status:** PR #109 (branch `feat/buy-apartment`).
+
 ### 2026-11-14 · Cars all over the city (issue #105)
 - **What:**
   - 367 more parked cars you can drive, in every part of the city: the rest of Torshov (48), Sagene / Myrens (8), Grünerløkka, Tøyen, Grønland, Kampen, Ensjø and the centre (261), Sinsen / Løren (22) and Økern / Ulven (28).
@@ -73,7 +110,7 @@ Live site: runs `main` (Worker version 5a422a55, deployed 7 Nov 2026 after PR #1
   - Node tests 208/208 (6 new: kerb side and direction, crossings / tram / railway / water / kept-free circles, car parks, at most two per square, the real map: 300–450 cars, every part of town, no two within 45 m, the same every time).
   - In the browser (headless Chrome, simulated controller): 367 city cars, 684 vehicles; every one stands on the ground (at most 0.14 m off), the nearest other vehicle is 10.8 m away; pictures in Grünerløkka, Grønland, Ensjø and Økern; a car in Grünerløkka refuses without førerkort B, then drives (45 km/h after 4 s), brakes, and □ gets you out.
   - Cars far away are hidden as before (3 of the 367 were drawn in Grünerløkka), so the frame rate is as before.
-- **Status:** PR #107 (branch `feat/more-city-cars`).
+- **Status:** on `main` (PR #107, merged 14 Nov 2026) and live (Worker version fd25499f; the live page is byte-for-byte the build, and has the 367 cars).
 
 ### 2026-11-14 · Tidying: the live line, two issues and old branches
 - **What:**
