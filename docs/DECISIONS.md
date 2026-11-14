@@ -89,7 +89,7 @@ Live site: runs `main` (Worker version 5a422a55, deployed 7 Nov 2026 after PR #1
   - Pictures of three flats (a 62 m² one on the 3rd floor, an 83 m² three-room one, a 44 m² one on the 1st floor).
   - Start-up: the walk world takes about 0.1 s longer to build. Frame rate as before.
 - **Not done:** a real account on the live site buying a flat (Claude does not create accounts there) – the user's own first purchase is the real test.
-- **Status:** branch `feat/buy-apartment`, PR to follow.
+- **Status:** PR #109 (branch `feat/buy-apartment`).
 
 ### 2026-11-14 · Cars all over the city (issue #105)
 - **What:**
