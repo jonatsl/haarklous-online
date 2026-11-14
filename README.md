@@ -8,6 +8,7 @@ Haarklous online is a first-person open-world game that runs in your web browser
 - The streets, buildings and ground heights are real. They come from OpenStreetMap and Kartverket.
 - You can walk, drive, ride, paddle and fly. There are cars, motorcycles, bikes, e-scooters, a kayak, aircraft and a drone.
 - There are minigames, jobs, shops, a mission and badges. You find out how each one works in the game.
+- With the money you earn you can buy a flat. It is yours alone: nobody else can own it or unlock its door.
 - Up to 12 players can play together in one lobby.
 - The game is one HTML file. A Cloudflare server connects the players and keeps the optional accounts.
 

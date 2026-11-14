@@ -839,7 +839,7 @@
       data.buildings.forEach(b => {
         const o = b.r.o;if (Math.abs(o[0]) > PLAY_HALF + 40 || Math.abs(o[1]) > PLAY_HALF + 40) return;
         const rings = b.enter !== undefined ? data.enterable[b.enter].collide.map(r => r.o) : [o], top = buildingTop(pairs(o), b.top);
-        for (const r of rings) list.push({points: ringWorld(r), minY: b.bottom - .5, maxY: top, kind: 'building'});
+        for (const r of rings) list.push({points: ringWorld(r), minY: b.bottom - .5, maxY: top, kind: 'building', enter: b.enter});
       });
       const ownRings = (parts, minY, maxY) => parts.forEach(p => list.push({points: pairs(p.o).map(([x, z]) => ({x, z})), minY, maxY, kind: 'building'}));
       ownRings(own.lower, ownBottom - .5, -.16);ownRings(own.band, -.16, own.bandTop);ownRings(own.upper, own.bandTop, own.top + 4);

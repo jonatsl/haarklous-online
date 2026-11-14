@@ -1,6 +1,8 @@
 /* Pure first-person collision geometry. Distances are metres; y is vertical.
  * createWorld({floors:[{points:[{x,z}],ceilingHeight,y=0,slope:{x,z,origin:{x,z}}}],
- *              obstacles:[{points:[{x,z}],minY,maxY}],radius=.16,clearance=.08})
+ *              obstacles:[{points:[{x,z}],minY,maxY,voids:[{points,minY,maxY}]}],radius=.16,clearance=.08})
+ *   An obstacle's voids are rooms hollowed out of it (a flat inside a solid building, issue #106): a person whose centre is in
+ *   a void's outline, with the feet between its minY and maxY, is not stopped by that obstacle.
  *   A floor surface is flat at y, or a ramp (stairs): y + slope.x*(x-origin.x) + slope.z*(z-origin.z).
  *   Or a terrain: height(point) -> y. ceilingHeight is measured from that surface. Obstacle minY/maxY are absolute heights.
  * Every query takes the person's feet height y (default 0), so stacked storeys do not interfere.
@@ -102,7 +104,7 @@
     const copyPoints=points=>points.map(p=>({x:p.x,z:p.z}));
     const world={
       floors:floors.map(f=>{const copy={points:copyPoints(f.points),bounds:bounds(f.points),ceilingHeight:f.ceilingHeight ?? Infinity,y:f.y ?? 0,slope:f.slope?{x:f.slope.x||0,z:f.slope.z||0,origin:{...(f.slope.origin||{x:0,z:0})}}:null,height:f.height,name:f.name,surfaceKind:f.surfaceKind};copy.surface=surfaceFunction(copy);return copy;}),
-      obstacles:obstacles.map(o=>({points:copyPoints(o.points),bounds:bounds(o.points),minY:o.minY ?? -Infinity,maxY:o.maxY ?? Infinity})),
+      obstacles:obstacles.map(o=>({points:copyPoints(o.points),bounds:bounds(o.points),minY:o.minY ?? -Infinity,maxY:o.maxY ?? Infinity,voids:o.voids&&o.voids.length?o.voids.map(v=>({points:copyPoints(v.points),bounds:bounds(v.points),minY:v.minY ?? -Infinity,maxY:v.maxY ?? Infinity})):null})),
       radius,clearance
     };
     world.boundary=exposedBoundary(world.floors);
@@ -141,6 +143,8 @@
     return best;
   }
   const overhead = (o,y,eye) => o.maxY>y+.04 && o.minY<y+eye+.10;
+  // Is p (feet at y) in a room hollowed out of this obstacle?
+  const hollow = (o,p,y) => !!o.voids && o.voids.some(v=>y>v.minY && y<v.maxY && nearBounds(p,v.bounds) && inside(p,v.points));
   function clampEyeHeight(world,p,requested,minimum=.30,y=0) {
     let maximum=ceilingAt(world,p,y)-Math.max(.10,world.clearance);
     for (const obstacle of solidsNear(world,p)) {
@@ -157,13 +161,13 @@
     if (eyeHeight>ceilingAt(world,p,feet)-Math.max(.10,world.clearance)+EPS) return false;
     const cell=near(world,p);
     if (cell.boundary.some(piece=>distanceToSegment(p,piece.a,piece.b)<world.radius-EPS && barrierActive(piece,p,feet))) return false;
-    return !solidsNear(world,p).some(o=>overhead(o,feet,eyeHeight) && nearBounds(p,o.bounds,world.radius) && distanceToPolygon(p,o.points)<world.radius-EPS);
+    return !solidsNear(world,p).some(o=>overhead(o,feet,eyeHeight) && nearBounds(p,o.bounds,world.radius) && !hollow(o,p,feet) && distanceToPolygon(p,o.points)<world.radius-EPS);
   }
   // Flying objects: does any solid (building, tree, wall, vehicle) come within the world's radius of p between heights y0 and y1?
   // owner (optional): skip the solids marked with this owner (a vehicle's own parked footprint, issue #97).
   function hitsSolid(world,p,y0,y1,owner) {
     if (!Number.isFinite(p.x) || !Number.isFinite(p.z)) return true;
-    return solidsNear(world,p).some(o=>o.maxY>y0 && o.minY<y1 && (!owner || o.owner!==owner) && nearBounds(p,o.bounds,world.radius) && (inside(p,o.points) || distanceToPolygon(p,o.points)<world.radius-EPS));
+    return solidsNear(world,p).some(o=>o.maxY>y0 && o.minY<y1 && (!owner || o.owner!==owner) && nearBounds(p,o.bounds,world.radius) && !hollow(o,p,y0) && (inside(p,o.points) || distanceToPolygon(p,o.points)<world.radius-EPS));
   }
   function move(world,position,delta,eyeHeight,y=0) {
     const start=supportAt(world,position,y);
@@ -175,7 +179,7 @@
     // 2*radius wide, so an entire collision cannot be skipped in one substep.
     const count=Math.max(1,Math.ceil(distance/Math.min(.04,world.radius*.25)));
     const step={x:delta.x/count,z:delta.z/count};
-    const activeEdges=()=>near(world,p).boundary.filter(piece=>barrierActive(piece,p,feet)).map(piece=>[piece.a,piece.b]).concat(solidsNear(world,p).filter(o=>overhead(o,feet,eyeHeight)).flatMap(o=>edges(o.points)));
+    const activeEdges=()=>near(world,p).boundary.filter(piece=>barrierActive(piece,p,feet)).map(piece=>[piece.a,piece.b]).concat(solidsNear(world,p).filter(o=>overhead(o,feet,eyeHeight) && !hollow(o,p,feet)).flatMap(o=>edges(o.points)));
     const advance=q=>{p=q;feet=supportAt(world,q,feet).y;};
     for (let i=0;i<count;i++) {
       const next={x:p.x+step.x,z:p.z+step.z};
