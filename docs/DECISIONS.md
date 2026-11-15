@@ -9,9 +9,9 @@ Live game: https://haarklous-online.server-smoke.workers.dev · Source: https://
 ## Features (what the game has now)
 
 On `main`:
-- Minigolf at the real courses (issue #114, not merged yet): Torshov and Grünerløkka minigolf parks (18 Eternit lanes each, kiosk, 90 kr), the free course in Jordal park, and Oslo Camping in Møllergata – the minigolf bar, with its bar and bartender (drinks by the Norwegian serving rules), 11 holes upstairs and 7 in the basement; real ball physics, windmill, loop, bridge, volcano; scorecard, best rounds, badges; others online see your ball.
+- Minigolf at the real courses (issue #114, PR #122): Torshov and Grünerløkka minigolf parks (18 Eternit lanes each, kiosk, 90 kr), the free course in Jordal park, and Oslo Camping in Møllergata – the minigolf bar, with its bar and bartender (drinks by the Norwegian serving rules), 11 holes upstairs and 7 in the basement; real ball physics, windmill, loop, bridge, volcano; scorecard, best rounds, badges; others online see your ball.
 
-- Metro, bus and tram (issue #111, PR #120, not merged yet): Ruter's real trams, buses and metro lines on a timetable as often as the real ones – the same vehicles for everyone in a lobby; a timetable and a live board at every stop, every line and stop on the map; get on (46 kr, 60 minutes) and ride; the metro stations near home are underground with real entrances, stairs and platforms.
+- Metro, bus and tram (issue #111, PR #120): Ruter's real trams, buses and metro lines on a timetable as often as the real ones – the same vehicles for everyone in a lobby; a timetable and a live board at every stop, every line and stop on the map; get on (46 kr, 60 minutes) and ride; the metro stations near home are underground with real entrances, stairs and platforms.
 - Open world around Haarklous plass 17A, Torshov: real buildings and streets (OpenStreetMap), real ground heights (Kartverket), optional aerial photos; walkable out to about 760 m (540 m before PR #13), drawn properly everywhere you can walk.
 - Your 4th-floor apartment (your kitchen + bedroom design) and stairwell; the street door and stairs work without the mission; eight neighbouring stairwells.
 - Flats you can buy: the 64 flats in the eight neighbouring stairwells are for sale (4 600–11 100 kr); each is a real flat you walk into, with windows to the street and the courtyard; a bought flat has one owner – your name on the door, only you unlock it, it is on your map and saved with your account; one flat each, sell for 80 % (issue #106).
@@ -52,13 +52,34 @@ On `main`:
 - Kiwi Storgata 33 at its real place in the city centre, with a hot-food counter; the regulars outside give small tasks (bottles for the deposit, a harmonica on the Opera roof, coffee and a hot dog, a note for Rolf at Schous plass, a photo of Grønland kirke), in Norwegian with English below; Sopp-Sigvald the mushroom wizard teaches four magic powers after mushroom hunts in Torshovdalen, along Akerselva, in the catacomb and at MUNCH: levitation, blink, a gust and a light orb (R1 / X, D-pad ← chooses, keys 1–4); saved with your progress (issue #65).
 - Licences for every vehicle, each won by a test with a theory part and a practical part (rings, the speed limit, no crash, park or land): førerkort B and A at Soria Moria Trafikkskole on Vogts gate (a school car and motorcycle, a test route on the real streets), class C, the machine certificate and the crane certificate at the site office, PPL(A) and PPL(H) at the airstrip, the drone certificate A1/A3 on the phone (free); a part you fail is free to take again; bikes, e-scooters, the kayak and riding along need none; saved with your progress (issue #59).
 - Streets you can read: dark asphalt roads, a light granite kerb, and asphalt or slab pavements by part of town, with or without the aerial photo (issue #98).
-- Flat, smooth streets with sharp edges: flat across, smooth along (still following the real hills), pavements on a real 12 cm granite kerb, a white edge line on big roads; what you see is what you drive and walk on (issue #112, not merged yet).
+- Flat, smooth streets with sharp edges: flat across, smooth along (still following the real hills), pavements on a real 12 cm granite kerb, a white edge line on big roads; what you see is what you drive and walk on (issue #112, PR #121).
 - Ground with real detail up close (grass, asphalt, paving slabs, gravel, pavements and kerbs) with or without the aerial photo, and buildings that look like their part of town – Torshov brick and Harald Hals' plastered blocks, Grünerløkka's tenements with shop fronts, buff brick, wooden houses, new blocks – chosen from OpenStreetMap and Street View notes (issues #67 and #68, PR #81, not merged yet).
 - Friends (needs an account): add a friend by their player name, they accept or decline; see which friends are online and in which lobby; Join goes straight into a friend's lobby, Invite asks them into yours (a message in their game, Options then ✕ to come); "friends can join my lobby" can be turned off; pause menu → Friends (L1 / N), with a red count of new requests and invites (issue #115, PR #117, not merged yet).
 
-Live site: runs `main` (Worker version f8651516, deployed 15 Nov 2026 after PRs #107 and #109; `main` builds byte-for-byte to the live page), so everything above is online. Account emails (issue #55) wait for the user's Brevo key.
+Live site: runs `main` (Worker version eed5db67, deployed 15 Nov 2026 after PRs #117–#122; `main` builds byte-for-byte to the live page), so everything above is online. Account emails (issue #55) wait for the user's Brevo key.
 
 ## Log
+
+### 2026-11-15 · `main` is live with the six features of 15 Nov (PRs #117–#122)
+- **What:** six features, each with its own issue and pull request, are merged into `main` and deployed, one after the other:
+  - Friends (issue #115, PR #117).
+  - Rathkes gate 1C: records, sofa and TV, chairs, lava lamp (issue #116, PR #118).
+  - A lot more parked vehicles (issue #113, PR #119).
+  - Flat streets with kerbs (issue #112, PR #121).
+  - Metro, bus and tram on a timetable (issue #111, PR #120).
+  - Minigolf at the real courses, with the Oslo Camping bar (issue #114, PR #122).
+- **Why:** the user's goal (15 Nov 2026): "create issue, build and deploy the following, in separate prs", with the building handed to cheaper subagents (one Opus agent per feature, each in its own worktree; the coordinator reviewed, merged and deployed).
+- **How they were joined:** each later pull request merged the newer `main` into its branch and was checked again on the joined build before it went in:
+  - Buses and trams against the parked vehicles: 730 of 7,467 parked places that stood in a bus or tram lane are left empty.
+  - Parked cars, stops and the bar entrance on the flat streets with the 12 cm kerb.
+  - The minigolf courses clear of stops and parked vehicles.
+- **Checked:**
+  - After every merge: the build from the merge commit in a clean worktree, and the live page byte-for-byte the same as that build.
+  - The joined build starts in headless Chrome with no console errors (friends, the parked fleet, the living room, transit and minigolf all present; 8,151 vehicles).
+  - Node tests: 267 pass on the last branch before its merge.
+  - `/api/friends/ws` answers 401 without a log-in.
+- **Not checked:** a real DualShock 4, sound by ear, the frame rate and the start-up time on the user's PC (the ground part of start-up measured 12.5 s against 9.6 s before the flat streets, one run each on a busy PC), friends with real accounts on the live site.
+- **Status:** live (Worker version eed5db67).
 
 ### 2026-11-15 · Minigolf at the real courses, and the minigolf bar Oslo Camping (issue #114)
 - **What:**
@@ -91,7 +112,7 @@ Live site: runs `main` (Worker version f8651516, deployed 15 Nov 2026 after PRs 
   - Playing together in turns is not built: each player plays their own round; the others see you and your ball.
 - **Where:** `game-minigolf.js` (new), `minigolf-data.js` + `tools/make-minigolf.py` + `assets/osm/minigolf-osm-2026-11-15.json` (new), `mollergata-data.js` + `assets/osm/mollergata-*` (new map patch), `game-main.js` (wiring, prompts, the shared clock, other players' balls), `game-music.js` (the new track), `game-audio.js` (sounds), `game-badges.js` (records and badges), `index.html` (scripts, help), `README.md`, `docs/HANDOFF.md`, `tests/minigolf.test.cjs` (new), `tests/badges.test.cjs`.
 - **Checked:** Node: 267 tests pass (on the build merged with main) (12 new in `tests/minigolf.test.cjs`: a straight putt holes, too fast lips out, the wall bounce angle, slopes, loop / windmill / water, every lane kind holed by a simple player within par + 2 on the outdoor and the indoor lane, the scorecard and max 7, the serving rules, the real OSM places, lanes inside their outlines and apart, no road or building on a course, the bar notch and the rooms, the records and badges). In headless Chrome with a simulated DualShock 4 (the walk, □ at the kiosk / bar, the right stick to aim, R2 held and let go): Torshov holes 1–3 (1, 2, 2) and 7–9 (windmill 1, hill 2, loop 2), Grünerløkka 1–3 (1, 1, 2), Jordal park a full round (1, 1, 1, the end scorecard, the round badge and 100 kr), Oslo Camping 1–3 upstairs (1, 1, 2) and, after walking down the stair, 12–14 in the basement (1, 1, 1); tickets paid (90 / 155 kr), a hole in one paid 50 kr. At the bar: two pils served (119 kr each, +30 s drunk each), the third refused as obviously drunk (§ 8-11). Walking from Møllergata over the 12 cm kerb, up the entrance ramp into the bar. Online with two players on a local `wrangler dev` lobby: the second player saw the first standing at the Jordal lane and the ball (`st.golf`). The vehicle list is the same as on `main` (8,149 vehicles, the same places); no parked vehicle, bike rack, tram / bus stop or shelter on a course, a kiosk or at the bar's door (the nearest stop is 67 m from Torshov). Draw cost of a course when near (hidden beyond 260 m, the bar beyond 450 m): about 41 draw calls (30 in the shadow pass) and 47 k triangles (Torshov, Grünerløkka), 42 / 41 k for Oslo Camping, 4 / 4.5 k for Jordal. Not checked: a real controller, sound by ear, the frame rate on the user's PC.
-- **Status:** PR #122, not merged yet.
+- **Status:** PR #122, on `main` and live (15 Nov 2026, Worker version eed5db67).
 
 ### 2026-11-15 · Metro, bus and tram that run on a timetable (issue #111)
 - **What:**
@@ -130,7 +151,7 @@ Live site: runs `main` (Worker version f8651516, deployed 15 Nov 2026 after PRs 
   - After merging main (friends, the living room, about 7,500 parked vehicles, flat streets with kerbs): Node tests 255/255. In the browser on the merged build: buses and trams drove past parked vehicles for 75 s at each of three places (Torshov, Olaf Ryes plass, Carl Berner) with no overlap (306 + 168 checks; the nearest was bus 20 2.9 m from a parked car); 730 of the 7,467 new parking places (10 %) are left out because they stand in a bus or tram lane (they keep their numbers); the stop pole, shelter and board stand on the raised pavement, the rails lie 2.5 cm over the flat road, Carl Berner's pavilion stands over its stair. A line 1 train was seen driving into the tunnel mouth at Helsfyr.
   - Live, two spots, main → this branch (8 s each, headless, the shared PC): Torshov stop 207 → 298 draw calls (5 trams and buses near), 1.248 → 1.258 M triangles, CPU 26.4 → 29.6 ms a frame; Olaf Ryes plass 239 → 265 calls (no vehicle near; stops, rails), 1.282 → 1.300 M triangles, 26.6 → 27.8 ms. The CPU time moved ±3 ms between runs of the same build (with the transit hidden: 31.3 and 27.7 ms); the transit's own work is about 0.3 ms a frame. Each stop is merged to one mesh per material.
 - **Not done / not checked:** real minute-by-minute timetables (the frequencies are); the ground in front of a tunnel mouth is not dug out (the walls stand on the ground and the track stays at ground level up to the mouth); the escalators beside the stairs do not move; trams and buses do not stop for people or cars; a car someone parks on the rails is driven through; not tried with a real DualShock 4; frame rate on a real laptop not measured (the shared PC's GPU is busy).
-- **Status:** PR #120, not merged yet.
+- **Status:** PR #120, on `main` and live (15 Nov 2026, Worker version eed5db67).
 
 
 ### 2026-11-15 · Flat streets with clear edges (issue #112)
@@ -173,7 +194,7 @@ Live site: runs `main` (Worker version f8651516, deployed 15 Nov 2026 after PRs 
   - Start-up on this (very busy, shared) PC: the ground's part took 9.6 s on `main` and 12.5 s here in one run each; the numbers jump a lot between runs, so it is not measured well. The district ground is no longer built at the start (only when you come within 1 km).
   - Doors of the nine stair towers: the pavement outside is now 12 cm below to 6 cm above the threshold (was 7 cm below to 3.5 cm above).
   - In the browser (headless Chrome): pictures at street level and from the driver's seat in Torshov, Grünerløkka, Grønland, Sinsen, Økern and on Trondheimsveien, before and after, with and without the aerial photo, and in dim evening light.
-- **Status:** [PR #121](https://github.com/jonatsl/haarklous-online/pull/121), not merged yet.
+- **Status:** [PR #121](https://github.com/jonatsl/haarklous-online/pull/121), on `main` and live (15 Nov 2026, Worker version eed5db67).
 ### 2026-11-15 · A lot more vehicles around the city (issue #113)
 - **What:**
   - About 7,500 more parked vehicles you can drive, in every part of the world (planned numbers; a few are left out in the game where it keeps a place free): Torshov 1,246, Sagene / Myrens 112, Grünerløkka 903, Tøyen / Kampen 612, Grønland and the centre 553, Ensjø 373, Sinsen / Løren 274, Økern / Ulven 538. About 6,250 stand by the kerb, 1,350 in real car parks, and taxis wait at the taxi ranks. That is 20 times the 367 cars of issue #105. Grünerløkka has fewer than you might expect because OpenStreetMap marks many of its kerbs as no parking, and its tram streets have none.
@@ -206,7 +227,7 @@ Live site: runs `main` (Worker version f8651516, deployed 15 Nov 2026 after PRs 
   - CPU time per frame (median of 60, the game's own frame function): before 48–51 ms (Grünerløkka), 58–70 ms (home), 44–49 ms (Gamle Oslo); after 32–46, 58–59 and 35–51 ms – no slower on this busy shared PC (the faster floor look-up pays for the rest).
   - Start-up: the fleet takes about 0.3 s (unpack, the kept-free places, 7,500 vehicles made without models, the collision layer). The game file grows by about 200 KB (6.64 → 6.85 MB).
 - **Not done:** the parked vehicles stand still (no traffic). Their windows are tinted (you do not see in from outside). Not tried in a live lobby with two players (the list and numbers are the same file on every computer).
-- **Status:** PR #119, not merged yet.
+- **Status:** PR #119, on `main` and live (15 Nov 2026, Worker version eed5db67).
 
 ### 2026-11-15 · Rathkes gate 1C: records, sofa and TV, chairs you can move, lava lamp (issue #116)
 - **What:**
@@ -237,7 +258,7 @@ Live site: runs `main` (Worker version f8651516, deployed 15 Nov 2026 after PRs 
   - Online with a local `wrangler dev` and two tabs in one lobby: a player who joined later found the record, the TV channel, the lamp and the moved chair as they were; when the second player changed the record and carried the sling chair, the first saw both (the chair in front of the other avatar, not blocking); putting it down sent its new place; both work out the same point in the record from the lobby's clock.
   - Cost, same camera spots before → after: draw calls living room 1490 → 1510, at the shelf 1468 → 1479, hall 1536 → 1555, backyard 1424 → 1443; triangles about +2,200 (+0.2 %). Two point lights added once at the start (off = intensity 0).
   - Not checked: by ear (headless), a real DS4 and real frame rates.
-- **Status:** PR #118, not merged yet.
+- **Status:** PR #118, on `main` and live (15 Nov 2026, Worker version eed5db67).
 ### 2026-11-15 · Friends: add friends, see who is online, invite them or join their lobby (issue #115)
 
 - **What:**
@@ -267,7 +288,7 @@ Live site: runs `main` (Worker version f8651516, deployed 15 Nov 2026 after PRs 
   - Nothing new is drawn in 3D, so frame rate, draw calls and triangles are as before.
 - **Not done / not checked:** a real account on the live site (Claude does not create accounts there), a real DualShock 4, and many players at once on the live server. No blocking of a player (declining and removing are there).
 - **For the deploy:** nothing extra: `npx wrangler deploy` creates the new `Friends` object (migration v5). If another PR merged first also adds a migration v5, renumber this one to v6.
-- **Status:** PR #117, not merged yet.
+- **Status:** PR #117, on `main` and live (15 Nov 2026, Worker version eed5db67).
 
 ### 2026-11-15 · Flats you can buy, each owned by one player (issue #106)
 - **What:**
