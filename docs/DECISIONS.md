@@ -9,6 +9,7 @@ Live game: https://haarklous-online.server-smoke.workers.dev · Source: https://
 ## Features (what the game has now)
 
 On `main`:
+- Metro, bus and tram (issue #111, PR #PR_PLACEHOLDER, not merged yet): Ruter's real trams, buses and metro lines on a timetable as often as the real ones – the same vehicles for everyone in a lobby; a timetable and a live board at every stop, every line and stop on the map; get on (46 kr, 60 minutes) and ride; the metro stations near home are underground with real entrances, stairs and platforms.
 - Open world around Haarklous plass 17A, Torshov: real buildings and streets (OpenStreetMap), real ground heights (Kartverket), optional aerial photos; walkable out to about 760 m (540 m before PR #13), drawn properly everywhere you can walk.
 - Your 4th-floor apartment (your kitchen + bedroom design) and stairwell; the street door and stairs work without the mission; eight neighbouring stairwells.
 - Flats you can buy: the 64 flats in the eight neighbouring stairwells are for sale (4 600–11 100 kr); each is a real flat you walk into, with windows to the street and the courtyard; a bought flat has one owner – your name on the door, only you unlock it, it is on your map and saved with your account; one flat each, sell for 80 % (issue #106).
@@ -54,6 +55,42 @@ On `main`:
 Live site: runs `main` (Worker version f8651516, deployed 15 Nov 2026 after PRs #107 and #109; `main` builds byte-for-byte to the live page), so everything above is online. Account emails (issue #55) wait for the user's Brevo key.
 
 ## Log
+
+### 2026-11-15 · Metro, bus and tram that run on a timetable (issue #111)
+- **What:**
+  - Ruter's real trams, buses and metro trains drive through the game world on their real lines and stop at their real stops: trams 11, 12, 13, 17, 18 and 19, metro lines 1–5, 21 city bus lines (20, 21, 23, 24, 26, 28, 30, 31, 34, 37, 54, 58, 60, 68, 70, 71, 74, 81, 83, 85, 89) and 10 night bus lines. 130 stops, 246 stop poles (168 with a shelter), 10 metro stations.
+  - They come about as often as the real ones and always at the same times: trams every 10 minutes by day (20 in the evening, 15 on Sundays), each metro line every 15 minutes, bus 31 every 5, buses 20 and 21 every 6, others every 8–30 minutes; fewer early, late and at weekends; none at night (01:00–05:30), except the night buses on Friday and Saturday nights. Oslo time, summer time included.
+  - They speed up, drive, slow down for curves and brake, and stand about 20 seconds at every stop with the doors open on the stop's side.
+  - The look: the blue SL18 tram (five sections), red Ruter buses (articulated on the busy lines), the white-grey MX3000 metro train (six cars), each with its line number and destination on the front, the back and the side. Rails and the contact wire where the trams run.
+  - Every stop has a pole with its name and a glass shelter where there is room, with a live board: the next five departures (line, where it goes, minutes). □ / E at a stop opens its timetable: every line, where it goes, the next four times, and (↑ ↓) all the stops that follow with the minutes to each.
+  - The map shows every line in its colour, every stop, the metro stations (orange T) and their entrances; the minimap too.
+  - Riding: □ / E at an open door gets you on (a ticket is 46 kr from your money and is valid 60 minutes on everything). You sit inside and look around; the top of the screen shows the line, the next stops and their times. □ / E gets you off when the doors open at a stop. Before a line leaves the map you are told and put off at the last stop.
+  - Online, everybody in the lobby sees the same vehicle at the same place, and the others who are riding sit in it.
+  - The metro: Carl Berner, Løren, Tøyen, Grønland, Jernbanetorget, Ensjø and Helsfyr are underground: a pavilion with the T sign at the real entrance, a stair down, a corridor to a bridge over the tracks, stairs down to the platforms, a 120 m hall with the name, boards, posters and benches; the trains come in through the tunnel. Riding in a tunnel you see the tunnel. Sinsen, Hasle and Økern are open stations, as in reality.
+  - Trams, buses and trains are solid: they push you aside, and a car cannot drive through them. Parked cars that stood in a bus or tram lane were moved to the kerb.
+- **Why:** the user: "implement metro, bus and tram. they should arrive regularly, e.g. similar to their real time tables. doesnt have to be actual real-time. Make a time table at each stop/make it easy to know where they go and when they come."
+- **Decisions (Claude's, say if you want them changed):**
+  - The lines, stops and directions are OpenStreetMap's (fetched 15 Nov 2026). Where OSM is old, the game is too: line 5's route in OSM still goes round the city twice (via Sinsen and Carl Berner), and lines 4 and 5 meet at Løren the way OSM has them.
+  - Left out: express buses (E lines), regional buses (100 and up), the airport bus. The night buses are in, on Friday and Saturday nights.
+  - Timetables are not the real minute-by-minute ones: they are regular departures at the real frequency, the same every week. The trams' frequencies are OSM's interval tags; buses' are the usual Ruter frequency, rounded.
+  - Lines that share a stop are spread out so two seldom stand at one pole at once (about 1 in 20 arrivals still overlap).
+  - A ticket costs 46 kr (Ruter's single ticket for zone 1, 2026) and lasts 60 minutes, like the real one. It is paid from the money you have, when you get on. No ticket inspectors.
+  - You ride only inside the game's map. A tram or bus that drives off the map takes no passengers from its last stop on the map.
+  - The metro stations' layout is one plan for all (a hall under the street, a bridge with stairs to the platforms), placed at the real place with the real entrance; not the real stations' inside. Ensjø and Løren have no entrance in OSM, so theirs stands beside the platforms. Where the real entrance is right over the platforms (Helsfyr), the pavilion stands a few metres away at the hall's edge. Depth: 9–20 m under the street, from OSM's layer.
+  - Buses and trams are kinematic: they do not stop for you or for cars (they push you aside).
+- **Where:** `tools/fetch-transit.py` and `tools/make-transit.cjs` (new), `assets/osm/transit-osm.json.gz` (new), `transit-data.js` (new, generated), `transit-timetable.js` (new: the timetable, pure), `transit-models.js` (new: vehicles and stops), `transit-stations.js` (new: metro stations, pure plan), `game-transit.js` (new: vehicles, stops, boards, timetable panel, riding, map, stations), `game-main.js` (wiring), `game-map.js` (an overlay hook), `index.html`, `README.md`, `tests/transit.test.cjs` (new).
+- **Checked:**
+  - Node tests 226/226 (9 new in `tests/transit.test.cjs`): the real lines are there with their stops in order; Oslo time and summer time; tram headways 10 / 20 min and none at night, metro 15, bus 20 every 6, night buses only on Friday and Saturday nights; a run speeds up, never goes back and stands 20 s with the doors open; two computers get the same vehicles at the same places; the next departures match the vehicle that comes; lines sharing a stop seldom stand there together (under 12 % of arrivals within 20 s); for every underground station a walk with the game's collision from the pavilion down the stairs, along the corridor, over the bridge and down to the platform.
+  - In the browser (headless Chrome, the built single file offline, and two players online on a local `wrangler dev`):
+    - Torshov: □ at the stop opened the timetable (11, 12, 18 both ways and bus 20, minutes and times, the stops that follow); the board on the shelter shows the next departures.
+    - Got on tram 12 at Torshov (46 kr paid, 500 → 454 kr), rode with the next stops and times at the top of the screen, got off at Olaf Ryes plass with □ / E when the doors opened.
+    - Metro: walked onto Carl Berner's platform (the world above hidden, the hall lit), line 5 to Sognsvann came in through the tunnel and stopped at the platform with its floor level with it, got on (46 kr), rode through the tunnel at 45 km/h and got off at Tøyen.
+    - Online: player A got on tram 11; player B saw A sitting in it (0.9 m from the section's middle, seated) and the tram leaving with A in it.
+    - An articulated bus 30 stood at the kerb with its right-hand doors open next to the pole and shelter; trams run on drawn rails under the contact wire; Sinsen (open station in its cutting) has its platform and canopy; the map and minimap show the lines, stops and T stations, with a line in the legend.
+  - Parked vehicles: 63 that stood in a bus or tram lane were moved sideways to the kerb, 1 could not be moved; all 684 vehicles keep their numbers.
+  - Draw calls and triangles at five fixed camera spots, the same frame state before → after (the loop stopped, so every parked car near was drawn too): home 2881 → 2894 (2.446 → 2.450 M triangles), Torshov stop 1344 → 1383 (1.483 → 1.489 M), Olaf Ryes plass 1385 → 1418 (1.663 → 1.672 M), Carl Berners plass 1366 → 1430 (1.544 → 1.552 M), Tøyen 1393 → 1418 (1.083 → 1.093 M). The vehicles, stops, rails and stations add 13–64 draw calls and 4–10 k triangles, depending on what is near. The timetable takes about 0.1 s to set up when the game starts.
+- **Not done / not checked:** real minute-by-minute timetables (the frequencies are); tunnel mouths are not modelled (a train going into a tunnel goes into the ground); the escalators beside the stairs do not move; trams and buses do not stop for people or cars; a car someone parks on the rails is driven through; not tried with a real DualShock 4; frame rate on a real laptop not measured (the shared PC's GPU is busy).
+- **Status:** PR #PR_PLACEHOLDER, not merged yet.
 
 ### 2026-11-15 · Flats you can buy, each owned by one player (issue #106)
 - **What:**
