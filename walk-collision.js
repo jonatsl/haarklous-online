@@ -13,6 +13,10 @@
  * findSafeSpawn(world, requested, eyeHeight, {maxDistance=20,step=.08,y=0}={}) -> {x,z,y}|null
  * ceilingAt(world, point, y=0) -> lowest clearance above the feet touched by the person's footprint
  * clampEyeHeight(world, point, requested, minimum=.30, y=0) -> safe height|null
+ * setDynamic(world, list): moving solids (doors, vehicles, people); a long list is put in the same CELL m grid as the static ones.
+ * parkedLayer(list) -> layer {add(o), remove(o)}; setParked(world, layer): solids that seldom change (thousands of parked
+ *   vehicles, issue #113), hashed by the layer for every world's margin and changed one solid at a time.
+ * canStand(world, point, eyeHeight, y, staticOnly): staticOnly leaves out the dynamic and parked solids.
  * Worlds snapshot geometry; recreate after walls or room heights change.
  */
 (function (root, factory) {
@@ -28,8 +32,26 @@
   const near = (world,p) => world.cells ? (world.cells.get(Math.floor(p.x/CELL)+','+Math.floor(p.z/CELL)) || EMPTY) : world;
   // Moving solids (door leaves, vehicles, people) live in world.dynamic: set it any time without rebuilding.
   const prepared = list => list.map(o=>o.bounds?o:{...o,bounds:bounds(o.points),minY:o.minY ?? -Infinity,maxY:o.maxY ?? Infinity});
-  const solidsNear = (world,p) => world.dynamic && world.dynamic.length ? near(world,p).obstacles.concat(world.dynamicPrepared||(world.dynamicPrepared=prepared(world.dynamic))) : near(world,p).obstacles;
-  function setDynamic(world,list){world.dynamic=list;world.dynamicPrepared=prepared(list);}
+  const hashed = (list,pad) => {const cells=new Map();for (const o of list) {const b=o.bounds;for(let i=Math.floor((b.minX-pad)/CELL);i<=Math.floor((b.maxX+pad)/CELL);i++)for(let j=Math.floor((b.minZ-pad)/CELL);j<=Math.floor((b.maxZ+pad)/CELL);j++){const key=i+','+j;let c=cells.get(key);if(!c){c=[];cells.set(key,c);}c.push(o);}}return cells;};
+  const NONE = [];
+  function solidsNear(world,p,staticOnly=false) {
+    const key=Math.floor(p.x/CELL)+','+Math.floor(p.z/CELL), base=world.cells ? (world.cells.get(key) || EMPTY).obstacles : world.obstacles;
+    if (staticOnly) return base;
+    const dyn=!world.dynamic || !world.dynamic.length ? NONE : world.dynamicCells ? world.dynamicCells.get(key) || NONE : world.dynamicPrepared || (world.dynamicPrepared=prepared(world.dynamic));
+    const park=world.parkedCells ? world.parkedCells.get(key) || NONE : NONE;
+    return dyn.length || park.length ? base.concat(dyn,park) : base;
+  }
+  function setDynamic(world,list){world.dynamic=list;world.dynamicPrepared=prepared(list);world.dynamicCells=list.length>24 ? hashed(world.dynamicPrepared,world.radius+.8) : null;}
+  function parkedLayer(list){
+    const set=new Set(prepared(list)),byPad=new Map();
+    const each=(o,pad,fn)=>{const b=o.bounds;for(let i=Math.floor((b.minX-pad)/CELL);i<=Math.floor((b.maxX+pad)/CELL);i++)for(let j=Math.floor((b.minZ-pad)/CELL);j<=Math.floor((b.maxZ+pad)/CELL);j++)fn(i+','+j);};
+    return {set,byPad,
+      cellsFor(pad){if (!byPad.has(pad)) byPad.set(pad,hashed([...set],pad));return byPad.get(pad);},
+      // o must carry its bounds (it is kept as it is, so remove() finds it again).
+      add(o){if (set.has(o)) return;set.add(o);byPad.forEach((cells,pad)=>each(o,pad,key=>{let c=cells.get(key);if(!c){c=[];cells.set(key,c);}c.push(o);}));},
+      remove(o){if (!set.delete(o)) return;byPad.forEach((cells,pad)=>each(o,pad,key=>{const c=cells.get(key);if(c){const k=c.indexOf(o);if(k>=0)c.splice(k,1);}}));}};
+  }
+  function setParked(world,layer){world.parkedCells=layer ? layer.cellsFor(Math.round((world.radius+.8)*100)/100) : null;}
   const subtract = (a, b) => ({x:a.x-b.x, z:a.z-b.z});
   const dot = (a, b) => a.x*b.x+a.z*b.z;
   const cross = (a, b) => a.x*b.z-a.z*b.x;
@@ -113,12 +135,24 @@
     world.cells=new Map();
     const pad=world.radius+.8,addTo=(item,b,kind)=>{for(let i=Math.floor((b.minX-pad)/CELL);i<=Math.floor((b.maxX+pad)/CELL);i++)for(let j=Math.floor((b.minZ-pad)/CELL);j<=Math.floor((b.maxZ+pad)/CELL);j++){const key=i+','+j;let c=world.cells.get(key);if(!c){c={obstacles:[],boundary:[]};world.cells.set(key,c);}c[kind].push(item);}};
     world.obstacles.forEach(o=>addTo(o,o.bounds,'obstacles'));
+    // Floors too (issue #113: a query looked at every one of the ~1000 floors): big ones (terrain) in a short list, the rest by cell.
+    world.floorCells=new Map();world.bigFloors=[];
+    world.floors.forEach((f,i)=>{f.order=i;const b=f.bounds,fp=world.radius+.05;if (b.maxX-b.minX>256 || b.maxZ-b.minZ>256) {world.bigFloors.push(f);return;}
+      for(let i=Math.floor((b.minX-fp)/CELL);i<=Math.floor((b.maxX+fp)/CELL);i++)for(let j=Math.floor((b.minZ-fp)/CELL);j<=Math.floor((b.maxZ+fp)/CELL);j++){const key=i+','+j;let c=world.floorCells.get(key);if(!c){c=[];world.floorCells.set(key,c);}c.push(f);}});
     world.boundary.forEach(piece=>addTo(piece,bounds([piece.a,piece.b]),'boundary'));
     return world;
   }
+  // The floors that may hold or roof p, in their original order (so ties go the same way as before).
+  function floorsNear(world,p) {
+    if (!world.floorCells) return world.floors;
+    const c=world.floorCells.get(Math.floor(p.x/CELL)+','+Math.floor(p.z/CELL)), big=world.bigFloors;
+    if (!c) return big;if (!big.length) return c;
+    const out=[];let i=0,j=0;while (i<big.length || j<c.length) {if (j>=c.length || (i<big.length && big[i].order<c[j].order)) out.push(big[i++]);else out.push(c[j++]);}
+    return out;
+  }
   function supportAt(world,p,y=0) {
     let best=null,gap=-Infinity;
-    for (const f of world.floors) {
+    for (const f of floorsNear(world,p)) {
       if (!nearBounds(p,f.bounds,EPS) || !inside(p,f.points)) continue;
       // Highest walkable surface within a step: walking into a stair or ramp climbs onto it.
       const height=f.surface(p);
@@ -128,7 +162,7 @@
   }
   function ceilingAt(world,p,y=0) {
     let lowest=Infinity;
-    for (const f of world.floors) {
+    for (const f of floorsNear(world,p)) {
       if (!nearBounds(p,f.bounds,world.radius+EPS) || distanceToPolygon(p,f.points)>world.radius+EPS) continue;
       const height=f.surface(closestInside(p,f));
       if (Math.abs(height-y)>STEP*1.7) continue;
@@ -153,7 +187,7 @@
     return maximum<minimum ? null : Math.min(maximum,Math.max(minimum,requested));
   }
   const barrierActive = (piece,p,y) => Math.abs(piece.floor.surface(closestOnSegment(p,piece.a,piece.b))-y)<STEP*1.7;
-  function canStand(world,p,eyeHeight,y=0) {
+  function canStand(world,p,eyeHeight,y=0,staticOnly=false) {
     if (!Number.isFinite(p.x) || !Number.isFinite(p.z) || !Number.isFinite(eyeHeight) || eyeHeight<=0) return false;
     const support=supportAt(world,p,y);
     if (!support) return false;
@@ -161,7 +195,7 @@
     if (eyeHeight>ceilingAt(world,p,feet)-Math.max(.10,world.clearance)+EPS) return false;
     const cell=near(world,p);
     if (cell.boundary.some(piece=>distanceToSegment(p,piece.a,piece.b)<world.radius-EPS && barrierActive(piece,p,feet))) return false;
-    return !solidsNear(world,p).some(o=>overhead(o,feet,eyeHeight) && nearBounds(p,o.bounds,world.radius) && !hollow(o,p,feet) && distanceToPolygon(p,o.points)<world.radius-EPS);
+    return !solidsNear(world,p,staticOnly).some(o=>overhead(o,feet,eyeHeight) && nearBounds(p,o.bounds,world.radius) && !hollow(o,p,feet) && distanceToPolygon(p,o.points)<world.radius-EPS);
   }
   // Flying objects: does any solid (building, tree, wall, vehicle) come within the world's radius of p between heights y0 and y1?
   // owner (optional): skip the solids marked with this owner (a vehicle's own parked footprint, issue #97).
@@ -227,5 +261,5 @@
     }
     return null;
   }
-  return {createWorld,supportAt,canStand,hitsSolid,move,findSafeSpawn,ceilingAt,clampEyeHeight,setDynamic,STEP};
+  return {createWorld,supportAt,canStand,hitsSolid,move,findSafeSpawn,ceilingAt,clampEyeHeight,setDynamic,parkedLayer,setParked,STEP};
 });

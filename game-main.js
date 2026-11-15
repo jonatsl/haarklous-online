@@ -187,13 +187,14 @@
   staticObstacles.push(...grl.flatMap(m => m.obstacles || []));walkFloors.unshift(...grl.flatMap(m => m.floors || []), ...(kayak ? kayak.bridges.map(b => b.floor) : []));
   const walkWorld = collision.createWorld({floors: walkFloors, obstacles: staticObstacles, radius: .18, clearance: .08});
   const vehicleWorlds = new Map();
-  let vehicleBlockers = null;// the other vehicles' footprints from the last updateDynamic()
+  let vehicleBlockers = null, fleet = null;// the other vehicles' footprints from the last updateDynamic(); the parked vehicles (issue #113)
   function worldFor(r) {
     const key = r.toFixed(2);
     if (!vehicleWorlds.has(key)) {
       const w = collision.createWorld({floors: cc ? [...cc.vehicleFloors, ...groundFloors] : groundFloors, obstacles: [...grl.flatMap(m => m.obstacles || []), ...landmarks.obstacles, ...landmarks.vehicleObstacles, ...world.obstacles(), ...towers.flatMap(towerObstacles), ...fire.obstacles, ...shops.obstacles, ...sculpture.obstacles, ...oksen.obstacles, ...gym.obstacles, ...extraObstacles, ...(catacomb ? catacomb.vehicleObstacles : [])], radius: r, clearance: .08});
       // A world made during play (e.g. the bike's on its first ride) gets the other vehicles at once, not one update later.
       if (vehicleBlockers) collision.setDynamic(w, vehicleBlockers);
+      if (fleet) fleet.applyLayer([w]);
       vehicleWorlds.set(key, w);
     }
     return vehicleWorlds.get(key);
@@ -313,8 +314,37 @@
       }});
     for (const c of spots) {const v = new VH.Car(c.at.x, c.at.z, c.yaw, c.model);cityCars.push(v);vehicles.push(v);}
   }
+  // Parked vehicles in every street (issue #113): cars, vans, taxis, lorries and motorcycles by the kerbs and in the car parks,
+  // bicycles and mopeds at the bike racks, planned from the map and OpenStreetMap by tools/make-parking.cjs (parking-data.js).
+  // After every older vehicle, so their numbers stay the same online; the same on every computer.
+  if (window.GameFleet && window.GameParking && window.PARKING_PLAN) {
+    const t0 = performance.now(), GP = window.GameParking, local = (x, z) => world.toLocal(x, z), lp = (x, z, r) => ({...local(x, z), r});
+    // Left out: the ones on the helicopter pad, the firepit, the skydivers' target, a bike dock, a job or licence sign, the driving
+    // test's route, the airstrip, or a vehicle that is there already.
+    const clear = [lp(AIR.heli.x, AIR.heli.z, 16), lp(FIRE_POS.x, FIRE_POS.z, 10), lp(SKY_TARGET.x, SKY_TARGET.z, 14), ...(rides ? rides.keepOut.map(k => lp(k.x, k.z, k.r + 2)) : []),
+      ...JOB_SIGNS.map(j => lp(j.x, j.z, 3)), ...Object.values(LIC_SIGNS).map(j => lp(j.x, j.z, 3))];
+    const course = [GL.COURSES.road.start, ...GL.COURSES.road.gates.map(q => q.p)], lines = course.slice(1).map((q, i) => ({p: [...course[i], ...q], r: 8}));
+    {const a = local(AIR.plane.x, AIR.plane.z), b = local(AIR.plane.x - Math.sin(AIR.plane.yaw) * 300, AIR.plane.z - Math.cos(AIR.plane.yaw) * 300);lines.push({p: [a.x, a.s, b.x, b.s], r: 20});}
+    const taken = vehicles.flatMap(v => [].concat(v.footprint())).filter(f => f.points.length === 4).map(f => f.points.flatMap(q => {const l = local(q.x, q.z);return [l.x, l.s];}));
+    const P = window.PARKING_PLAN, plan = {cars: GP.keep(GP.unpack(P.cars), {clear, lines, taken}), small: GP.keep(GP.unpack(P.small), {clear, lines, taken})};
+    const wCar = worldFor(1.25), wBike = worldFor(.6);
+    // The game's own check when a place first comes in sight: not in Construction City, not too steep, room round it between the
+    // static solids (a car that fails keeps its number but is never drawn or in the way).
+    fleet = window.GameFleet.create({T, lib, VH, scene, collision, plan, toWorld, localHeadingToYaw, heightAt, ok: q => {
+      if (cc && cc.cutsGround(q.x, q.z)) return false;
+      const f = {x: -Math.sin(q.yaw), z: -Math.cos(q.yaw)}, r = {x: -f.z, z: f.x}, h = heightAt(q.x, q.z), a = q.L * .45, b = q.W * .45;
+      if (q.small) return collision.canStand(walkWorld, q, 1, h, true);
+      if (Math.abs(heightAt(q.x + f.x * a, q.z + f.z * a) - heightAt(q.x - f.x * a, q.z - f.z * a)) > q.L * .2 || Math.abs(heightAt(q.x + r.x * b, q.z + r.z * b) - heightAt(q.x - r.x * b, q.z - r.z * b)) > .45) return false;
+      if (q.type === 'motorcycle') return collision.canStand(wBike, q, 1.2, h, true);
+      const e = Math.max(0, q.L / 2 - 1.25), n = Math.max(1, Math.ceil(e / 1.6));
+      for (let k = -n; k <= n; k++) {const p = {x: q.x + f.x * e * k / n, z: q.z + f.z * e * k / n};if (!collision.canStand(wCar, p, 1.4, heightAt(p.x, p.z), true)) return false;}
+      return true;
+    }});
+    fleet.cars.forEach((v, k) => {v.index = vehicles.length + k;});vehicles.push(...fleet.cars);
+    fleet.ms = Math.round(performance.now() - t0);
+  }
   vehicles.forEach(v => {v.spawn = v.netGet();});
-  vehicles.forEach(v => scene.add(v.group));
+  vehicles.forEach(v => {if (!v.lazy) scene.add(v.group);});// a parked fleet vehicle adds its own when it is built
   vehicles.filter(v => v.kind === 'excavator').forEach(ex => {
     const f = ex.forward();pile(ex.x + f.x * 6, ex.z + f.z * 6, 1.4);ex.onDump = (x, z) => pile(x, z, .55);
   });
@@ -384,12 +414,13 @@
   function closeAllDoors() {doors.forEach(d => {d.anim = null;d.open = false;setDoor(d, 0);});updateDynamic();}
   function updateDynamic() {
     const list = doors.filter(d => !d.anim).map(doorPolygon);
-    vehicles.forEach(v => {if (v !== player.vehicle) list.push(...[].concat(v.footprint()));});
+    vehicles.forEach(v => {if (v !== player.vehicle && !(v.lazy && !v.built)) list.push(...[].concat(v.footprint()));});// parked fleet vehicles: fleet.applyLayer
     if (caseGame?.active) list.push(...caseGame.actorObstacles());
     collision.setDynamic(walkWorld, list);
     // Other vehicles block the one being driven; it must never collide with its own (parked) footprint.
-    const vlist = vehicles.filter(v => v !== player.vehicle && !v.pushed).flatMap(v => [].concat(v.footprint()));
+    const vlist = vehicles.filter(v => v !== player.vehicle && !v.pushed && !(v.lazy && !v.built)).flatMap(v => [].concat(v.footprint()));
     vehicleBlockers = vlist;vehicleWorlds.forEach(w => collision.setDynamic(w, vlist));
+    if (fleet) fleet.applyLayer([walkWorld, ...vehicleWorlds.values()]);
   }
   updateDynamic();
 
@@ -497,7 +528,7 @@
   }
   function nearestVehicle() {
     let best = null, bd = 2.6;
-    for (const v of vehicles) {const f = v.forward(), dx = player.x - v.x, dz = player.z - v.z, along = dx * f.x + dz * f.z, side = dx * -f.z + dz * f.x, d = Math.hypot(Math.max(0, Math.abs(along) - v.length / 2), Math.max(0, Math.abs(side) - v.width / 2));if (d < bd && Math.abs(player.feet - v.y) < 2) {bd = d;best = v;}}
+    for (const v of vehicles) {if (Math.abs(v.x - player.x) > 12 || Math.abs(v.z - player.z) > 12) continue;const f = v.forward(), dx = player.x - v.x, dz = player.z - v.z, along = dx * f.x + dz * f.z, side = dx * -f.z + dz * f.x, d = Math.hypot(Math.max(0, Math.abs(along) - v.length / 2), Math.max(0, Math.abs(side) - v.width / 2));if (d < bd && Math.abs(player.feet - v.y) < 2) {bd = d;best = v;}}
     return best;
   }
   function findPrompt() {
@@ -538,6 +569,7 @@
       if (canRide && !pas) return {text: `□ Ride along with ${driverName(i)} (${v.kind === 'motorcycle' ? 'pillion' : 'passenger'})`, act: () => tryRide(v)};
       return {text: `${driverName(i)} is ${v.aircraft ? 'flying' : 'driving'} the ${v.name}`, act: () => {}};
     }
+    {const b = fleet && player.mode === 'foot' ? fleet.lockedNear(player) : null;if (b) return {text: `🔒 Someone's ${b.name} – locked`, act: () => notice(`The ${b.name} is locked. City bikes and e-scooters are for hire.`, 3)};}
     for (const g of [...discCourses, mini.petanque, ...(pingpong ? [pingpong] : [])]) {const t = g.near({x: player.x, z: player.z, y: player.feet});if (t) return {text: t, act: () => startMinigame(g)};}
     const o = lookTarget();
     if (o?.userData.drink && !o.userData.drink.used) {const d = o.userData.drink;return {text: d.kind === 'beer' ? '□ Drink a beer' : `□ Take a sip of ${d.name}`, act: () => drink(d)};}
@@ -1276,6 +1308,7 @@
     // Other vehicles: parked ones idle (far ones are hidden and skipped), ones driven by other players are posed by the lobby.
     cullT -= dt;if (cullT <= 0) {cullT = .4;for (const v of vehicles) {const near = Math.hypot(v.x - camera.position.x, v.z - camera.position.z) < (v.cullDistance || 170);v.group.visible = near || v === player.vehicle;}if (vehicles.some((v, i) => mp.remoteDriven(i))) updateDynamic();}
     vehicles.forEach((v, i) => {if (v === player.vehicle && player.mode === 'vehicle') return;if (mp.remoteDriven(i) || (gp && v === caravan)) return;if (!v.group.visible && Math.abs(v.speed || 0) < .01 && !v.aircraft) return;v.update(wdt, {});});
+    if (fleet) fleet.tick(dt, camera, i => !!mp.occupant(i, 'd') || !!mp.occupant(i, 'p'), player.vehicle);
     beerT = Math.max(0, beerT - dt);mp.update(dt);updatePilotAvatar(dt);if (player.mode === 'jumpseat' && skyd.ride) seatCamera();
     if (rentals) rentals.tick(dt, player);jobs.tick(dt, {player, drunk: dl, camera});jobs.remoteTick(mp.remotes, vehicles, dt, camera);renderJobHud(crewTick());licTick(dt);if (jobs.phone.open) jobs.phone.render();
     if (site) site.update(wdt);
@@ -2315,7 +2348,7 @@
   // Licences (issue #59). Browser tests that need to drive: haarklousGame.licences.grant('B') (or every id in GameLicences.IDS).
   Object.assign(window.haarklousGame, {licences: lic, licBegin, licVehicle, openLicPlace, openLicPhone, schoolCar, schoolBike, LIC_SIGNS});
   Object.defineProperty(window.haarklousGame, 'licTest', {get: () => licTest});
-  Object.assign(window.haarklousGame, {cityCars});
+  Object.assign(window.haarklousGame, {cityCars, fleet});
   Object.assign(window.haarklousGame, {homes, homeReg, openHomeMenu, buyHome, sellHome, homeRefresh, homeDoorPrompt, homePlatePrompt});
   Object.assign(window.haarklousGame, {storgata, magic, magicFxApi: fx, castPower, GRONLAND, storgataAct, questWaypoint, collision});
   loading.remove();$('start').hidden = false;
