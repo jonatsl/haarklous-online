@@ -198,7 +198,11 @@
   const LIC_SIGNS = (() => {const w = (x, s) => world.toWorld(x, s), a = w(-624.4, 35.5), b = w(-624.4 + .33, 35.5 - .94), c = w(-128.5, 367), d = w(-128.5, 366);
     return {school: {...a, yaw: Math.atan2(-(b.x - a.x), -(b.z - a.z)) + Math.PI}, site: {...c, yaw: Math.atan2(-(d.x - c.x), -(d.z - c.z)) + Math.PI}, airfield: {x: -123.3, z: 6.2, yaw: .5236 + Math.PI / 2}};})();
   const signObstacles = [...JOB_SIGNS, ...Object.values(LIC_SIGNS)].map(j => {const y = groundAt(j.x, j.z);return {points: [[-.5, -.15], [.5, -.15], [.5, .15], [-.5, .15]].map(([a, b]) => ({x: j.x + Math.cos(j.yaw) * a + Math.sin(j.yaw) * b, z: j.z - Math.sin(j.yaw) * a + Math.cos(j.yaw) * b})), minY: y - .3, maxY: y + 2.2, kind: 'sign'};});
-  const extraObstacles = [...(siteField ? window.GameSite.fenceObstacles(siteField, groundAt) : []), ...(pbRules ? pbRules.obstacles : []), ...(catacomb ? catacomb.obstacles : []), ...(rides ? rides.obstacles : []), ...signObstacles, ...(storgata ? storgata.obstacles : [])];
+  // Prop hunt (issue #124): hide and seek at three real places; the things standing there are solids from the start.
+  const phCtx = {toWorld: world.toWorld, toLocal: world.toLocal, ground: world.heightWorld,
+    headingToYaw: h => {const dx = Math.sin(h), ds = Math.cos(h), wx = dx * Math.cos(theta) + ds * Math.sin(theta), wz = -dx * Math.sin(theta) + ds * Math.cos(theta);return Math.atan2(-wx, -wz);}};
+  const phRules = window.GameProphunt && window.PROPHUNT ? new window.GameProphunt.Rules(window.PROPHUNT, phCtx) : null;let prophunt = null;
+  const extraObstacles = [...(phRules ? window.GameProphunt.obstacles(phRules, world.heightWorld) : []), ...(siteField ? window.GameSite.fenceObstacles(siteField, groundAt) : []), ...(pbRules ? pbRules.obstacles : []), ...(catacomb ? catacomb.obstacles : []), ...(rides ? rides.obstacles : []), ...signObstacles, ...(storgata ? storgata.obstacles : [])];
   const staticObstacles = [...apt.obstacles, ...towers.flatMap(towerObstacles), ...worldSolids(), ...(homes ? homes.obstacles : []), ...fire.obstacles, ...stash.obstacles, ...shops.obstacles, ...sculpture.obstacles, ...oksen.obstacles, ...gym.obstacles, ...extraObstacles, ...landmarks.obstacles];
   const walkFloors = [...apt.floors, ...towers.flatMap(towerFloors), ...(homes ? homes.floors : []), ...shops.floors, ...sculpture.floors, ...oksen.floors, ...landmarks.floors, ...gym.floors, ...(catacomb ? catacomb.floors : []), ...walkGroundFloors];
   staticObstacles.push(...grl.flatMap(m => m.obstacles || []));walkFloors.unshift(...grl.flatMap(m => m.floors || []), ...(kayak ? kayak.bridges.map(b => b.floor) : []));
@@ -416,7 +420,8 @@
     if (stanceEye(next) > stanceEye(player.stance) && !collision.canStand(walkWorld, player, stanceEye(next), player.feet)) {notice('No room to stand up here.');return;}
     player.stance = next;
   }
-  const move = (dx, dz) => {const n = collision.move(walkWorld, player, {x: dx, z: dz}, stanceEye(player.stance), player.feet);player.x = n.x;player.z = n.z;player.feet = n.y;};
+  const move = (dx, dz) => {const r0 = walkWorld.radius, pr = prophunt ? prophunt.bodyRadius() : 0;if (pr > r0) {walkWorld.radius = pr;if (!collision.canStand(walkWorld, player, stanceEye(player.stance), player.feet)) walkWorld.radius = r0;}
+    const n = collision.move(walkWorld, player, {x: dx, z: dz}, stanceEye(player.stance), player.feet);walkWorld.radius = r0;player.x = n.x;player.z = n.z;player.feet = n.y;};
   function inApartment() {return player.feet > -.5 && player.feet < 2.5 && apt.floors.some(f => inside(player, f.points));}
   // Ambience: the whole flat (also doorways and wall gaps) counts as indoors; the balcony is open air.
   const aptBox = (() => {const pts = apt.floors.filter(f => !/balcony/i.test(f.id || f.name || '')).flatMap(f => f.points);return {x0: Math.min(...pts.map(p => p.x)) - .15, x1: Math.max(...pts.map(p => p.x)) + .15, z0: Math.min(...pts.map(p => p.z)) - .15, z1: Math.max(...pts.map(p => p.z)) + .15};})();
@@ -455,7 +460,7 @@
   // The trams, buses and metro trains near you are moving solids for walkers and cars (issue #111): a short list of their own
   // (setMoving), so the hashed dynamic list and the parked fleet's layer are left as they are.
   function transitDynamic() {
-    const t = transit.footprints();if (!t.length && !transitSolidsOn) return;transitSolidsOn = t.length > 0;
+    const t = [...(transit ? transit.footprints() : []), ...(prophunt ? prophunt.solids() : [])];if (!t.length && !transitSolidsOn) return;transitSolidsOn = t.length > 0;if (!transit) {collision.setMoving(walkWorld, t);return;}
     collision.setMoving(walkWorld, t);vehicleWorlds.forEach(w => collision.setMoving(w, t));
     // A tram or bus that comes up against you pushes you aside (it does not stop for you).
     if (player.mode === 'foot') {const p = transit.pushOut(player.x, player.z, player.feet, .3);if (p) {player.x = p.x;player.z = p.z;}}
@@ -536,6 +541,7 @@
     ...(catacomb ? catacomb.poi() : []),
     ...(homes && homeReg.mine && homes.byId.has(homeReg.mine) ? [(p => ({...world.toLocal(p.x, p.z), color: '#1f6f43', label: 'Your flat', glyph: '🏠'}))(homes.doorWorld(homeReg.mine))] : []),
     ...(rentals ? rentals.poi() : []),
+    ...(prophunt ? prophunt.poi() : []),
   ]});
   if (transit) {map.overlay = transit.overlay;transit.legend(view);}// the lines, stops and metro stations (issue #111)
   // Wristwatch (D-pad ↑) shares the first-person overlay with the photo camera.
@@ -548,7 +554,22 @@
     teleport: (x, z, yaw) => {if (player.mode === 'foot') place(x, z, yaw);}, cameraPos: () => camera.position.clone(), cameraFwd: () => camera.getWorldDirection(new T.Vector3()),
     ground: groundAt, notice: (t, sec) => notice(t, sec), sound: (n, g) => audio.sfx(n, {gain: g}), random: Math.random});
   const paintball = pbRules && window.PaintballModels ? window.GamePaintball.create({T, scene, overlay: overlayScene, models: window.PaintballModels.create({T, lib, data: PB_DATA}), data: PB_DATA, view, groundAt, ctx: pbCtx, rules: pbRules}) : null;
-  const pbBusy = () => !!paintball && paintball.busy, pbArmed = () => !!paintball && paintball.armed;
+  if (phRules) {
+    Object.assign(phCtx, {
+      serverNow: () => mp && mp.net.online ? mp.net.serverNow() : Date.now(), you: () => mp && mp.net.online ? mp.net.you : 0, yourName: () => mp ? mp.net.name : 'You',
+      others: () => mp ? [...mp.remotes.values()].filter(r => r.st && r.st.ph && r.seen).map(r => window.GameProphunt.memberFromJson(r.st.ph, {id: r.id, name: r.name, local: false, feet: {x: r.pos.x, y: r.pos.y, z: r.pos.z}, yaw: r.yaw})).filter(Boolean) : [],
+      feet: () => ({x: player.x, y: player.feet, z: player.z}), yaw: () => player.yaw,
+      teleport: (x, z, yaw) => {if (player.mode === 'foot') {world.buildGround(world.toLocal(x, z).x, world.toLocal(x, z).s, 60);place(x, z, yaw);}}, setPos: (x, z) => {player.x = x;player.z = z;},
+      cameraPos: () => camera.position.clone(), cameraFwd: () => camera.getWorldDirection(new T.Vector3()),
+      // A shot stops at the first building, wall or tree trunk (the walk world's solids at the shot's height).
+      blockDist: (o, d, max) => {const mv = walkWorld.moving;walkWorld.moving = null;try {for (let t = .3; t < max; t += .3) {const x = o.x + d.x * t, y = o.y + d.y * t, z = o.z + d.z * t;if (y < groundAt(x, z) - .05) return t;if (collision.hitsSolid(walkWorld, {x, z}, y - .02, y + .02) && !phSolidAt(x, y, z)) return t;}return Infinity;} finally {walkWorld.moving = mv;}},
+      clear: (x, z) => collision.canStand(walkWorld, {x, z}, 1.6, groundAt(x, z)), notice: (t, sec) => notice(t, sec), sound: (n, o) => audio.sfx(n, o), random: Math.random});
+    prophunt = window.GameProphunt.create({T, scene, lib, kit: world.propKit, rules: phRules, view, ground: groundAt, audio, marker: window.PaintballModels ? window.PaintballModels.create({T, lib, data: PB_DATA}).marker() : null});
+    if (prophunt.marker) {prophunt.marker.visible = false;prophunt.marker.scale.setScalar(.85);overlayScene.add(prophunt.marker);}
+  }
+  // The things of the arenas are solids too: a shot that meets one is the rules' business, not a wall.
+  function phSolidAt(x, y, z) {const A = phRules && phRules.arenaAt(x, z);return !!A && A.things.some(t => Math.abs(t.x - x) < 2.6 && Math.abs(t.z - z) < 2.6 && y < t.y + window.GameProphunt.KINDS[t.kind].h * (t.sc || 1) + .1);}
+  const pbBusy = () => (!!paintball && paintball.busy) || (!!prophunt && prophunt.busy), pbArmed = () => (!!paintball && paintball.armed) || (!!prophunt && prophunt.armed);
 
   // ---------- Drinking ----------
   let drunk = 0;// seconds of drunkenness remaining
@@ -1242,7 +1263,7 @@
     const np = music.position();$('nowPlaying').textContent = np ? `${np.title} (${Math.floor(np.length / 60)}:${String(Math.round(np.length % 60)).padStart(2, '0')} loop)` : '–';
   }
   $('musicVol').oninput = e => {music.setVolume(+e.target.value);renderSettings();};
-  function musicTrack() {if (caseGame?.active) return 'mission';if (catacomb?.state.inside) return null;if (mgl && player.mode === 'foot' && mgl.inside(player.x, player.z, player.feet)) return 'minigolf';if (player.mode === 'minigame') return player.minigame.music || (discCourses.includes(player.minigame) ? 'discgolf' : 'petanque');return 'main';}
+  function musicTrack() {if (caseGame?.active) return 'mission';if (prophunt && prophunt.music) return 'prophunt';if (catacomb?.state.inside) return null;if (mgl && player.mode === 'foot' && mgl.inside(player.x, player.z, player.feet)) return 'minigolf';if (player.mode === 'minigame') return player.minigame.music || (discCourses.includes(player.minigame) ? 'discgolf' : 'petanque');return 'main';}
   $('sensPad').oninput = e => {setSens('pad', +e.target.value);renderSettings();};$('sensMouse').oninput = e => {setSens('mouse', +e.target.value);renderSettings();};
   $('minimapOn').onchange = e => {map.minimap = e.target.checked;};
   $('imagery').onchange = e => {try {localStorage.setItem('haarklous-aerial-imagery-v1', e.target.checked ? 'on' : 'off');} catch {}world.setImagery(e.target.checked);};
@@ -1348,7 +1369,7 @@
     // The jump planes move first, so a jumper's seat (and camera) is where the plane is this frame.
     updateJumpFlight(dt);updateGamePilot(dt);
     licExaminer(input);
-    if (transit) {transit.tick(dt, {camera, player});transitDynamic();}
+    if (transit) transit.tick(dt, {camera, player});if (transit || prophunt) transitDynamic();
     if (player.mode === 'vehicle') updateVehicle(dt, input, dl);
     else if (player.mode === 'transit') transit.updateRide(dt, input, camera, dl);
     else if (player.mode === 'passenger') updatePassenger(dt, input, dl);
@@ -1375,12 +1396,19 @@
       paintball.update(dt, {r2: foot ? input.r2 : 0, l2: foot ? input.l2 : 0, reload: p.has('square') || p.has('reload'), up: p.has('up'), down: p.has('down'), left: p.has('left'), right: p.has('right'),
         triangle: p.has('triangle'), cross: p.has('cross'), crossHeld: !!h.cross, triangleHeld: !!h.triangle}, {remotes: [...mp.remotes.values()], onFoot: foot, camera});
     }
+    if (prophunt) {
+      const foot = player.mode === 'foot', p = foot ? input.pressed : new Set(), h = foot ? input.held : {};
+      if (foot && prophunt.cameraFor(camera, player, groundAt)) {/* third person: behind your prop, or the player you watch */}
+      prophunt.update(dt, {r2: foot ? input.r2 : 0, l2: foot ? input.l2 : 0, square: p.has('square'), r1: p.has('r1') || p.has('cast'), up: p.has('up'), down: p.has('down'), left: p.has('left'), right: p.has('right'),
+        leftHeld: !!h.left, rightHeld: !!h.right, triangle: p.has('triangle'), cross: p.has('cross'), crossHeld: !!h.cross, triangleHeld: !!h.triangle}, {remotes: [...mp.remotes.values()], camera, player});
+      phEvents(prophunt.rules.events);
+    }
     {const fl = mp.fireLevel();fire.update(wdt, fl, camera);fireSoundT -= dt;if (fireSoundT <= 0) {fireSoundT = .25;const d = Math.hypot(player.x - FIRE_POS.x, player.z - FIRE_POS.z);audio.fire(fl, Math.max(0, 1 - d / 28));}}
     // Door animations.
     let doorsChanged = false;
     for (const d of doors) if (d.anim) {d.anim.t = Math.min(1, d.anim.t + dt * 2.2);const e = d.anim.t < .5 ? 2 * d.anim.t * d.anim.t : 1 - Math.pow(-2 * d.anim.t + 2, 2) / 2;setDoor(d, d.anim.from + (d.anim.to - d.anim.from) * e);if (d.anim.t >= 1) {d.open = d.anim.to === 1;d.anim = null;doorsChanged = true;}}
     if (doorsChanged || caseGame?.active) updateDynamic();
-    promptTimer -= dt;if (promptTimer <= 0) {promptTimer = .15;promptAction = player.mode === 'minigame' || player.mode === 'drone' || transit?.panel.open || gear?.open || quick || bag || gymMenu || lic.menu.open || jobs.phone.open || photo.active || storgata?.talking || (caseGame?.active && caseGame.state !== 'play') ? null : findPrompt();prompt(promptAction?.text);}
+    promptTimer -= dt;if (promptTimer <= 0) {promptTimer = .15;promptAction = player.mode === 'minigame' || player.mode === 'drone' || (prophunt && prophunt.ownsSquare) || transit?.panel.open || gear?.open || quick || bag || gymMenu || lic.menu.open || jobs.phone.open || photo.active || storgata?.talking || (caseGame?.active && caseGame.state !== 'play') ? null : findPrompt();prompt(promptAction?.text);}
     weather.update(dt, camera, {indoor: weatherIndoor, windWorld: weatherWind});
     ambienceTimer -= dt;if (ambienceTimer <= 0) {ambienceTimer = .25;updateAmbience();if (audio.context) music.attach(audio.context);music.play(musicTrack());}
     // Adaptive resolution keeps the frame rate in the 20–30+ fps range on slower PCs.
@@ -1390,7 +1418,7 @@
     renderFrame(dt, t);
   }
   // The other players' arrows on the map and the minimap (their slot colour and name).
-  const lobbyArrows = () => mp ? [...mp.remotes.values()].filter(r => r.seen).map(r => ({x: r.pos.x, z: r.pos.z, y: r.pos.y, headingLocal: -(r.yaw - theta), color: window.GameAvatars.slotCss(r.slot), name: r.name})) : [];
+  const lobbyArrows = () => mp ? [...mp.remotes.values()].filter(r => r.seen && !(phRules && phRules.offMap(r.id))).map(r => ({x: r.pos.x, z: r.pos.z, y: r.pos.y, headingLocal: -(r.yaw - theta), color: window.GameAvatars.slotCss(r.slot), name: r.name})) : [];
   // Minimap (issue #42) and the waypoint pin (issue #41): centred on you (on the drone while you fly it), turned with the camera.
   const camDir = new T.Vector3();
   function updateGuide(dt) {
@@ -1418,23 +1446,23 @@
       if (player.circleAt) {if (!input.held.circle) {if (!player.circleHeld) setStance(player.stance === 'crouch' ? 'stand' : 'crouch');player.circleAt = null;} else if (!player.circleHeld && performance.now() - player.circleAt > 320) {player.circleHeld = true;setStance(player.stance === 'prone' ? 'stand' : 'prone');}}
       if (input.pressed.has('prone')) setStance(player.stance === 'prone' ? 'stand' : 'prone');
       if (input.pressed.has('l3')) player.run = !player.run;
-      if (input.pressed.has('square') && !photo.active && !caseGame?.active && !pbArmed()) interact();// paintball: □ reloads
+      if (input.pressed.has('square') && !photo.active && !caseGame?.active && !pbArmed() && !(prophunt && prophunt.ownsSquare)) interact();// paintball: □ reloads; prop hunt: □ becomes a thing
     }
     // Move.
-    const canMove = (!caseGame?.active || caseGame.canMove()) && !(paintball && paintball.frozen);
+    const canMove = (!caseGame?.active || caseGame.canMove()) && !(paintball && paintball.frozen) && !(prophunt && prophunt.frozen), propSpeed = prophunt ? prophunt.speed : 0;
     let mx = input.move.x, my = input.move.y;
     if (dl > 0) {mx += Math.sin(performance.now() / 700) * .55 * dl;my += Math.sin(performance.now() / 1100) * .15 * dl;}
     const mag = Math.min(1, Math.hypot(mx, my));
     player.running = false;
     if (canMove && mag > .05) {
-      const running = player.stance === 'stand' && !(hushed > 0) && (player.run || (!caseGame?.active && !photo.active && !pbArmed() && input.r2 > .3) || input.held.l3);player.running = running;
+      const running = !propSpeed && player.stance === 'stand' && !(hushed > 0) && (player.run || (!caseGame?.active && !photo.active && !pbArmed() && input.r2 > .3) || input.held.l3);player.running = running;
       // Standing: walk 2.5 m/s, run 6.0 m/s (issue #88, 5 Nov 2026); crouching and prone keep 1.45 x .55 and x .28.
-      const base = player.stance === 'stand' ? WALK_SPEED : 1.45 * stanceSpeed();
+      const base = propSpeed || (player.stance === 'stand' ? WALK_SPEED : 1.45 * stanceSpeed());
       const speed = (running ? RUN_SPEED : base) * (caseGame?.active ? caseGame.moveScale() : 1) * (1 - dl * .25) * (boostIs('speed') ? 3 : 1), fwd = -my, right = mx;
       const dx = (-Math.sin(player.yaw) * fwd + Math.cos(player.yaw) * right) * speed * dt, dz = (-Math.cos(player.yaw) * fwd - Math.sin(player.yaw) * right) * speed * dt;
       const bx = player.x, bz = player.z;move(dx, dz);
       player.stride += Math.hypot(player.x - bx, player.z - bz);
-      if (player.stride > (running || speed > 2.5 ? 1.05 : .72) * (player.stance === 'stand' ? 1 : .8)) {player.stride = 0;if (!(player.jumpY > .05)) footstep(running ? 1.2 : player.stance === 'stand' ? .8 : .45);}
+      if (player.stride > (running || speed > 2.5 ? 1.05 : .72) * (player.stance === 'stand' ? 1 : .8)) {player.stride = 0;if (!(player.jumpY > .05) && !propSpeed) footstep(running ? 1.2 : player.stance === 'stand' ? .8 : .45);}
     } else if (!mag) player.run = false;
     // Jump and stance easing.
     player.eyeNow += (stanceEye(player.stance) - player.eyeNow) * Math.min(1, dt * 9);
@@ -1447,7 +1475,7 @@
     const sway = dl ? {r: Math.sin(performance.now() / 1300) * .09 * dl, y: Math.sin(performance.now() / 1700) * .05 * dl, p: Math.sin(performance.now() / 900) * .03 * dl} : {r: 0, y: 0, p: 0};
     camera.position.set(player.x, player.feet + player.eyeNow + player.jumpY, player.z);
     camera.rotation.set(0, 0, 0, 'YXZ');camera.rotation.order = 'YXZ';camera.rotation.y = player.yaw + sway.y;camera.rotation.x = player.pitch + sway.p;camera.rotation.z = sway.r;
-    const fov = photo.active && photo.raised > .5 ? 70 / photo.zoom : caseGame?.active ? camera.fov : pbArmed() ? 70 / (1 + .45 * paintball.aim) : boostIs('speed') ? 82 : 70 + magicKick * 16;if (Math.abs(camera.fov - fov) > .01 && !caseGame?.active) {camera.fov = fov;camera.updateProjectionMatrix();}
+    const fov = photo.active && photo.raised > .5 ? 70 / photo.zoom : caseGame?.active ? camera.fov : pbArmed() ? 70 / (1 + .45 * (prophunt && prophunt.armed ? prophunt.aim : paintball.aim)) : boostIs('speed') ? 82 : 70 + magicKick * 16;if (Math.abs(camera.fov - fov) > .01 && !caseGame?.active) {camera.fov = fov;camera.updateProjectionMatrix();}
   }
   function footstep(soft = 1) {
     let surface = 'grass', stair = false;
@@ -1841,6 +1869,7 @@
     // This computer flies the game's pilot in the Caravan: what it is doing, for the jumpers' screens.
     if (gp && gp.f) {s.gp = gp.f.phase;if (gp.f.left) s.gl = Math.round(gp.f.left);if (gp.f.green) s.gg = 1;}
     const pb = paintball && paintball.rules.localState();if (pb) s.pb = pb;
+    const ph = prophunt && prophunt.rules.localState();if (ph) s.ph = ph;// prop hunt (issue #124)
     // A city bike you have locked outside a dock (issue #57); your job, the taxi light and passenger (issue #56).
     if (rentals) {const lb = rentals.locked();if (lb >= 0) s.cb = lb;}
     {const js = jobs.localState();if (js) Object.assign(s, js);}
@@ -2077,8 +2106,8 @@
     applyObj: (id, v) => {if (living) living.apply(id, v, true);},
     // Joining a lobby: alone in a lobby that has nothing stored, what you did offline is sent up; otherwise the lobby's state wins.
     resetObjs: m => {if (!living) return;if (m.players.length <= 1 && !Object.keys(m.objs || {}).length) living.publish();else living.reset();},
-    onRemoteWood: r => fire.throwLog({x: r.pos.x, y: r.pos.y + 1.3, z: r.pos.z}), holdsMarker: id => !!paintball && paintball.rules.memberPlaying(id),
-    autoAnchor: seat => autoPlane.hipAnchor('j' + seat), skyPose: (r, st, g) => {skyPose(r, st, g);kayakPose(r, st, g);orbPose(r, st, g);if (transit) transit.pose(r, st, g);golfPose(r, st);},
+    onRemoteWood: r => fire.throwLog({x: r.pos.x, y: r.pos.y + 1.3, z: r.pos.z}), holdsMarker: id => (!!paintball && paintball.rules.memberPlaying(id)) || (!!phRules && phRules.holdsMarker(id)),
+    autoAnchor: seat => autoPlane.hipAnchor('j' + seat), skyPose: (r, st, g) => {skyPose(r, st, g);kayakPose(r, st, g);orbPose(r, st, g);if (transit) transit.pose(r, st, g);golfPose(r, st);if (phRules && phRules.concealed(r.id)) g.visible = false;},
     // In a paintball game you see your team-mates' names, not your opponents' (issue #25).
     showTag: id => !paintball || !paintball.rules.inGame() || !paintball.rules.memberPlaying(id) || paintball.rules.teamOfMember(id) === paintball.rules.myTeam()});
   // Flat 501's living room (issue #116): its record player, TV, lava lamp and chairs are shared through the lobby.
@@ -2156,7 +2185,7 @@
     renderer.autoClear = false;renderer.clear();if (!deepNow) renderer.render(farScene, farCamera);renderer.clearDepth();renderer.render(scene, camera);
     if (!forPhoto) {
       if (caseGame?.active) caseGame.renderOverlay(camera);
-      else {const showWatch = watch.update(dt), showPhoto = photo.active && !photo.gallery;photo.model.visible = showPhoto;if (showPhoto || showWatch || paintball?.marker.visible) {renderer.clearDepth();renderer.render(overlayScene, overlayCamera);}}
+      else {const showWatch = watch.update(dt), showPhoto = photo.active && !photo.gallery;photo.model.visible = showPhoto;if (showPhoto || showWatch || paintball?.marker.visible || prophunt?.marker?.visible) {renderer.clearDepth();renderer.render(overlayScene, overlayCamera);}}
     }
     renderer.autoClear = true;
     // Drunk: blur and a drifting double image.
@@ -2407,6 +2436,14 @@
       else if (j.d < GRONLAND.maxDist * 1.6) notice(`Even's photo of Grønland kirke: ${{far: `come closer (within ${GRONLAND.maxDist} m)`, frame: 'aim at the tower', small: 'get the whole tower in, a bit bigger – go closer or zoom in', blocked: 'something is in the way'}[j.why] || 'try again'}.`, 5);
     }
   }
+  // Prop hunt (issue #124): a round's result and the match's, for the best scores, badges and a small reward.
+  function phEvents(list) {
+    for (const e of list) {
+      if (!e || typeof e !== 'object') continue;
+      if (e.round) badges.record('prophunt-round', {role: e.role, won: e.won, survived: e.survived, finds: e.finds, cleared: e.cleared});
+      if (e.over) {badges.record('prophunt-match', {won: e.won, pts: e.pts, bots: e.bots});earn(Math.min(150, 20 + e.pts * 5), `Prop hunt: ${e.pts} points${e.won ? ' – you won the match!' : ''}`);}
+    }
+  }
   // Badges that come from what you do: checked twice a second (the rest come from the best scores and saved states).
   let badgeT = 0, pbSeen = 0;
   function badgeTick(dt) {
@@ -2421,7 +2458,7 @@
     }
     badges.check();
   }
-  window.haarklousGame = {player, vehicles, cc, transit, get liftMenu() {return liftMenu;}, site, paintball, catacomb, groundAt, heli, plane, drone, watch, fire, stash, shops, gym, startClimb, openGymMenu, startBelay, get belay() {return belay;}, sculpture, oksen, weather, caravan, get skyd() {return skyd;}, get autoPlane() {return autoPlane;}, get jumpFlight() {return jumpFlight;}, boardAuto, boardCaravan, jump, get gp() {return gp;}, callGamePilot, handOver, CARAVAN_HOLD, applyWeather, wallet, get basket() {return basket;}, payAt, takeProduct, useItem, earn, openBag, takeBoost, get boost() {return boost;}, set boost(b) {boost = b;}, get mp() {return mp;}, sitDown, standUp, tryDrive, tryRide, openChat, startDrone, stopDrone, floorBelow, doors, mini, music, photo, map, world, apt, towers, walkWorld, route, landmarks, districts: DISTRICTS, get caseGame() {return caseGame;}, place, toggleDoor, enterVehicle, exitVehicle, startMinigame, startMission, drink, interact, findPrompt, renderFrame, begin, get fps() {return fpsAvg;}, kick: () => requestAnimationFrame(frame), get drunk() {return drunk;}, set drunk(v) {drunk = v;}, lic, licBegin, licEnd, get licTest() {return licTest;}, setStance, camera, scene};
+  window.haarklousGame = {player, vehicles, cc, transit, get prophunt() {return prophunt;}, get liftMenu() {return liftMenu;}, site, paintball, catacomb, groundAt, heli, plane, drone, watch, fire, stash, shops, gym, startClimb, openGymMenu, startBelay, get belay() {return belay;}, sculpture, oksen, weather, caravan, get skyd() {return skyd;}, get autoPlane() {return autoPlane;}, get jumpFlight() {return jumpFlight;}, boardAuto, boardCaravan, jump, get gp() {return gp;}, callGamePilot, handOver, CARAVAN_HOLD, applyWeather, wallet, get basket() {return basket;}, payAt, takeProduct, useItem, earn, openBag, takeBoost, get boost() {return boost;}, set boost(b) {boost = b;}, get mp() {return mp;}, sitDown, standUp, tryDrive, tryRide, openChat, startDrone, stopDrone, floorBelow, doors, mini, music, photo, map, world, apt, towers, walkWorld, route, landmarks, districts: DISTRICTS, get caseGame() {return caseGame;}, place, toggleDoor, enterVehicle, exitVehicle, startMinigame, startMission, drink, interact, findPrompt, renderFrame, begin, get fps() {return fpsAvg;}, kick: () => requestAnimationFrame(frame), get drunk() {return drunk;}, set drunk(v) {drunk = v;}, lic, licBegin, licEnd, get licTest() {return licTest;}, setStance, camera, scene};
   Object.assign(window.haarklousGame, {library, pingpong, rathkes, living, kayak, startKayak, hushedFor: () => hushed});
   Object.assign(window.haarklousGame, {badges, huntSpots, huntPhoto, sightBlocked, SKY_TARGET, progress, account});
   Object.assign(window.haarklousGame, {rides, get rentals() {return rentals;}, jobs, openPhone, rentDrive, JOB_SIGNS});

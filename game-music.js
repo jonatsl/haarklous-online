@@ -9,6 +9,8 @@
  *                                  32 bars = 76.8 s
  *   minigolf  "Putting Green Swing" – swing with walking bass, brushes, ride, electric piano, whistle and bells, F major,
  *                                  120 bpm, AABA 32 bars = 64 s (issue #114; also plays inside Oslo Camping)
+ *   prophunt  "Tiptoe"          – sneaky pizzicato bass on tiptoe, muted hats, a chromatic creeping tune on pluck, whistle and bells,
+ *                                  E minor, 112 bpm, 32 bars = 68.6 s (issue #124, during a prop hunt match)
  * Records for the LP player in Rathkes gate 1C (issue #116; GameMusic.records): lp1 "Søndagsjazz" (jazz trio, 73.8 s),
  * lp2 "Bossa på Løkka" (bossa nova, 72.7 s), lp3 "Lavalampe" (soul and disco, 68.6 s), lp4 "Fjellvise" (folk waltz, 80 s).
  * GameMusic.create() -> {attach(audioContext), play(name|null), setVolume(0..1), volume, current, position(),
@@ -265,6 +267,31 @@
     }};
   })();
 
+  // ---------- Prop hunt: "Tiptoe" (E minor, 112 bpm, 32 bars = 68.6 s; issue #124) ----------
+  // A staccato bass that tiptoes on every beat, muted hats, soft piano stabs off the beat, and a creeping chromatic tune
+  // (pluck in bars 8–15, whistle with bells in 16–23, bells alone in 24–31). Em Em C C Am Am B7 B7.
+  const SNEAK = (() => {
+    const CH = [{b: 40, v: [64, 67, 71]}, {b: 40, v: [64, 67, 71]}, {b: 36, v: [64, 67, 72]}, {b: 36, v: [64, 67, 72]}, {b: 45, v: [64, 69, 72]}, {b: 45, v: [64, 69, 72]}, {b: 47, v: [63, 66, 69]}, {b: 47, v: [63, 66, 71]}];
+    const M = [
+      [[0, 64, .4], [.75, 63, .2], [1, 64, .4], [2, 67, .4], [2.75, 66, .2], [3, 67, .4]], [[0, 71, .3], [.5, 70, .3], [1, 69, .3], [1.5, 68, .3], [2, 67, 1.5]],
+      [[0, 64, .4], [.75, 63, .2], [1, 64, .4], [2, 72, .4], [2.75, 71, .2], [3, 72, .4]], [[0, 76, .3], [.5, 75, .3], [1, 74, .3], [1.5, 73, .3], [2, 72, 1.5]],
+      [[0, 69, .4], [.75, 68, .2], [1, 69, .4], [2, 72, .4], [2.75, 71, .2], [3, 72, .4]], [[0, 76, .4], [1, 74, .4], [2, 72, .4], [3, 71, .4]],
+      [[0, 71, .4], [.75, 70, .2], [1, 71, .4], [2, 75, .4], [2.75, 74, .2], [3, 75, .4]], [[0, 78, .3], [.5, 77, .3], [1, 76, .3], [1.5, 75, .3], [2, 71, 1], [3.5, 59, .25]]];
+    return {title: 'Tiptoe', bpm: 112, beats: 4, bars: 32, render(k, bus, bar, t, beat, rnd) {
+      const i = bar % 8, ch = CH[i], sec = Math.floor(bar / 8);
+      // Tiptoe bass: root, fifth, octave, a step toward the next chord; short as a pizzicato.
+      const nx = CH[(i + 1) % 8].b;[ch.b, ch.b + 7, ch.b + 12, nx + (nx > ch.b ? -1 : 1)].forEach((m, q) => k.pluck(bus, t + q * beat, m, beat * .22, q ? .85 : 1));
+      k.bass(bus, t, ch.b, beat * .7, .55);k.bass(bus, t + 2 * beat, ch.b + 7, beat * .6, .45);// a soft body under the tiptoe
+      for (let q = 0; q < 4; q++) k.hat(bus, t + q * beat + beat / 2, .22 + (q === 3 ? .08 : 0));
+      k.brush(bus, t + beat * 2, .3);if (sec >= 1) {k.kick(bus, t, .3);if (rnd() < .4) k.kick(bus, t + beat * 2.5, .18);}
+      if (bar % 2 === 1) ch.v.forEach((m, j) => k.epiano(bus, t + 1.5 * beat + j * .012, m, beat * .3, .2));
+      if (sec === 1) line(k, bus, 'pluck', t, beat, M[i], .5);
+      if (sec === 2) {line(k, bus, 'whistle', t, beat, M[i], .55);line(k, bus, 'bell', t, beat, M[i], .18, 12);}
+      if (sec === 3) line(k, bus, 'bell', t, beat, M[i], .35);
+      if (sec === 0 && i >= 4) line(k, bus, 'bell', t, beat, M[i].slice(0, 2), .2);
+    }};
+  })();
+
   // ---------- Records for the LP player in Rathkes gate 1C (issue #116): four original pieces, each with vinyl crackle ----------
   // Swung eighths: an off-beat note (x.5) comes a little late.
   const swing = (b, amt = .16) => Math.abs(b % 1 - .5) < 1e-6 ? b + amt : b;
@@ -375,7 +402,7 @@
     }};
   })();
 
-  const TRACKS = {main: MAIN, discgolf: DISC, petanque: PET, mission: MISSION, minigolf: GOLF, lp1: JAZZ, lp2: BOSSA, lp3: DISCO, lp4: FOLK};
+  const TRACKS = {main: MAIN, discgolf: DISC, petanque: PET, mission: MISSION, minigolf: GOLF, prophunt: SNEAK, lp1: JAZZ, lp2: BOSSA, lp3: DISCO, lp4: FOLK};
   const RECORDS = ['lp1', 'lp2', 'lp3', 'lp4'];
   const info = {};
   for (const [name, d] of Object.entries(TRACKS)) info[name] = {title: d.title, artist: d.artist, style: d.style, record: !!d.record, bpm: d.bpm, beats: d.beats, bars: d.bars, seconds: d.bars * d.beats * 60 / d.bpm};

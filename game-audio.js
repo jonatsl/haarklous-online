@@ -5,6 +5,7 @@
  * Engines: inline-four motorcycle (CBF600), four-cylinder car, diesel excavator with hydraulics, helicopter (rotor slap
  * and turbine), light-aircraft piston engine and propeller, FPV drone motors.
  * GameAudio.create() -> {resume(), ambience(state), footstep(surface, inStair), sfx(name, opts), engine(kind), hydraulics(), water(level)}
+ *   sfx opts: gain, reverb, pan (-1 left … 1 right: a sound from somewhere, e.g. a prop hunt whistle)
  */
 (function (root, factory) {
   root.GameAudio = factory();
@@ -116,8 +117,10 @@
     function sfx(name, opts = {}) {
       if (!ctx || ctx.state !== 'running') return;
       const t = now(), level = opts.gain ?? 1, verb = opts.reverb ?? 0;
-      const burst = (freq, q, peak, attack, decay, type = 'bandpass', at = t) => {const n = noise(false), f = ctx.createBiquadFilter(), e = ctx.createGain();f.type = type;f.frequency.value = freq;f.Q.value = q;n.connect(f).connect(e);out(e, verb);env(e, at, peak * level, attack, decay);n.start(at);n.stop(at + attack + decay + .05);};
-      const tone = (f0, f1, peak, attack, decay, type = 'sine', at = t) => {const o = ctx.createOscillator(), e = ctx.createGain();o.type = type;o.frequency.setValueAtTime(f0, at);o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), at + attack + decay);o.connect(e);out(e, verb);env(e, at, peak * level, attack, decay);o.start(at);o.stop(at + attack + decay + .05);};
+      // From a direction: everything goes through one stereo panner.
+      const pan = opts.pan != null && ctx.createStereoPanner ? (() => {const P = ctx.createStereoPanner();P.pan.value = Math.max(-1, Math.min(1, opts.pan));out(P, verb);return P;})() : null, sink = e => pan ? e.connect(pan) : out(e, verb);
+      const burst = (freq, q, peak, attack, decay, type = 'bandpass', at = t) => {const n = noise(false), f = ctx.createBiquadFilter(), e = ctx.createGain();f.type = type;f.frequency.value = freq;f.Q.value = q;n.connect(f).connect(e);sink(e);env(e, at, peak * level, attack, decay);n.start(at);n.stop(at + attack + decay + .05);};
+      const tone = (f0, f1, peak, attack, decay, type = 'sine', at = t) => {const o = ctx.createOscillator(), e = ctx.createGain();o.type = type;o.frequency.setValueAtTime(f0, at);o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), at + attack + decay);o.connect(e);sink(e);env(e, at, peak * level, attack, decay);o.start(at);o.stop(at + attack + decay + .05);};
       switch (name) {
         case 'doorOpen': tone(320, 520, .03, .05, .35, 'sawtooth');burst(600, 1, .05, .01, .2);break;
         case 'doorClose': burst(160, .8, .5, .004, .25, 'lowpass');tone(90, 50, .3, .003, .2);break;
@@ -185,6 +188,18 @@
         case 'golfCup': tone(420, 300, .2, .002, .12, 'triangle');tone(980, 760, .1, .001, .07, 'square', t + .08);burst(1800, 3, .15, .001, .05, 'bandpass', t + .14);tone(330, 260, .18, .002, .18, 'sine', t + .18);break;
         case 'golfLoop': tone(300, 900, .06, .05, .45, 'sine');burst(1200, 1, .05, .1, .35);break;
         case 'noMana': tone(220, 180, .06, .01, .18, 'square');break;
+        // Prop hunt (issue #124): a hider's whistle (from where it stands), a taunt, hits, a wrong hit, found, the round's horns.
+        case 'phWhistle': tone(1650, 2350, .16, .04, .26, 'sine');tone(2350, 1550, .14, .02, .38, 'sine', t + .34);break;
+        case 'phTaunt': if (Math.random() < .5) {tone(784, 770, .16, .01, .22, 'sine');tone(622, 610, .16, .01, .3, 'sine', t + .3);tone(784, 770, .12, .01, .2, 'sine', t + .75);tone(622, 610, .12, .01, .3, 'sine', t + 1.05);}
+          else for (let i = 0; i < 3; i++) {tone(520, 300, .14, .005, .1, 'sawtooth', t + i * .18);burst(1400, 2, .08, .003, .06, 'bandpass', t + i * .18);}break;
+        case 'phHit': tone(900, 560, .2, .002, .08, 'triangle');burst(2200, 2, .25, .001, .05);break;
+        case 'phHurt': burst(420, 1, .35, .002, .14, 'lowpass');tone(320, 180, .12, .002, .12, 'square');break;
+        case 'phWrong': tone(190, 150, .14, .005, .3, 'square');burst(700, 1, .2, .002, .12, 'lowpass');break;
+        case 'phFound': burst(1300, 1, .35, .001, .08);for (let i = 0; i < 4; i++) tone(880 / (1 + i * .25), 840 / (1 + i * .25), .1, .005, .16, 'triangle', t + .1 + i * .13);break;
+        case 'phPoof': burst(900, .6, .3, .01, .28);tone(380, 920, .05, .01, .16, 'sine');break;
+        case 'phStart': [392, 523, 659].forEach((f, i) => tone(f, f, .1, .01, .3, 'triangle', t + i * .16));break;
+        case 'phGo': tone(1046, 1046, .1, .005, .2, 'square');tone(1568, 1568, .1, .005, .35, 'square', t + .22);break;
+        case 'phEnd': [659, 523, 392, 523].forEach((f, i) => tone(f, f, .1, .01, .3, 'triangle', t + i * .2));break;
       }
     }
 
