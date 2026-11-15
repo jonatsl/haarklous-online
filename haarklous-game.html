@@ -9501,7 +9501,7 @@ window.MUSELUNDEN={"name":"Muselunden DiscGolfPark","layout":"Muselunden 12 hull
         const gd = d.gateDir, ga = world.toWorld(d.gate[0] - gd[1] * .85, d.gate[1] + gd[0] * .85), gb = world.toWorld(d.gate[0] + gd[1] * .85, d.gate[1] - gd[0] * .85);
         for (const p of [ga, gb]) {const y = H(p.x, p.z);G.hexa((i, j, k) => rel(p.x - .06 + i * .12, j ? y + 2.25 : y - .2, p.z - .06 + k * .12), 0x5b4128);}
         const ya = H(ga.x, ga.z), yb = H(gb.x, gb.z), sign = canvasTex(512, 96, (g, w, h) => {g.fillStyle = '#1d5c2c';g.fillRect(0, 0, w, h);g.fillStyle = '#fff';g.font = 'bold 54px Arial';g.textAlign = 'center';g.textBaseline = 'middle';g.fillText('MINIGOLF', w / 2, h / 2 + 3);});
-        const board = new T.Mesh(new T.BoxGeometry(Math.hypot(gb.x - ga.x, gb.z - ga.z) + .1, .32, .04), [vc, vc, vc, vc, new T.MeshStandardMaterial({map: sign}), new T.MeshStandardMaterial({map: (() => {const t = sign.clone();t.wrapS = T.RepeatWrapping;t.repeat.x = -1;t.offset.x = 1;t.needsUpdate = true;return t;})()})]);
+        const board = new T.Mesh(new T.BoxGeometry(Math.hypot(gb.x - ga.x, gb.z - ga.z) + .1, .32, .04), [vc, vc, vc, vc, new T.MeshStandardMaterial({map: sign}), new T.MeshStandardMaterial({map: sign})]/* a box's front and back faces both read the right way */);
         board.position.set((ga.x + gb.x) / 2 - G0.x, Math.max(ya, yb) + 2.05 - G0.y, (ga.z + gb.z) / 2 - G0.z);board.rotation.y = Math.atan2(-(gb.z - ga.z), gb.x - ga.x);C.group.add(board);
       }
       // Benches facing the lanes.
@@ -9575,7 +9575,8 @@ window.MUSELUNDEN={"name":"Muselunden DiscGolfPark","layout":"Muselunden 12 hull
       if (B && B.top) box(0, W, 0, D, B.top - y0 + .02, B.top - y0 + .1, 0x4a4b4d);
       // A ramp from the door down to the pavement when the floor is higher than the street there.
       {
-        let rl = 1.2, rise = 0;for (let it = 0; it < 3; it++) {const e = WB(door.a, -rl);rise = y0 - H(e.x, e.z);rl = Math.max(1.2, Math.abs(rise) / .22);}
+        // Its length from the pavement right outside the door (a slope of at most 0.3), so it ends on the pavement, not in the street.
+        let rise = (() => {const e = WB(door.a, -.3);return y0 - H(e.x, e.z);})(), rl = Math.max(1.2, Math.abs(rise) / .3);
         {const e = WB(door.a, -rl);rise = y0 - H(e.x, e.z);}
         if (rise > .06) G.quad(FB(dA - .1, 0, 0), FB(dB + .1, 0, 0), FB(dB + .1, -rl, -rise), FB(dA - .1, -rl, -rise), 0x9c9a94, up);
         const o = WB(door.a, 0), v = wpt(0, 1), v0 = wpt(0, 0), vx = v.x - v0.x, vz = v.z - v0.z, grad = rise / rl;
