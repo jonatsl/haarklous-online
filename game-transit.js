@@ -346,8 +346,9 @@
         if (d < 170 && !P.model) {
           P.board = models.boardCanvas();P.y = terrain(P.p.x, P.p.z);
           P.model = models.stopModel({name: P.name, tram: P.q.tram, shelter: P.shelter, board: P.board.mat});
+          if (ctx.lib && ctx.lib.mergeStatic) ctx.lib.mergeStatic(P.model);// one mesh per material: about 7 draw calls a stop, not 15
           P.model.position.set(P.p.x, P.y, P.p.z);P.model.rotation.y = P.yaw;group.add(P.model);P.boardT = 0;
-        } else if (d > 230 && P.model) {group.remove(P.model);P.board.tex.dispose();P.model = null;P.board = null;}
+        } else if (d > 230 && P.model) {group.remove(P.model);P.model.traverse(o => {if (o.geometry && o.userData.merged) o.geometry.dispose();});P.board.tex.dispose();P.model = null;P.board = null;}
         if (P.model && d < 70 && (P.boardT -= .5) <= 0) {P.boardT = 10;drawBoard(P, ms);}
       }
     }
