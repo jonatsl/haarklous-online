@@ -50,7 +50,7 @@ On `main`:
 - Licences for every vehicle, each won by a test with a theory part and a practical part (rings, the speed limit, no crash, park or land): førerkort B and A at Soria Moria Trafikkskole on Vogts gate (a school car and motorcycle, a test route on the real streets), class C, the machine certificate and the crane certificate at the site office, PPL(A) and PPL(H) at the airstrip, the drone certificate A1/A3 on the phone (free); a part you fail is free to take again; bikes, e-scooters, the kayak and riding along need none; saved with your progress (issue #59).
 - Streets you can read: dark asphalt roads, a light granite kerb, and asphalt or slab pavements by part of town, with or without the aerial photo (issue #98).
 - Ground with real detail up close (grass, asphalt, paving slabs, gravel, pavements and kerbs) with or without the aerial photo, and buildings that look like their part of town – Torshov brick and Harald Hals' plastered blocks, Grünerløkka's tenements with shop fronts, buff brick, wooden houses, new blocks – chosen from OpenStreetMap and Street View notes (issues #67 and #68, PR #81, not merged yet).
-- Friends (needs an account): add a friend by their player name, they accept or decline; see which friends are online and in which lobby; Join goes straight into a friend's lobby, Invite asks them into yours (a message in their game, Options then ✕ to come); "friends can join my lobby" can be turned off; pause menu → Friends (L1 / N), with a red count of new requests and invites (issue #115, PR #PRNUM, not merged yet).
+- Friends (needs an account): add a friend by their player name, they accept or decline; see which friends are online and in which lobby; Join goes straight into a friend's lobby, Invite asks them into yours (a message in their game, Options then ✕ to come); "friends can join my lobby" can be turned off; pause menu → Friends (L1 / N), with a red count of new requests and invites (issue #115, PR #117, not merged yet).
 
 Live site: runs `main` (Worker version f8651516, deployed 15 Nov 2026 after PRs #107 and #109; `main` builds byte-for-byte to the live page), so everything above is online. Account emails (issue #55) wait for the user's Brevo key.
 
@@ -84,7 +84,7 @@ Live site: runs `main` (Worker version f8651516, deployed 15 Nov 2026 after PRs 
   - Nothing new is drawn in 3D, so frame rate, draw calls and triangles are as before.
 - **Not done / not checked:** a real account on the live site (Claude does not create accounts there), a real DualShock 4, and many players at once on the live server. No blocking of a player (declining and removing are there).
 - **For the deploy:** nothing extra: `npx wrangler deploy` creates the new `Friends` object (migration v5). If another PR merged first also adds a migration v5, renumber this one to v6.
-- **Status:** PR #PRNUM, not merged yet.
+- **Status:** PR #117, not merged yet.
 
 ### 2026-11-15 · Flats you can buy, each owned by one player (issue #106)
 - **What:**
