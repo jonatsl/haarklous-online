@@ -76,7 +76,7 @@ Live site: runs `main` (Worker version c4f59555, deployed 15 Nov 2026 after PR #
   - The parked cars, scooters and bikes keep off the new pads. The helicopters come after every older vehicle in the list, so the older vehicle numbers online stay the same.
 - **Where:** `game-helipads.js` (new: the ten places, the search, the pad picture), `game-main.js` (pads, helicopters, kept-free circles, map marks, `haarklousGame.helis`), `game-map.js` + `style.css` (legend), `index.html`, `tests/helipads.test.cjs` (new), `docs/HANDOFF.md`.
 - **Checked:** Node: 284 tests pass (3 new: the ten places spread out; on the real map every place gets a pad on grass, out of water; the game's check and kept-free circles move a pad, and the result is the same every time). In headless Chrome on the built file: all ten helicopters and pads are there, standing on the ground (vehicle numbers 8148–8157); pictures at Torshov north, Ulven, Tøyen and Gamlebyen; the map shows the H marks (Sofienberg and Tøyen in the picture); got into the Tøyen helicopter, climbed to 32 m and landed again without a crash. Not checked: a real controller, the frame rate on the user's PC, two players online.
-- **Status:** branch `feat/more-helicopters`.
+- **Status:** PR #128, on `main` and live (15 Nov 2026).
 
 ### 2026-11-15 · Prop hunt: hide and seek as things in the map (issue #124)
 - **What:**
