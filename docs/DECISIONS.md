@@ -13,7 +13,7 @@ On `main`:
 - Your 4th-floor apartment (your kitchen + bedroom design) and stairwell; the street door and stairs work without the mission; eight neighbouring stairwells.
 - Flats you can buy: the 64 flats in the eight neighbouring stairwells are for sale (4 600–11 100 kr); each is a real flat you walk into, with windows to the street and the courtyard; a bought flat has one owner – your name on the door, only you unlock it, it is on your map and saved with your account; one flat each, sell for 80 % (issue #106).
 - Walking (2.5 m/s), running (6 m/s), crouch (tap ○), prone (hold ○), jump (✕); PS4 controller (USB / Bluetooth) plus keyboard and mouse; look sensitivity setting.
-- Vehicles: Honda CBF600S motorcycle and 7 more motorcycles, 30 cars near home and 367 more parked all over the city – by the kerb and in car parks, in every part of town (issue #105), and about 7,500 more parked cars, vans, SUVs, taxis, lorries and motorcycles in every street and car park, all drivable, plus bicycles and mopeds at the bike racks (issue #113, PR __PR__, not merged yet), excavator, helicopter, two-seat plane, Caravan jump plane; hands on bars / wheel / sticks.
+- Vehicles: Honda CBF600S motorcycle and 7 more motorcycles, 30 cars near home and 367 more parked all over the city – by the kerb and in car parks, in every part of town (issue #105), and about 7,500 more parked cars, vans, SUVs, taxis, lorries and motorcycles in every street and car park, all drivable, plus bicycles and mopeds at the bike racks (issue #113, PR #119, not merged yet), excavator, helicopter, two-seat plane, Caravan jump plane; hands on bars / wheel / sticks.
 - Cars and motorcycles follow gravity (9.81 m/s²) and fly over crests and bumps taken fast (PR #5).
 - FPV drone (hold △), photo camera with gallery (tap △), wristwatch (D-pad ↑), map (touchpad).
 - A waypoint you set on the map (✕ or a click) and a purple pin on screen that leads you there until you are within 7 m (issue #41); an optional round minimap in the bottom-left corner like GTA IV's, turned on in the pause menu (issue #42).
@@ -87,7 +87,7 @@ Live site: runs `main` (Worker version f8651516, deployed 15 Nov 2026 after PRs 
   - CPU time per frame (median of 60, the game's own frame function): before 48–51 ms (Grünerløkka), 58–70 ms (home), 44–49 ms (Gamle Oslo); after 32–46, 58–59 and 35–51 ms – no slower on this busy shared PC (the faster floor look-up pays for the rest).
   - Start-up: the fleet takes about 0.3 s (unpack, the kept-free places, 7,500 vehicles made without models, the collision layer). The game file grows by about 200 KB (6.64 → 6.85 MB).
 - **Not done:** the parked vehicles stand still (no traffic). Their windows are tinted (you do not see in from outside). Not tried in a live lobby with two players (the list and numbers are the same file on every computer).
-- **Status:** PR #__PR__, not merged yet.
+- **Status:** PR #119, not merged yet.
 
 ### 2026-11-15 · Flats you can buy, each owned by one player (issue #106)
 - **What:**
