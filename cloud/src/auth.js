@@ -11,8 +11,8 @@
  * Passwords are hashed by Postgres (pgcrypto bcrypt): Better Auth's own scrypt in JavaScript costs more CPU than a Worker may use.
  * Workers cannot keep a database connection between requests, so every request gets its own small pool, closed afterwards
  * (Hyperdrive keeps the real connections to Supabase warm).
- * Local tests only: `npx wrangler dev --var DEV_USER:<id>` on localhost makes every request logged in as that id (no database);
- * the live Worker has no DEV_USER.
+ * Local tests only: `npx wrangler dev --var DEV_USER:<id>` on localhost makes every request logged in as that id (no database),
+ * or as the cookie dev_user=<id> when the browser has one; the live Worker has no DEV_USER.
  */
 import {betterAuth} from 'better-auth';
 import pg from 'pg';
@@ -53,8 +53,13 @@ function makeAuth(env, request, pool, ctx) {
     advanced: {backgroundTasks: {handler: p => ctx.waitUntil(p)}}
   });
 }
-const devUser = (request, env) => env.DEV_USER && /^(localhost|127\.0\.0\.1)$/.test(new URL(request.url).hostname) ?
-  {id: String(env.DEV_USER), name: String(env.DEV_USER), email: `${env.DEV_USER}@localhost`} : null;
+// With DEV_USER set, a browser may be another test player with the cookie dev_user=<name> (two players on one local server,
+// as the friends feature needs: issue #115). Never on the live Worker, which has no DEV_USER.
+const devUser = (request, env) => {
+  if (!env.DEV_USER || !/^(localhost|127\.0\.0\.1)$/.test(new URL(request.url).hostname)) return null;
+  const c = /(?:^|;\s*)dev_user=([A-Za-z0-9_-]{1,24})(?:;|$)/.exec(request.headers.get('Cookie') || ''), id = c ? c[1] : String(env.DEV_USER);
+  return {id, name: id, email: `${id}@localhost`};
+};
 
 export async function handleAuth(request, env, ctx) {
   const dev = devUser(request, env);

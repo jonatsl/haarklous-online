@@ -1129,7 +1129,7 @@
       held: Object.assign({}, st?.buttons || {}), pressed: new Set(edges), released: new Set(released), r2: st ? st.run : 0, l2: st ? st.aim : 0, gamepad: Boolean(gp), mouse: {...mouse}
     };
     if (kx || ky) {input.move.x = kx;input.move.y = ky;}
-    const map = {Space: 'cross', KeyC: 'circle', KeyE: 'square', KeyF: 'triangle', Escape: 'options', KeyM: 'touchpad', KeyG: 'gallery', KeyZ: 'prone', KeyR: 'reload', ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down', ShiftLeft: 'l3', KeyQ: 'l1', KeyV: 'view', KeyY: 'share', KeyP: 'phone', KeyB: 'badges', Delete: 'delete', KeyX: 'cast', Digit1: 'magic1', Digit2: 'magic2', Digit3: 'magic3', Digit4: 'magic4'};
+    const map = {Space: 'cross', KeyC: 'circle', KeyE: 'square', KeyF: 'triangle', Escape: 'options', KeyM: 'touchpad', KeyG: 'gallery', KeyZ: 'prone', KeyR: 'reload', ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down', ShiftLeft: 'l3', KeyQ: 'l1', KeyV: 'view', KeyY: 'share', KeyP: 'phone', KeyB: 'badges', KeyN: 'friends', Delete: 'delete', KeyX: 'cast', Digit1: 'magic1', Digit2: 'magic2', Digit3: 'magic3', Digit4: 'magic4'};
     for (const [code, name] of Object.entries(map)) {if (ke(code)) input.pressed.add(name);if (k(code)) input.held[name] = true;}
     // Flying (helicopter, plane, drone): hold Shift or the right mouse button to look around (Battlefield's free look, issue #16).
     const flying = player.mode === 'drone' || (player.mode === 'vehicle' && !!player.vehicle?.aircraft);
@@ -1148,9 +1148,10 @@
   function begin() {if (started) return;started = true;$('start').hidden = true;audio.resume();lockPointer();world.setImagery(imageryWanted());const q = (new URLSearchParams(location.search).get('lobby') || '').toUpperCase();if (!(q && mp.net.connect(q))) mp.net.home();}
   function imageryWanted() {try {return localStorage.getItem('haarklous-aerial-imagery-v1') !== 'off';} catch {return true;}}
   $('startButton').onclick = begin;
-  function setPaused(p) {paused = p;$('pause').hidden = !p;if (p && document.pointerLockElement === canvas) document.exitPointerLock();if (!p) lockPointer();renderSettings();}
+  function setPaused(p) {paused = p;$('pause').hidden = !p;if (p && document.pointerLockElement === canvas) document.exitPointerLock();if (!p) lockPointer();renderSettings();if (p && friends.hasInvite) friends.open();if (!p) friends.close();}
   $('resume').onclick = () => setPaused(false);
   $('badgesOpen').onclick = () => badges.open();
+  $('friendsOpen').onclick = () => friends.open();
   function renderSettings() {
     $('walletLine').textContent = `Money: ${shops.kr(wallet.money)} · empty bottles: ${wallet.pant} (${shops.kr(wallet.pant * shops.PANT)} at the bottle return)`;
     {const held = window.GameLicences.LICENCES.filter(l => lic.has(l.id)).map(l => l.short);$('licLine').textContent = `Licences (${held.length} of ${lic.total}): ${held.join(', ') || 'none yet'} – the phone (D-pad → / P · Licences) lists them all, where to take the tests, and starts the drone test`;}
@@ -1184,13 +1185,18 @@
     // Global toggles.
     if (input.pressed.has('badges') && !paused && !caseGame?.active && player.mode === 'foot') {setPaused(true);badges.open();input.pressed.delete('badges');}
     if (input.pressed.has('options') && badges.isOpen) {badges.close();input.pressed.delete('options');}
+    // Friends (issue #115): N opens the list from the game; Options / Esc closes it back to the pause menu.
+    if (input.pressed.has('friends') && !paused && !caseGame?.active) {setPaused(true);friends.open();input.pressed.delete('friends');}
+    if (input.pressed.has('options') && friends.isOpen) {friends.close();input.pressed.delete('options');}
     if (input.pressed.has('options') && !caseGame?.active) {if (map.open) map.toggle();else if (photo.gallery) photo.openGallery(false);else if (library && library.reading) {library.closeBook();input.pressed.delete('options');}else setPaused(!paused);}
     if (paused) {
       if (badges.isOpen) {
         if (input.pressed.has('circle') || input.pressed.has('r1') || input.pressed.has('badges')) badges.close();
         badges.scroll((input.pressed.has('down') ? 120 : 0) - (input.pressed.has('up') ? 120 : 0) + (input.move.y + input.look.y) * 900 * dt);
-      } else if (codePad) codePadInput(input);
+      } else if (friends.isOpen) friends.input(input);
+      else if (codePad) codePadInput(input);
       else if (input.pressed.has('r1') || input.pressed.has('badges')) badges.open();
+      else if (input.pressed.has('l1') || input.pressed.has('friends')) friends.open();
       else {
         if (input.pressed.has('left') || input.pressed.has('right')) {music.setVolume(music.volume + (input.pressed.has('right') ? .1 : -.1));renderSettings();}
         if (input.pressed.has('triangle')) openCodePad();if (input.pressed.has('square') && mp.net.code !== mp.net.ownCode) {mp.net.home();notice('Back in your own lobby.', 3);}
@@ -1813,6 +1819,10 @@
   const progress = window.GameProgress.create({account, store: safeStore, camera: photo, ask, notice, rules: {...badges.MERGE, ...(window.GameStorgata ? window.GameStorgata.MERGE : {})},
     onApplied: () => window.dispatchEvent(new Event('haarklous-progress'))});
   window.addEventListener('haarklous-progress', () => {loadSens();badges.reload();renderSettings();});
+  // Friends (issue #115): your friends, who is online and in which lobby, invites and joining (game-friends.js, cloud/src/friends.js).
+  const friends = window.GameFriends.create({root: $('game'), button: $('friendsOpen'), account, notice, sound: kind => audio.sfx('beep', {gain: kind === 'invite' ? .7 : .4}),
+    onGo: (code, name) => {setPaused(false);if (mp.net.connect(code)) notice(`Joining ${name}’s lobby…`, 3);},
+    toAccount: () => {$('acctStatus').scrollIntoView({block: 'center'});if (!$('acctForm').hidden) $('acctEmail').focus();}});
   // A yes / no question over everything (✕ / ○ on the controller, or the buttons).
   let asking = null;
   function ask(text) {
@@ -1923,7 +1933,7 @@
     } catch {notice('The server did not answer – try again in a moment.', 4);}
     homeReg.busy = false;return done;
   }
-  const acctDone = err => {$('acctError').textContent = err;if (err) setNote('');if (!err) {$('acctPassword').value = '';if (account.user) {mp.net.setName(account.user.name);renderMp();}progress.userChanged(account.user);}renderAccount();};
+  const acctDone = err => {$('acctError').textContent = err;if (err) setNote('');if (!err) {$('acctPassword').value = '';if (account.user) {mp.net.setName(account.user.name);renderMp();}progress.userChanged(account.user);}friends.userChanged();renderAccount();};
   $('acctMode').onclick = () => {acctMode = acctMode === 'signup' ? 'login' : 'signup';if (!$('acctName').value) $('acctName').value = mp.net.name;$('acctError').textContent = '';setNote('');renderAccount();};
   $('acctForm').onsubmit = async e => {
     e.preventDefault();const email = $('acctEmail').value, pw = $('acctPassword').value, signup = acctMode === 'signup';
@@ -1974,7 +1984,7 @@
   }
   mp = window.GameMultiplayer.create({T, lib, scene, camera, vehicles, fireDecayS: fire.DECAY_S, fireMax: fire.MAX, localState, notice,
     drivingIndex: () => player.mode === 'vehicle' && player.vehicle ? vehicles.indexOf(player.vehicle) : gp ? caravanIndex() : -1,
-    listener: () => ({x: player.x, y: player.feet + 1.5, z: player.z}), applyDoor, onChat: chatLine, onStatus: () => {renderMp();onLobbyChange();},
+    listener: () => ({x: player.x, y: player.feet + 1.5, z: player.z}), applyDoor, onChat: chatLine, onStatus: () => {renderMp();onLobbyChange();friends.lobby(mp.net.online ? mp.net.code : null, mp.net.players.size, mp.net.max);},
     onRemoteWood: r => fire.throwLog({x: r.pos.x, y: r.pos.y + 1.3, z: r.pos.z}), holdsMarker: id => !!paintball && paintball.rules.memberPlaying(id),
     autoAnchor: seat => autoPlane.hipAnchor('j' + seat), skyPose: (r, st, g) => {skyPose(r, st, g);kayakPose(r, st, g);orbPose(r, st, g);},
     // In a paintball game you see your team-mates' names, not your opponents' (issue #25).
@@ -2315,7 +2325,7 @@
   // Licences (issue #59). Browser tests that need to drive: haarklousGame.licences.grant('B') (or every id in GameLicences.IDS).
   Object.assign(window.haarklousGame, {licences: lic, licBegin, licVehicle, openLicPlace, openLicPhone, schoolCar, schoolBike, LIC_SIGNS});
   Object.defineProperty(window.haarklousGame, 'licTest', {get: () => licTest});
-  Object.assign(window.haarklousGame, {cityCars});
+  Object.assign(window.haarklousGame, {cityCars, friends});
   Object.assign(window.haarklousGame, {homes, homeReg, openHomeMenu, buyHome, sellHome, homeRefresh, homeDoorPrompt, homePlatePrompt});
   Object.assign(window.haarklousGame, {storgata, magic, magicFxApi: fx, castPower, GRONLAND, storgataAct, questWaypoint, collision});
   loading.remove();$('start').hidden = false;
