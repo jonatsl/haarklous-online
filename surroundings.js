@@ -8,7 +8,8 @@
  *   terrainFloor() (walk-collision floor), obstacles() (buildings, trees, lamp posts, bushes, hedges, in model coordinates),
  *   surfaceAt(x, z) -> 'grass'|'asphalt'|'gravel'|'sand'|'none', trafficDistance(x, z), greenery(x, z) -> 0..1,
  *   terrainFloors() (the old square, one floor per district patch and the seams between patches), update(cameraWorldPosition),
- *   yLocal(x, s), geoNear, geoFar }   A wooden fence stands on the edge of the walkable world (issue #64).
+ *   yLocal(x, s) (the ground everything stands on), yNatural(x, s) (the real ground, no streets), streets (RoadSurface: flat streets
+ *   with kerbs, issue #112: height, classAt, chains), geoNear, geoFar }   A wooden fence stands on the edge of the walkable world (issue #64).
  * Pure (Node-tested): Surroundings.walkRects(half, playHalf, districts), Surroundings.openEdges(rects).
  * districts: decoded district patches (District.decode of window.DISTRICTS, issue #38: Gamle Oslo, Ensjø and the way there),
  *   each with its own 8 m ground grid, buildings, streets, areas, trees and sea, drawn and walkable like the old square.
@@ -94,27 +95,51 @@
     // ---------- Terrain (relative heights in decimetres, 4 m grid, local frame) ----------
     const ter = data.terrain, N = ter.n, half = ter.half, step = ter.step;
     const grid = (() => {const bin = atob(ter.dm), bytes = new Uint8Array(bin.length);for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);const raw = new Int16Array(bytes.buffer), f = new Float32Array(raw.length);for (let i = 0; i < raw.length; i++) f[i] = raw[i] / 10;return f;})();
-    function relSquare(x, s) {
-      const fi = Math.min(N - 1.001, Math.max(0, (x + half) / step)), fj = Math.min(N - 1.001, Math.max(0, (s + half) / step)), i = Math.floor(fi), j = Math.floor(fj), u = fi - i, v = fj - j;
-      return grid[j * N + i] * (1 - u) * (1 - v) + grid[j * N + i + 1] * u * (1 - v) + grid[(j + 1) * N + i] * (1 - u) * v + grid[(j + 1) * N + i + 1] * u * v;
-    }
-    // The old ±800 m grid first (district grids copy its values where they overlap), then the district patches; outside all
-    // data the height of the nearest edge point.
-    function relLocal(x, s) {
-      if (!districts.length || (Math.abs(x) <= half && Math.abs(s) <= half)) return relSquare(x, s);
-      for (const d of districts) if (DZ.covers(d, x, s)) return DZ.height(d, x, s);
-      const cl = (v, a, b) => Math.max(a, Math.min(b, v));
-      let best = relSquare(x, s), bd = Math.hypot(x - cl(x, -half, half), s - cl(s, -half, half));
-      for (const d of districts) {const cx = cl(x, d.x0, d.x1), cs = cl(s, d.s0, d.s1), dd = Math.hypot(x - cx, s - cs);if (dd < bd) {bd = dd;best = DZ.height(d, cx, cs);}}
-      return best;
-    }
-    const yLocal = (x, s) => ground + relLocal(x, s);
+    // The real ground (natural): the old ±800 m grid first (district grids copy its values where they overlap), then the district
+    // patches; outside all data the height of the nearest edge point (road-surface.js RoadSurface.world).
+    // The ground everything stands on (issue #112): the same, but with flat car streets, pavements a kerb above them and the ground
+    // beside them eased in (RoadSurface: the drawn terrain near you is cut from the same pieces, so it is exactly this surface).
+    const RSW = W.RoadSurface.world({square: {h: grid, n: N, half, step, roads: data.roads}, districts, DZ, playHalf: PLAY_HALF});
+    const streets = W.RoadSurface.create({...RSW, slabsAt: (x, s) => ['lokka', 'toyen', 'gronland', 'kampen', 'bjorvika'].includes(CT.zoneAt(x, s))});
+    const naturalLocal = RSW.natural, relLocal = streets.height;
+    const yLocal = (x, s) => ground + relLocal(x, s), yNatural = (x, s) => ground + naturalLocal(x, s);
     const heightWorld = (x, z) => {const l = toLocal(x, z);return yLocal(l.x, l.s);};
+    // A building's walls reach 0.6 m below the lowest ground along them (corners and every 8 m), so a street eased below the
+    // real ground leaves no gap under a facade.
+    const lowestAlong = ring => {let m = Infinity;ring.forEach((a, i) => {const b = ring[(i + 1) % ring.length], n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 8));for (let k = 0; k < n; k++) m = Math.min(m, relLocal(a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n));});return m;};
+    // A street-surface tile (RoadSurface.tile arrays, heights relative) as a mesh: uv = the painting's square, aStreet for the shader.
+    function streetMesh(t, mat, name, uvOf) {
+      const n = t.pos.length / 3, uv = new Float32Array(n * 2);
+      for (let k = 0; k < n; k++) {t.pos[k * 3 + 1] += ground;const q = uvOf(t.pos[k * 3], t.pos[k * 3 + 2]);uv[k * 2] = q[0];uv[k * 2 + 1] = q[1];}
+      const g = new T.BufferGeometry();g.setAttribute('position', new T.BufferAttribute(t.pos, 3));g.setAttribute('normal', new T.BufferAttribute(t.nor, 3));
+      g.setAttribute('uv', new T.BufferAttribute(uv, 2));g.setAttribute('aStreet', new T.BufferAttribute(t.street, 4));g.setIndex(new T.BufferAttribute(t.index, 1));g.computeBoundingSphere();
+      const m = new T.Mesh(g, mat);m.receiveShadow = true;m.name = name;m.userData.noMerge = true;return m;
+    }
+    // The old square's walkable ground (4 m grid): the inner ±300 m and the ring out to ±PLAY_HALF in eight tiles of about 508 m
+    // (so the camera skips the ones out of view), cells wholly inside a `cut` rectangle (the paintball yard, the catacomb's
+    // mausoleums) left out.
+    function squareTerrain(parent, extent, canvas, name, hole = 0, cut = []) {
+      const tex = new T.CanvasTexture(canvas);tex.colorSpace = T.SRGBColorSpace;tex.anisotropy = 8;
+      const mat = new T.MeshStandardMaterial({map: tex, color: 0xa6a6a6, roughness: .97, metalness: 0, envMapIntensity: .35});city.ground(mat);
+      const G = RSW.old, I = x => Math.round((x - G.x0) / G.step), lo = I(-extent), hi = I(extent), at = (i, j) => [G.x0 + i * G.step, G.s0 + j * G.step];
+      const skip = (i, j) => {
+        const [x, s] = at(i, j), x1 = x + G.step, s1 = s + G.step;
+        if (hole > 0 && x >= -hole - 1e-6 && x1 <= hole + 1e-6 && s >= -hole - 1e-6 && s1 <= hole + 1e-6) return true;
+        return cut.some(h => x >= h.x0 && x1 <= h.x1 && s >= h.s0 && s1 <= h.s1);
+      };
+      const cuts = hole > 0 ? [lo, lo + Math.round((hi - lo) / 3), hi - Math.round((hi - lo) / 3), hi] : [lo, hi], meshes = [];
+      for (let a = 0; a + 1 < cuts.length; a++) for (let b = 0; b + 1 < cuts.length; b++) {
+        const t = streets.tile(G, cuts[a], cuts[b], cuts[a + 1], cuts[b + 1], skip);if (!t.index.length) continue;
+        meshes.push(streetMesh(t, mat, name, (x, s) => [(x + extent) / (2 * extent), 1 - (s + extent) / (2 * extent)]));parent.add(meshes[meshes.length - 1]);
+      }
+      return {meshes, tex, mat};
+    }
+    // The far pass's ground (8 m, drawn 0.5 m low): the real ground, no streets.
     function terrainMesh(parent, extent, res, canvas, name, drop = 0, hole = 0, cut = [], detail = true) {
       const count = Math.round(2 * extent / res) + 1, pos = new Float32Array(count * count * 3), uv = new Float32Array(count * count * 2), index = [];
       for (let j = 0; j < count; j++) for (let i = 0; i < count; i++) {
         const x = -extent + i * res, s = -extent + j * res, k = j * count + i;
-        pos[k * 3] = x;pos[k * 3 + 1] = yLocal(x, s) - drop;pos[k * 3 + 2] = s;uv[k * 2] = (x + extent) / (2 * extent);uv[k * 2 + 1] = 1 - (s + extent) / (2 * extent);
+        pos[k * 3] = x;pos[k * 3 + 1] = yNatural(x, s) - drop;pos[k * 3 + 2] = s;uv[k * 2] = (x + extent) / (2 * extent);uv[k * 2 + 1] = 1 - (s + extent) / (2 * extent);
       }
       // Cells inside the square `hole` (outer ring) or wholly inside a `cut` rectangle (the construction site's soil) are left out.
       const inHole = (i, j) => hole > 0 && -extent + i * res >= -hole - 1e-6 && -extent + (i + 1) * res <= hole + 1e-6 && -extent + j * res >= -hole - 1e-6 && -extent + (j + 1) * res <= hole + 1e-6;
@@ -133,7 +158,7 @@
     // Issue #67: pavements of the car streets (light grey, with a granite kerb line at the road edge), gravel paths a little warmer than
     // paved footways, asphalt cycleways, each grass or park area a slightly different green, and less pixel noise (the terrain shader
     // adds the detail now). Pavement widths are typical for Oslo streets (Street View, 3 Nov 2026).
-    const SIDEWALK = {residential: 2.2, living_street: 1.4, unclassified: 1.8, tertiary: 2.8, tertiary_link: 2, secondary: 3, secondary_link: 2, primary: 3.2, primary_link: 2};
+    const SIDEWALK = W.RoadSurface.SIDEWALK;// the same widths as the street surface (road-surface.js)
     const pathColour = k => ({footway: '#a9a59b', path: '#aea38e', track: '#a99c84', bridleway: '#a99c84', cycleway: '#5f6062', steps: '#a09d96', pedestrian: '#a3a099'})[k] || '#a7a296';
     // The same tone for an area in every painting (near, outer, far, and again when the aerial photo is switched off): keyed, not random.
     const jitter = (hex, amount, key) => {const c = new T.Color(hex), f = 1 + (CT.hash(key * 2 + 1) - .5) * amount, g = 1 + (CT.hash(key * 2 + 2) - .5) * amount * .6;c.r *= f;c.g *= f * g;c.b *= f;return '#' + c.getHexString();};
@@ -200,9 +225,9 @@
       const l = toLocal(x, z);
       if (Math.abs(l.x) > PLAY_HALF || Math.abs(l.s) > PLAY_HALF) {const P = patchAt(l.x, l.s);if (P) {const d = P.d, n = P.classSize, i = Math.min(n - 1, Math.floor((l.x - d.x0) / (d.x1 - d.x0) * n)), j = Math.min(n - 1, Math.floor((l.s - d.s0) / (d.s1 - d.s0) * n));return surfaceNames[P.classes[j * n + i]] || 'grass';}}
       const i = Math.floor((l.x + PLAY_HALF) / (2 * PLAY_HALF) * 1024), j = Math.floor((l.s + PLAY_HALF) / (2 * PLAY_HALF) * 1024);if (i < 0 || j < 0 || i > 1023 || j > 1023) return 'grass';return surfaceNames[classData[(j * 1024 + i) * 4]] || 'grass';}
-    const nearTerrain = terrainMesh(geoNear, NEAR_EXT, 4, nearPaint, 'Terrain (near)', 0, 0, holes.filter(h => h.cutGround));
+    const nearTerrain = squareTerrain(geoNear, NEAR_EXT, nearPaint, 'Terrain (near)', 0, holes.filter(h => h.cutGround));
     // Walkable ground from ±300 m out to ±PLAY_HALF: same 4 m grid as the walking surface, so what you see is what you stand on.
-    const outerTerrain = terrainMesh(geoNear, PLAY_HALF, 4, outerPaint, 'Terrain (outer)', 0, NEAR_EXT, holes.filter(h => h.cutGround));
+    const outerTerrain = squareTerrain(geoNear, PLAY_HALF, outerPaint, 'Terrain (outer)', NEAR_EXT, holes.filter(h => h.cutGround));
     const farTerrain = terrainMesh(geoFar, FAR_EXT, 8, farPaint, 'Terrain (district)', .5, 0, [], false);
     // Beyond the mapped district: a generic Oslo townscape tile (blocks of roofs, streets, gardens and parks), repeated about every
     // 1.5 km, so the land seen from the aircraft is not one flat colour. The inner Oslofjord lies about 3 km to the south.
@@ -237,7 +262,7 @@
       const ease = t => t * t * (3 - 2 * t), cl = (v, a, b) => Math.max(a, Math.min(b, v));
       let out = Infinity, ex = x, ez = z;
       for (const r of regions) {const cx = cl(x, r.x0, r.x1), cz = cl(z, r.s0, r.s1), d = Math.hypot(x - cx, z - cz);if (d < out) {out = d;ex = cx;ez = cz;}}
-      const edge = yLocal(ex, ez) - .5;// the far terrain's own height at the nearest edge point (it is drawn .5 m low)
+      const edge = yNatural(ex, ez) - .5;// the far terrain's own height at the nearest edge point (it is drawn .5 m low)
       return out <= 1e-6 ? edge : edge + (BASE_Y - edge) * ease(Math.min(1, out / APRON));
     }
     {
@@ -374,7 +399,7 @@
     const nearCell = (x, s) => {const k = cellKey(x, s);if (!nearCells.has(k)) nearCells.set(k, cityBuilder());return nearCells.get(k);};
     data.buildings.forEach((b, i) => {
       const ring = pairs(b.r.o), cx = ring.reduce((s, p) => s + p[0], 0) / ring.length, cs = ring.reduce((s, p) => s + p[1], 0) / ring.length;
-      const g0 = ground + (b.g || 0), bottom = ground + (b.gm ?? b.g ?? 0) - .6, top = g0 + b.h;
+      const g0 = ground + (b.g || 0), bottom = ground + Math.min(b.gm ?? b.g ?? 0, Math.abs(cx) < NEAR_REACH + 100 && Math.abs(cs) < NEAR_REACH + 100 ? lowestAlong(ring) : Infinity) - .6, top = g0 + b.h;
       b.base = g0;b.top = top;b.bottom = bottom;
       const tags = looks.old(i) || {}, keep = b.enter !== undefined || keepBrick.has(i) ? 'brick' : null;
       const look = CT.classify({style: b.s, kind: tags.kind || (b.s === 'brick' ? 'apartments' : ''), h: b.h, x: cx, s: cs, colour: tags.colour || b.c, roofColour: tags.roofColour, roofShape: tags.roofShape,
@@ -385,7 +410,7 @@
       farBuilding(farSet, ring, hip, look, bottom, top, tint);
     });
     const own = data.own, ownSet = {facade: builder(), plinth: builder(), roof: builder()}, plinthTop = ground + data.plinth;
-    const ownBottom = ground + Math.min(...pairs(data.ownLocal).map(p => relLocal(p[0], p[1]))) - .6;
+    const ownBottom = ground + lowestAlong(pairs(data.ownLocal)) - .6;
     for (const part of own.lower) {walls(ownSet.plinth, pairs(part.o), ownBottom, plinthTop, ground);walls(ownSet.facade, pairs(part.o), plinthTop, -.16, plinthTop);}
     for (const part of own.band) walls(ownSet.facade, pairs(part.o), -.16, own.bandTop, plinthTop);
     for (const part of own.upper) {walls(ownSet.facade, pairs(part.o), own.bandTop, own.top, plinthTop);cap(ownSet.roof, pairs(part.o), part.h.map(pairs), own.top);}
@@ -586,51 +611,67 @@
     // Ground on a regular grid with normals from the height data itself, so neighbouring tiles light the same at their seams.
     // d.cuts: map polygons ([[x, s], ...]) where a modelled building draws its own ground (Construction City, issue #85): cells
     // wholly inside are left out, cells their outline crosses are drawn in 0.5 m pieces (near ground only) without the inside ones.
+    // The near ground (res = the patch's own step) is the street surface (RoadSurface tiles, issue #112); the far ground is the
+    // real ground, 0.5 m low.
     function patchGround(d, x0, s0, x1, s1, res, material, name, drop, skip) {
+      const near = res === d.step, G = near ? RSW.grids.find(q => q.d === d) : null;
       const ni = Math.round((x1 - x0) / res), nj = Math.round((s1 - s0) / res);
-      const pos = [], nor = [], uv = [], index = [];
+      const pos = [], nor = [], uv = [], index = [], street = [];
+      const hAt = near ? (x, s) => relLocal(x, s) : (x, s) => yNatural(x, s) - drop;
       const vertex = (x, s) => {
-        const gx = (yLocal(x + 2, s) - yLocal(x - 2, s)) / 4, gs = (yLocal(x, s + 2) - yLocal(x, s - 2)) / 4, l = Math.hypot(gx, 1, gs);
-        pos.push(x, yLocal(x, s) - drop, s);nor.push(-gx / l, 1 / l, -gs / l);uv.push((x - d.x0) / (d.x1 - d.x0), 1 - (s - d.s0) / (d.s1 - d.s0));return pos.length / 3 - 1;
+        const gx = (hAt(x + 2, s) - hAt(x - 2, s)) / 4, gs = (hAt(x, s + 2) - hAt(x, s - 2)) / 4, l = Math.hypot(gx, 1, gs);
+        pos.push(x, hAt(x, s), s);nor.push(-gx / l, 1 / l, -gs / l);uv.push((x - d.x0) / (d.x1 - d.x0), 1 - (s - d.s0) / (d.s1 - d.s0));street.push(0, 99, 99, 0);return pos.length / 3 - 1;
       };
-      for (let j = 0; j <= nj; j++) for (let i = 0; i <= ni; i++) vertex(x0 + i * res, s0 + j * res);
+      if (!near) for (let j = 0; j <= nj; j++) for (let i = 0; i <= ni; i++) vertex(x0 + i * res, s0 + j * res);
       const cuts = (d.cuts || []).map(p => ({p, x0: Math.min(...p.map(q => q[0])), x1: Math.max(...p.map(q => q[0])), s0: Math.min(...p.map(q => q[1])), s1: Math.max(...p.map(q => q[1]))}));
       const inCut = (c, x, s) => {let r = false;for (let i = 0, k = c.p.length - 1; i < c.p.length; k = i++) {const a = c.p[i], b = c.p[k];if ((a[1] > s) !== (b[1] > s) && x < (b[0] - a[0]) * (s - a[1]) / (b[1] - a[1]) + a[0]) r = !r;}return r;};
-      for (let j = 0; j < nj; j++) for (let i = 0; i < ni; i++) {
+      // 0 drawn normally, 1 left out (the old square draws it, or wholly inside a cut), 2 drawn in 0.5 m pieces (a cut's outline crosses it)
+      const state = (i, j) => {
         const cx = x0 + i * res, cs = s0 + j * res;
-        if (cx >= -skip - 1e-6 && cx + res <= skip + 1e-6 && cs >= -skip - 1e-6 && cs + res <= skip + 1e-6) continue;// the old square draws this cell
-        const a = j * (ni + 1) + i, b = a + 1, c = a + ni + 1, e = c + 1;
-        const hit = cuts.filter(q => q.x1 > cx && q.x0 < cx + res && q.s1 > cs && q.s0 < cs + res);
-        if (hit.length) {
-          const corners = [[cx, cs], [cx + res, cs], [cx, cs + res], [cx + res, cs + res]], inAny = (x, s) => hit.some(q => inCut(q, x, s));
-          const whole = corners.every(([x, s]) => inAny(x, s)) && !hit.some(q => q.p.some(([x, s]) => x > cx && x < cx + res && s > cs && s < cs + res));
-          if (whole) continue;
-          if (corners.some(([x, s]) => inAny(x, s)) || hit.some(q => q.p.some(([x, s]) => x > cx && x < cx + res && s > cs && s < cs + res)) || inAny(cx + res / 2, cs + res / 2)) {
-            if (res > 8) {index.push(a, c, b, b, c, e);continue;}// the far ground keeps the cell (the near pass draws over it)
-            const n = Math.round(res / .5), st = res / n, ids = [];
-            for (let q = 0; q <= n; q++) for (let p = 0; p <= n; p++) ids.push(vertex(cx + p * st, cs + q * st));
-            for (let q = 0; q < n; q++) for (let p = 0; p < n; p++) {
-              if (inAny(cx + (p + .5) * st, cs + (q + .5) * st)) continue;
-              const A = ids[q * (n + 1) + p], B2 = A + 1, C2 = A + n + 1, E = C2 + 1;index.push(A, C2, B2, B2, C2, E);
-            }
-            continue;
-          }
+        if (cx >= -skip - 1e-6 && cx + res <= skip + 1e-6 && cs >= -skip - 1e-6 && cs + res <= skip + 1e-6) return 1;// the old square draws this cell
+        const hit = cuts.filter(q => q.x1 > cx && q.x0 < cx + res && q.s1 > cs && q.s0 < cs + res);if (!hit.length) return 0;
+        const corners = [[cx, cs], [cx + res, cs], [cx, cs + res], [cx + res, cs + res]], inAny = (x, s) => hit.some(q => inCut(q, x, s));
+        const whole = corners.every(([x, s]) => inAny(x, s)) && !hit.some(q => q.p.some(([x, s]) => x > cx && x < cx + res && s > cs && s < cs + res));
+        if (whole) return 1;
+        if (corners.some(([x, s]) => inAny(x, s)) || hit.some(q => q.p.some(([x, s]) => x > cx && x < cx + res && s > cs && s < cs + res)) || inAny(cx + res / 2, cs + res / 2)) return res > 8 ? 0 : 2;// the far ground keeps the cell
+        return 0;
+      };
+      const pieces = [];
+      if (near) {
+        const gi = Math.round((x0 - d.x0) / res), gj = Math.round((s0 - d.s0) / res);
+        const t = streets.tile(G, gi, gj, gi + ni, gj + nj, (i, j) => {const st = state(i - gi, j - gj);if (st === 2) pieces.push([i - gi, j - gj]);return st !== 0;});
+        for (let k = 0; k < t.pos.length / 3; k++) {pos.push(t.pos[k * 3], t.pos[k * 3 + 1], t.pos[k * 3 + 2]);nor.push(t.nor[k * 3], t.nor[k * 3 + 1], t.nor[k * 3 + 2]);uv.push((t.pos[k * 3] - d.x0) / (d.x1 - d.x0), 1 - (t.pos[k * 3 + 2] - d.s0) / (d.s1 - d.s0));for (let q = 0; q < 4; q++) street.push(t.street[k * 4 + q]);}
+        for (let k = 0; k < t.index.length; k++) index.push(t.index[k]);
+      } else for (let j = 0; j < nj; j++) for (let i = 0; i < ni; i++) {if (state(i, j) === 1) continue;const a = j * (ni + 1) + i, b = a + 1, c = a + ni + 1, e = c + 1;index.push(a, c, b, b, c, e);}
+      for (const [i, j] of pieces) {
+        const cx = x0 + i * res, cs = s0 + j * res, hit = cuts.filter(q => q.x1 > cx && q.x0 < cx + res && q.s1 > cs && q.s0 < cs + res), inAny = (x, s) => hit.some(q => inCut(q, x, s));
+        const n = Math.round(res / .5), st = res / n, ids = [];
+        for (let q = 0; q <= n; q++) for (let p = 0; p <= n; p++) ids.push(vertex(cx + p * st, cs + q * st));
+        for (let q = 0; q < n; q++) for (let p = 0; p < n; p++) {
+          if (inAny(cx + (p + .5) * st, cs + (q + .5) * st)) continue;
+          const A = ids[q * (n + 1) + p], B2 = A + 1, C2 = A + n + 1, E = C2 + 1;index.push(A, C2, B2, B2, C2, E);
         }
-        index.push(a, c, b, b, c, e);
       }
       if (!index.length) return null;
+      if (near) return streetMesh({pos: new Float32Array(pos), nor: new Float32Array(nor), street: new Float32Array(street), index: pos.length / 3 > 65535 ? new Uint32Array(index) : new Uint16Array(index)}, material, name, (x, s) => [(x - d.x0) / (d.x1 - d.x0), 1 - (s - d.s0) / (d.s1 - d.s0)]);
       const g = new T.BufferGeometry();g.setAttribute('position', new T.Float32BufferAttribute(pos, 3));g.setAttribute('normal', new T.Float32BufferAttribute(nor, 3));g.setAttribute('uv', new T.Float32BufferAttribute(uv, 2));g.setIndex(index);g.computeBoundingSphere();
       const m = new T.Mesh(g, material);m.receiveShadow = true;m.name = name;m.userData.noMerge = true;m.userData.grid = {x0, s0, step: res, nx: ni + 1, ns: nj + 1, ownNormals: true};return m;
     }
     const patchMats = {water: new T.MeshStandardMaterial({color: 0x3e5d70, roughness: .15, metalness: .2, side: T.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2})};// always in front of the sea-level ground under it
     const groundOf = canvas => {const tex = new T.CanvasTexture(canvas);tex.colorSpace = T.SRGBColorSpace;tex.anisotropy = 8;return {tex, mat: new T.MeshStandardMaterial({map: tex, color: 0xa6a6a6, roughness: .97, metalness: 0, envMapIntensity: .35})};};
+    const groundTiles = [], GROUND_REACH = 1000;
+    function buildGroundTile(t) {
+      t.done = true;t.mesh = patchGround(t.d, t.x0, t.s0, t.x1, t.s1, t.d.step, t.P.near.mat, 'Terrain (district near)', 0, PLAY_HALF);if (t.mesh) geoNear.add(t.mesh);
+    }
+    const tileDist = (t, x, s) => Math.hypot(x - Math.max(t.x0, Math.min(t.x1, x)), s - Math.max(t.s0, Math.min(t.s1, s)));
+    // Every tile within `radius` metres of the local point now (the one you stand on at once; the rest one a frame in update()).
+    function buildGround(x, s, radius = 60) {for (const t of groundTiles) if (!t.done && tileDist(t, x, s) < radius) buildGroundTile(t);}
     const patches = districts.map(d => {
       const P = {d, farTrees: [], nearImagery: 'none'}, W = d.x1 - d.x0, H = d.s1 - d.s0;
       P.nearSize = Math.min(4096, 2 ** Math.ceil(Math.log2(Math.max(W, H) / .8)));P.farSize = Math.min(2048, P.nearSize / 2);
       P.near = groundOf(paintPatch(d, P.nearSize));P.far = groundOf(paintPatch(d, P.farSize));city.ground(P.near.mat);
-      for (let tx = d.x0; tx < d.x1 - 1e-6; tx += PATCH_TILE) for (let ts = d.s0; ts < d.s1 - 1e-6; ts += PATCH_TILE) {
-        const m = patchGround(d, tx, ts, Math.min(d.x1, tx + PATCH_TILE), Math.min(d.s1, ts + PATCH_TILE), d.step, P.near.mat, 'Terrain (district near)', 0, PLAY_HALF);if (m) geoNear.add(m);
-      }
+      // The near ground tiles are cut from the street surface when the camera first comes near (update), not all at the start.
+      for (let tx = d.x0; tx < d.x1 - 1e-6; tx += PATCH_TILE) for (let ts = d.s0; ts < d.s1 - 1e-6; ts += PATCH_TILE) groundTiles.push({P, d, x0: tx, s0: ts, x1: Math.min(d.x1, tx + PATCH_TILE), s1: Math.min(d.s1, ts + PATCH_TILE), mesh: null, done: false});
       const fm = patchGround(d, d.x0, d.s0, d.x1, d.s1, 16, P.far.mat, 'Terrain (district far)', .5, FAR_EXT);if (fm) geoFar.add(fm);
       const classSize = Math.min(2048, P.nearSize / 2), cls = paintPatch(d, classSize, true).getContext('2d').getImageData(0, 0, classSize, classSize).data;
       P.classSize = classSize;P.classes = new Uint8Array(classSize * classSize);for (let i = 0; i < P.classes.length; i++) P.classes[i] = cls[i * 4];
@@ -641,8 +682,9 @@
       const STYLE_KIND = {brick: 'apartments', shed: 'shed', industrial: 'industrial', modern: '', plaster: ''};
       d.buildings.forEach((b, i) => {
         const ring = b.ring;if (ring.length < 3) return;
-        let cx = 0, cs = 0, gm = Infinity;for (const p of ring) {cx += p[0];cs += p[1];gm = Math.min(gm, relLocal(p[0], p[1]));}cx /= ring.length;cs /= ring.length;
-        const g0 = ground + relLocal(cx, cs), bottom = ground + Math.min(gm, b.gm ?? Infinity) - .6, top = g0 + b.h, set = nearSet(b.tile), f = farSet(b.tile);
+        let cx = 0, cs = 0;for (const p of ring) {cx += p[0];cs += p[1];}cx /= ring.length;cs /= ring.length;const gm = lowestAlong(ring);
+        const g0 = ground + naturalLocal(cx, cs), bottom = ground + Math.min(gm, b.gm ?? Infinity) - .6,// the roof keeps the real ground's height (models such as Rathkes gate 1 match it)
+          top = g0 + b.h, set = nearSet(b.tile), f = farSet(b.tile);
         Object.assign(b, {cx, cs, base: g0, bottom, top});
         const tags = looks.byId(b.id) || {}, num = parseInt(String(b.id).slice(1), 10) || i + 1;
         let look = CT.classify({style: b.style, kind: tags.kind || STYLE_KIND[b.style] || '', h: b.h, x: cx, s: cs, colour: tags.colour, roofColour: tags.roofColour, roofShape: tags.roofShape,
@@ -736,6 +778,9 @@
     function update(camera) {
       if (!patches.length) return;
       const l = toLocal(camera.x, camera.z);
+      // District ground: the tiles round the camera at once, then the nearest missing one within GROUND_REACH, one a frame.
+      buildGround(l.x, l.s, 60);
+      {let best = null, bd = GROUND_REACH;for (const t of groundTiles) if (!t.done) {const dd = tileDist(t, l.x, l.s);if (dd < bd) {bd = dd;best = t;}}if (best) buildGroundTile(best);}
       for (const P of patches) {
         const d = P.d, dist = Math.hypot(l.x - Math.max(d.x0, Math.min(d.x1, l.x)), l.s - Math.max(d.s0, Math.min(d.s1, l.s)));
         if (P.nearImagery === 'wanted' && imageryState === 'on' && dist < 700) {P.nearImagery = 'loading';const token = imageryToken;loadPatchImagery(P, 'near', token).then(ok => {if (token === imageryToken) P.nearImagery = ok ? 'on' : 'failed';});}
@@ -884,8 +929,9 @@
       return Math.min(1, n / 18);
     }
 
+    streets.release();
     return {near, far, setImagery, setSun, setOvercast, get imageryState() {return imageryState;}, attribution: data.attribution, ground, heightWorld, toLocal, toWorld, terrainFloor, terrainFloors, obstacles, surfaceAt, trafficDistance, greenery, data, playHalf: PLAY_HALF, trees: allTrees,
-      districts: patches.map(P => P.d), get districtImagery() {return patches.map(P => P.nearImagery);}, update, yLocal, geoNear, geoFar, looks: lookCount, city, facadeFill};
+      districts: patches.map(P => P.d), get districtImagery() {return patches.map(P => P.nearImagery);}, update, buildGround, yLocal, yNatural, streets, geoNear, geoFar, looks: lookCount, city, facadeFill};
   }
   return {create, walkRects, openEdges, PLAY_HALF};
 });
