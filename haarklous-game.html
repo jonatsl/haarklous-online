@@ -418,6 +418,7 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
           <dt>Friends</dt><dd>L1 / N in this menu (N in the game too), with an account · add a friend by their player name (name#1234 when several players have that name; your own number is at the top of the list) – they accept or decline · see who is online and in which lobby · Join goes straight into a friend’s lobby, Invite asks them into yours (they get a message and press Options, then ✕) · “Friends can join my lobby” off = by invite only · ↑↓ choose, ←→ choose a button, ✕ do it, ○ back · ⌨ On-screen keyboard: ✕ type, □ delete, △ send</dd>
           <dt>Account progress</dt><dd>Logged in, your money, bag, photos, badges, best scores, licences and settings are saved to your account by themselves and are there on any PC; without an account they stay in this browser</dd>
           <dt>Rathkes gate 1</dt><dd>□ opens the iron gate under the “1” on Rathkes gate · the passage leads to the backyard · □ opens door 1C · up the stair to flat 501 on the 5th floor (□ opens its doors)</dd>
+          <dt>Flat 501’s living room</dt><dd>□ / E on the record player: put on a record, □ again: the next one (four records), then stop · □ on the sofa: sit down facing the TV – there □ turns the TV on, changes the channel (news, football, a nature film, the weather) and turns it off, ✕ / Space stands you up · □ on a chair: pick it up and carry it, □ puts it down in front of you, turned the way you face · hold □ on a chair: sit on it · □ on the lava lamp (the shelf above the record player): on / off · all of it is shared online</dd>
           <dt>Kiwi Storgata</dt><dd>Kiwi Storgata 33 in the city centre (🛒 on the map), with a counter for coffee and hot dogs · the regulars outside (☺) ask for small favours: □ / E talks (Norwegian with English below), ↑↓ choose, ✕ / Space answer, ○ / C leave · their tasks show at the top right and set the waypoint · □ on an empty bottle picks it up</dd>
           <dt>Magic (Sopp-Sigvald)</dt><dd>The mushroom wizard on the corner (🍄) teaches four powers, one for each mushroom hunt once enough of Storgata trusts you · R1 / X casts the chosen power, D-pad ← / ← chooses, keyboard 1–4 casts one directly · 1 Svev (levitation): hold to float up to 3 m, let go to sink slowly · 2 Glimt (blink): up to 8 m the way you look · 3 Vindkast (gust): pushes a parked car, motorcycle or e-scooter and scares pigeons · 4 Lyskule (light orb): on / off, lights the dark (the catacombs too) · the bar is your mana; powers work on foot, not in the mission, at paintball, in the timed run or in a vehicle</dd>
         </dl>
@@ -3901,8 +3902,11 @@ window.BUILDING_LOOKS = {"table":[[],["school"],["retail"],["apartments"],["apar
  *                                  64 bars = 72 s
  *   mission   "Stairwell"       – tense pulse ostinato, drone, heartbeat kick, strings, low brass, D minor, 100 bpm,
  *                                  32 bars = 76.8 s
- * GameMusic.create() -> {attach(audioContext), play(name|null), setVolume(0..1), volume, current, position()}
- * GameMusic.tracks -> {name: {title, bpm, beats, bars, seconds}}
+ * Records for the LP player in Rathkes gate 1C (issue #116; GameMusic.records): lp1 "Søndagsjazz" (jazz trio, 73.8 s),
+ * lp2 "Bossa på Løkka" (bossa nova, 72.7 s), lp3 "Lavalampe" (soul and disco, 68.6 s), lp4 "Fjellvise" (folk waltz, 80 s).
+ * GameMusic.create() -> {attach(audioContext), play(name|null), setVolume(0..1), volume, current, position(),
+ *   recordPlay(name, pos, needle), recordStop(fade), recordOutput (GainNode to route), record, duck(0..1), context}
+ * GameMusic.tracks -> {name: {title, artist, style, record, bpm, beats, bars, seconds}}
  * GameMusic.renderOffline(name, seconds) -> Promise<AudioBuffer> (tests and previews)
  */
 (function (root, factory) {
@@ -4127,9 +4131,120 @@ window.BUILDING_LOOKS = {"table":[[],["school"],["retail"],["apartments"],["apar
     }};
   })();
 
-  const TRACKS = {main: MAIN, discgolf: DISC, petanque: PET, mission: MISSION};
+  // ---------- Records for the LP player in Rathkes gate 1C (issue #116): four original pieces, each with vinyl crackle ----------
+  // Swung eighths: an off-beat note (x.5) comes a little late.
+  const swing = (b, amt = .16) => Math.abs(b % 1 - .5) < 1e-6 ? b + amt : b;
+  function sline(k, bus, voice, t, beat, notes, vel, shift = 0) {notes.forEach(([b, m, d]) => k[voice](bus, t + swing(b) * beat, m + shift, d * beat, vel));}
+  const strumAt = (k, bus, voice, t, notes, dur, vel, spread = .012) => notes.forEach((m, i) => k[voice](bus, t + i * spread, m, dur, vel));
+  // A bass note near the last one (walking lines stay in one octave).
+  const near = (n, r) => {while (n - r > 6) n -= 12;while (r - n > 6) n += 12;return n;};
+
+  // "Søndagsjazz" – Trio Herslebs: a swinging jazz trio (electric piano, walking bass, brushes and ride, vibes melody),
+  // F major, 104 bpm, AABA of 8 bars = 32 bars (73.8 s).
+  const JAZZ = (() => {
+    const C = {Gm9: [43, [58, 62, 65, 69], 3], C13: [36, [58, 62, 64, 69], 4], Fmaj9: [41, [57, 60, 64, 67], 4], Dm9: [38, [57, 60, 64, 65], 3],
+      C7b9: [36, [58, 61, 64, 67], 4], F6: [41, [57, 60, 62, 65], 4], Bbmaj7: [46, [57, 62, 65, 69], 4], Eb9: [39, [55, 58, 61, 65], 4],
+      Am7: [45, [55, 60, 64, 67], 3], D7b9: [38, [54, 57, 60, 63], 4], Gm7: [43, [58, 62, 65, 67], 3], C7sus: [36, [55, 58, 60, 65], 5]};
+    const A = 'Gm9 C13 Fmaj9 Dm9 Gm9 C7b9 F6 F6'.split(' '), B = 'Bbmaj7 Eb9 Am7 D7b9 Gm7 C7b9 F6 C7sus'.split(' ');
+    const MA = [[[0, 74, 1.5], [1.5, 72, .5], [2, 70, 1], [3, 69, 1]], [[0, 67, 2], [2.5, 69, .5], [3, 70, 1]], [[0, 72, 1.5], [1.5, 69, .5], [2, 67, 2]], [[0, 69, 3], [3, 65, 1]],
+      [[0, 70, 1], [1, 74, 1], [2, 77, 1.5], [3.5, 76, .5]], [[0, 73, 1], [1, 70, 1], [2, 67, 1], [3, 64, 1]], [[0, 65, 1.5], [1.5, 67, .5], [2, 69, 2]], [[0, 65, 3]]];
+    const MB = [[[0, 74, 1], [1, 77, 1], [2, 81, 2]], [[0, 79, 1.5], [1.5, 77, .5], [2, 73, 2]], [[0, 76, 1], [1, 72, 1], [2, 79, 2]], [[0, 78, 1.5], [1.5, 75, .5], [2, 72, 2]],
+      [[0, 74, 1], [1, 70, 1], [2, 77, 2]], [[0, 76, 2], [2, 70, 1], [3, 72, 1]], [[0, 69, 2], [2, 74, 2]], [[0, 72, 3], [3, 79, 1]]];
+    const chordAt = bar => {const sec = Math.floor(bar / 8) % 4, list = sec === 2 ? B : A;return C[list[bar % 8]];};
+    return {title: 'Søndagsjazz', artist: 'Trio Herslebs', style: 'jazz trio', bpm: 104, beats: 4, bars: 32, record: true, render(k, bus, bar, t, beat, rnd) {
+      const sec = Math.floor(bar / 8), [r, v, third] = chordAt(bar), [nr] = chordAt((bar + 1) % 32);
+      k.crackle(bus, t, beat * 4, rnd, .7);
+      // Walking bass: root, third, fifth, a step into the next chord.
+      const walk = [r, r + third, r + 7, near(nr, r) + (bar % 2 ? 1 : -1)].map(n => n > 55 ? n - 12 : n);
+      walk.forEach((n, i) => k.bass(bus, t + i * beat, n, beat * .9, i ? .5 : .6));
+      // Comping (the Charleston rhythm, turned round every other bar).
+      for (const [b, d, vel] of bar % 2 ? [[1, .5, .3], [2.5, 1.2, .34]] : [[0, .9, .36], [1.5, .4, .28]]) strumAt(k, bus, 'epiano', t + swing(b) * beat, v, d * beat, vel);
+      // Ride cymbal (ding, ding-da), brushes on 2 and 4, a soft kick.
+      for (const b of [0, 1, 1.5, 2, 3, 3.5]) k.hat(bus, t + swing(b) * beat, b % 1 ? .25 : .38, b === 0 || b === 2);
+      k.brush(bus, t + beat, .55);k.brush(bus, t + beat * 3, .6);k.kick(bus, t, .22);
+      const mel = (sec === 2 ? MB : MA)[bar % 8];
+      if (sec === 1) {sline(k, bus, 'epiano', t, beat, mel, .42, 12);sline(k, bus, 'bell', t, beat, mel, .18);}
+      else sline(k, bus, 'bell', t, beat, mel, sec === 3 ? .55 : .5);
+    }};
+  })();
+
+  // "Bossa på Løkka" – Akerselva Kvartett: bossa nova (nylon-string guitar, bass, shaker and rim, whistled tune), D minor,
+  // 132 bpm, intro 8 + AABA = 40 bars (72.7 s).
+  const BOSSA = (() => {
+    const C = {Dm9: [38, [53, 57, 60, 64]], G13: [43, [53, 57, 59, 64]], Cmaj9: [36, [52, 55, 59, 62]], A7b13: [45, [55, 61, 65, 69]],
+      Fmaj7: [41, [57, 60, 64, 65]], Bb9: [46, [56, 60, 62, 65]], Em7b5: [40, [55, 58, 62, 64]], A7: [45, [55, 61, 64, 69]], Gm9: [43, [53, 57, 58, 62]]};
+    const A = 'Dm9 Dm9 G13 G13 Cmaj9 Cmaj9 A7b13 A7b13'.split(' '), B = 'Fmaj7 Bb9 Em7b5 A7 Dm9 G13 Gm9 A7b13'.split(' ');
+    const MA = [[[0, 69, 1.5], [1.5, 72, .5], [2, 74, 1], [3, 76, 1]], [[0, 77, 3], [3, 76, 1]], [[0, 74, 1], [1, 71, 1], [2, 76, 2]], [[0, 74, 3]],
+      [[0, 71, 1.5], [1.5, 74, .5], [2, 76, 1], [3, 79, 1]], [[0, 76, 2], [2, 74, 1], [3, 72, 1]], [[0, 73, 1], [1, 77, 1], [2, 76, 2]], [[0, 73, 3]]];
+    const MB = [[[0, 76, 1.5], [1.5, 77, .5], [2, 81, 2]], [[0, 80, 1.5], [1.5, 77, .5], [2, 74, 2]], [[0, 74, 1], [1, 72, 1], [2, 70, 2]], [[0, 73, 2], [2, 76, 2]],
+      [[0, 77, 1.5], [1.5, 76, .5], [2, 74, 1], [3, 72, 1]], [[0, 71, 2], [2, 76, 2]], [[0, 74, 1.5], [1.5, 70, .5], [2, 69, 2]], [[0, 73, 1], [1, 76, 1], [2, 77, 2]]];
+    return {title: 'Bossa på Løkka', artist: 'Akerselva Kvartett', style: 'bossa nova', bpm: 132, beats: 4, bars: 40, record: true, render(k, bus, bar, t, beat, rnd) {
+      const sec = bar < 8 ? 'intro' : bar < 16 ? 'A' : bar < 24 ? 'A2' : bar < 32 ? 'B' : 'A3', [r, v] = C[(sec === 'B' ? B : A)[bar % 8]];
+      k.crackle(bus, t, beat * 4, rnd, .7);
+      const fifth = r + 7 > 50 ? r - 5 : r + 7;
+      for (const [b, n, d] of [[0, r, 1.4], [1.5, r, .4], [2, fifth, 1.4], [3.5, fifth, .4]]) k.bass(bus, t + b * beat, n, d * beat, b % 1 ? .38 : .5);
+      // The guitar's two-bar pattern; the rim clicks between its chords.
+      const hits = bar % 2 ? [1, 2.5] : [0, 1.5, 3], rim = bar % 2 ? [0, 1.5, 3] : [1, 2.5];
+      for (const b of hits) strumAt(k, bus, 'pluck', t + b * beat, v, beat * .5, .32, .008);
+      for (const b of rim) k.clap(bus, t + b * beat, .16);
+      for (let i = 0; i < 8; i++) k.shaker(bus, t + i * beat / 2, i % 2 ? .35 : .55);
+      k.kick(bus, t, .28);k.kick(bus, t + beat * 2, .22);
+      if (sec === 'A' || sec === 'A2') {sline(k, bus, 'whistle', t, beat, MA[bar % 8], .7);if (sec === 'A2') sline(k, bus, 'bell', t, beat, MA[bar % 8], .2, 12);}
+      if (sec === 'B') sline(k, bus, 'whistle', t, beat, MB[bar % 8], .7);
+      if (sec === 'A3') sline(k, bus, 'bell', t, beat, MA[bar % 8], .45);
+    }};
+  })();
+
+  // "Lavalampe" – Disko Herslebs: seventies soul and disco (four on the floor, octave bass, electric piano stabs, strings,
+  // vibes lead), A minor, 112 bpm, 32 bars (68.6 s).
+  const DISCO = (() => {
+    const C = {Am9: [33, [55, 59, 60, 64], 10], D9: [38, [54, 57, 60, 64], 10], Fmaj7: [41, [53, 57, 60, 64], 7], E7: [40, [56, 59, 62, 67], 10]};
+    const A = 'Am9 Am9 D9 D9'.split(' '), B = 'Fmaj7 Fmaj7 E7 E7'.split(' ');
+    const LEAD = [[[0, 76, .5], [.5, 79, .5], [1, 81, 1], [2.5, 79, .5], [3, 76, 1]], [[0, 74, .75], [.75, 72, .75], [1.5, 69, 2.5]], [[0, 72, .5], [.5, 74, .5], [1, 76, 1], [2.5, 78, .5], [3, 76, 1]], [[0, 74, 2], [2, 72, 1], [3, 69, 1]],
+      [[0, 81, .5], [.5, 84, .5], [1, 83, 1], [2, 81, 1], [3, 79, 1]], [[0, 76, 3], [3, 79, 1]], [[0, 78, 1], [1, 76, .5], [1.5, 74, .5], [2, 72, 1], [3, 74, 1]], [[0, 69, 4]]];
+    const RIFF = [[[0, 77, .5], [.5, 76, .5], [1, 72, 1.5]], [], [[0, 74, .5], [.5, 71, .5], [1, 68, 1.5]], []];
+    return {title: 'Lavalampe', artist: 'Disko Herslebs', style: 'soul and disco', bpm: 112, beats: 4, bars: 32, record: true, render(k, bus, bar, t, beat, rnd) {
+      const sec = bar < 16 ? 'A' : bar < 24 ? 'B' : 'A2', [r, v, step] = C[(sec === 'B' ? B : A)[bar % 4]], e = beat / 2;
+      k.crackle(bus, t, beat * 4, rnd, .7);
+      [0, 12, 0, 12, 0, 12, step, 12].forEach((o, i) => k.bass(bus, t + i * e, r + o, e * .8, i % 2 ? .42 : .55));
+      for (let i = 0; i < 4; i++) {k.kick(bus, t + i * beat, .55);k.hat(bus, t + (i + .5) * beat, .38, true);k.hat(bus, t + (i + .25) * beat, .15);k.hat(bus, t + (i + .75) * beat, .15);}
+      k.clap(bus, t + beat, .45);k.clap(bus, t + beat * 3, .5);
+      if (bar >= 4) for (const b of [.5, 1.75, 2.5, 3.75]) strumAt(k, bus, 'epiano', t + b * beat, v, beat * .3, .26, .006);
+      if (sec === 'B') {v.forEach(m => k.strings(bus, t, m + 12, beat * 4, .55));sline(k, bus, 'bell', t, beat, RIFF[bar % 4], .45);}
+      else if (bar % 2 === 1) v.forEach(m => k.strings(bus, t + beat * 3.5, m + 12, beat * .45, .7));
+      if (sec === 'A2') sline(k, bus, 'bell', t, beat, LEAD[bar % 8], .55);
+      if (sec === 'A' && bar >= 8) sline(k, bus, 'epiano', t, beat, LEAD[bar % 8], .3, -12);
+    }};
+  })();
+
+  // "Fjellvise" – Rathkes Spellemenn: a folk waltz (plucked strings, drone, whistled tune with a Lydian C#, bells), G major,
+  // 3/4, 108 bpm, 48 bars (80 s).
+  const FOLK = (() => {
+    const C = {G: [43, [55, 59, 62]], C: [36, [55, 60, 64]], Em: [40, [55, 59, 64]], D: [38, [54, 57, 62]], Am: [45, [57, 60, 64]]};
+    const A = 'G G C G Em C D G'.split(' '), B = 'C G Am D G Em D G'.split(' '), INTRO = 'G G G G'.split(' '), OUTRO = 'G C G G'.split(' ');
+    const MA = [[[0, 74, 1], [1, 76, 1], [2, 78, 1]], [[0, 79, 2], [2, 74, 1]], [[0, 76, 1], [1, 73, 1], [2, 74, 1]], [[0, 71, 3]],
+      [[0, 71, 1], [1, 74, 1], [2, 79, 1]], [[0, 76, 2], [2, 72, 1]], [[0, 74, 1], [1, 72, 1], [2, 69, 1]], [[0, 67, 3]]];
+    const MB = [[[0, 76, 1], [1, 79, 1], [2, 81, 1]], [[0, 83, 2], [2, 81, 1]], [[0, 81, 1], [1, 79, 1], [2, 76, 1]], [[0, 78, 2], [2, 74, 1]],
+      [[0, 79, 1], [1, 78, 1], [2, 79, 1]], [[0, 76, 2], [2, 71, 1]], [[0, 72, 1], [1, 74, 1], [2, 78, 1]], [[0, 79, 3]]];
+    const part = bar => bar < 4 ? ['intro', INTRO[bar]] : bar < 12 ? ['A', A[(bar - 4) % 8]] : bar < 20 ? ['A2', A[(bar - 4) % 8]] : bar < 28 ? ['B', B[(bar - 4) % 8]] : bar < 36 ? ['A3', A[(bar - 4) % 8]] : bar < 44 ? ['B2', B[(bar - 4) % 8]] : ['outro', OUTRO[bar - 44]];
+    return {title: 'Fjellvise', artist: 'Rathkes Spellemenn', style: 'folk waltz', bpm: 108, beats: 3, bars: 48, record: true, render(k, bus, bar, t, beat, rnd) {
+      const [sec, name] = part(bar), [r, v] = C[name], i = (bar - 4) % 8;
+      k.crackle(bus, t, beat * 3, rnd, .7);
+      if (bar % 2 === 0) {k.pad(bus, t, 55, beat * 6 + .2, .55, 700);k.pad(bus, t, 62, beat * 6 + .2, .45, 700);}
+      k.bass(bus, t, r, beat * .9, .62);
+      for (const b of [1, 2]) strumAt(k, bus, 'pluck', t + b * beat, v, beat * .45, .34, .01);
+      if (bar % 4 === 3) k.shaker(bus, t + beat * 2.5, .4);
+      if (sec === 'A' || sec === 'A2') {line(k, bus, 'whistle', t, beat, MA[i], sec === 'A2' ? .6 : .9);if (sec === 'A2') line(k, bus, 'pluck', t, beat, MA[i], .55, 12);}
+      if (sec === 'B' || sec === 'B2') {line(k, bus, 'whistle', t, beat, MB[i], .85);if (sec === 'B') line(k, bus, 'bell', t, beat, MB[i], .32);}
+      if (sec === 'A3') {line(k, bus, 'bell', t, beat, MA[i], .65);line(k, bus, 'whistle', t, beat, MA[i], .4, -12);}
+      if (sec === 'outro' && bar === 47) k.whistle(bus, t, 67, beat * 2.5, .45);
+    }};
+  })();
+
+  const TRACKS = {main: MAIN, discgolf: DISC, petanque: PET, mission: MISSION, lp1: JAZZ, lp2: BOSSA, lp3: DISCO, lp4: FOLK};
+  const RECORDS = ['lp1', 'lp2', 'lp3', 'lp4'];
   const info = {};
-  for (const [name, d] of Object.entries(TRACKS)) info[name] = {title: d.title, bpm: d.bpm, beats: d.beats, bars: d.bars, seconds: d.bars * d.beats * 60 / d.bpm};
+  for (const [name, d] of Object.entries(TRACKS)) info[name] = {title: d.title, artist: d.artist, style: d.style, record: !!d.record, bpm: d.bpm, beats: d.beats, bars: d.bars, seconds: d.bars * d.beats * 60 / d.bpm};
   const barSeed = (name, bar) => mulberry32(bar * 977 + name.length * 31 + 13);
 
   // Shared output chain: master volume -> gentle compressor -> speakers; one generated hall reverb.
@@ -4144,15 +4259,40 @@ window.BUILDING_LOOKS = {"table":[[],["school"],["retail"],["apartments"],["apar
   }
 
   function create() {
-    let ctx = null, kit = null, out = null, current = null, volume = .5;
+    let ctx = null, kit = null, out = null, current = null, volume = .5, duckK = 1;
     const loadVolume = () => {try {const v = localStorage.getItem('haarklous-music-volume-v1');if (v !== null && v !== '') volume = Math.max(0, Math.min(1, +v));} catch {}};
     loadVolume();
     const lanes = {};
-    const level = () => volume * .8;
+    const level = () => volume * .8 * duckK;
+    // The record player (issue #116): its own lane into `recOut` (not the soundtrack's master), which the game routes through
+    // the room (volume by distance, pan, walls); a small room reverb of its own.
+    let rec = null, recOut = null, recVerb = null;
     function attach(c) {
       if (ctx || !c) return;ctx = c;kit = makeKit(ctx);out = chain(ctx, level());
+      recOut = ctx.createGain();recVerb = ctx.createConvolver();
+      {const len = Math.floor(ctx.sampleRate * 1.1), ir = ctx.createBuffer(2, len, ctx.sampleRate);for (let ch = 0; ch < 2; ch++) {const d = ir.getChannelData(ch);for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3) * (i < 300 ? i / 300 : 1);}recVerb.buffer = ir;const wet = ctx.createGain();wet.gain.value = .35;recVerb.connect(wet).connect(recOut);}
       setInterval(tick, 60);const want = current;current = undefined;play(want);
     }
+    // Put a record on: `pos` = seconds into it (it loops); a negative pos = seconds until the music starts, with the needle's
+    // thump and crackle from `needle` seconds before that. The music starts on a bar line, so every player is in step.
+    function recordPlay(name, pos, needle = 1.4) {
+      if (!ctx || !TRACKS[name]) return false;
+      recordStop(.08);
+      const def = TRACKS[name], beat = 60 / def.bpm, barLen = beat * def.beats, len = def.bars * barLen, now = ctx.currentTime;
+      const bus = {dry: ctx.createGain(), wet: ctx.createGain()};bus.dry.connect(recOut);bus.wet.connect(recVerb);
+      let bar = 0, startT = now - pos;
+      if (pos >= 0) {const p = pos % len;bar = Math.ceil(p / barLen - 1e-6);startT = now + bar * barLen - p;bar %= def.bars;}
+      else {const rnd = mulberry32(7), from = Math.max(now, startT - needle);if (startT - needle >= now - .05) kit.kick(bus, from + .02, .18);for (let t = from; t < startT; t += .5) kit.crackle(bus, t, .5, rnd, 1.6);}
+      rec = {name, def, bus, bar, nextT: startT, barLen};return true;
+    }
+    function recordStop(fadeS = .35) {
+      if (!rec || !ctx) {rec = null;return;}
+      const r = rec, now = ctx.currentTime;rec = null;
+      for (const g of [r.bus.dry.gain, r.bus.wet.gain]) {g.cancelScheduledValues(now);g.setValueAtTime(g.value, now);g.linearRampToValueAtTime(0, now + fadeS);}
+      setTimeout(() => {try {r.bus.dry.disconnect();r.bus.wet.disconnect();} catch {}}, (fadeS + 3) * 1000);
+    }
+    // The soundtrack steps back (0..1) while a record or the TV is heard.
+    function duck(k) {k = Math.max(0, Math.min(1, k));if (Math.abs(k - duckK) < .01) return;duckK = k;if (out) out.master.gain.setTargetAtTime(level(), ctx.currentTime, .4);}
     function lane(name) {
       if (!lanes[name]) {const dry = ctx.createGain(), wet = ctx.createGain();dry.gain.value = 0;wet.gain.value = 0;dry.connect(out.master);wet.connect(out.reverb);lanes[name] = {name, def: TRACKS[name], bus: {dry, wet}, bar: 0, nextT: 0, active: false, until: 0};}
       return lanes[name];
@@ -4175,6 +4315,11 @@ window.BUILDING_LOOKS = {"table":[[],["school"],["retail"],["apartments"],["apar
         if (L.nextT < now) L.nextT = now + .05;
         while (L.nextT < now + 1.2) {L.def.render(kit, L.bus, L.bar, L.nextT, beat, barSeed(L.name, L.bar));L.nextT += barLen;L.bar = (L.bar + 1) % L.def.bars;}
       }
+      // The record keeps its own clock: bars missed while the tab slept are skipped, not squeezed in.
+      if (rec) {
+        while (rec.nextT < now) {rec.nextT += rec.barLen;rec.bar = (rec.bar + 1) % rec.def.bars;}
+        while (rec.nextT < now + 1.2) {rec.def.render(kit, rec.bus, rec.bar, rec.nextT, 60 / rec.def.bpm, barSeed(rec.name, rec.bar));rec.nextT += rec.barLen;rec.bar = (rec.bar + 1) % rec.def.bars;}
+      }
     }
     function setVolume(v) {
       volume = Math.round(Math.max(0, Math.min(1, v)) * 100) / 100;try {localStorage.setItem('haarklous-music-volume-v1', String(volume));} catch {}
@@ -4183,7 +4328,8 @@ window.BUILDING_LOOKS = {"table":[[],["school"],["retail"],["apartments"],["apar
     // Where the current track is: bar, seconds into the loop, loop length.
     if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('haarklous-progress', () => {loadVolume();if (out) out.master.gain.setTargetAtTime(level(), ctx.currentTime, .1);});
     function position() {const L = current && lanes[current];if (!L) return null;const i = info[current];return {track: current, title: i.title, bar: L.bar, seconds: L.bar * i.seconds / i.bars, length: i.seconds};}
-    return {attach, play, setVolume, position, get volume() {return volume;}, get current() {return current;}, tracks: info};
+    return {attach, play, setVolume, position, recordPlay, recordStop, duck, get volume() {return volume;}, get current() {return current;}, tracks: info, records: RECORDS,
+      get context() {return ctx;}, get recordOutput() {return recOut;}, get record() {return rec ? rec.name : null;}, get ducked() {return duckK;}};
   }
 
   // Renders a track without the game (tests / previews): every bar is scheduled up front on an offline context.
@@ -4195,7 +4341,7 @@ window.BUILDING_LOOKS = {"table":[[],["school"],["retail"],["apartments"],["apar
     for (let t = .05, bar = startBar % def.bars; t < seconds; t += barLen, bar = (bar + 1) % def.bars) def.render(kit, bus, bar, t, beat, barSeed(name, bar));
     return c.startRendering();
   }
-  return {create, tracks: info, renderOffline};
+  return {create, tracks: info, records: RECORDS, renderOffline};
 });
 </script><script>/* Drivable vehicles for the open world: a 2005 Honda CBF600S (blue-grey half fairing, Scorpion silencer,
  * no top box), parked hatchbacks, and a tracked excavator with a working boom, stick and bucket.
@@ -5703,9 +5849,9 @@ window.BUILDING_LOOKS = {"table":[[],["school"],["retail"],["apartments"],["apar
  * benches, in vehicle seats, flying a drone), vehicles driven by other players (smoothed between their updates), seat
  * claims (one driver and one passenger per vehicle), chat, doors and the shared firepit level.
  * GameMultiplayer.create(ctx) -> {net, voice, update(dt), claim(i, seat) -> Promise<{ok, by}>, release(i, seat, final),
- *   occupant(i, seat), remoteDriven(i), sendChat(text), sendDoor(id, open), addWood(), fireLevel(), remotes, nameOf(id),
+ *   occupant(i, seat), remoteDriven(i), sendChat(text), sendDoor(id, open), sendObj(id, v), addWood(), fireLevel(), remotes, nameOf(id),
  *   sitTaken(spotId), setMic(on)}
- * ctx: {T, lib, scene, camera, vehicles, localState(), drivingIndex(), listener(), applyDoor(id, open, instant), onChat(line, mine),
+ * ctx: {T, lib, scene, camera, vehicles, localState(), drivingIndex(), listener(), applyDoor(id, open, instant), applyObj(id, v), resetObjs(), onChat(line, mine),
  *   onStatus(), notice(text, s), fireDecayS, fireMax}
  */
 (function (root, factory) {
@@ -5735,6 +5881,8 @@ window.BUILDING_LOOKS = {"table":[[],["school"],["retail"],["apartments"],["apar
           occ = m.occ || {};fire = m.fire || fire;vehTargets.clear();
           for (const [i, s] of Object.entries(m.vehicles || {})) {const v = vehicles[+i];if (v && s) v.netSet(s);}
           for (const [id, open] of Object.entries(m.doors || {})) ctx.applyDoor(id, open, true);
+          // Small shared things (flat 501's record player, TV, lava lamp, chairs): back to normal, then the lobby's state.
+          if (ctx.resetObjs) ctx.resetObjs(m);if (ctx.applyObj) for (const [id, v] of Object.entries(m.objs || {})) ctx.applyObj(id, v);
           for (const line of m.chat || []) ctx.onChat(line, false, true);
           if (voice.mic) net.send({t: 'mic', on: true});
           ctx.notice(m.players.length > 1 ? `Joined lobby ${m.code} · ${m.players.length} players` : `Online · your lobby code is ${m.code}`, 4);
@@ -5753,6 +5901,7 @@ window.BUILDING_LOOKS = {"table":[[],["school"],["retail"],["apartments"],["apar
         case 'claim': {if (m.ok) (occ[m.v] || (occ[m.v] = {}))[m.seat] = net.you;const res = pending.get(+m.v);if (res) {pending.delete(+m.v);res({ok: m.ok, by: m.by});}break;}// a granted seat is ours at once
         case 'chat': {const mine = m.id === net.you;ctx.onChat(m, mine);if (!mine) {const r = remotes.get(m.id);if (r) r.av.say(m.text);}break;}
         case 'door': ctx.applyDoor(m.id, m.open, false);break;
+        case 'obj': if (ctx.applyObj) ctx.applyObj(m.id, m.v);break;
         case 'fire': fire = m.fire;if (m.by && m.by !== net.you) {const r = remotes.get(m.by);if (r && ctx.onRemoteWood) ctx.onRemoteWood(r);}break;
         case 'rtc': voice.onSignal(m.from, m.d);break;
         case 'full': ctx.notice(`Lobby ${m.code || ''} is full (${net.max} players). Back in your own lobby.`, 5);break;
@@ -5826,6 +5975,8 @@ window.BUILDING_LOOKS = {"table":[[],["school"],["retail"],["apartments"],["apar
       net, voice, update, claim, release, occupant, remoteDriven, nameOf, sitTaken, fireLevel, addWood, remotes,
       sendChat(text) {text = String(text || '').trim().slice(0, 200);if (!text) return false;if (net.online) {net.send({t: 'chat', text});return true;}ctx.onChat({name: net.name, text, slot: 0}, true);return false;},
       sendDoor(id, open) {if (net.online) net.send({t: 'door', id, open});},
+      // A small shared thing: id -> a small value (null removes it); the lobby keeps it for players who join later.
+      sendObj(id, v) {if (net.online) net.send({t: 'obj', id, v: v ?? null});},
       async setMic(on) {const ok = await voice.setMic(on);if (ok && net.online) net.send({t: 'mic', on: voice.mic});return ok;},
       get occ() {return occ;}
     };
@@ -14865,7 +15016,7 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
     {kind: 'trolley', at: [9.4, 6.68], rot: 0},
     {kind: 'bed', at: [7.95, 9.68], w: 1.6, d: 2.0, rot: 2, frame: 0x8f9296, duvet: 0x9cc0cf},
     {kind: 'dresser', at: [9.55, 10.6], w: .85, d: .45, h: .75, rot: 2, color: 0x1f2125},
-    {kind: 'foldingChair', at: [9.45, 9.55], rot: 3},
+    {kind: 'foldingChair', at: [9.45, 9.55], rot: 3, movable: true},
     {kind: 'rug', at: [8.6, 8.9], w: 2.2, d: 2.4, colors: [0x4f7d62, 0xb9cdb0, 0x30584a]},
     {kind: 'curtains', at: [8.9, 10.85], w: 2.0, color: 0x1d2a4d, rot: 2},
     {kind: 'radiator', at: [8.9, 10.85], w: 1.1, rot: 2},
@@ -14875,11 +15026,16 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
     {kind: 'sideboard', at: [11.85, 4.67], w: 1.1, d: .45, h: .72, rot: 2},
     {kind: 'records', at: [11.85, 4.9], w: 1.25, y: 1.25, rot: 2},
     {kind: 'diningTable', at: [10.9, 2.7], w: .9, d: 2.0},
-    {kind: 'sofa', at: [7.05, .95], w: 2.1, d: .9, rot: 0, color: 0x3b4249},
+    // The chairs (issue #116) are pieces of their own: □ picks one up (game-rathkes-living.js), hold □ sits on it.
+    {kind: 'diningChair', at: [10.33, 2.08], rot: 1, movable: true}, {kind: 'diningChair', at: [10.33, 2.7], rot: 1, movable: true}, {kind: 'diningChair', at: [10.33, 3.32], rot: 1, movable: true},
+    {kind: 'diningChair', at: [11.47, 2.08], rot: 3, movable: true}, {kind: 'diningChair', at: [11.47, 2.7], rot: 3, movable: true}, {kind: 'diningChair', at: [11.47, 3.32], rot: 3, movable: true},
+    // The sofa stands clear of the wall unit (its arm used to reach 27 cm into the shelf's cabinet) and of the radiator.
+    {kind: 'sofa', at: [7.3, .95], w: 2.0, d: .9, rot: 0, color: 0x3b4249},
     {kind: 'coffeeTable', at: [6.95, 2.25], w: 1.2, d: .6, h: .45},
     {kind: 'rug', at: [7.15, 2.7], w: 2.4, d: 2.5, colors: [0x8a2a22, 0x2a6f6c, 0xcfa868]},
-    {kind: 'slingChair', at: [8.05, 3.65], rot: 2},
-    {kind: 'wallUnit', at: [6.0, 2.6], w: 3.2, rot: 1},
+    {kind: 'slingChair', at: [8.05, 3.65], rot: 2, movable: true},
+    // Teak wall shelving; record = the record player on the low cabinet, lava = the lava lamp on the shelf above (local x, z).
+    {kind: 'wallUnit', at: [6.0, 2.6], w: 3.2, rot: 1, record: [1.1, .025], lava: [1.1, -.025]},
     {kind: 'tv', at: [6.75, 4.3], rot: 1.9},
     {kind: 'guitar', at: [6.4, 4.38]},
     {kind: 'plant', at: [9.0, 4.55], h: 1.0}, {kind: 'plant', at: [6.35, 4.05], h: .6},
@@ -15026,6 +15182,30 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
     const room = data.rooms.find(r => r.id === w.room), best = room.lamps.slice().sort((p, q) => Math.hypot(p[0] - a, p[1] - b) - Math.hypot(q[0] - a, q[1] - b))[0];
     const big = room.id === 'living';return {a: best[0], b: best[1], y: lv.FL + 2.5, power: big ? 6 : 4.5, reach: big ? 8 : 6};
   }
+  // A piece of furniture's own frame (x across, z = its front, as drawn) -> wing coordinates: [a, b].
+  const placeOf = f => f.at || [(f.rect[0] + f.rect[2]) / 2, (f.rect[1] + f.rect[3]) / 2];
+  function pieceToWing(f, x, z) {const [a, b] = placeOf(f), r = (f.rot || 0) * Math.PI / 2, c = Math.cos(r), s = Math.sin(r);return [a + x * c + z * s, b - x * s + z * c];}
+  // Collision boxes of each kind of furniture in its own frame: [w, h, d, x, y (centre), z] (y defaults to h / 2).
+  const SOLIDS = {
+    wardrobe: f => [[f.w, f.h, f.d]], box: f => [[f.w, f.h, f.d]], dryingRack: f => [[f.w, f.h, f.d]], extinguisher: () => [[.15, .5, .15]],
+    coatRail: f => [[f.w, .95, .3, 0, 1.25, .15]], bed: f => [[f.w, .6, f.d + .05]], daybed: f => [[f.w, .6, f.d]], nightstand: f => [[f.w, f.h, f.d]],
+    basket: () => [[.4, .45, .4]], desk: f => [[f.w, .76, f.d]], mirrorWardrobe: f => [[f.w, f.h, f.d]], builtIn: (f, data) => [[f.w, data.ceiling, f.d]],
+    floorLamp: () => [[.3, 1.6, .3]], trolley: () => [[.48, .8, .38]], dresser: f => [[f.w, f.h, f.d]],
+    kitchen: f => [[f.rect[3] - f.rect[1], .9, f.rect[2] - f.rect[0]]], pipe: f => [[.12, f.h, .12]], sideboard: f => [[f.w, f.h + .4, f.d]],
+    // The dining table: its top and four legs (chairs tuck in under the top).
+    diningTable: f => [[f.w, .06, f.d, 0, .73, 0], ...[-1, 1].flatMap(sx => [-1, 1].map(sz => [.05, .7, .05, sx * (f.w / 2 - .06), .35, sz * (f.d / 2 - .08)]))],
+    sofa: f => [[f.w, .85, f.d]], coffeeTable: f => [[f.w, f.h, f.d]], wallUnit: f => [[f.w, .85, .45, 0, .425, .05]],
+    tv: () => [[1.3, 1.25, .35]], guitar: () => [[.35, 1.2, .15]], plant: f => [[.35, f.h, .35]], shoeRack: () => [[.82, .5, .3]]
+  };
+  // The furniture's collision boxes in wing coordinates: {pts: [[a, b] x 4], minY, maxY, kind}. Movable pieces are left out.
+  function furnitureSolids(data, FL = 0) {
+    const out = [];
+    for (const f of data.furniture) {
+      const S = !f.movable && SOLIDS[f.kind];if (!S) continue;
+      for (const [w, h, d, x = 0, y = h / 2, z = 0] of S(f, data)) out.push({kind: f.kind, minY: FL + y - h / 2, maxY: FL + y + h / 2, pts: [[-w / 2, -d / 2], [w / 2, -d / 2], [w / 2, d / 2], [-w / 2, d / 2]].map(([px, pz]) => pieceToWing(f, x + px, z + pz))});
+    }
+    return out;
+  }
 
   // ---------- Browser ----------
   function build({T, lib, world, data, top}) {
@@ -15049,7 +15229,7 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
     const carpet = mat('carpet', () => lib.fabric(0x5d4636)), tilesW = mat('tilesW', () => lib.wallTiles()), tilesF = mat('tilesF', () => lib.floorTiles()), chrome = mat('chrome', () => lib.chrome());
     const oak = mat('oak', () => lib.wood(0xb98552, .5)), teak = mat('teak', () => lib.wood(0x8d4f27, .42)), birch = {pal: 0xd8b47c}, rail = {pal: 0x4a2014};
     const lino = {pal: 0x6b4434}, sofaM = {pal: 0x3b4249}, ceramic = {pal: 0xf7f7f5};
-    const glow = {glow: 0xfff1d8}, glowOrange = {glow: 0xff9a4a}, screen = {glow: 0x2c3c9a}, lavaM = {glow: 0xff4a8a};
+    const glow = {glow: 0xfff1d8}, glowOrange = {glow: 0xff9a4a};
     const hidden = new T.MeshBasicMaterial({visible: false});
     // Palette: one texture of colour swatches for every flat-coloured part (furniture, coats, appliances), one draw call.
     const PAL = document.createElement('canvas');PAL.width = PAL.height = 256;const palCtx = PAL.getContext('2d'), palIndex = new Map();
@@ -15314,12 +15494,10 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
     {const s = data.soffit;box(inner, s[0], s[1], s[2], s[3], FL + s[4], FL + CEIL, plaster);}
 
     // ---------- Furniture (as in the video) ----------
-    const solids = [];// collision boxes in wing coordinates
-    function piece(f) {
-      const g = new T.Group();g.position.set(f.at[0], FL, f.at[1]);g.rotation.y = (f.rot || 0) * Math.PI / 2;inner.add(g);
-      g.userData.solid = (w, h, d, x = 0, y = h / 2, z = 0) => {const c = Math.cos(g.rotation.y), s = Math.sin(g.rotation.y), pts = [[-w / 2, -d / 2], [w / 2, -d / 2], [w / 2, d / 2], [-w / 2, d / 2]].map(([px, pz]) => [f.at[0] + (x + px) * c + (z + pz) * s, f.at[1] - (x + px) * s + (z + pz) * c]);solids.push({pts, minY: FL + y - h / 2, maxY: FL + y + h / 2});};
-      return g;
-    }
+    // Collision boxes in wing coordinates: the furniture's from the pure table SOLIDS (the movable chairs are dynamic, see
+    // game-rathkes-living.js), the bathroom's below.
+    const solids = furnitureSolids(data, FL);
+    function piece(f) {const g = new T.Group();g.position.set(f.at[0], FL, f.at[1]);g.rotation.y = (f.rot || 0) * Math.PI / 2;inner.add(g);return g;}
     const K = {
       wardrobe(g, f) {
         const {w, d, h} = f, wd = f.wood ? oak : null, body = (ww, hh, dd, x, y, z) => wd ? box(g, x - ww / 2, z - dd / 2, x + ww / 2, z + dd / 2, y - hh / 2, y + hh / 2, wd) : pbox(g, ww, hh, dd, x, y, z, f.color);
@@ -15329,20 +15507,20 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
         else for (const s of [-1, 1]) pcyl(g, .015, .015, .02, s * .06, h * .52, d / 2 + .012, f.wood ? 0x2a2a2a : 0xe8e2d4, 8).rotation.x = Math.PI / 2;
         if (f.top) f.top.forEach((c, i) => pbox(g, w * .42, .22, d * .7, (i - .5) * w * .45, h + .11, 0, c));
         if (f.shelf) {for (const x of [-w / 2 + .02, w / 2 - .02]) pbox(g, .03, .7, .3, x, h + .35, -.1, 0x2a201b);for (const y of [h + .3, h + .68]) pbox(g, w, .025, .3, 0, y, -.1, 0x5a4a3a);pbox(g, .3, .2, .22, -.2, h + .42, -.1, 0x6aa0a8);pbox(g, .2, .25, .2, .25, h + .43, -.1, 0xd8d0c0);}
-        g.userData.solid(w, h, d);
+        
       },
-      box(g, f) {pbox(g, f.w, f.h, f.d, 0, f.h / 2, 0, f.color);pbox(g, f.w + .02, .03, f.d + .02, 0, f.h, 0, 0xcbb487);g.userData.solid(f.w, f.h, f.d);},
+      box(g, f) {pbox(g, f.w, f.h, f.d, 0, f.h / 2, 0, f.color);pbox(g, f.w + .02, .03, f.d + .02, 0, f.h, 0, 0xcbb487);},
       dryingRack(g, f) {
         const {w, d, h} = f;for (const x of [-w / 2, w / 2]) for (const z of [-d / 2, d / 2]) pbox(g, .015, h, .015, x, h / 2, z, 0xf2f2f2);
         for (let i = 0; i < 8; i++) pbox(g, w, .01, .01, 0, h, -d / 2 + i * d / 7, 0xf2f2f2);
         const cl = [0x2d3f8a, 0xc0392b, 0x2f8f6a, 0x1d1d1d, 0x3b5fae, 0x22324e];cl.forEach((c, i) => pbox(g, .32, .45, .012, -w / 2 + .2 + i * .19, h - .23, -d / 2 + .06 + (i % 4) * .13, c));
-        g.userData.solid(w, h, d);
+        
       },
-      extinguisher(g) {pcyl(g, .07, .07, .45, 0, .225, 0, 0xc0281f);pcyl(g, .025, .025, .08, 0, .49, 0, 0x202020);g.userData.solid(.15, .5, .15);},
+      extinguisher(g) {pcyl(g, .07, .07, .45, 0, .225, 0, 0xc0281f);pcyl(g, .025, .025, .08, 0, .49, 0, 0x202020);},
       coatRail(g, f) {
         pbox(g, f.w, .08, .025, 0, 1.78, .0125, 0x6b4a2e);for (let i = 0; i < 6; i++) pbox(g, .015, .05, .08, -f.w / 2 + .1 + i * (f.w - .2) / 5, 1.75, .06, 0xc0c0c0);
         [[0x2e6fd0, -.45], [0x1d1f24, -.2], [0x23262d, .05], [0x30333a, .3], [0x232020, .5]].forEach(([c, x], i) => {pbox(g, .42, .85, .16, x, 1.28, .12, c);pbox(g, .2, .12, .14, x, 1.68, .12, c);if (i === 1) pbox(g, .2, .1, .2, x + .1, 1.86, .1, 0x2b3a2a);});
-        g.userData.solid(f.w, .95, .3, 0, 1.25, .15);
+        
       },
       panel(g, f) {pbox(g, f.w, f.h, .05, 0, f.y + f.h / 2, .025, f.color);pcyl(g, .03, .03, .02, 0, f.y + f.h * .55, .055, 0xdddddd).rotation.x = Math.PI / 2;},
       intercom(g) {pbox(g, .1, .22, .04, 0, 1.45, .02, 0xf2f2f0);pbox(g, .05, .2, .04, -.01, 1.45, .055, 0xe4e4e2);},
@@ -15352,25 +15530,24 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
         const {w, d} = f;pbox(g, w, .28, d, 0, .18, 0, f.frame);pbox(g, w - .04, .2, d - .06, 0, .42, .01, 0xf4f2ec);
         pbox(g, w - .02, .07, d * .7, 0, .54, d * .14, f.duvet);if (f.check) {for (let i = 1; i < 8; i++) pbox(g, .006, .072, d * .7, -w / 2 + i * w / 8, .545, d * .14, 0x9aa8d8);for (let i = 1; i < 6; i++) pbox(g, w - .03, .072, .006, 0, .545, d * .14 - d * .35 + i * d * .7 / 6, 0x9aa8d8);}
         for (const x of w > 1.3 ? [-w / 4, w / 4] : [0]) pbox(g, w > 1.3 ? w * .42 : w * .8, .12, .4, x, .58, -d / 2 + .28, 0xf6f4f0);
-        pbox(g, w + .04, .7, .05, 0, .45, -d / 2 - .02, f.frame);g.userData.solid(w, .6, d + .05);
+        pbox(g, w + .04, .7, .05, 0, .45, -d / 2 - .02, f.frame);
       },
       daybed(g, f) {
         const {w, d} = f;pbox(g, w, .22, d, 0, .34, 0, 0xf1f0ec);pbox(g, w - .02, .06, d - .1, 0, .48, .02, 0xd8dfcf);pbox(g, .5, .14, .55, -w / 2 + .35, .55, 0, 0xf6f4f0);
         for (const x of [-w / 2, w / 2]) {for (const z of [-d / 2, d / 2]) pbox(g, .03, .95, .03, x, .47, z, 0xf2f2f2);pbox(g, .02, .02, d, x, .95, 0, 0xf2f2f2);for (let i = 0; i < 5; i++) pbox(g, .015, .5, .015, x, .7, -d / 2 + (i + .5) * d / 5, 0xf2f2f2);}
-        pbox(g, w, .02, .02, 0, .62, -d / 2, 0xf2f2f2);g.userData.solid(w, .6, d);
+        pbox(g, w, .02, .02, 0, .62, -d / 2, 0xf2f2f2);
       },
-      nightstand(g, f) {pbox(g, f.w, f.h, f.d, 0, f.h / 2, 0, f.color);pbox(g, .2, .04, .25, 0, f.h + .02, 0, 0x2f6b8a);g.userData.solid(f.w, f.h, f.d);},
-      basket(g) {pcyl(g, .2, .17, .45, 0, .225, 0, 0xeae4d4, 16);g.userData.solid(.4, .45, .4);},
+      nightstand(g, f) {pbox(g, f.w, f.h, f.d, 0, f.h / 2, 0, f.color);pbox(g, .2, .04, .25, 0, f.h + .02, 0, 0x2f6b8a);},
+      basket(g) {pcyl(g, .2, .17, .45, 0, .225, 0, 0xeae4d4, 16);},
       curtains(g, f) {pbox(g, f.w + .1, .025, .025, 0, 2.7, .1, 0x8a8a8a);for (const s of [-1, 1]) pbox(g, .42, 2.6, .05, s * (f.w / 2 - .18), 1.38, .12, s > 0 && f.tapestry ? f.tapestry : f.color);},
       picture(g, f) {const p = plane(g, f.w, f.h, artM, cellUV(f.art));p.position.set(0, f.y + f.h / 2, .012);pbox(g, f.w + .03, f.h + .03, .012, 0, f.y + f.h / 2, .004, 0x2a2a2a);},
       radiator(g, f) {pbox(g, f.w, .55, .07, 0, .42, .1, 0xf3f3f0);for (let i = 0; i < Math.round(f.w / .08); i++) pbox(g, .012, .5, .008, -f.w / 2 + .04 + i * .08, .42, .138, 0xe4e4e0);},
-      desk(g, f) {pbox(g, f.w, .03, f.d, 0, .73, 0, f.color);for (const x of [-f.w / 2 + .04, f.w / 2 - .04]) for (const z of [-f.d / 2 + .04, f.d / 2 - .04]) pbox(g, .035, .72, .035, x, .36, z, 0x5a3a20);pbox(g, .9, .04, .28, 0, .765, .05, 0x1a1a1a);for (let i = 0; i < 14; i++) pbox(g, .05, .012, .14, -.4 + i * .062, .79, .08, 0xf4f4f4);pbox(g, .25, .15, .2, .4, .82, -.15, 0xb8442e);g.userData.solid(f.w, .76, f.d);},
-      mirrorWardrobe(g, f) {pbox(g, f.w, f.h, f.d - .03, 0, f.h / 2, -.015, 0xefefea);for (const s of [-1, 1]) {const m = box(g, s > 0 ? .005 : -f.w / 2 + .02, f.d / 2 - .02, s > 0 ? f.w / 2 - .02 : -.005, f.d / 2 - .005, .05, f.h - .05, chrome);if (m) m.castShadow = false;}g.userData.solid(f.w, f.h, f.d);},
-      builtIn(g, f) {const h = CEIL;pbox(g, f.w, h, f.d - .02, 0, h / 2, -.01, 0xf1f0eb);for (const s of [-1, 1]) {pbox(g, f.w / 2 - .008, h - .02, .018, s * f.w / 4, h / 2, f.d / 2 - .01, 0xf6f5f1);pbox(g, .015, .3, .02, s * .05, 1.05, f.d / 2 + .01, 0xbfc3c6);}pbox(g, f.w, .006, .02, 0, 2.25, f.d / 2 + .002, 0xdedcd5);g.userData.solid(f.w, h, f.d);},
-      floorLamp(g) {pcyl(g, .14, .14, .02, 0, .01, 0, 0x222222);pcyl(g, .012, .012, 1.5, 0, .76, 0, 0x222222);const s = mesh(new T.CylinderGeometry(.13, .18, .24, 16, 1, true), glow, g);s.position.y = 1.55;s.castShadow = false;g.userData.solid(.3, 1.6, .3);},
-      trolley(g) {for (const x of [-.22, .22]) for (const z of [-.16, .16]) pbox(g, .015, .8, .015, x, .4, z, 0x1b1b1b);for (const y of [.1, .42, .76]) pbox(g, .45, .02, .35, 0, y, 0, 0x1b1b1b);const bk = [0xd8c27a, 0x8a2f28, 0x2f4d6b, 0xe6e1d6, 0x3d5a3a];bk.forEach((c, i) => pbox(g, .03, .22, .2, -.15 + i * .05, .54, 0, c));pcyl(g, .07, .06, .12, .12, .84, 0, 0x6b4a2e);pbox(g, .18, .2, .18, .12, 1.0, 0, 0x3f7a3a);g.userData.solid(.48, .8, .38);},
-      dresser(g, f) {pbox(g, f.w, f.h, f.d, 0, f.h / 2, 0, f.color);for (let i = 1; i < 3; i++) pbox(g, f.w - .04, .006, .01, 0, i * f.h / 3, f.d / 2 + .003, 0x3a3a3a);pbox(g, .3, .35, .02, -.15, f.h + .18, -.12, 0x6d4c8a);pbox(g, .2, .25, .02, .2, f.h + .13, -.1, 0xe7e2d8);pcyl(g, .07, .07, .1, .3, f.h + .05, .05, 0xf3f3f3);g.userData.solid(f.w, f.h, f.d);},
-      foldingChair(g) {for (const x of [-.24, .24]) {pbox(g, .03, .9, .03, x, .45, -.2, 0x9a6a3a);pbox(g, .03, .6, .03, x, .3, .25, 0x9a6a3a);}const s = pbox(g, .48, .03, .55, 0, .42, 0, 0x7a5232);s.rotation.x = -.25;pbox(g, .5, .35, .15, 0, .55, .1, 0x2f3c6e);g.userData.solid(.55, .9, .6);},
+      desk(g, f) {pbox(g, f.w, .03, f.d, 0, .73, 0, f.color);for (const x of [-f.w / 2 + .04, f.w / 2 - .04]) for (const z of [-f.d / 2 + .04, f.d / 2 - .04]) pbox(g, .035, .72, .035, x, .36, z, 0x5a3a20);pbox(g, .9, .04, .28, 0, .765, .05, 0x1a1a1a);for (let i = 0; i < 14; i++) pbox(g, .05, .012, .14, -.4 + i * .062, .79, .08, 0xf4f4f4);pbox(g, .25, .15, .2, .4, .82, -.15, 0xb8442e);},
+      mirrorWardrobe(g, f) {pbox(g, f.w, f.h, f.d - .03, 0, f.h / 2, -.015, 0xefefea);for (const s of [-1, 1]) {const m = box(g, s > 0 ? .005 : -f.w / 2 + .02, f.d / 2 - .02, s > 0 ? f.w / 2 - .02 : -.005, f.d / 2 - .005, .05, f.h - .05, chrome);if (m) m.castShadow = false;}},
+      builtIn(g, f) {const h = CEIL;pbox(g, f.w, h, f.d - .02, 0, h / 2, -.01, 0xf1f0eb);for (const s of [-1, 1]) {pbox(g, f.w / 2 - .008, h - .02, .018, s * f.w / 4, h / 2, f.d / 2 - .01, 0xf6f5f1);pbox(g, .015, .3, .02, s * .05, 1.05, f.d / 2 + .01, 0xbfc3c6);}pbox(g, f.w, .006, .02, 0, 2.25, f.d / 2 + .002, 0xdedcd5);},
+      floorLamp(g) {pcyl(g, .14, .14, .02, 0, .01, 0, 0x222222);pcyl(g, .012, .012, 1.5, 0, .76, 0, 0x222222);const s = mesh(new T.CylinderGeometry(.13, .18, .24, 16, 1, true), glow, g);s.position.y = 1.55;s.castShadow = false;},
+      trolley(g) {for (const x of [-.22, .22]) for (const z of [-.16, .16]) pbox(g, .015, .8, .015, x, .4, z, 0x1b1b1b);for (const y of [.1, .42, .76]) pbox(g, .45, .02, .35, 0, y, 0, 0x1b1b1b);const bk = [0xd8c27a, 0x8a2f28, 0x2f4d6b, 0xe6e1d6, 0x3d5a3a];bk.forEach((c, i) => pbox(g, .03, .22, .2, -.15 + i * .05, .54, 0, c));pcyl(g, .07, .06, .12, .12, .84, 0, 0x6b4a2e);pbox(g, .18, .2, .18, .12, 1.0, 0, 0x3f7a3a);},
+      dresser(g, f) {pbox(g, f.w, f.h, f.d, 0, f.h / 2, 0, f.color);for (let i = 1; i < 3; i++) pbox(g, f.w - .04, .006, .01, 0, i * f.h / 3, f.d / 2 + .003, 0x3a3a3a);pbox(g, .3, .35, .02, -.15, f.h + .18, -.12, 0x6d4c8a);pbox(g, .2, .25, .02, .2, f.h + .13, -.1, 0xe7e2d8);pcyl(g, .07, .07, .1, .3, f.h + .05, .05, 0xf3f3f3);},
       kitchen(g, f) {
         const L = f.rect[3] - f.rect[1], D = f.rect[2] - f.rect[0], x0 = -L / 2, z0 = -D / 2;
         pbox(g, L, .1, D - .08, 0, .05, -.04, 0x111111);pbox(g, L, .765, D - .03, 0, .1 + .765 / 2, -.015, 0x1c1c1e);
@@ -15387,25 +15564,23 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
         for (const [cx, c] of [[-1.3, 0xd2b07a], [-.5, 0xc9a56e], [.3, 0xd2b07a], [1.1, 0xc9a56e]]) {pbox(g, .5, .28, .3, cx, 2.34, z0 + .17, c);pbox(g, .46, .02, .26, cx, 2.43, z0 + .17, 0x5a4a32);}
         for (const cx of [-1.0, 1.4]) {pcyl(g, .05, .07, .12, cx, 2.62, z0 + .2, 0x9aa0a4);pcyl(g, .01, .01, .3, cx, 2.45, z0 + .25, 0x9aa0a4);const b = mesh(new T.SphereGeometry(.04, 10, 8), glow, g);b.position.set(cx, 2.55, z0 + .2);b.castShadow = false;}
         pbox(g, 2.2, .015, .015, -.5, 1.42, z0 + .05, 0xc0c4c6);[[-1.4, .1, 0x1e1e1e], [-1.05, .13, 0x8a8f92], [-.7, .11, 0x8a8f92], [-.35, .14, 0x1e1e1e], [0, .12, 0x8a8f92], [.35, .1, 0x9e3b2c]].forEach(([px, r, c]) => {pcyl(g, r, r, .08, px, 1.2, z0 + .1, c, 14).rotation.x = Math.PI / 2;pbox(g, .015, .12, .015, px, 1.34, z0 + .05, 0xc0c4c6);});
-        g.userData.solid(L, .9, D);
+        
       },
-      pipe(g, f) {pcyl(g, .05, .05, f.h, 0, f.h / 2, 0, 0x9da3a6, 10);g.userData.solid(.12, f.h, .12);},
-      sideboard(g, f) {pbox(g, f.w, .03, f.d, 0, f.h, 0, 0x1a1a1a);pbox(g, f.w - .04, f.h - .2, f.d - .04, 0, (f.h - .2) / 2 + .18, 0, 0xc8a26a);for (let i = 0; i < 18; i++) pbox(g, .012, f.h - .22, .006, -f.w / 2 + .05 + i * (f.w - .1) / 17, (f.h - .2) / 2 + .18, f.d / 2 - .015, 0x9a7444);for (const x of [-f.w / 2 + .05, f.w / 2 - .05]) for (const z of [-f.d / 2 + .05, f.d / 2 - .05]) pbox(g, .02, .18, .02, x, .09, z, 0x111111);pbox(g, .3, .36, .4, -.15, f.h + .2, -.02, 0xb9bec1);pbox(g, .18, .2, .2, -.15, f.h + .3, .2, 0x2a2a2a);pcyl(g, .06, .06, .3, .3, f.h + .15, 0, 0x222222);g.userData.solid(f.w, f.h + .4, f.d);},
+      pipe(g, f) {pcyl(g, .05, .05, f.h, 0, f.h / 2, 0, 0x9da3a6, 10);},
+      sideboard(g, f) {pbox(g, f.w, .03, f.d, 0, f.h, 0, 0x1a1a1a);pbox(g, f.w - .04, f.h - .2, f.d - .04, 0, (f.h - .2) / 2 + .18, 0, 0xc8a26a);for (let i = 0; i < 18; i++) pbox(g, .012, f.h - .22, .006, -f.w / 2 + .05 + i * (f.w - .1) / 17, (f.h - .2) / 2 + .18, f.d / 2 - .015, 0x9a7444);for (const x of [-f.w / 2 + .05, f.w / 2 - .05]) for (const z of [-f.d / 2 + .05, f.d / 2 - .05]) pbox(g, .02, .18, .02, x, .09, z, 0x111111);pbox(g, .3, .36, .4, -.15, f.h + .2, -.02, 0xb9bec1);pbox(g, .18, .2, .2, -.15, f.h + .3, .2, 0x2a2a2a);pcyl(g, .06, .06, .3, .3, f.h + .15, 0, 0x222222);},
       records(g, f) {const s = .31;for (let i = 0; i < 9; i++) {const p = plane(g, s, s, artM, cellUV(4 + i));p.position.set(-s - .02 + (i % 3) * (s + .02), f.y + s / 2 + Math.floor(i / 3) * (s + .02), .006);}},
       diningTable(g, f) {
         pbox(g, f.w, .04, f.d, 0, .74, 0, 0x151515);for (const x of [-f.w / 2 + .06, f.w / 2 - .06]) for (const z of [-f.d / 2 + .08, f.d / 2 - .08]) pbox(g, .05, .72, .05, x, .36, z, 0x151515);
-        for (const side of [-1, 1]) for (const z of [-.62, 0, .62]) {const c = new T.Group();c.position.set(side * (f.w / 2 + .12), 0, z);c.rotation.y = side * Math.PI / 2;g.add(c);pbox(c, .42, .04, .42, 0, .45, 0, 0x1d1d1f);for (const x of [-.18, .18]) for (const zz of [-.18, .18]) pbox(c, .03, .45, .03, x, .225, zz, 0x1d1d1f);pbox(c, .42, .3, .03, 0, .72, .2, 0x1d1d1f);}
+        // Its six chairs are movable pieces of their own (data 'diningChair', game-rathkes-living.js).
         pcyl(g, .06, .05, .2, 0, .86, -.2, 0x2a6fd0);for (const [x, z, c] of [[0, -.2, 0xe0601f], [.06, -.14, 0xc0281f], [-.05, -.25, 0xf0a020]]) pbox(g, .1, .1, .1, x, 1.0, z, c);
-        g.userData.solid(f.w + .5, .9, f.d);
       },
       sofa(g, f) {
         const {w, d} = f, s = (ww, hh, dd, x, y, z) => box(g, x - ww / 2, z - dd / 2, x + ww / 2, z + dd / 2, y - hh / 2, y + hh / 2, sofaM);
         s(w, .2, d, 0, .25, 0);s(w, .5, .2, 0, .6, -d / 2 + .1);for (const x of [-w / 2 + .08, w / 2 - .08]) s(.16, .32, d, x, .48, 0);for (const x of [-.6, 0, .6]) s(.6, .12, d - .25, x, .41, .1);
         for (const x of [-w / 2 + .06, w / 2 - .06]) for (const z of [-d / 2 + .06, d / 2 - .06]) pbox(g, .03, .15, .03, x, .075, z, 0x6b4a2e);pbox(g, .5, .03, .7, .55, .49, .05, 0xb9bcbd);
-        g.userData.solid(w, .85, d);
+        
       },
-      coffeeTable(g, f) {box(g, -f.w / 2, -f.d / 2, f.w / 2, f.d / 2, f.h - .035, f.h, teak);for (const x of [-f.w / 2 + .05, f.w / 2 - .05]) for (const z of [-f.d / 2 + .05, f.d / 2 - .05]) pbox(g, .04, f.h - .035, .04, x, (f.h - .035) / 2, z, 0x6a3a1e);pbox(g, .3, .02, .22, -.2, f.h + .01, 0, 0xd8d0c0);g.userData.solid(f.w, f.h, f.d);},
-      slingChair(g) {for (const x of [-.32, .32]) {pbox(g, .05, .05, .85, x, .05, 0, 0x2a1a12);const a = pbox(g, .05, .05, .7, x, .45, -.05, 0x2a1a12);a.rotation.x = .5;pbox(g, .05, .45, .05, x, .27, .3, 0x2a1a12);}const s = pbox(g, .6, .03, .5, 0, .33, .12, 0x7a3e1e);s.rotation.x = .18;const bk = pbox(g, .6, .03, .5, 0, .58, -.22, 0x7a3e1e);bk.rotation.x = -1.0;g.userData.solid(.75, .8, .8);},
+      coffeeTable(g, f) {box(g, -f.w / 2, -f.d / 2, f.w / 2, f.d / 2, f.h - .035, f.h, teak);for (const x of [-f.w / 2 + .05, f.w / 2 - .05]) for (const z of [-f.d / 2 + .05, f.d / 2 - .05]) pbox(g, .04, f.h - .035, .04, x, (f.h - .035) / 2, z, 0x6a3a1e);pbox(g, .3, .02, .22, -.2, f.h + .01, 0, 0xd8d0c0);},
       wallUnit(g, f) {
         const w = f.w, z0 = -.175;for (let i = 0; i <= 4; i++) box(g, -w / 2 + i * w / 4 - .015, z0 - .02, -w / 2 + i * w / 4 + .015, z0 + .02, 0, 2.15, teak);
         const T2 = (x0, x1, y0, y1, d) => box(g, x0, z0, x1, z0 + d, y0, y1, teak);
@@ -15413,18 +15588,20 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
         for (const [a0, a1, y] of [[-w / 2, 0, 1.15], [-w / 2, w / 2, 1.5], [0, w / 2, 1.18], [-w / 2, -w / 4, 1.92], [0, w / 2, 1.95]]) T2(a0, a1, y, y + .025, .3);T2(-w / 4, 0, 1.6, 2.0, .35);
         for (let i = 0; i < 3; i++) pbox(g, w / 4 - .04, .005, .01, -w * 3 / 8, .42 + i * .16, z0 + .455, 0x4a2a14);
         const bk = [0x8c2f28, 0x2f4d6b, 0xd8cdb2, 0x3d5a3a, 0x1f1f22, 0xc9a24a, 0x6b4a7a, 0xe6e1d6];for (const [x0, y, n] of [[-w / 2 + .05, 1.175, 22], [.05, 1.205, 18], [-w / 2 + .1, 1.525, 14]]) for (let i = 0; i < n; i++) pbox(g, .028, .2 + (i % 3) * .02, .2, x0 + i * .032, y + .11, z0 + .12, bk[(i * 5) % bk.length]);
-        pbox(g, .38, .1, .32, w / 4 + .3, .9, z0 + .2, 0xb9bec1);pcyl(g, .14, .14, .01, w / 4 + .3, .955, z0 + .2, 0x111111, 18);
+        // The record player's plinth (its platter and tonearm, and the lava lamp on the shelf above, move: game-rathkes-living.js).
+        const rp = f.record || [w / 4 + .3, z0 + .2];pbox(g, .38, .1, .32, rp[0], .9, rp[1], 0xb9bec1);pbox(g, .05, .012, .05, rp[0] + .14, .956, rp[1] - .1, 0x2a2a2a);
         const sh = mesh(new T.CylinderGeometry(.09, .12, .14, 14, 1, true), glowOrange, g);sh.position.set(-w / 8, .92, z0 + .25);sh.castShadow = false;pcyl(g, .06, .07, .15, -w / 8, .82, z0 + .25, 0x1a1a1a);
-        const lava = mesh(new T.CylinderGeometry(.04, .06, .3, 12), lavaM, g);lava.position.set(w / 4 + .3, 1.36, z0 + .15);lava.castShadow = false;
         const wl = mesh(new T.CylinderGeometry(.1, .13, .16, 14, 1, true), glowOrange, g);wl.position.set(-w / 2 + .5, 2.1, z0 + .2);wl.castShadow = false;
-        g.userData.solid(w, .85, .45, 0, .425, z0 + .225);
+        
       },
-      tv(g) {pbox(g, .35, .5, .3, 0, .25, 0, 0x1b1b1b);pbox(g, 1.25, .74, .05, 0, .87, 0, 0x0c0c0c);const s = plane(g, 1.2, .68, screen);s.position.set(0, .87, .027);pbox(g, .25, .45, .25, .85, .225, -.05, 0x5a3a24);g.userData.solid(1.3, 1.25, .35);},
-      guitar(g) {const b = pcyl(g, .17, .17, .1, 0, .3, 0, 0xc98a4a, 16);b.rotation.x = Math.PI / 2;b.rotation.z = .12;pcyl(g, .13, .13, .1, 0, .58, 0, 0xc98a4a, 16).rotation.x = Math.PI / 2;pbox(g, .05, .55, .03, -.04, .95, 0, 0x3a2414);g.userData.solid(.35, 1.2, .15);},
-      plant(g, f) {pcyl(g, .14, .11, .25, 0, .125, 0, 0x2b2b2b, 14);for (let i = 0; i < 7; i++) {const l = pbox(g, .28, .02, .14, Math.cos(i) * .12, .3 + (i / 7) * f.h * .7, Math.sin(i * 2) * .12, i % 2 ? 0x2f6b2f : 0x3f8a3a);l.rotation.y = i * .9;l.rotation.z = .3;}g.userData.solid(.35, f.h, .35);},
-      shoeRack(g) {for (const y of [.08, .26, .44]) {pbox(g, .8, .012, .012, 0, y, -.1, 0x1b1b1b);pbox(g, .8, .012, .012, 0, y + .03, .1, 0x1b1b1b);}for (const x of [-.4, .4]) pbox(g, .015, .5, .25, x, .25, 0, 0x1b1b1b);[0xf0a020, 0x6a6a6a, 0xd94a2a, 0x2a2a2a, 0x8a7a6a, 0x3a5a8a].forEach((c, i) => pbox(g, .11, .08, .26, -.3 + (i % 3) * .28, .12 + Math.floor(i / 3) * .2, 0, c));g.userData.solid(.82, .5, .3);}
+      // The screen (a picture when it is on) is game-rathkes-living.js's.
+      tv(g) {pbox(g, .35, .5, .3, 0, .25, 0, 0x1b1b1b);pbox(g, 1.25, .74, .05, 0, .87, 0, 0x0c0c0c);pbox(g, .25, .45, .25, .85, .225, -.05, 0x5a3a24);},
+      guitar(g) {const b = pcyl(g, .17, .17, .1, 0, .3, 0, 0xc98a4a, 16);b.rotation.x = Math.PI / 2;b.rotation.z = .12;pcyl(g, .13, .13, .1, 0, .58, 0, 0xc98a4a, 16).rotation.x = Math.PI / 2;pbox(g, .05, .55, .03, -.04, .95, 0, 0x3a2414);},
+      plant(g, f) {pcyl(g, .14, .11, .25, 0, .125, 0, 0x2b2b2b, 14);for (let i = 0; i < 7; i++) {const l = pbox(g, .28, .02, .14, Math.cos(i) * .12, .3 + (i / 7) * f.h * .7, Math.sin(i * 2) * .12, i % 2 ? 0x2f6b2f : 0x3f8a3a);l.rotation.y = i * .9;l.rotation.z = .3;}},
+      shoeRack(g) {for (const y of [.08, .26, .44]) {pbox(g, .8, .012, .012, 0, y, -.1, 0x1b1b1b);pbox(g, .8, .012, .012, 0, y + .03, .1, 0x1b1b1b);}for (const x of [-.4, .4]) pbox(g, .015, .5, .25, x, .25, 0, 0x1b1b1b);[0xf0a020, 0x6a6a6a, 0xd94a2a, 0x2a2a2a, 0x8a7a6a, 0x3a5a8a].forEach((c, i) => pbox(g, .11, .08, .26, -.3 + (i % 3) * .28, .12 + Math.floor(i / 3) * .2, 0, c));}
     };
     for (const f of data.furniture) {
+      if (f.movable) continue;// the chairs: game-rathkes-living.js builds and moves them
       if (f.kind === 'kitchen') {K.kitchen(piece({at: [(f.rect[0] + f.rect[2]) / 2, (f.rect[1] + f.rect[3]) / 2], rot: f.rot}), f);continue;}
       const g = piece(f);if (K[f.kind]) K[f.kind](g, f);
     }
@@ -15472,11 +15649,558 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
     function tick(camera) {const p = camera.position, near = Math.hypot(p.x - centre.x, p.z - centre.z) < 70;if (near !== shown) {shown = near;inner.visible = near;backing.visible = !near;}}
     const yd = toW((S.yardDoor.a[0] + S.yardDoor.a[1]) / 2, data.yard[1] + 1.2);
     const stats = {meshes: 0, triangles: 0};group.traverse(o => {if (o.isMesh && o.material !== hidden) {stats.meshes++;const g = o.geometry;stats.triangles += (g.index ? g.index.count : g.attributes.position.count) / 3;}});
-    return {group, far, floors, obstacles: obstaclesW, doors, hitboxes, inside: (x, z, feet) => whereW(x, z, feet), lampAt: lampW, placeName, tick, stats, levels: lv, yardDoor: {x: yd.x, z: yd.z, y: lv.G}, frame: F, toWorld: toW,
+    // What game-rathkes-living.js (issue #116) builds with: the wing group (x = a, z = b, y absolute; shown only near), the
+    // palette helpers, the collision boxes in wing coordinates, world <-> wing conversions and the wing's heading in the world.
+    const w0 = toW(0, 0), w1 = toW(0, 1), kit = {wing: inner, always: wing, FL, pbox, pcyl, mesh, paint, palette, hidden, solids, toWing: wingOf, yaw: Math.atan2(w1.x - w0.x, w1.z - w0.z)};
+    return {group, far, floors, obstacles: obstaclesW, doors, hitboxes, inside: (x, z, feet) => whereW(x, z, feet), lampAt: lampW, placeName, tick, stats, levels: lv, yardDoor: {x: yd.x, z: yd.z, y: lv.G}, frame: F, toWorld: toW, kit,
       spawn: {flat: toW(5.05, 5.7), stairTop: toW(5.6, 7.1), FL}};
   }
 
-  return {frame, cut, levels, stairFloors, flatFloors, obstacles, where, lampAt, turnHeight, clipHalf, area, build};
+  return {frame, cut, levels, stairFloors, flatFloors, obstacles, where, lampAt, turnHeight, clipHalf, area, pieceToWing, furnitureSolids, SOLIDS, build};
+});
+</script><script>/* Rathkes gate 1C, flat 501 – the living room you can use (issue #116): the record player, the sofa and the TV, the chairs and
+ * the lava lamp. The user: "Make it possible to put on music on the lp player in rathkes gate. also allow to sit in the sofa
+ * and watch tv. fix the chair in the living room, allow to move the chairs around. Make it possible to turn on the lava lamp in
+ * the living room shelf."
+ *
+ * - LP player (on the teak wall unit): □ puts a record on – the arm swings in, the needle lands with a crackle, then the music
+ *   (game-music.js records lp1–lp4) plays from the player's place in the room; □ again: the next record, after the last: stop.
+ * - Sofa: □ sits you down facing the TV (three seats); there □ is the TV's button and ✕ stands you up.
+ * - TV: □ on – four channels – off; a moving picture (canvas texture), a quiet sound to match and a glow on the room.
+ * - Chairs (the six dining chairs, the leather sling chair, the folding chair in the navy bedroom): tap □ picks one up and you
+ *   carry it in front of you, □ puts it down there, turned the way you face (not through walls, furniture, other chairs or a
+ *   doorway); hold □ sits on it.
+ * - Lava lamp (on the shelf above the record player): □ on / off; it warms up, wax blobs rise and sink, a warm light.
+ * Everything is shared online through the lobby's small object store ('obj' messages: id -> value, kept for players who join
+ * later while the lobby lives; not saved between sessions).
+ *
+ * Pure (Node-tested): RECORDS, CHANNELS, cycle, nextRecord, recordPos, armAt, nextChannel, lavaWarm, CHAIRS, chairParts(kind),
+ *   chairBoxes(kind), boxesToWing(boxes, a, b, yaw), overlap(p, q), chairsOf(data), doorZones(data), canPlace(...), putPose(...),
+ *   seatsOf(data), hearing(at, dist), duckFor(lp, tv), snapYaw(yaw), items(data).
+ * Browser: create({T, lib, flat, data}) -> {hitboxes, attach(game), prompt(look, player), tick(dt, input), dynamic(), apply(id, v),
+ *   reset(), state, chairs, carrying}
+ */
+(function (root, factory) {
+  const api = factory();
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  else root.GameRathkesLiving = api;
+})(typeof window === 'undefined' ? globalThis : window, function () {
+  'use strict';
+  const F501 = () => (typeof window !== 'undefined' && window.GameRathkes501) || (typeof module === 'object' && require('./game-rathkes-501.js'));
+
+  // ---------- Records, channels and the timings that every player computes the same way ----------
+  const RECORDS = [
+    {track: 'lp1', title: 'Søndagsjazz', artist: 'Trio Herslebs', style: 'jazz trio', label: '#d8b04a', sleeve: '#26324a'},
+    {track: 'lp2', title: 'Bossa på Løkka', artist: 'Akerselva Kvartett', style: 'bossa nova', label: '#3f8f6a', sleeve: '#e9dcc0'},
+    {track: 'lp3', title: 'Lavalampe', artist: 'Disko Herslebs', style: 'soul and disco', label: '#d0405e', sleeve: '#f0a020'},
+    {track: 'lp4', title: 'Fjellvise', artist: 'Rathkes Spellemenn', style: 'folk waltz', label: '#3a6aa8', sleeve: '#c8d8c0'}];
+  const CHANNELS = [
+    {id: 'news', name: 'Løkka-TV Nyheter', light: 0x86a2ff},
+    {id: 'football', name: 'Fotball: Løkka – Torshov', light: 0x9fe6a6},
+    {id: 'nature', name: 'Naturfilm: Fjellet', light: 0xffd2a0},
+    {id: 'weather', name: 'Været i Oslo', light: 0x8fc8ff}];
+  // Putting a record on: the arm swings in for ARM_S seconds, the needle lands, the music starts LEAD_S after the press.
+  const ARM_S = 1.0, LEAD_S = 2.4, RPM = 100 / 3;
+  // off (-1 or nothing) -> 0 -> 1 -> ... -> n - 1 -> off
+  const cycle = (i, n) => i == null || i < 0 ? 0 : i + 1 >= n ? -1 : i + 1;
+  const nextRecord = (s, now) => ({r: cycle(s && s.r, RECORDS.length), t: now});
+  // Seconds into the record's music at `now` (ms, the lobby's clock); negative before it starts; null when nothing plays.
+  const recordPos = (s, now) => s && s.r >= 0 ? (now - s.t) / 1000 - LEAD_S : null;
+  // Where the tonearm is: 0 on its rest, 1 on the record (it swings over ARM_S seconds both ways).
+  // A record changed for the next one keeps the arm on the record (swap); a stop swings it back to its rest.
+  function armAt(s, now) {
+    if (!s) return 0;
+    const k = Math.max(0, Math.min(1, (now - s.t) / 1000 / ARM_S)), e = k * k * (3 - 2 * k);
+    return s.r >= 0 ? (s.swap ? 1 : e) : (s.was >= 0 ? 1 - e : 0);
+  }
+  const nextChannel = (s, now) => ({c: cycle(s && s.c, CHANNELS.length), t: now});
+  // How warm the lava lamp is (0..1): it takes about 8 s to get going and 5 s to fade.
+  function lavaWarm(s, now) {if (!s) return 0;const k = (now - s.t) / 1000;return s.on ? Math.min(1, k / 8) : Math.max(0, (s.from ?? 1) - k / 5);}
+
+  // ---------- Chairs (local frame: x across, y up, z = the front; a chair stands on y = 0) ----------
+  // A straight bar from [z0, y0] to [z1, y1] at x: thickness t (y), width w (x); rx tilts it in the y-z plane.
+  const bar = (x, [z0, y0], [z1, y1], t, w, c) => ({w, h: t, d: Math.hypot(z1 - z0, y1 - y0), x, y: (y0 + y1) / 2, z: (z0 + z1) / 2, rx: Math.atan2(-(y1 - y0), z1 - z0), c});
+  const bx = (w, h, d, x, y, z, c) => ({w, h, d, x, y, z, rx: 0, c});
+  const CHAIRS = {
+    // The black dining chairs: the back panel sits between two rear posts that run from the floor to the top.
+    diningChair: {name: 'chair', seat: .47, colour: 0x1d1d1f, parts(c) {
+      const out = [bx(.42, .04, .42, 0, .45, 0, c)];
+      for (const s of [-1, 1]) {out.push(bx(.03, .43, .03, s * .18, .215, .18, c), bx(.03, .9, .03, s * .18, .45, -.18, c), bx(.02, .02, .33, s * .18, .14, 0, c));}
+      out.push(bx(.33, .24, .022, 0, .75, -.18, c), bx(.33, .03, .022, 0, .56, -.18, c));
+      return out;
+    }, boxes: [[.44, .5, .44, 0, .25, 0], [.42, .92, .08, 0, .46, -.18]]},
+    // The leather sling chair (video 63 s): a dark wooden frame – front legs, rear legs that lean back into the back posts, arms,
+    // rails and stretchers – and a cognac leather sling hung from the front rail to the top of the back.
+    slingChair: {name: 'leather sling chair', seat: .36, colour: 0x3b2414, parts(c) {
+      const L = 0x8a4a22, out = [], rear = y => -.28 - .14 * y / .88;// the rear post's z at height y
+      for (const s of [-1, 1]) {
+        const x = s * .31;
+        out.push(bar(x, [.3, 0], [.3, .6], .045, .045, c), bar(x, [-.28, 0], [-.42, .88], .045, .045, c));
+        out.push(bar(x, [.34, .6], [rear(.6) - .015, .6], .05, .06, c), bar(x, [.3, .12], [rear(.12), .12], .03, .03, c));
+      }
+      for (const [y, z] of [[.4, .3], [.27, rear(.27)], [.84, rear(.84)], [.12, .3]]) out.push(bx(.665, .04, .04, 0, y, z, c));
+      const sling = [[.32, .36], [.31, .42], [.05, .33], [-.22, .3], [-.31, .37], [rear(.86), .86]];
+      for (let i = 0; i < sling.length - 1; i++) out.push(bar(0, sling[i], sling[i + 1], .014, .56, L));
+      for (const s of [-1, 1]) out.push(bar(s * .31, [.3, .615], [-.32, .615], .012, .07, L));// leather on the arms
+      return out;
+    }, boxes: [[.68, .62, .8, 0, .31, -.04], [.68, .9, .14, 0, .45, -.36]]},
+    // The wooden folding chair in the navy bedroom: back posts from the floor to the top rail, front legs up under the seat,
+    // stretchers, two back slats and a folded blue throw on the seat.
+    foldingChair: {name: 'folding chair', seat: .5, colour: 0x9a6a3a, parts(c) {
+      const S = 0x7a5232, post = y => -.24 + .09 * y / .92, out = [];
+      for (const s of [-1, 1]) out.push(bar(s * .21, [-.24, 0], [-.15, .92], .03, .03, c), bar(s * .18, [.24, .009], [-.12, .46], .03, .03, c));
+      out.push(bx(.44, .025, .42, 0, .465, .02, S), bx(.39, .025, .025, 0, .1, .24 - .36 * .1 / .46, c), bx(.45, .025, .025, 0, .1, post(.1), c));
+      for (const y of [.72, .84]) out.push(bx(.42, .07, .02, 0, y, post(y) + .01, c));
+      out.push(bx(.36, .04, .26, 0, .4975, .03, 0x2f3c6e));
+      return out;
+    }, boxes: [[.48, .52, .52, 0, .26, 0], [.48, .95, .1, 0, .475, -.2]]}
+  };
+  const chairParts = kind => CHAIRS[kind].parts(CHAIRS[kind].colour);
+  const chairBoxes = kind => CHAIRS[kind].boxes;
+  // The axis-aligned box round a part (rx tilts it about x).
+  function partBounds(p) {const c = Math.abs(Math.cos(p.rx)), s = Math.abs(Math.sin(p.rx)), hy = p.h / 2 * c + p.d / 2 * s, hz = p.h / 2 * s + p.d / 2 * c;return {x0: p.x - p.w / 2, x1: p.x + p.w / 2, y0: p.y - hy, y1: p.y + hy, z0: p.z - hz, z1: p.z + hz};}
+  // Boxes [w, h, d, x, y, z] in a piece's frame -> {pts, minY, maxY} in wing coordinates at (a, b) turned by yaw (three.js y).
+  function boxesToWing(boxes, a, b, yaw, FL = 0) {
+    const c = Math.cos(yaw), s = Math.sin(yaw);
+    return boxes.map(([w, h, d, x = 0, y = h / 2, z = 0]) => ({minY: FL + y - h / 2, maxY: FL + y + h / 2,
+      pts: [[-w / 2, -d / 2], [w / 2, -d / 2], [w / 2, d / 2], [-w / 2, d / 2]].map(([px, pz]) => [a + (x + px) * c + (z + pz) * s, b - (x + px) * s + (z + pz) * c])}));
+  }
+  // Two convex polygons ([[a, b]...]) overlap by more than `tol` (separating axes).
+  function overlap(p, q, tol = .005) {
+    for (const poly of [p, q]) for (let i = 0; i < poly.length; i++) {
+      const [ax, az] = poly[i], [bx2, bz] = poly[(i + 1) % poly.length], nx = -(bz - az), nz = bx2 - ax, l = Math.hypot(nx, nz) || 1;
+      const pa = p.map(([x, z]) => (x * nx + z * nz) / l), qa = q.map(([x, z]) => (x * nx + z * nz) / l);
+      if (Math.max(...pa) <= Math.min(...qa) + tol || Math.max(...qa) <= Math.min(...pa) + tol) return false;
+    }
+    return true;
+  }
+  const solidsMeet = (A, B) => A.some(p => B.some(q => p.maxY > q.minY + .005 && q.maxY > p.minY + .005 && overlap(p.pts, q.pts)));
+  // The flat's chairs: every movable piece of furniture, with its place as the video has it.
+  const chairsOf = data => data.furniture.filter(f => f.movable && CHAIRS[f.kind]).map((f, i) => ({i, id: `r501-chair-${i}`, kind: f.kind, home: {a: f.at[0], b: f.at[1], y: (f.rot || 0) * Math.PI / 2}}));
+  // Keep clear: the floor on both sides of every doorway (the doors swing there, people walk through), as wide as the door.
+  function doorZones(data) {
+    const out = [], R = data.stair.room;
+    for (const w of data.walls) for (const o of w.openings || []) {
+      const r = w.rect, alongA = r[2] - r[0] > r[3] - r[1], d = Math.min(.9, o.at[1] - o.at[0]);
+      out.push(alongA ? [o.at[0] - .05, r[1] - d, o.at[1] + .05, r[3] + d] : [r[0] - d, o.at[0] - .05, r[2] + d, o.at[1] + .05]);
+    }
+    const e = data.entrance;out.push([e.at[0] - .05, R[1] - .12 - .95, e.at[1] + .05, R[1]]);
+    return out;
+  }
+  const rectPoly = r => [[r[0], r[1]], [r[2], r[1]], [r[2], r[3]], [r[0], r[3]]];
+  const roomOf = (data, a, b, m = 0) => data.rooms.find(r => a > r.rect[0] + m && a < r.rect[2] - m && b > r.rect[1] + m && b < r.rect[3] - m);
+  // May the chair stand at (a, b) turned by yaw? ctx: {data, solids (furniture, wing coordinates, y from the floor),
+  // others: [{kind, a, b, y}], player: [a, b] (it must be in the same room)}. -> {ok, why}
+  function canPlace(ctx, kind, a, b, yaw) {
+    const {data} = ctx, mine = boxesToWing(chairBoxes(kind), a, b, yaw), pts = mine.flatMap(m => m.pts);
+    const room = roomOf(data, a, b);
+    if (!room || !pts.every(([x, z]) => x > room.rect[0] + .015 && x < room.rect[2] - .015 && z > room.rect[1] + .015 && z < room.rect[3] - .015)) return {ok: false, why: 'wall'};
+    if (ctx.player && roomOf(data, ctx.player[0], ctx.player[1], -.05) !== room) return {ok: false, why: 'wall'};
+    if (data.walls.some(w => solidsMeet(mine, [{pts: rectPoly(w.rect), minY: -1, maxY: 4}]))) return {ok: false, why: 'wall'};
+    if (doorZones(data).some(z => solidsMeet(mine, [{pts: rectPoly(z), minY: -1, maxY: 4}]))) return {ok: false, why: 'door'};
+    if (solidsMeet(mine, ctx.solids || [])) return {ok: false, why: 'furniture'};
+    for (const o of ctx.others || []) if (solidsMeet(mine, boxesToWing(chairBoxes(o.kind), o.a, o.b, o.y))) return {ok: false, why: 'chair'};
+    return {ok: true};
+  }
+  // Where a chair goes when you put it down: in front of you (its back toward you), turned the way you face, in 15° steps.
+  const snapYaw = y => {const s = Math.PI / 12;return Math.round(y / s) * s;};
+  function putPose(kind, pa, pb, faceYaw) {
+    const back = Math.max(...chairBoxes(kind).map(([, , d, , , z = 0]) => d / 2 - z)), reach = .24 + back, y = snapYaw(faceYaw);
+    return {a: pa + Math.sin(faceYaw) * reach, b: pb + Math.cos(faceYaw) * reach, y};
+  }
+  // The sofa's three seats (wing coordinates, seat height from the floor), each turned to face the TV.
+  function seatsOf(data) {
+    const F = F501(), sofa = data.furniture.find(f => f.kind === 'sofa'), tv = data.furniture.find(f => f.kind === 'tv');if (!sofa || !tv) return [];
+    const [ta, tb] = F.pieceToWing(tv, 0, 0);
+    return [-.6, 0, .6].map((x, i) => {const [a, b] = F.pieceToWing(sofa, x * sofa.w / 2.1, .12), [sa, sb] = F.pieceToWing(sofa, x * sofa.w / 2.1, sofa.d / 2 + .3);return {i, id: 100 + i, a, b, seat: .47, yaw: Math.atan2(ta - a, tb - b), stand: [sa, sb]};});
+  }
+  // How loud the record or the TV is where you are: at full in the living room (less with distance), a little through the
+  // doorway in the flat's other rooms (muffled), nothing outside the flat.
+  function hearing(at, dist) {
+    if (!at || at.place !== 'flat') return {gain: 0, muffle: 1};
+    if (at.room === 'living') return {gain: Math.min(1, 1.6 / (1 + dist)), muffle: 0};
+    return {gain: .3 * Math.min(1, 2.5 / (1 + dist)), muffle: .85};
+  }
+  // The soundtrack steps back while a record (much) or the TV (a little) is heard.
+  const duckFor = (lp, tv) => Math.max(.1, 1 - .9 * Math.min(1, lp * 1.5)) * (1 - .4 * Math.min(1, tv * 1.5));
+  // Every thing you can use in the room, with its place (wing coordinates, height from the floor) for the tests and hit boxes.
+  function items(data) {
+    const F = F501(), wu = data.furniture.find(f => f.kind === 'wallUnit'), tv = data.furniture.find(f => f.kind === 'tv'), sofa = data.furniture.find(f => f.kind === 'sofa');
+    const at = (f, x, z, y, name, size) => {const [a, b] = F.pieceToWing(f, x, z);return {name, a, b, y, size};};
+    return [at(wu, wu.record[0], wu.record[1], .95, 'record player', [.5, .3, .45]), at(wu, wu.lava[0], wu.lava[1], 1.37, 'lava lamp', [.24, .44, .24]),
+      at(tv, 0, 0, .87, 'TV', [1.3, .8, .3]), at(sofa, 0, 0, .45, 'sofa', [sofa.w, .9, sofa.d]),
+      ...chairsOf(data).map(c => ({name: CHAIRS[c.kind].name, a: c.home.a, b: c.home.b, y: .45, size: [.6, .9, .6], chair: c}))];
+  }
+
+  // ---------- Browser ----------
+  function create({T, lib, flat, data}) {
+    const F = F501(), K = flat.kit, FL = K.FL, W = (a, b) => flat.toWorld(a, b), hitboxes = [], disposables = [];
+    const hitbox = (parent, w, h, d, x, y, z, ud) => {const m = new T.Mesh(new T.BoxGeometry(w, h, d), K.hidden);m.position.set(x, y, z);m.userData = {...ud, keep: true, noMerge: true};parent.add(m);hitboxes.push(m);return m;};
+    const piece = f => {const g = new T.Group(), [a, b] = F.pieceToWing(f, 0, 0);g.position.set(a, FL, b);g.rotation.y = (f.rot || 0) * Math.PI / 2;g.userData.noMerge = true;K.wing.add(g);return g;};
+    const noShadow = g => g.traverse(o => {if (o.isMesh) o.castShadow = false;});
+    const state = {lp: null, tv: null, lava: null, chairs: {}};
+    let game = null;// set by attach(): the game's hooks
+    const now = () => game ? game.now() : Date.now();
+
+    // ---- Chairs: one merged mesh each, moved as a whole.
+    const chairs = chairsOf(data).map(c => {
+      const g = new T.Group();g.userData.noMerge = true;K.wing.add(g);
+      for (const p of chairParts(c.kind)) {const m = K.pbox(g, p.w, p.h, p.d, p.x, p.y, p.z, p.c);m.rotation.x = p.rx;}
+      lib.mergeStatic(g);noShadow(g);
+      const box = chairBoxes(c.kind), hb = hitbox(g, .62, .95, .62, 0, .47, -.04, {r501: 'chair', chair: c.i});hb.userData.partName = CHAIRS[c.kind].name;
+      return {...c, g, pose: {...c.home}, box, hb};
+    });
+    const poseChair = (ch, a, b, yaw, lift = 0) => {ch.g.position.set(a, FL + lift, b);ch.g.rotation.y = yaw;};
+    chairs.forEach(ch => poseChair(ch, ch.pose.a, ch.pose.b, ch.pose.y));
+
+    // ---- The record player: platter with the record, spindle, tonearm (on the wall unit's record player plinth).
+    const wu = data.furniture.find(f => f.kind === 'wallUnit'), lpG = piece(wu);
+    const lpTop = new T.Group();lpTop.position.set(wu.record[0], .95, wu.record[1]);lpG.add(lpTop);
+    const platter = new T.Group();platter.position.set(-.03, 0, 0);lpTop.add(platter);
+    const matM = new T.MeshStandardMaterial({color: 0x2a2a2e, roughness: .9}), metal = new T.MeshStandardMaterial({color: 0xc9ccd0, roughness: .3, metalness: .8});
+    {const m = new T.Mesh(new T.CylinderGeometry(.145, .145, .012, 40), matM);m.position.y = .006;platter.add(m);}
+    const labels = RECORDS.map((r, i) => {
+      const c = document.createElement('canvas');c.width = c.height = 256;const g = c.getContext('2d');
+      g.fillStyle = '#0b0b0d';g.fillRect(0, 0, 256, 256);g.strokeStyle = 'rgba(255,255,255,.06)';for (let k = 60; k < 128; k += 3) {g.beginPath();g.arc(128, 128, k, 0, 7);g.stroke();}
+      g.fillStyle = r.label;g.beginPath();g.arc(128, 128, 46, 0, 7);g.fill();g.fillStyle = '#fff';g.font = 'bold 13px Georgia';g.textAlign = 'center';g.fillText(r.title, 128, 116);g.font = '10px Georgia';g.fillText(r.artist, 128, 148);
+      g.fillStyle = '#111';g.beginPath();g.arc(128, 128, 4, 0, 7);g.fill();
+      const t = new T.CanvasTexture(c);t.colorSpace = T.SRGBColorSpace;t.anisotropy = 4;disposables.push(t);return t;
+    });
+    const vinylSide = new T.MeshStandardMaterial({color: 0x0b0b0d, roughness: .35}), vinylTop = new T.MeshStandardMaterial({map: labels[0], roughness: .28, metalness: .1});
+    const disc = new T.Mesh(new T.CylinderGeometry(.15, .15, .004, 48), [vinylSide, vinylTop, vinylSide]);disc.position.y = .014;disc.visible = false;platter.add(disc);
+    {const m = new T.Mesh(new T.CylinderGeometry(.004, .004, .03, 8), metal);m.position.y = .02;platter.add(m);}
+    const arm = new T.Group();arm.position.set(.14, .012, -.1);lpTop.add(arm);// pivot over the plinth's arm base
+    const armLift = new T.Group();arm.add(armLift);
+    {
+      const post = new T.Mesh(new T.CylinderGeometry(.012, .014, .04, 12), metal);post.position.y = .02;arm.add(post);
+      const tube = new T.Mesh(new T.CylinderGeometry(.0045, .0045, .235, 8), metal);tube.rotation.x = Math.PI / 2;tube.position.set(0, .045, .1175);armLift.add(tube);
+      const head = new T.Mesh(new T.BoxGeometry(.018, .008, .04), new T.MeshStandardMaterial({color: 0x1a1a1a, roughness: .5}));head.position.set(-.006, .04, .245);head.rotation.y = .35;armLift.add(head);
+      const weight = new T.Mesh(new T.CylinderGeometry(.016, .016, .03, 14), metal);weight.rotation.x = Math.PI / 2;weight.position.set(0, .045, -.05);armLift.add(weight);
+      lib.mergeStatic(armLift);
+      const rest = new T.Mesh(new T.BoxGeometry(.012, .035, .012), matM);rest.position.set(0, .018, .235);lpTop.add(rest);rest.position.add(arm.position);
+    }
+    noShadow(lpG);
+    hitbox(lpTop, .5, .3, .45, 0, .05, 0, {r501: 'lp', partName: 'Record player'});
+
+    // ---- The lava lamp on the shelf above.
+    const lavaG = new T.Group();lavaG.position.set(wu.lava[0], 1.205, wu.lava[1]);lpG.add(lavaG);
+    const lavaBase = new T.MeshStandardMaterial({color: 0x7a5a2e, roughness: .3, metalness: .75});
+    const liquid = new T.MeshStandardMaterial({color: 0xff9440, emissive: 0xff7a20, emissiveIntensity: 0, transparent: true, opacity: .42, roughness: .08, depthWrite: false});
+    const wax = new T.MeshStandardMaterial({color: 0xc8143c, emissive: 0xff1e46, emissiveIntensity: 0, roughness: .45});
+    {
+      const base = new T.Mesh(new T.CylinderGeometry(.04, .068, .13, 24), lavaBase);base.position.y = .065;lavaG.add(base);
+      const cap = new T.Mesh(new T.CylinderGeometry(.016, .033, .07, 20), lavaBase);cap.position.y = .13 + .27 + .035;lavaG.add(cap);
+    }
+    const glass = new T.Mesh(new T.CylinderGeometry(.033, .054, .27, 24, 1, true), liquid);glass.position.y = .13 + .135;glass.renderOrder = 2;lavaG.add(glass);
+    const glassR = (y) => .054 - (.054 - .033) * Math.max(0, Math.min(1, (y - .13) / .27));// inside radius at height y
+    // The wax: five blobs in one instanced mesh (one draw), moved and stretched every frame.
+    const blobMesh = new T.InstancedMesh(new T.SphereGeometry(1, 14, 10), wax, 5);blobMesh.frustumCulled = false;lavaG.add(blobMesh);
+    const blobs = [[.03, .0, 31, 0], [.024, 1.7, 37, .008], [.02, 3.1, 26, -.006], [.026, 4.4, 43, .004], [.017, 5.6, 29, -.003]].map(([r, ph, period, off]) => ({r, ph, period, off}));
+    const bM = new T.Matrix4(), bP = new T.Vector3(), bS = new T.Vector3(), bQ = new T.Quaternion();
+    function moveBlobs(warm, tSec) {
+      for (const b of blobs) {
+        const k = warm * (.5 - .5 * Math.cos((tSec / b.period + b.ph) * Math.PI * 2)), y = .15 + b.r + k * (.36 - .15 - 2 * b.r), r = glassR(y) - b.r - .004;
+        bP.set(Math.max(-r, Math.min(r, b.off + Math.sin(tSec * .3 + b.ph) * .006 * warm)), y, Math.max(-r, Math.min(r, Math.cos(tSec * .27 + b.ph) * .006 * warm)));
+        const stretch = 1 + .35 * warm * Math.abs(Math.sin((tSec / b.period + b.ph) * Math.PI * 2));bS.set(b.r / Math.sqrt(stretch), b.r * stretch, b.r / Math.sqrt(stretch));blobMesh.setMatrixAt(blobs.indexOf(b), bM.compose(bP, bQ, bS));
+      }
+      blobMesh.instanceMatrix.needsUpdate = true;
+    }
+    moveBlobs(0, 0);
+    const pool = new T.Mesh(new T.CylinderGeometry(.045, .05, .018, 20), wax);pool.position.y = .139;lavaG.add(pool);
+    noShadow(lavaG);
+    hitbox(lavaG, .24, .44, .24, 0, .22, 0, {r501: 'lava', partName: 'Lava lamp'});
+
+    // ---- The TV's screen (a canvas picture) and the sofa.
+    const tvF = data.furniture.find(f => f.kind === 'tv'), tvG = piece(tvF), CW = 320, CH = 180;
+    const tvCanvas = document.createElement('canvas');tvCanvas.width = CW;tvCanvas.height = CH;const tvc = tvCanvas.getContext('2d');
+    const tvTex = new T.CanvasTexture(tvCanvas);tvTex.colorSpace = T.SRGBColorSpace;disposables.push(tvTex);
+    const screenM = new T.MeshStandardMaterial({color: 0x07080a, roughness: .2, metalness: .15, emissive: 0xffffff, emissiveMap: tvTex, emissiveIntensity: 0});
+    const screen = new T.Mesh(new T.PlaneGeometry(1.2, .68), screenM);screen.position.set(0, .87, .027);screen.castShadow = false;tvG.add(screen);
+    hitbox(tvG, 1.3, .8, .3, 0, .87, 0, {r501: 'tv', partName: 'TV'});
+    const sofaF = data.furniture.find(f => f.kind === 'sofa'), sofaG = piece(sofaF);
+    hitbox(sofaG, sofaF.w, .75, sofaF.d, 0, .42, 0, {r501: 'sofa', partName: 'Sofa'});
+    const seats = seatsOf(data);
+
+    // ---- Lights: present from the start (no shaders recompile), intensity 0 while off. In the wing group, which is always shown.
+    const lavaLight = new T.PointLight(0xff6a3a, 0, 3.4, 1.6), tvLight = new T.PointLight(0x9fb4ff, 0, 5, 1.6);
+    {const [a, b] = F.pieceToWing(wu, wu.lava[0] + 0, wu.lava[1] + .12);lavaLight.position.set(a, FL + 1.42, b);const [ta, tb] = F.pieceToWing(tvF, 0, .7);tvLight.position.set(ta, FL + .95, tb);}
+    K.always.add(lavaLight, tvLight);
+
+    // ---------- State changes (local or from the lobby) ----------
+    const send = (id, v) => {if (game) game.send(id, v);};
+    // Local presses come in as {r, t}; the lobby passes on what was sent ({r, t, swap} or {r: -1, t, was}).
+    function setLp(v, fromNet) {
+      const before = state.lp, wasOn = before && before.r >= 0;
+      if (!v) state.lp = null;
+      else if (fromNet) state.lp = v;
+      else state.lp = v.r >= 0 ? {r: v.r, t: v.t, ...(wasOn ? {swap: 1} : {})} : {r: -1, t: v.t, was: wasOn ? before.r : -1};
+      if (state.lp && state.lp.r >= 0) vinylTop.map = labels[state.lp.r];
+      else if (state.lp && state.lp.was >= 0) vinylTop.map = labels[state.lp.was];
+      if (!fromNet && game && state.lp) {const r = RECORDS[state.lp.r];game.notice(r ? `♪ ${r.title} – ${r.artist} (${r.style})` : 'The record player stops.', 3);}
+    }
+    function setTv(v, quiet) {state.tv = v && v.c >= 0 ? v : null;tvDrawT = 0;audioState.tvChannel = null;if (!quiet && game) game.notice(state.tv ? `📺 ${CHANNELS[state.tv.c].name}` : 'The TV is off.', 2.5);}
+    function setLava(v, quiet) {const w = lavaWarm(state.lava, now());state.lava = v ? {...v, from: v.on ? 0 : (v.from ?? w)} : null;if (!quiet && game) game.notice(v && v.on ? 'The lava lamp is warming up…' : 'The lava lamp cools down.', 2.5);}
+    function setChair(i, v, fromNet) {
+      const ch = chairs[i];if (!ch) return;
+      const pose = v ? {a: v.a, b: v.b, y: v.y} : {...ch.home};ch.pose = pose;ch.by = v && v.by ? v.by : 0;
+      if (fromNet && carrying && carrying.i === i && ch.by !== (game ? game.you() : 0)) {carrying = null;if (game) game.notice('Somebody else took the chair.', 2.5);}
+      if (!carrying || carrying.i !== i) poseChair(ch, pose.a, pose.b, pose.y);
+      if (game) game.solidsChanged();
+    }
+    function apply(id, v, fromNet = true) {
+      if (id === 'r501-lp') setLp(v, fromNet);
+      else if (id === 'r501-tv') setTv(v, fromNet);
+      else if (id === 'r501-lava') setLava(v, fromNet);
+      else {const m = /^r501-chair-(\d+)$/.exec(id);if (m) setChair(+m[1], v, fromNet);}
+    }
+    // A new lobby: everything back as in the video, then the lobby's own state.
+    function reset() {if (carrying) carrying = null;setLp(null, true);setTv(null, true);setLava(null, true);chairs.forEach(ch => setChair(ch.i, null, false));}
+    // Alone in a new, empty lobby: send up what you changed while offline (a carried chair goes back first).
+    function publish() {
+      if (carrying) dropBack();
+      if (state.lp) send('r501-lp', state.lp);if (state.tv) send('r501-tv', state.tv);if (state.lava) send('r501-lava', state.lava);
+      for (const ch of chairs) if (Math.hypot(ch.pose.a - ch.home.a, ch.pose.b - ch.home.b) > .01 || Math.abs(ch.pose.y - ch.home.y) > .01) send(ch.id, roundPose(ch.pose));
+    }
+
+    // ---------- Using things ----------
+    let carrying = null, pending = null;
+    const HOLD_S = .4, CARRY_LIFT = .45;// hold □ this long to sit; a carried chair is held this high (you see it in front of you)
+    const playerWing = p => K.toWing(p.x, p.z);
+    const faceWing = yaw => yaw + Math.PI - K.yaw;// the player's view yaw -> a wing yaw whose +z is where they look
+    const solidsFor = () => K.solids.map(s => ({pts: s.pts, minY: s.minY - FL, maxY: s.maxY - FL}));
+    const othersOf = i => chairs.filter(c => c.i !== i).map(c => ({kind: c.kind, a: c.pose.a, b: c.pose.b, y: c.pose.y}));
+    function placeCheck(p) {
+      const [pa, pb] = playerWing(p), pose = putPose(carrying.ch.kind, pa, pb, faceWing(p.yaw));
+      if (Math.abs(p.feet - FL) > .4) return {ok: false, why: 'wall', pose};
+      return {...canPlace({data, solids: solidsFor(), others: othersOf(carrying.i), player: [pa, pb]}, carrying.ch.kind, pose.a, pose.b, pose.y), pose};
+    }
+    const WHY = {wall: 'a wall is in the way', door: 'keep the doorway clear', furniture: 'furniture is in the way', chair: 'another chair is there'};
+    function pickUp(i) {
+      const ch = chairs[i];if (!ch || (ch.by && game.remoteHas(ch.by))) {game.notice('Somebody is carrying that chair.', 2);return;}
+      if (game.sitTaken(200 + i)) {game.notice('Somebody is sitting on it.', 2);return;}
+      carrying = {i, ch, from: {...ch.pose}};ch.by = game.you() || -1;
+      game.audio('scrape', {gain: .35});game.notice(`You carry the ${CHAIRS[ch.kind].name} · □ put it down (in front of you, turned the way you face)`, 3.5);
+      send(ch.id, {...roundPose(ch.pose), by: game.you()});game.solidsChanged();
+    }
+    const roundPose = p => ({a: Math.round(p.a * 100) / 100, b: Math.round(p.b * 100) / 100, y: Math.round(p.y * 1000) / 1000});
+    function putDown(p) {
+      const c = placeCheck(p);if (!c.ok) {game.notice(`Not here – ${WHY[c.why]}.`, 2);game.audio('locked');return false;}
+      const ch = carrying.ch;carrying = null;ch.by = 0;ch.pose = roundPose(c.pose);poseChair(ch, ch.pose.a, ch.pose.b, ch.pose.y);
+      game.audio('thud', {gain: .4});send(ch.id, ch.pose);game.solidsChanged();return true;
+    }
+    function dropBack(why) {if (!carrying) return;const ch = carrying.ch;ch.pose = carrying.from;ch.by = 0;carrying = null;poseChair(ch, ch.pose.a, ch.pose.b, ch.pose.y);send(ch.id, roundPose(ch.pose));game.solidsChanged();if (why) game.notice(why, 3);}
+    function sitOnChair(i) {
+      const ch = chairs[i], k = CHAIRS[ch.kind];if (game.sitTaken(200 + i)) {game.notice('Somebody is sitting there.', 2);return;}
+      // Stand up in front of the chair, or behind or beside it when that is taken (a dining chair faces its table).
+      const c = Math.cos(ch.pose.y), s = Math.sin(ch.pose.y), seat = W(ch.pose.a + s * .02, ch.pose.b + c * .02), solids = solidsFor(), others = othersOf(i);
+      const free = ([a, b]) => {const me = [{pts: rectPoly([a - .2, b - .2, a + .2, b + .2]), minY: 0, maxY: 1.7}];return !!roomOf(data, a, b, .2) && !solidsMeet(me, solids) && !others.some(o => solidsMeet(me, boxesToWing(chairBoxes(o.kind), o.a, o.b, o.y)));};
+      const spots = [[.55, 0], [-.7, 0], [0, .6], [0, -.6]].map(([f, r]) => [ch.pose.a + s * f + c * r, ch.pose.b + c * f - s * r]), st = W(...(spots.find(free) || spots[0]));
+      const look = W(ch.pose.a + s, ch.pose.b + c), yaw = Math.atan2(-(look.x - seat.x), -(look.z - seat.z));
+      game.sit({x: seat.x, y: FL + k.seat, z: seat.z, yaw, id: 200 + i, stand: {x: st.x, z: st.z, y: FL}, pitch: -.15, note: `On the ${k.name} · □ / ✕ stand up`});
+    }
+    function sitOnSofa(p) {
+      const [pa, pb] = playerWing(p), free = seats.filter(s => !game.sitTaken(s.id)).sort((x, y) => Math.hypot(x.a - pa, x.b - pb) - Math.hypot(y.a - pa, y.b - pb))[0];
+      if (!free) {game.notice('The sofa is full.', 2);return;}
+      const w = W(free.a, free.b), st = W(...free.stand), look = W(free.a + Math.sin(free.yaw), free.b + Math.cos(free.yaw));
+      game.sit({x: w.x, y: FL + free.seat, z: w.z, yaw: Math.atan2(-(look.x - w.x), -(look.z - w.z)), id: free.id, stand: {x: st.x, z: st.z, y: FL}, pitch: -.12,
+        note: 'On the sofa · □ / E the TV (on, next channel, off) · ✕ / Space stand up', prompt: () => ({text: `□ ${tvText()} · ✕ stand up`}), square: () => useTv()});
+    }
+    function useLp() {const v = nextRecord(state.lp, now());setLp(v, false);send('r501-lp', state.lp);game.audio('click');}
+    function useTv() {const v = nextChannel(state.tv, now());setTv(v.c >= 0 ? v : null, false);send('r501-tv', state.tv);game.audio('click');}
+    function useLava() {const on = !(state.lava && state.lava.on);setLava({on, t: now()}, false);send('r501-lava', state.lava);game.audio('click');}
+    const lpText = () => {const n = cycle(state.lp && state.lp.r, RECORDS.length);return n < 0 ? 'Stop the record' : `${state.lp && state.lp.r >= 0 ? 'Next record' : 'Put on a record'}: «${RECORDS[n].title}» – ${RECORDS[n].artist}`;};
+    const tvText = () => {const n = cycle(state.tv && state.tv.c, CHANNELS.length);return n < 0 ? 'Turn off the TV' : `${state.tv ? 'TV: next channel' : 'Turn on the TV'} (${CHANNELS[n].name})`;};
+    // The prompt for what you look at (on foot), or for the chair in your hands.
+    function prompt(look, p) {
+      if (!game) return null;
+      if (carrying) {const c = placeCheck(p);return {text: c.ok ? `□ Put the ${CHAIRS[carrying.ch.kind].name} down` : `Carrying the ${CHAIRS[carrying.ch.kind].name} · not here: ${WHY[c.why]}`, act: () => putDown(p)};}
+      const u = look && look.userData;if (!u || !u.r501) return null;
+      if (u.r501 === 'lp') return {text: `□ ${lpText()}`, act: useLp};
+      if (u.r501 === 'tv') return {text: `□ ${tvText()}`, act: useTv};
+      if (u.r501 === 'lava') return {text: `□ ${state.lava && state.lava.on ? 'Turn off' : 'Turn on'} the lava lamp`, act: useLava};
+      if (u.r501 === 'sofa') return {text: `□ Sit on the sofa${state.tv ? '' : ' (□ there turns on the TV)'}`, act: () => sitOnSofa(p)};
+      if (u.r501 === 'chair') {const ch = chairs[u.chair];if (ch.by && game.remoteHas(ch.by)) return {text: `${game.nameOf(ch.by)} is carrying the ${CHAIRS[ch.kind].name}`, act: () => {}};return {text: `□ Pick up the ${CHAIRS[ch.kind].name} · hold □ sit on it`, act: () => {pending = {i: u.chair, t: performance.now()};}};}
+      return null;
+    }
+
+    // ---------- Sound: the record and the TV come from their places in the room ----------
+    const audioState = {chain: null, tv: null, lpKey: null, tvChannel: null};
+    const lpWorld = W(...F.pieceToWing(wu, wu.record[0], wu.record[1])), tvWorld = W(...F.pieceToWing(tvF, 0, .1));
+    function spatial(ctx) {
+      const input = ctx.createGain(), lp = ctx.createBiquadFilter(), pan = ctx.createStereoPanner(), gain = ctx.createGain(), comp = ctx.createDynamicsCompressor();
+      lp.type = 'lowpass';lp.frequency.value = 18000;gain.gain.value = 0;comp.threshold.value = -14;comp.ratio.value = 4;
+      input.connect(lp).connect(pan).connect(gain).connect(comp).connect(ctx.destination);
+      return {input, lp, pan, gain, set(g, p, muffle, t) {gain.gain.setTargetAtTime(g, t, .15);pan.pan.setTargetAtTime(p, t, .15);lp.frequency.setTargetAtTime(muffle > .5 ? 700 : 18000, t, .2);}};
+    }
+    // The TV's sound: a quiet bed made from noise and a few oscillators, shaped per channel.
+    function tvSound(ctx, out) {
+      const noise = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate), nd = noise.getChannelData(0);for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+      const src = ctx.createBufferSource();src.buffer = noise;src.loop = true;src.start();
+      const f1 = ctx.createBiquadFilter(), f2 = ctx.createBiquadFilter(), env = ctx.createGain(), bed = ctx.createGain();f1.type = f2.type = 'bandpass';env.gain.value = 0;bed.gain.value = 0;
+      src.connect(f1).connect(env);src.connect(f2).connect(env);env.connect(out);
+      const pad = [0, 4, 7, 11].map(n => {const o = ctx.createOscillator();o.type = 'triangle';o.frequency.value = 261.6 * Math.pow(2, n / 12);o.connect(bed);o.start();return o;});
+      const padLp = ctx.createBiquadFilter();padLp.type = 'lowpass';padLp.frequency.value = 1100;bed.disconnect();bed.connect(padLp).connect(out);
+      let ch = -1, next = 0;
+      return {
+        channel(c) {
+          ch = c;const t = ctx.currentTime;
+          const set = (p, v) => p.setTargetAtTime(v, t, .05);
+          if (c === 0) {set(f1.frequency, 520);f1.Q.value = 2.2;set(f2.frequency, 1700);f2.Q.value = 3;set(bed.gain, 0);}
+          else if (c === 1) {set(f1.frequency, 900);f1.Q.value = .6;set(f2.frequency, 2400);f2.Q.value = .8;set(bed.gain, 0);}
+          else if (c === 2) {set(f1.frequency, 320);f1.Q.value = .5;set(f2.frequency, 4200);f2.Q.value = 6;set(bed.gain, 0);}
+          else if (c === 3) {set(f1.frequency, 520);f1.Q.value = 2.2;set(f2.frequency, 1600);f2.Q.value = 3;set(bed.gain, .016);}
+          else {set(env.gain, 0);set(bed.gain, 0);}
+        },
+        // Called often: the speech, crowd and birds move a little.
+        update(tSec) {
+          const t = ctx.currentTime;if (t < next) return;next = t + .09;
+          if (ch === 0 || ch === 3) {const phrase = Math.sin(tSec * .7) + Math.sin(tSec * 1.9) > -.6, syl = .5 + .5 * Math.sin(tSec * 31 + Math.sin(tSec * 7) * 3);env.gain.setTargetAtTime(phrase ? (ch === 3 ? .1 : .16) * (.35 + .65 * syl) : .01, t, .03);}
+          else if (ch === 1) {const roar = .5 + .5 * Math.sin(tSec * .23) * Math.sin(tSec * .11), goal = tvGoal(tSec) ? 1 : 0;env.gain.setTargetAtTime(.05 + .07 * roar + .2 * goal, t, .3);}
+          else if (ch === 2) {const chirp = Math.random() < .08;env.gain.setTargetAtTime(chirp ? .09 : .03, t, chirp ? .01 : .2);if (chirp) {f2.frequency.setValueAtTime(3200 + Math.random() * 1800, t);f2.frequency.linearRampToValueAtTime(4800 + Math.random() * 1500, t + .08);}}
+        },
+        stop() {try {src.stop();pad.forEach(o => o.stop());} catch {}}
+      };
+    }
+    // The football: a goal now and then, the same for everyone (from the lobby's clock).
+    const tvGoal = tSec => (Math.floor(tSec / 47) % 3 === 1) && tSec % 47 < 4;
+
+    // ---------- The TV picture ----------
+    let tvDrawT = 0;
+    const TICKER = 'Akerselva: ny padlerekord fra Bjølsen til Vaterland  ·  Torshov: diskgolfbanen åpen hele helgen  ·  Grünerløkka: biblioteket ber om ro  ·  Fallskjermfly over Ulven hvert åttende minutt  ·  Rathkes gate: plater og lavalampe i 5. etasje  ·  ';
+    const NO_WEATHER = {clear: 'klarvær', fair: 'lettskyet', partly: 'delvis skyet', cloudy: 'skyet', fog: 'tåke', rain: 'regn', sleet: 'sludd', snow: 'snø'};
+    function drawTv(tSec) {
+      const g = tvc, c = state.tv ? state.tv.c : -1;g.save();
+      if (c === 0) {
+        const bg = g.createLinearGradient(0, 0, 0, CH);bg.addColorStop(0, '#13234a');bg.addColorStop(1, '#2c4a8a');g.fillStyle = bg;g.fillRect(0, 0, CW, CH);
+        g.fillStyle = 'rgba(255,255,255,.06)';for (let i = 0; i < 8; i++) g.fillRect(i * 44 + (tSec * 3 % 44), 0, 2, CH);
+        // The newsreader: shoulders, head, a mouth that moves while they talk.
+        g.fillStyle = '#20232b';g.beginPath();g.ellipse(96, 182, 62, 52, 0, Math.PI, 0);g.fill();g.fillStyle = '#e8e3dc';g.fillRect(90, 132, 12, 18);
+        g.fillStyle = '#d9a07a';g.beginPath();g.ellipse(96, 104, 21, 26, 0, 0, 7);g.fill();g.fillStyle = '#3a2618';g.beginPath();g.ellipse(96, 88, 23, 15, 0, Math.PI, 0);g.fill();
+        const talk = Math.sin(tSec * .7) + Math.sin(tSec * 1.9) > -.6 ? Math.abs(Math.sin(tSec * 15)) : 0;g.fillStyle = '#7a3a2a';g.fillRect(90, 114, 12, 2 + talk * 4);
+        g.fillStyle = '#c9b8a8';g.fillRect(0, 150, 190, 8);
+        // The picture beside them changes every 8 s.
+        const pic = Math.floor(tSec / 8) % 3;g.fillStyle = '#0d1424';g.fillRect(178, 24, 128, 80);
+        if (pic === 0) {g.fillStyle = '#6fa8dc';g.fillRect(180, 26, 124, 76);g.fillStyle = '#2f6b3a';g.fillRect(180, 76, 124, 26);g.fillStyle = '#d33';g.beginPath();g.ellipse(236 + Math.sin(tSec) * 20, 74, 26, 5, 0, 0, 7);g.fill();}
+        else if (pic === 1) {g.fillStyle = '#9fb7c9';g.fillRect(180, 26, 124, 76);g.fillStyle = '#7a3a2a';for (let i = 0; i < 6; i++) g.fillRect(184 + i * 20, 50 - (i % 3) * 8, 16, 52 + (i % 3) * 8);g.fillStyle = '#ffd96a';for (let i = 0; i < 12; i++) g.fillRect(188 + (i % 6) * 20, 58 + Math.floor(i / 6) * 18, 5, 6);}
+        else {g.fillStyle = '#1e2d3a';g.fillRect(180, 26, 124, 76);g.fillStyle = '#e94';for (let i = 0; i < 5; i++) {g.beginPath();g.arc(200 + i * 22, 64 + Math.sin(tSec * 2 + i) * 8, 6, 0, 7);g.fill();}}
+        g.fillStyle = '#c0182c';g.fillRect(0, 128 + 30, CW, 4);g.fillStyle = '#c0182c';g.fillRect(8, 112, 74, 16);g.fillStyle = '#fff';g.font = 'bold 11px Segoe UI, Arial';g.fillText('NYHETER', 14, 124);
+        g.fillStyle = 'rgba(8,12,24,.88)';g.fillRect(0, 162, CW, 18);g.fillStyle = '#ffd34a';g.font = '12px Segoe UI, Arial';const w = g.measureText(TICKER).width, x = -((tSec * 46) % w);g.fillText(TICKER + TICKER, x, 175);
+        const d = new Date();g.fillStyle = '#fff';g.font = 'bold 12px Segoe UI, Arial';g.fillText(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`, 276, 16);g.font = '10px Segoe UI, Arial';g.fillText('LØKKA-TV', 8, 16);
+      } else if (c === 1) {
+        const pan = Math.sin(tSec * .13) * 60;
+        for (let i = 0; i < 10; i++) {g.fillStyle = i % 2 ? '#2f8a3c' : '#36994a';g.fillRect(i * 40 - 40 - (pan % 40), 0, 40, CH);}
+        g.strokeStyle = 'rgba(255,255,255,.85)';g.lineWidth = 2;g.strokeRect(-20 - pan, 22, 360, 140);g.beginPath();g.moveTo(160 - pan, 22);g.lineTo(160 - pan, 162);g.stroke();g.beginPath();g.arc(160 - pan, 92, 26, 0, 7);g.stroke();
+        g.strokeRect(-20 - pan, 62, 40, 60);g.strokeRect(300 - pan, 62, 40, 60);
+        const bxp = 160 + Math.sin(tSec * .41) * 120 + Math.sin(tSec * 1.3) * 20, byp = 92 + Math.sin(tSec * .67) * 50;
+        for (let i = 0; i < 14; i++) {const team = i < 7, px = 160 + Math.sin(tSec * (.2 + i * .03) + i * 2) * 140 * (.5 + .5 * Math.sin(i)) + (bxp - 160) * .35, py = 92 + Math.cos(tSec * (.25 + i * .02) + i) * 60;
+          g.fillStyle = team ? '#d23a2e' : '#f2f2f2';g.fillRect(px - pan - 3, py - 7, 6, 10);g.fillStyle = team ? '#fff' : '#1d3f8a';g.fillRect(px - pan - 3, py + 3, 6, 4);}
+        g.fillStyle = '#fff';g.beginPath();g.arc(bxp - pan, byp, 3, 0, 7);g.fill();
+        const goals = Math.floor(tSec / 47 / 3) % 5, min = Math.floor(tSec / 4) % 90 + 1;
+        g.fillStyle = 'rgba(10,20,40,.85)';g.fillRect(8, 6, 150, 18);g.fillStyle = '#fff';g.font = 'bold 12px Segoe UI, Arial';g.fillText(`LØK ${goals % 3}–${Math.floor(goals / 2)} TOR   ${min}'`, 14, 19);
+        if (tvGoal(tSec)) {g.fillStyle = 'rgba(200,20,40,.85)';g.fillRect(90, 70, 140, 40);g.fillStyle = '#fff';g.font = 'bold 26px Segoe UI, Arial';g.fillText('MÅL!', 128, 100);}
+      } else if (c === 2) {
+        const sky = g.createLinearGradient(0, 0, 0, CH);sky.addColorStop(0, '#f6b26b');sky.addColorStop(.55, '#f9dca0');sky.addColorStop(1, '#9fc5e8');g.fillStyle = sky;g.fillRect(0, 0, CW, CH);
+        g.fillStyle = '#fff2c8';g.beginPath();g.arc(240, 64, 16, 0, 7);g.fill();
+        const ridge = (h, amp, col, speed, seed) => {g.fillStyle = col;g.beginPath();g.moveTo(0, CH);for (let x = 0; x <= CW; x += 8) g.lineTo(x, h - amp * (Math.sin((x + tSec * speed) * .021 + seed) * .6 + Math.sin((x + tSec * speed) * .057 + seed * 2) * .4));g.lineTo(CW, CH);g.fill();};
+        ridge(96, 30, '#7d7fa6', 2, 1);ridge(118, 22, '#4f5d7a', 5, 3);ridge(140, 14, '#2f4a3a', 9, 5);
+        g.fillStyle = '#3d6f99';g.fillRect(0, 150, CW, 30);g.fillStyle = 'rgba(255,255,255,.25)';for (let i = 0; i < 12; i++) g.fillRect((i * 37 + tSec * 6) % CW, 156 + (i % 3) * 7, 14, 1);
+        const ex = (tSec * 18) % (CW + 80) - 40, ey = 50 + Math.sin(tSec * .5) * 10, fl = Math.sin(tSec * 3) * 5;g.strokeStyle = '#222';g.lineWidth = 2;g.beginPath();g.moveTo(ex - 14, ey + fl);g.quadraticCurveTo(ex - 6, ey - 4, ex, ey);g.quadraticCurveTo(ex + 6, ey - 4, ex + 14, ey + fl);g.stroke();
+        if (tSec % 20 < 6) {g.fillStyle = 'rgba(0,0,0,.55)';g.fillRect(60, 160, 200, 16);g.fillStyle = '#fff';g.font = '11px Segoe UI, Arial';g.fillText('Kongeørnen seiler over fjellet …', 72, 172);}
+      } else if (c === 3) {
+        const w = game && game.weather ? game.weather() : null;
+        const bg = g.createLinearGradient(0, 0, 0, CH);bg.addColorStop(0, '#0f4a86');bg.addColorStop(1, '#2a7cc2');g.fillStyle = bg;g.fillRect(0, 0, CW, CH);
+        g.fillStyle = '#fff';g.font = 'bold 16px Segoe UI, Arial';g.fillText('Været i Oslo', 14, 26);g.font = '10px Segoe UI, Arial';g.fillText('Kilde: MET Norway', 236, 172);
+        const kind = w ? w.kind : 'partly', temp = w && Number.isFinite(w.temp) ? Math.round(w.temp) : null;
+        const icon = (x, y, k, s) => {
+          if (k === 'clear' || k === 'fair' || k === 'partly') {g.fillStyle = '#ffd34a';g.beginPath();g.arc(x, y, 18 * s, 0, 7);g.fill();for (let i = 0; i < 8; i++) {const a = i * Math.PI / 4 + tSec * .3;g.fillRect(x + Math.cos(a) * 24 * s - 2, y + Math.sin(a) * 24 * s - 2, 4, 4);}}
+          if (k !== 'clear') {g.fillStyle = k === 'fog' ? '#c8d0d8' : '#eef2f6';for (const [dx, dy, r] of [[-10, 6, 13], [6, 0, 16], [20, 8, 11]]) {g.beginPath();g.arc(x + dx * s + (k === 'fair' ? 12 : 0), y + dy * s, r * s, 0, 7);g.fill();}}
+          if (k === 'rain' || k === 'sleet') {g.fillStyle = '#7fc4ff';for (let i = 0; i < 5; i++) g.fillRect(x - 14 * s + i * 8 * s, y + 22 * s + ((tSec * 40 + i * 9) % 14), 2, 7);}
+          if (k === 'snow' || k === 'sleet') {g.fillStyle = '#fff';for (let i = 0; i < 5; i++) {g.beginPath();g.arc(x - 12 * s + i * 7 * s, y + 24 * s + ((tSec * 18 + i * 7) % 14), 2, 0, 7);g.fill();}}
+        };
+        icon(70, 86, kind, 1.3);
+        g.fillStyle = '#fff';g.font = 'bold 44px Segoe UI, Arial';g.fillText(temp === null ? '–' : `${temp}°`, 130, 104);
+        g.font = '13px Segoe UI, Arial';g.fillText(w ? `${NO_WEATHER[w.kind] || 'skyet'} · vind ${Math.round(w.wind || 0)} m/s` : 'ingen melding', 130, 128, 180);
+        g.font = '11px Segoe UI, Arial';g.fillText(w && w.time ? `Gjelder fra kl. ${new Date(w.time).getHours()}` : '', 130, 146);
+        g.fillStyle = 'rgba(255,255,255,.15)';g.fillRect(0, 34, CW, 1);
+      }
+      g.restore();tvTex.needsUpdate = true;
+    }
+
+    // ---------- Every frame ----------
+    const v3 = new T.Vector3();
+    function tick(dt, input, p, camera) {
+      if (!game) return;
+      const nowMs = now(), tSec = nowMs / 1000;
+      // Tap or hold □ on a chair.
+      if (pending) {
+        const held = performance.now() - pending.t;
+        if (!(input && input.held && input.held.square)) {const i = pending.i;pending = null;if (held < HOLD_S * 1000) pickUp(i);else sitOnChair(i);}
+        else if (held >= HOLD_S * 1000) {const i = pending.i;pending = null;sitOnChair(i);}
+      }
+      // The chair in your hands, and chairs others carry.
+      if (carrying) {
+        if (p.mode !== 'foot') dropBack('The chair goes back to where it was.');
+        else {const [pa, pb] = playerWing(p), dist = Math.hypot(pa - carrying.from.a, pb - carrying.from.b);if (dist > 25 || Math.abs(p.feet - FL) > 3) dropBack('You cannot take the chair out of the flat – it is back in its place.');else {const pose = putPose(carrying.ch.kind, pa, pb, faceWing(p.yaw));poseChair(carrying.ch, pose.a, pose.b, pose.y, CARRY_LIFT);}}
+      }
+      for (const ch of chairs) {
+        if (carrying && carrying.ch === ch) continue;
+        const r = ch.by && game.remote(ch.by);
+        if (r && r.seen) {const [ra, rb] = K.toWing(r.pos.x, r.pos.z), pose = putPose(ch.kind, ra, rb, faceWing(r.yaw));poseChair(ch, pose.a, pose.b, pose.y, CARRY_LIFT);ch.ghost = true;}
+        else if (ch.ghost) {ch.ghost = false;poseChair(ch, ch.pose.a, ch.pose.b, ch.pose.y);}
+      }
+      // Record player: the platter turns, the arm swings, the record shows.
+      const lp = state.lp, arm01 = armAt(lp, nowMs), playing = lp && lp.r >= 0;
+      disc.visible = !!playing || (!!lp && lp.was >= 0 && arm01 > .02);
+      const spin = playing ? Math.min(1, Math.max(0, (nowMs - lp.t) / 1000 - .2)) : 0;platter.rotation.y -= dt * spin * RPM / 60 * Math.PI * 2;
+      arm.rotation.y = -.44 * arm01;armLift.rotation.x = -(playing ? (arm01 < 1 || (nowMs - lp.t) / 1000 < ARM_S + .25 ? .06 : 0) : (arm01 > 0 ? .06 : 0));
+      // Lava lamp: warmth, blobs, light.
+      const warm = lavaWarm(state.lava, nowMs);
+      liquid.emissiveIntensity = .05 + .4 * warm;wax.emissiveIntensity = .05 + 1.6 * warm;
+      moveBlobs(warm, tSec);
+      lavaLight.intensity = K.wing.visible ? warm * (1.5 + .12 * Math.sin(tSec * 1.3)) : 0;
+      // TV: the picture (12 times a second, only when somebody can see it), the glow.
+      const tvOn = !!state.tv, camNear = K.wing.visible && camera.position.distanceTo(tvLight.getWorldPosition(v3)) < 14;
+      screenM.emissiveIntensity = tvOn ? 1.25 : 0;screenM.roughness = tvOn ? .95 : .2;// glossy black when off; no glare from its own glow when on
+      if (tvOn && camNear && (tvDrawT -= dt) <= 0) {tvDrawT = 1 / 12;drawTv(tSec);}
+      if (tvOn) {tvLight.color.setHex(CHANNELS[state.tv.c].light);tvLight.intensity = K.wing.visible ? 1.1 + .25 * Math.sin(tSec * 7.3) * Math.sin(tSec * 2.1) : 0;} else tvLight.intensity = 0;
+      sound(p, camera, tSec, nowMs);
+    }
+    function sound(p, camera, tSec, nowMs) {
+      const ctx = game.audioContext();if (!ctx || ctx.state !== 'running') return;
+      const music = game.music;if (!music || !music.recordOutput) return;
+      if (!audioState.chain) {audioState.chain = spatial(ctx);music.recordOutput.connect(audioState.chain.input);audioState.tvChain = spatial(ctx);}
+      const at = flat.inside(p.x, p.z, p.feet), t = ctx.currentTime, yaw = camera.rotation.y, rx = Math.cos(yaw), rz = -Math.sin(yaw);// the camera's right
+      const heard = (wx, wz) => {const dx = wx - p.x, dz = wz - p.z, d = Math.hypot(dx, dz), h = hearing(at, d), side = d > .01 ? (dx * rx + dz * rz) / d : 0;return {...h, pan: Math.max(-.8, Math.min(.8, side * (h.muffle ? .3 : .75)))};};
+      // The record: playing in the music engine only while you can hear it (back in step from the lobby's clock).
+      const hl = heard(lpWorld.x, lpWorld.z), pos = recordPos(state.lp, nowMs), want = pos !== null && hl.gain > 0 ? RECORDS[state.lp.r].track : null;
+      const key = want ? `${want}:${state.lp.t}` : null;
+      if (key !== audioState.lpKey) {if (key) music.recordPlay(want, pos, Math.max(0, LEAD_S - ARM_S - .1));else music.recordStop(.4);audioState.lpKey = key;}
+      audioState.chain.set(want ? hl.gain * .95 : 0, hl.pan, hl.muffle, t);
+      // The TV.
+      const ht = heard(tvWorld.x, tvWorld.z), c = state.tv && ht.gain > 0 ? state.tv.c : -1;
+      if (c >= 0 && !audioState.tv) audioState.tv = tvSound(ctx, audioState.tvChain.input);
+      if (audioState.tv && audioState.tvChannel !== c) {audioState.tv.channel(c);audioState.tvChannel = c;}
+      if (audioState.tv) audioState.tv.update(tSec);
+      audioState.tvChain.set(c >= 0 ? ht.gain * .8 : 0, ht.pan, ht.muffle, t);
+      music.duck(duckFor(want ? hl.gain : 0, c >= 0 ? ht.gain : 0));
+    }
+
+    // Collision of the chairs that stand (the carried one is in your hands, not in the way): world polygons.
+    function dynamic() {
+      const out = [];
+      for (const ch of chairs) {if (ch.by || (carrying && carrying.ch === ch)) continue;for (const s of boxesToWing(ch.box, ch.pose.a, ch.pose.b, ch.pose.y, FL)) out.push({points: s.pts.map(([a, b]) => W(a, b)), minY: s.minY, maxY: s.maxY, kind: 'furniture'});}
+      return out;
+    }
+    // game: {now(), you(), send(id, v), notice(text, s), audio(name), sit(spot), sitTaken(id), solidsChanged(), remote(id),
+    //   remoteHas(id), nameOf(id), audioContext(), music, weather()}
+    function attach(g) {game = g;}
+    return {hitboxes, attach, prompt, tick, dynamic, apply, reset, publish, state, chairs, seats, records: RECORDS, channels: CHANNELS,
+      get carrying() {return carrying ? carrying.i : null;}, get busy() {return !!carrying || !!pending;},
+      debug: {placeCheck: p => carrying ? placeCheck(p) : null, pickUp, putDown, sitOnChair, sitOnSofa, useLp, useTv, useLava, drawTv, lavaLight, tvLight, screen, disc, arm, blobs, blobMesh}};
+  }
+
+  return {RECORDS, CHANNELS, ARM_S, LEAD_S, cycle, nextRecord, recordPos, armAt, nextChannel, lavaWarm, CHAIRS, chairParts, chairBoxes, partBounds, boxesToWing, overlap,
+    chairsOf, doorZones, canPlace, putPose, snapYaw, seatsOf, hearing, duckFor, items, create};
 });
 </script><script>/* Rathkes gate 1 (issues #44, #72): the second place you can go besides Haarklous plass 17A – flat 501 on the 5th floor of
  * stair 1C, reached through the gate and the backyard (bakgården): the wrought-iron gate with the "1" over it at the east end of
@@ -15609,6 +16333,8 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
     if (F && FD && DATA.parts) {
       const tops = DATA.parts.map(b => b.top).filter(Number.isFinite);
       flat = F.build({T, lib, world, data: FD, top: tops.length ? Math.max(...tops) : null});
+      // The living room you can use (issue #116): record player, sofa and TV, chairs, lava lamp.
+      if (typeof window !== 'undefined' && window.GameRathkesLiving) {flat.living = window.GameRathkesLiving.create({T, lib, flat, data: FD});flat.hitboxes.push(...flat.living.hitboxes);}
       group.add(flat.group);doors.push(...flat.doors);hitboxes.push(...flat.hitboxes);
       if (world.far && flat.far) world.far.add(flat.far);
     }
@@ -15623,7 +16349,7 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
     const at1C = flat ? world.toLocal(flat.yardDoor.x, flat.yardDoor.z) : {x: DATA.address['1C'][0], s: DATA.address['1C'][1]};
     const poi = () => [{x: at1C.x, s: at1C.s, color: '#1f3b6e', label: flat ? 'Rathkes gate 1C · flat 501' : 'Rathkes gate 1C', glyph: '⌂'}];
     const none = () => null;
-    return {group, doors, hitboxes, prompt, poi, data: DATA, stairDoors, gate: W(...P.from), flat,
+    return {group, doors, hitboxes, prompt, poi, data: DATA, stairDoors, gate: W(...P.from), flat, living: flat && flat.living,
       floors: flat ? flat.floors : [], obstacles: flat ? flat.obstacles : [],
       inside: flat ? flat.inside : none, lampAt: flat ? flat.lampAt : none, placeName: flat ? flat.placeName : none, tick: flat ? flat.tick : () => {}};
   }
@@ -18621,6 +19347,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
   const library = window.GameLibrary && DISTRICTS.length ? window.GameLibrary.create({T, lib, world, audio, root: view}) : null;
   const pingpong = window.GameTableTennis && DISTRICTS.length ? window.GameTableTennis.create({T, lib, world, audio, root: view, at: {x: -901.5, s: 1771.5}, bearing: 90}) : null;
   const rathkes = window.GameRathkes && DISTRICTS.length ? window.GameRathkes.create({T, lib, world}) : null;
+  const living = rathkes && rathkes.living;// flat 501's living room (issue #116), wired up with the lobby further down
   const kayak = window.GameKayak && window.AKERSELVA ? window.GameKayak.create({T, lib, data: window.AKERSELVA, world, audio, districts: DISTRICTS}) : null;
   const cc = CC_DATA ? window.GameConstructionCity.create({T, lib, world, data: CC_DATA, ground: world.heightWorld}) : null;if (cc) farScene.add(cc.far);
   const grl = [library, pingpong, rathkes, kayak, cc].filter(Boolean);grl.forEach(m => {scene.add(m.group);m.group.updateMatrixWorld(true);});
@@ -18943,6 +19670,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     const list = doors.filter(d => !d.anim).map(doorPolygon);
     vehicles.forEach(v => {if (v !== player.vehicle) list.push(...[].concat(v.footprint()));});
     if (caseGame?.active) list.push(...caseGame.actorObstacles());
+    if (living) list.push(...living.dynamic());// the chairs in flat 501 can be moved
     collision.setDynamic(walkWorld, list);
     // Other vehicles block the one being driven; it must never collide with its own (parked) footprint.
     const vlist = vehicles.filter(v => v !== player.vehicle && !v.pushed).flatMap(v => [].concat(v.footprint()));
@@ -19062,10 +19790,12 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     if (player.mode === 'skydive' || player.mode === 'kayak') return null;
     if (player.mode === 'vehicle') {const v = player.vehicle;return (v.aircraft ? v.grounded && v.speed < 3 : Math.abs(v.speed) < 3) ? {text: v.rental ? rentals.exitText(v) : `□ ${v.kind === 'motorcycle' ? 'Get off' : 'Get out'}`, act: () => exitVehicle()} : null;}
     if (player.mode === 'passenger') {const v = player.vehicle;return (v.aircraft ? v.grounded && v.speed < 3 : Math.abs(v.speed) < 3) ? {text: `□ ${v.kind === 'motorcycle' ? 'Get off' : 'Get out'}`, act: () => exitPassenger()} : null;}
-    if (player.mode === 'sit') return {text: '□ Stand up · R2 have a beer', act: () => standUp()};
+    if (player.mode === 'sit') return player.sitSpot && player.sitSpot.prompt ? player.sitSpot.prompt() : {text: player.sitSpot && player.sitSpot.stand ? '□ Stand up' : '□ Stand up · R2 have a beer', act: () => standUp()};
     if (player.mode === 'climb' || player.mode === 'hang' || player.mode === 'belay') return null;
     // During the mission only doors can be used (□ otherwise reloads).
     if (caseGame?.active) {const o = lookTarget();if (o?.userData.doorId) {const d = doors.find(d => d.id === o.userData.doorId);if (d) return {text: `□ ${d.open ? 'Close' : 'Open'} ${d.name.toLowerCase()}`, act: () => toggleDoor(d)};}if (o?.userData.lockedDoor) return {text: '□ Try the door', act: () => {audio.sfx('locked');notice('Locked.');}};return null;}
+    // A chair in your hands (flat 501, issue #116): □ puts it down.
+    {const lp = living && living.busy ? living.prompt(null, player) : null;if (lp) return lp;}
     // Doors first (the street door of 17A opens normally), then the mission marker beside the entrance.
     {const o = lookTarget();if (o?.userData.homePlate) return homePlatePrompt(o.userData.homePlate);if (o?.userData.doorId) {const d = doors.find(d => d.id === o.userData.doorId);if (d && d.home) return homeDoorPrompt(d);if (d) return {text: `□ ${d.open ? 'Close' : 'Open'} ${d.name.toLowerCase()}`, act: () => toggleDoor(d)};}}
     if (Math.hypot(player.x - MISSION_MARK.x, player.z - MISSION_MARK.z) < 1.6 && Math.abs(player.feet - world.heightWorld(MISSION_MARK.x, MISSION_MARK.z)) < 2) return {text: '□ Start mission: rescue the hostage (4th floor)', act: () => startMission()};
@@ -19599,8 +20329,9 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
   }
   function addLog() {fire.throwLog({x: player.x, y: player.feet + 1.3, z: player.z});audio.sfx('throw');setTimeout(() => {audio.sfx('thud', {gain: .4});}, 600);mp.addWood();notice('You throw a log on the fire.', 2);markBadge('fire');}
   function drinkBeer() {audio.sfx('bottleOpen');audio.sfx('gulp');drunk += 30;beerT = 20;wallet.addPant(1);notice('Skål! A beer from the crate. (+30 s drunk, +1 bottle for the deposit)', 3);}
-  function sitDown(spot) {watch.hide();if (photo.active) photo.toggle();player.mode = 'sit';player.sitSpot = spot;player.lookYaw = 0;player.lookPitch = -.32;notice('Sitting by the fire · R2 / left mouse: have a beer · □ stand up', 4);}
-  function standUp() {const sp = player.sitSpot;player.mode = 'foot';player.sitSpot = null;const dx = fire.center.x - sp.x, dz = fire.center.z - sp.z, l = Math.hypot(dx, dz) || 1;place(sp.x + dx / l * .7, sp.z + dz / l * .7, sp.yaw);}
+  // A seat: a firepit bench, or one with its own stand-up place, note, prompt and □ (the sofa and chairs in flat 501).
+  function sitDown(spot) {watch.hide();if (photo.active) photo.toggle();player.mode = 'sit';player.sitSpot = spot;player.lookYaw = 0;player.lookPitch = spot.pitch ?? -.32;notice(spot.note || 'Sitting by the fire · R2 / left mouse: have a beer · □ stand up', 4);}
+  function standUp() {const sp = player.sitSpot;player.mode = 'foot';player.sitSpot = null;if (sp.stand) {place(sp.stand.x, sp.stand.z, sp.yaw, sp.stand.y);return;}const dx = fire.center.x - sp.x, dz = fire.center.z - sp.z, l = Math.hypot(dx, dz) || 1;place(sp.x + dx / l * .7, sp.z + dz / l * .7, sp.yaw);}
   function exitVehicle() {
     if (player.vehicle.rental) rentals.beforeExit(player.vehicle);// a city bike at a dock goes into a free slot
     const v = player.vehicle, i = vehicles.indexOf(v), p = v.exit();if (mp) mp.release(i, 'd', v.netGet());player.mode = 'foot';player.vehicle = null;setClip(.05, 450);$('speedo').classList.remove('air');updateDynamic();
@@ -19614,6 +20345,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
   function grunerPrompt() {
     if (player.mode !== 'foot') return null;
     const o = lookTarget();
+    {const lp = living && living.prompt(o, player);if (lp) return lp;}
     for (const m of [library, rathkes]) {const p = m && m.prompt(o);if (p) return {text: p.text, act: () => {const r = p.act();if (r && r.notice) notice(r.notice, 5);if (r && r.sound) audio.sfx(r.sound);if (r && r.doors) r.doors.forEach(id => {const d = doors.find(x => x.id === id);if (d) toggleDoor(d);});}};}
     const k = kayak && kayak.prompt(player);if (k) return {text: k.text, act: () => startKayak(k.rack.i)};
     return null;
@@ -19840,6 +20572,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     cullT -= dt;if (cullT <= 0) {cullT = .4;for (const v of vehicles) {const near = Math.hypot(v.x - camera.position.x, v.z - camera.position.z) < (v.cullDistance || 170);v.group.visible = near || v === player.vehicle;}if (vehicles.some((v, i) => mp.remoteDriven(i))) updateDynamic();}
     vehicles.forEach((v, i) => {if (v === player.vehicle && player.mode === 'vehicle') return;if (mp.remoteDriven(i) || (gp && v === caravan)) return;if (!v.group.visible && Math.abs(v.speed || 0) < .01 && !v.aircraft) return;v.update(wdt, {});});
     beerT = Math.max(0, beerT - dt);mp.update(dt);updatePilotAvatar(dt);if (player.mode === 'jumpseat' && skyd.ride) seatCamera();
+    if (living) living.tick(dt, input, player, camera);// flat 501: chair in your hands, record player, TV, lava lamp, their sound
     if (rentals) rentals.tick(dt, player);jobs.tick(dt, {player, drunk: dl, camera});jobs.remoteTick(mp.remotes, vehicles, dt, camera);renderJobHud(crewTick());licTick(dt);if (jobs.phone.open) jobs.phone.render();
     if (site) site.update(wdt);
     if (paintball) {
@@ -20282,8 +21015,9 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
   }
   function updateSit(dt, input, dl) {
     const sp = player.sitSpot;
-    if (input.pressed.has('square') || input.pressed.has('cross')) {standUp();return;}
-    if ((input.r2 > .6 || input.mouse.left) && !player.r2Held) {player.r2Held = true;drinkBeer();}if (input.r2 < .3 && !input.mouse.left) player.r2Held = false;
+    if (sp.square && input.pressed.has('square')) sp.square();// on the sofa in flat 501: the TV
+    else if (input.pressed.has('square') || input.pressed.has('cross')) {standUp();return;}
+    if (!sp.stand && (input.r2 > .6 || input.mouse.left) && !player.r2Held) {player.r2Held = true;drinkBeer();}if (input.r2 < .3 && !input.mouse.left) player.r2Held = false;
     const curve = v => Math.sign(v) * v * v;
     player.lookYaw = Math.max(-2, Math.min(2, (player.lookYaw || 0) - input.mouse.dx * .0024 * sensitivity.mouse - curve(input.look.x) * 2.2 * sensitivity.pad * dt));player.lookPitch = Math.max(-1.2, Math.min(1.1, (player.lookPitch || 0) - input.mouse.dy * .0024 * sensitivity.mouse - curve(input.look.y) * 1.6 * sensitivity.pad * dt));
     const sway = dl ? Math.sin(performance.now() / 1300) * .07 * dl : 0;
@@ -20542,10 +21276,17 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
   mp = window.GameMultiplayer.create({T, lib, scene, camera, vehicles, fireDecayS: fire.DECAY_S, fireMax: fire.MAX, localState, notice,
     drivingIndex: () => player.mode === 'vehicle' && player.vehicle ? vehicles.indexOf(player.vehicle) : gp ? caravanIndex() : -1,
     listener: () => ({x: player.x, y: player.feet + 1.5, z: player.z}), applyDoor, onChat: chatLine, onStatus: () => {renderMp();onLobbyChange();friends.lobby(mp.net.online ? mp.net.code : null, mp.net.players.size, mp.net.max);},
+    applyObj: (id, v) => {if (living) living.apply(id, v, true);},
+    // Joining a lobby: alone in a lobby that has nothing stored, what you did offline is sent up; otherwise the lobby's state wins.
+    resetObjs: m => {if (!living) return;if (m.players.length <= 1 && !Object.keys(m.objs || {}).length) living.publish();else living.reset();},
     onRemoteWood: r => fire.throwLog({x: r.pos.x, y: r.pos.y + 1.3, z: r.pos.z}), holdsMarker: id => !!paintball && paintball.rules.memberPlaying(id),
     autoAnchor: seat => autoPlane.hipAnchor('j' + seat), skyPose: (r, st, g) => {skyPose(r, st, g);kayakPose(r, st, g);orbPose(r, st, g);},
     // In a paintball game you see your team-mates' names, not your opponents' (issue #25).
     showTag: id => !paintball || !paintball.rules.inGame() || !paintball.rules.memberPlaying(id) || paintball.rules.teamOfMember(id) === paintball.rules.myTeam()});
+  // Flat 501's living room (issue #116): its record player, TV, lava lamp and chairs are shared through the lobby.
+  if (living) living.attach({now: () => mp.net.online ? mp.net.serverNow() : Date.now(), you: () => mp.net.online ? mp.net.you : 0, send: (id, v) => mp.sendObj(id, v),
+    notice, audio: (name, o) => audio.sfx(name, o), sit: sitDown, sitTaken: id => mp.sitTaken(id), solidsChanged: () => updateDynamic(),
+    remote: id => mp.remotes.get(id), remoteHas: id => mp.remotes.has(id), nameOf: id => mp.nameOf(id), audioContext: () => audio.context, music, weather: () => weather.state});
   // A new lobby: vehicles go back to where everybody else has them (the lobby then sends the ones that were moved).
   let lastLobby = null;
   function onLobbyChange() {
@@ -20876,7 +21617,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     badges.check();
   }
   window.haarklousGame = {player, vehicles, cc, get liftMenu() {return liftMenu;}, site, paintball, catacomb, groundAt, heli, plane, drone, watch, fire, stash, shops, gym, startClimb, openGymMenu, startBelay, get belay() {return belay;}, sculpture, oksen, weather, caravan, get skyd() {return skyd;}, get autoPlane() {return autoPlane;}, get jumpFlight() {return jumpFlight;}, boardAuto, boardCaravan, jump, get gp() {return gp;}, callGamePilot, handOver, CARAVAN_HOLD, applyWeather, wallet, get basket() {return basket;}, payAt, takeProduct, useItem, earn, openBag, takeBoost, get boost() {return boost;}, set boost(b) {boost = b;}, get mp() {return mp;}, sitDown, standUp, tryDrive, tryRide, openChat, startDrone, stopDrone, floorBelow, doors, mini, music, photo, map, world, apt, towers, walkWorld, route, landmarks, districts: DISTRICTS, get caseGame() {return caseGame;}, place, toggleDoor, enterVehicle, exitVehicle, startMinigame, startMission, drink, interact, findPrompt, renderFrame, begin, get fps() {return fpsAvg;}, kick: () => requestAnimationFrame(frame), get drunk() {return drunk;}, set drunk(v) {drunk = v;}, lic, licBegin, licEnd, get licTest() {return licTest;}, setStance, camera, scene};
-  Object.assign(window.haarklousGame, {library, pingpong, rathkes, kayak, startKayak, hushedFor: () => hushed});
+  Object.assign(window.haarklousGame, {library, pingpong, rathkes, living, kayak, startKayak, hushedFor: () => hushed});
   Object.assign(window.haarklousGame, {badges, huntSpots, huntPhoto, sightBlocked, SKY_TARGET, progress, account});
   Object.assign(window.haarklousGame, {rides, get rentals() {return rentals;}, jobs, openPhone, rentDrive, JOB_SIGNS});
   // Licences (issue #59). Browser tests that need to drive: haarklousGame.licences.grant('B') (or every id in GameLicences.IDS).

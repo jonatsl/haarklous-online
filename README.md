@@ -9,6 +9,7 @@ Haarklous online is a first-person open-world game that runs in your web browser
 - You can walk, drive, ride, paddle and fly. There are cars, motorcycles, bikes, e-scooters, a kayak, aircraft and a drone.
 - There are minigames, jobs, shops, a mission and badges. You find out how each one works in the game.
 - With the money you earn you can buy a flat. It is yours alone: nobody else can own it or unlock its door.
+- In the flat in Rathkes gate 1C you can play records, watch TV from the sofa, move the chairs and turn on the lava lamp.
 - Up to 12 players can play together in one lobby.
 - The game is one HTML file. A Cloudflare server connects the players and keeps the optional accounts.
 
@@ -23,7 +24,7 @@ Haarklous online is a first-person open-world game that runs in your web browser
 
 - Use a PS4 controller (USB or Bluetooth), or a keyboard and mouse.
 - Move with the left stick or WASD. Look with the right stick or the mouse.
-- Press □ or E to use things (doors, vehicles, games).
+- Press □ or E to use things (doors, vehicles, games, the record player and TV). Tap □ on a chair to carry it, hold □ to sit on it.
 - Press Options or Esc to pause. The start screen and the pause screen show all of the controls.
 
 ## For developers
