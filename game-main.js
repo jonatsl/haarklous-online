@@ -54,6 +54,8 @@
   // Construction City (issue #85) draws its own building, its inside and the garage under it; the patches lose their block and ground there.
   const CC_DATA = window.GameConstructionCity && window.CONSTRUCTION_CITY && DISTRICTS.length ? window.CONSTRUCTION_CITY : null;
   if (CC_DATA) window.GameConstructionCity.prepare(DISTRICTS, CC_DATA);
+  // Metro, bus and tram (issue #111): the metro stations' entrances go down through the ground, so their holes are cut first.
+  if (window.GameTransit && window.TRANSIT && DISTRICTS.length) window.GameTransit.prepare(DISTRICTS, window.TRANSIT, window.District.height, D.ground);
   const world = window.Surroundings.create({T, lib, data: D, renderer, holes, districts: DISTRICTS, onStatus: t => {const el = $('imageryStatus');if (el) el.textContent = t;}});
   scene.add(world.near);farScene.add(world.far);world.setSun(sunDir);
   const landmarks = window.GameLandmarks ? window.GameLandmarks.create({T, lib, world}) : {obstacles: [], vehicleObstacles: [], floors: [], poi: []};
@@ -67,7 +69,15 @@
   const living = rathkes && rathkes.living;// flat 501's living room (issue #116), wired up with the lobby further down
   const kayak = window.GameKayak && window.AKERSELVA ? window.GameKayak.create({T, lib, data: window.AKERSELVA, world, audio, districts: DISTRICTS}) : null;
   const cc = CC_DATA ? window.GameConstructionCity.create({T, lib, world, data: CC_DATA, ground: world.heightWorld}) : null;if (cc) farScene.add(cc.far);
-  const grl = [library, pingpong, rathkes, kayak, cc].filter(Boolean);grl.forEach(m => {scene.add(m.group);m.group.updateMatrixWorld(true);});
+  // Metro, bus and tram (issue #111): Ruter's real lines and stops on a timetable that is a function of the shared clock.
+  const transit = window.GameTransit && window.TRANSIT && window.TransitTimetable ? window.GameTransit.create({T, lib, world, data: window.TRANSIT, root: view, ground: (x, z) => groundAt(x, z),
+    clock: () => mp && mp.net.online ? mp.net.serverNow() : Date.now(), rects: window.Surroundings.walkRects(D.terrain.half, world.playHalf, DISTRICTS),
+    get player() {return player;}, get wallet() {return wallet;}, kr: v => KR(v), notice: (t, s) => notice(t, s), audio, sens: () => sensitivity, onFoot: () => player.mode === 'foot',
+    remotes: () => mp ? [...mp.remotes.values()] : [], onPaid: () => {walletT = 6;},
+    safeSpot: (x, z, y) => collision.findSafeSpawn(walkWorld, {x, z}, player.eye, {y, maxDistance: 3}),
+    onBoard: () => {watch.hide();if (photo.active) photo.toggle();player.mode = 'transit';player.vehicle = null;setClip(.05, 450);},
+    onLeave: (spot, yaw) => {player.mode = 'foot';if (spot) place(spot.x, spot.z, yaw, spot.y);else place(player.x, player.z, player.yaw, player.feet);updateDynamic();}}) : null;
+  const grl = [library, pingpong, rathkes, kayak, cc, transit].filter(Boolean);grl.forEach(m => {scene.add(m.group);m.group.updateMatrixWorld(true);});
   let hushed = 0;// seconds the librarian's shush keeps you walking
   const apt = window.GameApartment.build({T, lib, data: window.APARTMENT});scene.add(apt.group);
   // Stair towers: ours (model coordinates) and one in each enterable neighbouring building.
@@ -155,7 +165,7 @@
   }
   // Inside a catacomb mausoleum the ground is not walked on: its door threshold, landing and stair take over (far below = no floor).
   // Under Construction City, its entrance aprons and the top of its garage ramp the building's own floors take over too.
-  const floorsOver = ground => world.terrainFloors().map(f => ({...f, height: p => (catacomb && catacomb.cutsGround(p.x, p.z)) || (cc && cc.cutsGround(p.x, p.z)) ? -1e4 : ground(p.x, p.z)}));
+  const floorsOver = ground => world.terrainFloors().map(f => ({...f, height: p => (catacomb && catacomb.cutsGround(p.x, p.z)) || (cc && cc.cutsGround(p.x, p.z)) || (transit && transit.cutsGround(p.x, p.z)) ? -1e4 : ground(p.x, p.z)}));
   const groundFloors = floorsOver(groundAt), walkGroundFloors = floorsOver(terrainAt);// vehicles drive on the decks as ground
   // Oslo city bike docks (issue #57) at their real places, from the operator's open data: posts and a totem with the name.
   const rides = window.GameRentals && window.RIDES ? window.GameRentals.create({T, lib, audio, data: window.RIDES, toWorld: world.toWorld, heightAt: groundAt}) : null;
@@ -315,6 +325,15 @@
       }});
     for (const c of spots) {const v = new VH.Car(c.at.x, c.at.z, c.yaw, c.model);cityCars.push(v);vehicles.push(v);}
   }
+  if (transit) {// Metro, bus and tram (issue #111): a parked vehicle in a bus or tram lane moves sideways to the kerb (its number stays).
+    const w = worldFor(1.25);transit.parked = {moved: 0, left: 0};
+    for (const v of vehicles) {
+      if (v.aircraft || v.site || v.y > heightAt(v.x, v.z) + 1) continue;
+      const qs = transit.keepClear(v.x, v.z, (v.width || 1.8) / 2);if (!qs) continue;
+      const q = qs.find(p => collision.canStand(w, p, 1.4, heightAt(p.x, p.z)) && !vehicles.some(o => o !== v && Math.hypot(o.x - p.x, o.z - p.z) < 4.5));
+      if (q) {v.x = q.x;v.z = q.z;v.groundPrev = undefined;v.y = heightAt(q.x, q.z);if (v.place) v.place();transit.parked.moved++;} else transit.parked.left++;
+    }
+  }
   // Parked vehicles in every street (issue #113): cars, vans, taxis, lorries and motorcycles by the kerbs and in the car parks,
   // bicycles and mopeds at the bike racks, planned from the map and OpenStreetMap by tools/make-parking.cjs (parking-data.js).
   // After every older vehicle, so their numbers stay the same online; the same on every computer.
@@ -333,6 +352,8 @@
     // static solids (a car that fails keeps its number but is never drawn or in the way).
     fleet = window.GameFleet.create({T, lib, VH, scene, collision, plan, toWorld, localHeadingToYaw, heightAt, ok: q => {
       if (cc && cc.cutsGround(q.x, q.z)) return false;
+      // not in a bus or tram lane (issue #111): the bus's swept path and the car's half width (a refused place keeps its number)
+      if (transit && !q.small && transit.keepClear(q.x, q.z, (q.W || 1.8) / 2, .15)) {transit.parked.fleet = (transit.parked.fleet || 0) + 1;return false;}
       const f = {x: -Math.sin(q.yaw), z: -Math.cos(q.yaw)}, r = {x: -f.z, z: f.x}, h = heightAt(q.x, q.z), a = q.L * .45, b = q.W * .45;
       if (q.small) return collision.canStand(walkWorld, q, 1, h, true);
       if (Math.abs(heightAt(q.x + f.x * a, q.z + f.z * a) - heightAt(q.x - f.x * a, q.z - f.z * a)) > q.L * .2 || Math.abs(heightAt(q.x + r.x * b, q.z + r.z * b) - heightAt(q.x - r.x * b, q.z - r.z * b)) > .45) return false;
@@ -424,6 +445,16 @@
     vehicleBlockers = vlist;vehicleWorlds.forEach(w => collision.setDynamic(w, vlist));
     if (fleet) fleet.applyLayer([walkWorld, ...vehicleWorlds.values()]);
   }
+  let transitSolidsOn = false;
+  // The trams, buses and metro trains near you are moving solids for walkers and cars (issue #111): a short list of their own
+  // (setMoving), so the hashed dynamic list and the parked fleet's layer are left as they are.
+  function transitDynamic() {
+    const t = transit.footprints();if (!t.length && !transitSolidsOn) return;transitSolidsOn = t.length > 0;
+    collision.setMoving(walkWorld, t);vehicleWorlds.forEach(w => collision.setMoving(w, t));
+    // A tram or bus that comes up against you pushes you aside (it does not stop for you).
+    if (player.mode === 'foot') {const p = transit.pushOut(player.x, player.z, player.feet, .3);if (p) {player.x = p.x;player.z = p.z;}}
+    if (player.mode === 'vehicle' && player.vehicle && !player.vehicle.aircraft) {const v = player.vehicle, p = transit.pushOut(v.x, v.z, v.y, (v.width || 1.8) / 2 + .2);if (p) {v.x = p.x;v.z = p.z;v.speed *= .5;}}
+  }
   updateDynamic();
 
   // ---------- Mission (hostage rescue) ----------
@@ -495,11 +526,12 @@
     {...world.toLocal(AIR.jump.x, AIR.jump.z), color: '#c8322c', label: 'Skydiving (jump plane)', glyph: '🪂'},
     ...landmarks.poi, ...(route ? route.poi() : []),
     ...grl.flatMap(m => m.poi ? m.poi() : []),
-    ...DISTRICTS.flatMap(d => d.stations).map(st => ({x: st.x, s: st.s, color: '#e65100', label: `${st.name} T`, glyph: 'T'})),
+    ...DISTRICTS.flatMap(d => d.stations).filter(st => !(transit && transit.stations.some(S => Math.hypot(S.sp.c[0] - st.x, S.sp.c[1] - st.s) < 400 && (S.sp.name.startsWith(st.name) || st.name.startsWith(S.sp.name))))).map(st => ({x: st.x, s: st.s, color: '#e65100', label: `${st.name} T`, glyph: 'T'})),// the metro stations are drawn by the transit overlay (issue #111)
     ...(catacomb ? catacomb.poi() : []),
     ...(homes && homeReg.mine && homes.byId.has(homeReg.mine) ? [(p => ({...world.toLocal(p.x, p.z), color: '#1f6f43', label: 'Your flat', glyph: '🏠'}))(homes.doorWorld(homeReg.mine))] : []),
     ...(rentals ? rentals.poi() : []),
   ]});
+  if (transit) {map.overlay = transit.overlay;transit.legend(view);}// the lines, stops and metro stations (issue #111)
   // Wristwatch (D-pad ↑) shares the first-person overlay with the photo camera.
   const watch = window.GameWatch.create({T, lib});overlayScene.add(watch.model);
   // Paintball course, lobby and games (the rules' view of the game; online the others' states come from the lobby).
@@ -535,6 +567,7 @@
   }
   function findPrompt() {
     if (player.mode === 'jumpseat') return jumpseatPrompt();
+    if (player.mode === 'transit') return null;
     if (player.mode === 'skydive' || player.mode === 'kayak') return null;
     if (player.mode === 'vehicle') {const v = player.vehicle;return (v.aircraft ? v.grounded && v.speed < 3 : Math.abs(v.speed) < 3) ? {text: v.rental ? rentals.exitText(v) : `□ ${v.kind === 'motorcycle' ? 'Get off' : 'Get out'}`, act: () => exitVehicle()} : null;}
     if (player.mode === 'passenger') {const v = player.vehicle;return (v.aircraft ? v.grounded && v.speed < 3 : Math.abs(v.speed) < 3) ? {text: `□ ${v.kind === 'motorcycle' ? 'Get off' : 'Get out'}`, act: () => exitPassenger()} : null;}
@@ -559,6 +592,7 @@
     const fp = firePrompt();if (fp) return fp;
     const sp = stashPrompt();if (sp) return sp;
     const jp = boardPrompt();if (jp) return jp;
+    {const tp = transit && transit.prompt(player);if (tp) return tp;}
     {const lp = licPrompt();if (lp) return lp;}
     const v = nearestVehicle();
     if (v) {
@@ -1250,6 +1284,7 @@
     if (gymMenu) gymMenuInput(input);
     if (liftMenu) liftMenuInput(input);
     if (lic.menu.open) lic.menu.input(input);
+    if (transit && transit.panel.open) transit.panel.input(input);
     if (storgata && storgata.talking) storgata.input(input, storgataCtx(), storgataResult);
     // The jobs phone (issue #56): D-pad → / P on foot or in a vehicle (not on the site machines, where → is the arm on a keyboard).
     if (jobs.phone.open) jobs.phone.input(input);
@@ -1305,7 +1340,9 @@
     // The jump planes move first, so a jumper's seat (and camera) is where the plane is this frame.
     updateJumpFlight(dt);updateGamePilot(dt);
     licExaminer(input);
+    if (transit) {transit.tick(dt, {camera, player});transitDynamic();}
     if (player.mode === 'vehicle') updateVehicle(dt, input, dl);
+    else if (player.mode === 'transit') transit.updateRide(dt, input, camera, dl);
     else if (player.mode === 'passenger') updatePassenger(dt, input, dl);
     else if (player.mode === 'sit') updateSit(dt, input, dl);
     else if (player.mode === 'jumpseat') updateJumpseat(dt, input, dl);
@@ -1335,7 +1372,7 @@
     let doorsChanged = false;
     for (const d of doors) if (d.anim) {d.anim.t = Math.min(1, d.anim.t + dt * 2.2);const e = d.anim.t < .5 ? 2 * d.anim.t * d.anim.t : 1 - Math.pow(-2 * d.anim.t + 2, 2) / 2;setDoor(d, d.anim.from + (d.anim.to - d.anim.from) * e);if (d.anim.t >= 1) {d.open = d.anim.to === 1;d.anim = null;doorsChanged = true;}}
     if (doorsChanged || caseGame?.active) updateDynamic();
-    promptTimer -= dt;if (promptTimer <= 0) {promptTimer = .15;promptAction = player.mode === 'minigame' || player.mode === 'drone' || gear?.open || quick || bag || gymMenu || lic.menu.open || jobs.phone.open || photo.active || storgata?.talking || (caseGame?.active && caseGame.state !== 'play') ? null : findPrompt();prompt(promptAction?.text);}
+    promptTimer -= dt;if (promptTimer <= 0) {promptTimer = .15;promptAction = player.mode === 'minigame' || player.mode === 'drone' || transit?.panel.open || gear?.open || quick || bag || gymMenu || lic.menu.open || jobs.phone.open || photo.active || storgata?.talking || (caseGame?.active && caseGame.state !== 'play') ? null : findPrompt();prompt(promptAction?.text);}
     weather.update(dt, camera, {indoor: weatherIndoor, windWorld: weatherWind});
     ambienceTimer -= dt;if (ambienceTimer <= 0) {ambienceTimer = .25;updateAmbience();if (audio.context) music.attach(audio.context);music.play(musicTrack());}
     // Adaptive resolution keeps the frame rate in the 20–30+ fps range on slower PCs.
@@ -1779,6 +1816,7 @@
   function localState() {
     const r = v => Math.round(v * 100) / 100, q = v => Math.round(v * 1000) / 1000;
     const s = {p: [r(player.x), r(player.feet + (player.jumpY || 0)), r(player.z)], y: r(player.yaw), st: player.stance, b: beerT > 0 ? 1 : 0};
+    if (player.mode === 'transit' && transit && transit.ride) {Object.assign(s, transit.localState());s.st = 'sit';}
     if ((player.mode === 'vehicle' || player.mode === 'passenger') && player.vehicle) {s.v = vehicles.indexOf(player.vehicle);s.s = player.mode === 'vehicle' ? 'd' : 'p';}
     if (player.mode === 'sit' && player.sitSpot) {const sp = player.sitSpot;s.sit = sp.id + 1;s.p = [r(sp.x), r(sp.y), r(sp.z)];s.y = r(sp.yaw);}
     if (player.mode === 'drone') {s.st = 'drone';s.dr = [...drone.pos.toArray().map(r), ...drone.q.toArray().map(q)];}
@@ -2030,7 +2068,7 @@
     // Joining a lobby: alone in a lobby that has nothing stored, what you did offline is sent up; otherwise the lobby's state wins.
     resetObjs: m => {if (!living) return;if (m.players.length <= 1 && !Object.keys(m.objs || {}).length) living.publish();else living.reset();},
     onRemoteWood: r => fire.throwLog({x: r.pos.x, y: r.pos.y + 1.3, z: r.pos.z}), holdsMarker: id => !!paintball && paintball.rules.memberPlaying(id),
-    autoAnchor: seat => autoPlane.hipAnchor('j' + seat), skyPose: (r, st, g) => {skyPose(r, st, g);kayakPose(r, st, g);orbPose(r, st, g);},
+    autoAnchor: seat => autoPlane.hipAnchor('j' + seat), skyPose: (r, st, g) => {skyPose(r, st, g);kayakPose(r, st, g);orbPose(r, st, g);if (transit) transit.pose(r, st, g);},
     // In a paintball game you see your team-mates' names, not your opponents' (issue #25).
     showTag: id => !paintball || !paintball.rules.inGame() || !paintball.rules.memberPlaying(id) || paintball.rules.teamOfMember(id) === paintball.rules.myTeam()});
   // Flat 501's living room (issue #116): its record player, TV, lava lamp and chairs are shared through the lobby.
@@ -2069,11 +2107,11 @@
     // The tunnels are 2 m wide, so the map zooms in down here and back out above.
     if (map.layer !== layer) {map.layer = layer;if (layer) {map.surfaceScale = map.scale;map.scale = Math.max(map.scale, 6);notice('The catacombs. Your map is blank down here – it fills in with what you see.', 5);} else if (map.surfaceScale) map.scale = map.surfaceScale;}
     if (input.pressed.has('l1') && st.inside && player.mode === 'foot') notice(catacomb.toggleLamp() ? 'Torch on · L1 / Q switches it off' : 'Torch off', 2);
-    const deep = st.camDeep;
+    const tDeep = !st.camDeep && !!(transit && transit.deep), deep = st.camDeep || tDeep;
     if (deep) {
       if (!deepSaved) deepSaved = {fog: scene.fog.color.clone()};
       if (sun.intensity > 0) {deepSaved.sun = sun.intensity;deepSaved.sky = sky.intensity;sun.intensity = 0;sky.intensity = deepSaved.sky * .15;}
-      scene.fog.color.setHex(0x0a0807);scene.fog.density = .045;
+      scene.fog.color.setHex(tDeep ? 0x1d1f22 : 0x0a0807);scene.fog.density = tDeep ? .009 : .045;
     } else if (deepSaved) {
       if (deepSaved.sun !== undefined) {sun.intensity = deepSaved.sun;sky.intensity = deepSaved.sky;}
       scene.fog.color.copy(deepSaved.fog);deepSaved = null;applyNearFog();if (weather.state) applyWeather(weather.state);
@@ -2083,7 +2121,7 @@
   }
   let weatherIndoor = false;
   function updateAmbience() {
-    const inApt = inFlat(), tw = towerAt(player.x, player.z, player.feet), under = catacomb?.state.depth > .3, r501 = rathkes && rathkes.inside(player.x, player.z, player.feet), homeAt = homes && homes.inside(player.x, player.z, player.feet), indoor = inApt || tw || under || r501 || homeAt || shops.shopAt(player, player.feet) || (library && library.inside(player.x, player.z, player.feet)) || gym.zoneAt(player, player.feet) || (cc && cc.indoor(player.x, player.z, player.feet)) ? 1 : player.mode === 'jumpseat' ? .6 : player.vehicle && player.vehicle.kind === 'car' ? .7 : player.vehicle && player.vehicle.aircraft ? .4 : 0;
+    const inApt = inFlat(), tw = towerAt(player.x, player.z, player.feet), under = catacomb?.state.depth > .3, r501 = rathkes && rathkes.inside(player.x, player.z, player.feet), homeAt = homes && homes.inside(player.x, player.z, player.feet), indoor = inApt || tw || under || r501 || homeAt || shops.shopAt(player, player.feet) || (library && library.inside(player.x, player.z, player.feet)) || gym.zoneAt(player, player.feet) || (cc && cc.indoor(player.x, player.z, player.feet)) ? 1 : player.mode === 'jumpseat' ? .6 : player.mode === 'transit' || (transit && transit.deep) ? .8 : player.vehicle && player.vehicle.kind === 'car' ? .7 : player.vehicle && player.vehicle.aircraft ? .4 : 0;
     weatherIndoor = indoor >= 1 && player.mode !== 'drone';
     const skyAir = player.mode === 'skydive' && skyd.jumper ? Math.hypot(skyd.jumper.vel.x, skyd.jumper.vel.y, skyd.jumper.vel.z) : 0;const ws = weather.state, wet = ws && ['rain', 'sleet', 'snow'].includes(ws.kind) ? ws.intensity : 0;
     audio.ambience({indoor, rain: ws && ws.kind === 'rain' ? wet : ws && ws.kind === 'sleet' ? wet * .6 : 0, windSpeed: Math.max(ws ? ws.wind : 4, skyAir), green: world.greenery(player.x, player.z), traffic: world.trafficDistance(player.x, player.z), height: Math.max(0, player.feet - heightAt(player.x, player.z)) + (inApt ? 10 : 0), stair: Boolean(tw) || under || (r501 && r501.place === 'stair'), kitchen: inApt && roomAt() === 'kitchen'});
@@ -2366,7 +2404,7 @@
     }
     badges.check();
   }
-  window.haarklousGame = {player, vehicles, cc, get liftMenu() {return liftMenu;}, site, paintball, catacomb, groundAt, heli, plane, drone, watch, fire, stash, shops, gym, startClimb, openGymMenu, startBelay, get belay() {return belay;}, sculpture, oksen, weather, caravan, get skyd() {return skyd;}, get autoPlane() {return autoPlane;}, get jumpFlight() {return jumpFlight;}, boardAuto, boardCaravan, jump, get gp() {return gp;}, callGamePilot, handOver, CARAVAN_HOLD, applyWeather, wallet, get basket() {return basket;}, payAt, takeProduct, useItem, earn, openBag, takeBoost, get boost() {return boost;}, set boost(b) {boost = b;}, get mp() {return mp;}, sitDown, standUp, tryDrive, tryRide, openChat, startDrone, stopDrone, floorBelow, doors, mini, music, photo, map, world, apt, towers, walkWorld, route, landmarks, districts: DISTRICTS, get caseGame() {return caseGame;}, place, toggleDoor, enterVehicle, exitVehicle, startMinigame, startMission, drink, interact, findPrompt, renderFrame, begin, get fps() {return fpsAvg;}, kick: () => requestAnimationFrame(frame), get drunk() {return drunk;}, set drunk(v) {drunk = v;}, lic, licBegin, licEnd, get licTest() {return licTest;}, setStance, camera, scene};
+  window.haarklousGame = {player, vehicles, cc, transit, get liftMenu() {return liftMenu;}, site, paintball, catacomb, groundAt, heli, plane, drone, watch, fire, stash, shops, gym, startClimb, openGymMenu, startBelay, get belay() {return belay;}, sculpture, oksen, weather, caravan, get skyd() {return skyd;}, get autoPlane() {return autoPlane;}, get jumpFlight() {return jumpFlight;}, boardAuto, boardCaravan, jump, get gp() {return gp;}, callGamePilot, handOver, CARAVAN_HOLD, applyWeather, wallet, get basket() {return basket;}, payAt, takeProduct, useItem, earn, openBag, takeBoost, get boost() {return boost;}, set boost(b) {boost = b;}, get mp() {return mp;}, sitDown, standUp, tryDrive, tryRide, openChat, startDrone, stopDrone, floorBelow, doors, mini, music, photo, map, world, apt, towers, walkWorld, route, landmarks, districts: DISTRICTS, get caseGame() {return caseGame;}, place, toggleDoor, enterVehicle, exitVehicle, startMinigame, startMission, drink, interact, findPrompt, renderFrame, begin, get fps() {return fpsAvg;}, kick: () => requestAnimationFrame(frame), get drunk() {return drunk;}, set drunk(v) {drunk = v;}, lic, licBegin, licEnd, get licTest() {return licTest;}, setStance, camera, scene};
   Object.assign(window.haarklousGame, {library, pingpong, rathkes, living, kayak, startKayak, hushedFor: () => hushed});
   Object.assign(window.haarklousGame, {badges, huntSpots, huntPhoto, sightBlocked, SKY_TARGET, progress, account});
   Object.assign(window.haarklousGame, {rides, get rentals() {return rentals;}, jobs, openPhone, rentDrive, JOB_SIGNS});
