@@ -64,6 +64,7 @@
   const library = window.GameLibrary && DISTRICTS.length ? window.GameLibrary.create({T, lib, world, audio, root: view}) : null;
   const pingpong = window.GameTableTennis && DISTRICTS.length ? window.GameTableTennis.create({T, lib, world, audio, root: view, at: {x: -901.5, s: 1771.5}, bearing: 90}) : null;
   const rathkes = window.GameRathkes && DISTRICTS.length ? window.GameRathkes.create({T, lib, world}) : null;
+  const living = rathkes && rathkes.living;// flat 501's living room (issue #116), wired up with the lobby further down
   const kayak = window.GameKayak && window.AKERSELVA ? window.GameKayak.create({T, lib, data: window.AKERSELVA, world, audio, districts: DISTRICTS}) : null;
   const cc = CC_DATA ? window.GameConstructionCity.create({T, lib, world, data: CC_DATA, ground: world.heightWorld}) : null;if (cc) farScene.add(cc.far);
   const grl = [library, pingpong, rathkes, kayak, cc].filter(Boolean);grl.forEach(m => {scene.add(m.group);m.group.updateMatrixWorld(true);});
@@ -386,6 +387,7 @@
     const list = doors.filter(d => !d.anim).map(doorPolygon);
     vehicles.forEach(v => {if (v !== player.vehicle) list.push(...[].concat(v.footprint()));});
     if (caseGame?.active) list.push(...caseGame.actorObstacles());
+    if (living) list.push(...living.dynamic());// the chairs in flat 501 can be moved
     collision.setDynamic(walkWorld, list);
     // Other vehicles block the one being driven; it must never collide with its own (parked) footprint.
     const vlist = vehicles.filter(v => v !== player.vehicle && !v.pushed).flatMap(v => [].concat(v.footprint()));
@@ -505,10 +507,12 @@
     if (player.mode === 'skydive' || player.mode === 'kayak') return null;
     if (player.mode === 'vehicle') {const v = player.vehicle;return (v.aircraft ? v.grounded && v.speed < 3 : Math.abs(v.speed) < 3) ? {text: v.rental ? rentals.exitText(v) : `□ ${v.kind === 'motorcycle' ? 'Get off' : 'Get out'}`, act: () => exitVehicle()} : null;}
     if (player.mode === 'passenger') {const v = player.vehicle;return (v.aircraft ? v.grounded && v.speed < 3 : Math.abs(v.speed) < 3) ? {text: `□ ${v.kind === 'motorcycle' ? 'Get off' : 'Get out'}`, act: () => exitPassenger()} : null;}
-    if (player.mode === 'sit') return {text: '□ Stand up · R2 have a beer', act: () => standUp()};
+    if (player.mode === 'sit') return player.sitSpot && player.sitSpot.prompt ? player.sitSpot.prompt() : {text: player.sitSpot && player.sitSpot.stand ? '□ Stand up' : '□ Stand up · R2 have a beer', act: () => standUp()};
     if (player.mode === 'climb' || player.mode === 'hang' || player.mode === 'belay') return null;
     // During the mission only doors can be used (□ otherwise reloads).
     if (caseGame?.active) {const o = lookTarget();if (o?.userData.doorId) {const d = doors.find(d => d.id === o.userData.doorId);if (d) return {text: `□ ${d.open ? 'Close' : 'Open'} ${d.name.toLowerCase()}`, act: () => toggleDoor(d)};}if (o?.userData.lockedDoor) return {text: '□ Try the door', act: () => {audio.sfx('locked');notice('Locked.');}};return null;}
+    // A chair in your hands (flat 501, issue #116): □ puts it down.
+    {const lp = living && living.busy ? living.prompt(null, player) : null;if (lp) return lp;}
     // Doors first (the street door of 17A opens normally), then the mission marker beside the entrance.
     {const o = lookTarget();if (o?.userData.homePlate) return homePlatePrompt(o.userData.homePlate);if (o?.userData.doorId) {const d = doors.find(d => d.id === o.userData.doorId);if (d && d.home) return homeDoorPrompt(d);if (d) return {text: `□ ${d.open ? 'Close' : 'Open'} ${d.name.toLowerCase()}`, act: () => toggleDoor(d)};}}
     if (Math.hypot(player.x - MISSION_MARK.x, player.z - MISSION_MARK.z) < 1.6 && Math.abs(player.feet - world.heightWorld(MISSION_MARK.x, MISSION_MARK.z)) < 2) return {text: '□ Start mission: rescue the hostage (4th floor)', act: () => startMission()};
@@ -1042,8 +1046,9 @@
   }
   function addLog() {fire.throwLog({x: player.x, y: player.feet + 1.3, z: player.z});audio.sfx('throw');setTimeout(() => {audio.sfx('thud', {gain: .4});}, 600);mp.addWood();notice('You throw a log on the fire.', 2);markBadge('fire');}
   function drinkBeer() {audio.sfx('bottleOpen');audio.sfx('gulp');drunk += 30;beerT = 20;wallet.addPant(1);notice('Skål! A beer from the crate. (+30 s drunk, +1 bottle for the deposit)', 3);}
-  function sitDown(spot) {watch.hide();if (photo.active) photo.toggle();player.mode = 'sit';player.sitSpot = spot;player.lookYaw = 0;player.lookPitch = -.32;notice('Sitting by the fire · R2 / left mouse: have a beer · □ stand up', 4);}
-  function standUp() {const sp = player.sitSpot;player.mode = 'foot';player.sitSpot = null;const dx = fire.center.x - sp.x, dz = fire.center.z - sp.z, l = Math.hypot(dx, dz) || 1;place(sp.x + dx / l * .7, sp.z + dz / l * .7, sp.yaw);}
+  // A seat: a firepit bench, or one with its own stand-up place, note, prompt and □ (the sofa and chairs in flat 501).
+  function sitDown(spot) {watch.hide();if (photo.active) photo.toggle();player.mode = 'sit';player.sitSpot = spot;player.lookYaw = 0;player.lookPitch = spot.pitch ?? -.32;notice(spot.note || 'Sitting by the fire · R2 / left mouse: have a beer · □ stand up', 4);}
+  function standUp() {const sp = player.sitSpot;player.mode = 'foot';player.sitSpot = null;if (sp.stand) {place(sp.stand.x, sp.stand.z, sp.yaw, sp.stand.y);return;}const dx = fire.center.x - sp.x, dz = fire.center.z - sp.z, l = Math.hypot(dx, dz) || 1;place(sp.x + dx / l * .7, sp.z + dz / l * .7, sp.yaw);}
   function exitVehicle() {
     if (player.vehicle.rental) rentals.beforeExit(player.vehicle);// a city bike at a dock goes into a free slot
     const v = player.vehicle, i = vehicles.indexOf(v), p = v.exit();if (mp) mp.release(i, 'd', v.netGet());player.mode = 'foot';player.vehicle = null;setClip(.05, 450);$('speedo').classList.remove('air');updateDynamic();
@@ -1057,6 +1062,7 @@
   function grunerPrompt() {
     if (player.mode !== 'foot') return null;
     const o = lookTarget();
+    {const lp = living && living.prompt(o, player);if (lp) return lp;}
     for (const m of [library, rathkes]) {const p = m && m.prompt(o);if (p) return {text: p.text, act: () => {const r = p.act();if (r && r.notice) notice(r.notice, 5);if (r && r.sound) audio.sfx(r.sound);if (r && r.doors) r.doors.forEach(id => {const d = doors.find(x => x.id === id);if (d) toggleDoor(d);});}};}
     const k = kayak && kayak.prompt(player);if (k) return {text: k.text, act: () => startKayak(k.rack.i)};
     return null;
@@ -1277,6 +1283,7 @@
     cullT -= dt;if (cullT <= 0) {cullT = .4;for (const v of vehicles) {const near = Math.hypot(v.x - camera.position.x, v.z - camera.position.z) < (v.cullDistance || 170);v.group.visible = near || v === player.vehicle;}if (vehicles.some((v, i) => mp.remoteDriven(i))) updateDynamic();}
     vehicles.forEach((v, i) => {if (v === player.vehicle && player.mode === 'vehicle') return;if (mp.remoteDriven(i) || (gp && v === caravan)) return;if (!v.group.visible && Math.abs(v.speed || 0) < .01 && !v.aircraft) return;v.update(wdt, {});});
     beerT = Math.max(0, beerT - dt);mp.update(dt);updatePilotAvatar(dt);if (player.mode === 'jumpseat' && skyd.ride) seatCamera();
+    if (living) living.tick(dt, input, player, camera);// flat 501: chair in your hands, record player, TV, lava lamp, their sound
     if (rentals) rentals.tick(dt, player);jobs.tick(dt, {player, drunk: dl, camera});jobs.remoteTick(mp.remotes, vehicles, dt, camera);renderJobHud(crewTick());licTick(dt);if (jobs.phone.open) jobs.phone.render();
     if (site) site.update(wdt);
     if (paintball) {
@@ -1719,8 +1726,9 @@
   }
   function updateSit(dt, input, dl) {
     const sp = player.sitSpot;
-    if (input.pressed.has('square') || input.pressed.has('cross')) {standUp();return;}
-    if ((input.r2 > .6 || input.mouse.left) && !player.r2Held) {player.r2Held = true;drinkBeer();}if (input.r2 < .3 && !input.mouse.left) player.r2Held = false;
+    if (sp.square && input.pressed.has('square')) sp.square();// on the sofa in flat 501: the TV
+    else if (input.pressed.has('square') || input.pressed.has('cross')) {standUp();return;}
+    if (!sp.stand && (input.r2 > .6 || input.mouse.left) && !player.r2Held) {player.r2Held = true;drinkBeer();}if (input.r2 < .3 && !input.mouse.left) player.r2Held = false;
     const curve = v => Math.sign(v) * v * v;
     player.lookYaw = Math.max(-2, Math.min(2, (player.lookYaw || 0) - input.mouse.dx * .0024 * sensitivity.mouse - curve(input.look.x) * 2.2 * sensitivity.pad * dt));player.lookPitch = Math.max(-1.2, Math.min(1.1, (player.lookPitch || 0) - input.mouse.dy * .0024 * sensitivity.mouse - curve(input.look.y) * 1.6 * sensitivity.pad * dt));
     const sway = dl ? Math.sin(performance.now() / 1300) * .07 * dl : 0;
@@ -1975,10 +1983,17 @@
   mp = window.GameMultiplayer.create({T, lib, scene, camera, vehicles, fireDecayS: fire.DECAY_S, fireMax: fire.MAX, localState, notice,
     drivingIndex: () => player.mode === 'vehicle' && player.vehicle ? vehicles.indexOf(player.vehicle) : gp ? caravanIndex() : -1,
     listener: () => ({x: player.x, y: player.feet + 1.5, z: player.z}), applyDoor, onChat: chatLine, onStatus: () => {renderMp();onLobbyChange();},
+    applyObj: (id, v) => {if (living) living.apply(id, v, true);},
+    // Joining a lobby: alone in a lobby that has nothing stored, what you did offline is sent up; otherwise the lobby's state wins.
+    resetObjs: m => {if (!living) return;if (m.players.length <= 1 && !Object.keys(m.objs || {}).length) living.publish();else living.reset();},
     onRemoteWood: r => fire.throwLog({x: r.pos.x, y: r.pos.y + 1.3, z: r.pos.z}), holdsMarker: id => !!paintball && paintball.rules.memberPlaying(id),
     autoAnchor: seat => autoPlane.hipAnchor('j' + seat), skyPose: (r, st, g) => {skyPose(r, st, g);kayakPose(r, st, g);orbPose(r, st, g);},
     // In a paintball game you see your team-mates' names, not your opponents' (issue #25).
     showTag: id => !paintball || !paintball.rules.inGame() || !paintball.rules.memberPlaying(id) || paintball.rules.teamOfMember(id) === paintball.rules.myTeam()});
+  // Flat 501's living room (issue #116): its record player, TV, lava lamp and chairs are shared through the lobby.
+  if (living) living.attach({now: () => mp.net.online ? mp.net.serverNow() : Date.now(), you: () => mp.net.online ? mp.net.you : 0, send: (id, v) => mp.sendObj(id, v),
+    notice, audio: (name, o) => audio.sfx(name, o), sit: sitDown, sitTaken: id => mp.sitTaken(id), solidsChanged: () => updateDynamic(),
+    remote: id => mp.remotes.get(id), remoteHas: id => mp.remotes.has(id), nameOf: id => mp.nameOf(id), audioContext: () => audio.context, music, weather: () => weather.state});
   // A new lobby: vehicles go back to where everybody else has them (the lobby then sends the ones that were moved).
   let lastLobby = null;
   function onLobbyChange() {
@@ -2309,7 +2324,7 @@
     badges.check();
   }
   window.haarklousGame = {player, vehicles, cc, get liftMenu() {return liftMenu;}, site, paintball, catacomb, groundAt, heli, plane, drone, watch, fire, stash, shops, gym, startClimb, openGymMenu, startBelay, get belay() {return belay;}, sculpture, oksen, weather, caravan, get skyd() {return skyd;}, get autoPlane() {return autoPlane;}, get jumpFlight() {return jumpFlight;}, boardAuto, boardCaravan, jump, get gp() {return gp;}, callGamePilot, handOver, CARAVAN_HOLD, applyWeather, wallet, get basket() {return basket;}, payAt, takeProduct, useItem, earn, openBag, takeBoost, get boost() {return boost;}, set boost(b) {boost = b;}, get mp() {return mp;}, sitDown, standUp, tryDrive, tryRide, openChat, startDrone, stopDrone, floorBelow, doors, mini, music, photo, map, world, apt, towers, walkWorld, route, landmarks, districts: DISTRICTS, get caseGame() {return caseGame;}, place, toggleDoor, enterVehicle, exitVehicle, startMinigame, startMission, drink, interact, findPrompt, renderFrame, begin, get fps() {return fpsAvg;}, kick: () => requestAnimationFrame(frame), get drunk() {return drunk;}, set drunk(v) {drunk = v;}, lic, licBegin, licEnd, get licTest() {return licTest;}, setStance, camera, scene};
-  Object.assign(window.haarklousGame, {library, pingpong, rathkes, kayak, startKayak, hushedFor: () => hushed});
+  Object.assign(window.haarklousGame, {library, pingpong, rathkes, living, kayak, startKayak, hushedFor: () => hushed});
   Object.assign(window.haarklousGame, {badges, huntSpots, huntPhoto, sightBlocked, SKY_TARGET, progress, account});
   Object.assign(window.haarklousGame, {rides, get rentals() {return rentals;}, jobs, openPhone, rentDrive, JOB_SIGNS});
   // Licences (issue #59). Browser tests that need to drive: haarklousGame.licences.grant('B') (or every id in GameLicences.IDS).

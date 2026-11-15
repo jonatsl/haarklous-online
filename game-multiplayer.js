@@ -2,9 +2,9 @@
  * benches, in vehicle seats, flying a drone), vehicles driven by other players (smoothed between their updates), seat
  * claims (one driver and one passenger per vehicle), chat, doors and the shared firepit level.
  * GameMultiplayer.create(ctx) -> {net, voice, update(dt), claim(i, seat) -> Promise<{ok, by}>, release(i, seat, final),
- *   occupant(i, seat), remoteDriven(i), sendChat(text), sendDoor(id, open), addWood(), fireLevel(), remotes, nameOf(id),
+ *   occupant(i, seat), remoteDriven(i), sendChat(text), sendDoor(id, open), sendObj(id, v), addWood(), fireLevel(), remotes, nameOf(id),
  *   sitTaken(spotId), setMic(on)}
- * ctx: {T, lib, scene, camera, vehicles, localState(), drivingIndex(), listener(), applyDoor(id, open, instant), onChat(line, mine),
+ * ctx: {T, lib, scene, camera, vehicles, localState(), drivingIndex(), listener(), applyDoor(id, open, instant), applyObj(id, v), resetObjs(), onChat(line, mine),
  *   onStatus(), notice(text, s), fireDecayS, fireMax}
  */
 (function (root, factory) {
@@ -34,6 +34,8 @@
           occ = m.occ || {};fire = m.fire || fire;vehTargets.clear();
           for (const [i, s] of Object.entries(m.vehicles || {})) {const v = vehicles[+i];if (v && s) v.netSet(s);}
           for (const [id, open] of Object.entries(m.doors || {})) ctx.applyDoor(id, open, true);
+          // Small shared things (flat 501's record player, TV, lava lamp, chairs): back to normal, then the lobby's state.
+          if (ctx.resetObjs) ctx.resetObjs(m);if (ctx.applyObj) for (const [id, v] of Object.entries(m.objs || {})) ctx.applyObj(id, v);
           for (const line of m.chat || []) ctx.onChat(line, false, true);
           if (voice.mic) net.send({t: 'mic', on: true});
           ctx.notice(m.players.length > 1 ? `Joined lobby ${m.code} · ${m.players.length} players` : `Online · your lobby code is ${m.code}`, 4);
@@ -52,6 +54,7 @@
         case 'claim': {if (m.ok) (occ[m.v] || (occ[m.v] = {}))[m.seat] = net.you;const res = pending.get(+m.v);if (res) {pending.delete(+m.v);res({ok: m.ok, by: m.by});}break;}// a granted seat is ours at once
         case 'chat': {const mine = m.id === net.you;ctx.onChat(m, mine);if (!mine) {const r = remotes.get(m.id);if (r) r.av.say(m.text);}break;}
         case 'door': ctx.applyDoor(m.id, m.open, false);break;
+        case 'obj': if (ctx.applyObj) ctx.applyObj(m.id, m.v);break;
         case 'fire': fire = m.fire;if (m.by && m.by !== net.you) {const r = remotes.get(m.by);if (r && ctx.onRemoteWood) ctx.onRemoteWood(r);}break;
         case 'rtc': voice.onSignal(m.from, m.d);break;
         case 'full': ctx.notice(`Lobby ${m.code || ''} is full (${net.max} players). Back in your own lobby.`, 5);break;
@@ -125,6 +128,8 @@
       net, voice, update, claim, release, occupant, remoteDriven, nameOf, sitTaken, fireLevel, addWood, remotes,
       sendChat(text) {text = String(text || '').trim().slice(0, 200);if (!text) return false;if (net.online) {net.send({t: 'chat', text});return true;}ctx.onChat({name: net.name, text, slot: 0}, true);return false;},
       sendDoor(id, open) {if (net.online) net.send({t: 'door', id, open});},
+      // A small shared thing: id -> a small value (null removes it); the lobby keeps it for players who join later.
+      sendObj(id, v) {if (net.online) net.send({t: 'obj', id, v: v ?? null});},
       async setMic(on) {const ok = await voice.setMic(on);if (ok && net.online) net.send({t: 'mic', on: voice.mic});return ok;},
       get occ() {return occ;}
     };

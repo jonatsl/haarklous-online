@@ -144,3 +144,116 @@ test('the plan from the video holds together', () => {
   const obs = F.obstacles(D, lv, YARD - 1, YARD + 19);
   for (const r of D.rooms) {const a = (r.rect[0] + r.rect[2]) / 2, b = (r.rect[1] + r.rect[3]) / 2;assert.ok(!obs.some(o => inRect(o.rect, a, b) && o.minY < lv.FL + 1.7 && o.maxY > lv.FL + .05) || r.id === 'living', r.id);}
 });
+
+// ---------- The living room you can use (issue #116): record player, sofa and TV, chairs, lava lamp ----------
+const Liv = require('../game-rathkes-living.js');
+require('../game-music.js');const Music = globalThis.GameMusic;
+const solids0 = F.furnitureSolids(D);// wing coordinates, heights from the floor
+const homes = () => Liv.chairsOf(D).map(c => ({kind: c.kind, a: c.home.a, b: c.home.b, y: c.home.y}));
+
+test('the furniture keeps its collision, the chairs are pieces of their own, the sofa is clear of the wall unit', () => {
+  assert.ok(solids0.length > 30 && !solids0.some(s => ['diningChair', 'slingChair', 'foldingChair'].includes(s.kind)));
+  const table = solids0.filter(s => s.kind === 'diningTable');assert.strictEqual(table.length, 5, 'the top and four legs');
+  assert.ok(Math.abs(Math.min(...table.map(s => s.minY))) < 1e-9 && table.some(s => s.minY > .6), 'chairs tuck in under the top');
+  const meet = (k1, k2) => solids0.filter(s => s.kind === k1).some(p => solids0.filter(s => s.kind === k2).some(q => Liv.overlap(p.pts, q.pts)));
+  assert.ok(!meet('sofa', 'wallUnit') && !meet('sofa', 'coffeeTable') && !meet('coffeeTable', 'wallUnit'));
+  const chairs = Liv.chairsOf(D);assert.strictEqual(chairs.length, 8);
+  assert.deepStrictEqual([...new Set(chairs.map(c => c.kind))].sort(), ['diningChair', 'foldingChair', 'slingChair']);
+  assert.strictEqual(chairs.filter(c => c.kind === 'diningChair').length, 6);
+});
+
+test('every chair stands on the floor and is built in one piece (no loose or floating parts)', () => {
+  for (const kind of Object.keys(Liv.CHAIRS)) {
+    const parts = Liv.chairParts(kind), B = parts.map(Liv.partBounds), tol = .012;
+    assert.ok(Math.abs(Math.min(...B.map(b => b.y0))) < .004, `${kind} stands on the floor`);
+    // Joined: every part touches the floor or another part, and all of it is one piece.
+    const touch = (p, q) => p.x0 <= q.x1 + tol && q.x0 <= p.x1 + tol && p.y0 <= q.y1 + tol && q.y0 <= p.y1 + tol && p.z0 <= q.z1 + tol && q.z0 <= p.z1 + tol;
+    const seen = new Set(B.map((b, i) => b.y0 < .005 ? i : -1).filter(i => i >= 0)), queue = [...seen];
+    while (queue.length) {const i = queue.shift();B.forEach((b, j) => {if (!seen.has(j) && touch(B[i], b)) {seen.add(j);queue.push(j);}});}
+    assert.strictEqual(seen.size, parts.length, `${kind}: ${parts.length - seen.size} parts float`);
+    // Four legs on the floor, the seat at sitting height, a back at the back, and the collision boxes hold the whole chair.
+    assert.ok(B.filter(b => b.y0 < .005).length >= 4, kind);
+    const seat = Liv.CHAIRS[kind].seat;assert.ok(seat > .3 && seat < .55, kind);
+    assert.ok(B.some(b => b.z1 < 0 && b.y1 > .8), `${kind} has a back`);
+    const boxes = Liv.chairBoxes(kind), ext = (k, s) => boxes.map(([w, h, d, x = 0, y = h / 2, z = 0]) => [x, y, z][k] + s * [w, h, d][k] / 2);
+    assert.ok(Math.min(...B.map(b => b.x0)) >= Math.min(...ext(0, -1)) - .02 && Math.max(...B.map(b => b.x1)) <= Math.max(...ext(0, 1)) + .02, `${kind} boxes (x)`);
+    assert.ok(Math.max(...B.map(b => b.y1)) <= Math.max(...ext(1, 1)) + .02, `${kind} boxes (y)`);
+    assert.ok(Math.min(...B.map(b => b.z0)) >= Math.min(...ext(2, -1)) - .02 && Math.max(...B.map(b => b.z1)) <= Math.max(...ext(2, 1)) + .02, `${kind} boxes (z)`);
+  }
+});
+
+test('the chairs start in free places: in a room, clear of walls, doorways, furniture and each other', () => {
+  const all = homes();
+  all.forEach((c, i) => {const r = Liv.canPlace({data: D, solids: solids0, others: all.filter((_, j) => j !== i)}, c.kind, c.a, c.b, c.y);assert.ok(r.ok, `${c.kind} at ${c.a},${c.b}: ${r.why}`);});
+  // The dining chairs face the table, three a side.
+  const tab = D.furniture.find(f => f.kind === 'diningTable').at;
+  for (const c of all.filter(c => c.kind === 'diningChair')) assert.ok(Math.sin(c.y) * (tab[0] - c.a) > 0, 'faces the table');
+});
+
+test('putting a chair down: in front of you, turned the way you face; never through walls, furniture, chairs or doorways', () => {
+  const ctx = player => ({data: D, solids: solids0, others: homes().filter(c => c.kind !== 'slingChair'), player});
+  const p = Liv.putPose('slingChair', 9.0, 1.6, Math.PI / 2 + .1);
+  assert.ok(Math.abs(p.y - Math.PI / 2) < 1e-9, 'snapped to 15°');assert.ok(p.a > 9.5 && Math.abs(p.b - 1.6) < .1, JSON.stringify(p));
+  assert.ok(Liv.canPlace(ctx([9.0, 1.6]), 'slingChair', 9.2, 2.0, 0).ok, 'open floor');
+  assert.deepStrictEqual(Liv.canPlace(ctx([9.0, 4.4]), 'slingChair', 9.0, 4.85, 0), {ok: false, why: 'wall'}, 'half into the hall wall');
+  assert.strictEqual(Liv.canPlace(ctx([7.3, 1.8]), 'slingChair', 7.3, .95, 0).why, 'furniture', 'on the sofa');
+  assert.strictEqual(Liv.canPlace(ctx([10.9, 1.2]), 'diningChair', 10.9, 2.7, 0).why, 'furniture', 'on the table');
+  assert.strictEqual(Liv.canPlace({data: D, solids: solids0, others: homes(), player: [8.0, 2.6]}, 'diningChair', 8.05, 3.55, 0).why, 'chair', 'on another chair');
+  assert.strictEqual(Liv.canPlace(ctx([9.55, 3.8]), 'diningChair', 9.55, 4.4, 0).why, 'door', 'in front of the doorway to the hall');
+  assert.strictEqual(Liv.canPlace(ctx([2.2, 5.7]), 'diningChair', 2.2, 5.7, 0).why, 'door', 'in the hall by a bedroom door');
+  // Through a wall into the next room: the chair must stay in the room you are in.
+  assert.strictEqual(Liv.canPlace(ctx([4.4, 5.4]), 'diningChair', 4.6, 3.9, Math.PI).why, 'wall');
+  assert.ok(Liv.canPlace(ctx([4.6, 3.2]), 'diningChair', 4.6, 3.9, Math.PI).ok, 'the same spot from inside the bedroom');
+  // Out of the flat: no room there.
+  assert.strictEqual(Liv.canPlace(ctx([5.05, 7.0]), 'diningChair', 5.05, 7.0, 0).why, 'wall');
+  // Tucked in under the table top is fine (the seat is lower than the top).
+  assert.ok(Liv.canPlace({data: D, solids: solids0, others: []}, 'diningChair', 10.4, 2.7, Math.PI / 2).ok);
+});
+
+test('the record player, TV, sofa, chairs and lava lamp are in the flat and can be reached on foot', () => {
+  const rect = r => [{x: r[0], z: r[1]}, {x: r[2], z: r[1]}, {x: r[2], z: r[3]}, {x: r[0], z: r[3]}];
+  const floors = F.flatFloors(D, lv).map(f => ({points: rect(f.rect), ceilingHeight: f.ceiling, y: f.y}));
+  const furn = [...solids0, ...homes().flatMap(c => Liv.boxesToWing(Liv.chairBoxes(c.kind), c.a, c.b, c.y))];
+  const obstacles = [...F.obstacles(D, lv, YARD - 1, YARD + 19).map(o => ({points: rect(o.rect), minY: o.minY, maxY: o.maxY})),
+    ...furn.map(s => ({points: s.pts.map(([x, z]) => ({x, z})), minY: lv.FL + s.minY, maxY: lv.FL + s.maxY}))];
+  const w = WC.createWorld({floors, obstacles, radius: .18, clearance: .08}), step = .15, seen = new Map(), key = (x, z) => `${Math.round(x / step)},${Math.round(z / step)}`, start = {x: 5.05, z: 5.7, y: lv.FL}, queue = [start];
+  seen.set(key(start.x, start.z), start);
+  while (queue.length) {const p = queue.shift();for (const [dx, dz] of [[step, 0], [-step, 0], [0, step], [0, -step]]) {const t = {x: p.x + dx, z: p.z + dz};if (seen.has(key(t.x, t.z))) continue;const q = WC.move(w, p, {x: dx, z: dz}, 1.6, p.y);if (Math.hypot(q.x - t.x, q.z - t.z) > .02) continue;seen.set(key(t.x, t.z), q);queue.push(q);}}
+  const cells = [...seen.values()], its = Liv.items(D);
+  assert.deepStrictEqual(its.map(i => i.name).slice(0, 4), ['record player', 'lava lamp', 'TV', 'sofa']);
+  for (const it of its) {
+    assert.ok(D.rooms.some(r => it.a > r.rect[0] && it.a < r.rect[2] && it.b > r.rect[1] && it.b < r.rect[3]), `${it.name} in a room`);
+    const reach = Math.max(it.size[0], it.size[2]) / 2 + 1.0, near = cells.filter(c => Math.hypot(c.x - it.a, c.z - it.b) < reach);
+    assert.ok(near.length > 2, `${it.name} at ${it.a.toFixed(2)},${it.b.toFixed(2)} can be reached (${near.length})`);
+  }
+  // The sofa's three seats face the TV, and there is room to stand up in front of each.
+  const seats = Liv.seatsOf(D), tv = its[2];assert.strictEqual(seats.length, 3);
+  for (const s of seats) {assert.ok(Math.cos(s.yaw - Math.atan2(tv.a - s.a, tv.b - s.b)) > .999);assert.ok(cells.some(c => Math.hypot(c.x - s.stand[0], c.z - s.stand[1]) < .25), `stand up from seat ${s.i}`);}
+});
+
+test('the record player and the TV go round their choices, and every player works out the same timing', () => {
+  assert.deepStrictEqual([null, 0, 1, 2, 3].map(i => Liv.cycle(i, 4)), [0, 1, 2, 3, -1]);
+  let s = null;const seen = [];for (let k = 0; k < 6; k++) {s = Liv.nextRecord(s, 1000 * k);seen.push(s.r);}
+  assert.deepStrictEqual(seen, [0, 1, 2, 3, -1, 0]);
+  const on = {r: 2, t: 10000};
+  assert.ok(Liv.recordPos(on, 10000) < 0 && Math.abs(Liv.recordPos(on, 10000 + Liv.LEAD_S * 1000)) < 1e-9 && Liv.recordPos({r: -1, t: 0}, 5000) === null);
+  assert.strictEqual(Liv.armAt(on, 10000), 0);assert.strictEqual(Liv.armAt(on, 10000 + Liv.ARM_S * 1000), 1);
+  assert.strictEqual(Liv.armAt({...on, swap: 1}, 10000), 1, 'changing the record keeps the arm on it');
+  assert.strictEqual(Liv.armAt({r: -1, t: 0, was: 2}, 0), 1);assert.strictEqual(Liv.armAt({r: -1, t: 0, was: 2}, Liv.ARM_S * 1000), 0, 'stop: back to its rest');
+  let c = null;const ch = [];for (let k = 0; k < 5; k++) {c = Liv.nextChannel(c, k);ch.push(c.c);}assert.deepStrictEqual(ch, [0, 1, 2, 3, -1]);
+  assert.deepStrictEqual(Liv.CHANNELS.map(x => x.id), ['news', 'football', 'nature', 'weather']);
+  let last = -1;for (let t = 0; t <= 9000; t += 500) {const v = Liv.lavaWarm({on: true, t: 0}, t);assert.ok(v >= last && v <= 1);last = v;}assert.strictEqual(last, 1);
+  assert.strictEqual(Liv.lavaWarm({on: false, t: 0, from: 1}, 6000), 0);
+  // Four records, each a different piece of the game's own synth music, one to one and a half minutes long.
+  assert.deepStrictEqual(Music.records, Liv.RECORDS.map(r => r.track));
+  const styles = new Set();for (const r of Liv.RECORDS) {const t = Music.tracks[r.track];assert.ok(t.record && t.title === r.title && t.artist === r.artist && t.seconds > 60 && t.seconds < 90, r.track);styles.add(`${t.bpm}/${t.beats}`);}
+  assert.strictEqual(styles.size, 4, 'four different tempos and metres');
+});
+
+test('the record and the TV are heard in the living room, faintly in the other rooms, not outside the flat', () => {
+  const near = Liv.hearing({place: 'flat', room: 'living'}, .5), far = Liv.hearing({place: 'flat', room: 'living'}, 6), hall = Liv.hearing({place: 'flat', room: 'hall'}, 6);
+  assert.ok(near.gain === 1 && far.gain < near.gain && far.gain > .15 && !near.muffle);
+  assert.ok(hall.gain > 0 && hall.gain < far.gain && hall.muffle > .5);
+  assert.strictEqual(Liv.hearing({place: 'stair', level: 5}, 3).gain, 0);assert.strictEqual(Liv.hearing(null, 3).gain, 0);
+  assert.strictEqual(Liv.duckFor(0, 0), 1);assert.ok(Liv.duckFor(1, 0) <= .1 + 1e-9 && Liv.duckFor(0, 1) > .5 && Liv.duckFor(0, 1) < 1);
+});
