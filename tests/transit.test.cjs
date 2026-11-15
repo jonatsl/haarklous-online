@@ -108,7 +108,7 @@ test('metro stations: from the entrance down the stairs to the platform on foot'
   const ground = () => 0;
   for (const st of N.stations) {
     const stops = [];
-    for (const d of N.dirs) if (d.line.mode === 'metro') for (const s of d.stops) if (s.place === st.place) {const p = TT.pointAt(d, s.d);stops.push({x: p.x, s: p.s, hx: p.hx, hs: p.hs, tunnel: !!d.tunnel[s.k]});}
+    for (const d of N.dirs) if (d.line.mode === 'metro') for (const s of d.stops) if (s.place === st.place) {const p = TT.pointAt(d, s.d);let open = false;for (let k = Math.max(0, s.k - 35); k <= Math.min(d.n - 1, s.k + 35); k++) if (!d.tunnel[k]) open = true;stops.push({x: p.x, s: p.s, hx: p.hx, hs: p.hs, tunnel: !!d.tunnel[s.k], openNear: open});}
     const sp = TS.spec(st, stops, {ground, layer: -1}), L = TS.layout(sp, ground);
     if (!sp.underground) {assert.ok(L.floors.length >= 2);continue;}
     assert.ok(L.kiosk && L.cuts.length === 1, st.name + ' has an entrance');

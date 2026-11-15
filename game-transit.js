@@ -35,7 +35,8 @@
     return N.stations.map(st => {
       const stops = [];
       for (const d of N.dirs) if (d.line.mode === 'metro') for (const s of d.stops) if (s.place === st.place) {
-        const p = TT.pointAt(d, s.d);if (!stops.some(q => Math.hypot(q.x - p.x, q.s - p.s) < .8)) stops.push({x: p.x, s: p.s, hx: p.hx, hs: p.hs, tunnel: !!d.tunnel[s.k]});
+        const p = TT.pointAt(d, s.d);let open = false;for (let k = Math.max(0, s.k - 35); k <= Math.min(d.n - 1, s.k + 35); k++) if (!d.tunnel[k]) open = true;
+        if (!stops.some(q => Math.hypot(q.x - p.x, q.s - p.s) < .8)) stops.push({x: p.x, s: p.s, hx: p.hx, hs: p.hs, tunnel: !!d.tunnel[s.k], openNear: open});
       }
       return {st, stops};
     });
@@ -147,6 +148,81 @@
       railY.set(dir, Y);return Y;
     }
     const metroAt = (dir, d) => {const Y = metroY(dir), k = Math.max(0, Math.min(dir.n - 2, Math.floor(d / TT.STEP))), t = Math.max(0, Math.min(1, d / TT.STEP - k));return Y[k] + (Y[k + 1] - Y[k]) * t;};
+    // ---------- Tunnel mouths ----------
+    // Where a metro track goes from the open into a long tunnel (or out of one): a concrete portal with a dark inside, walls along
+    // the track in front of it, and a cut-and-cover box over the first stretch, which goes on until the ground covers it. The
+    // track goes down inside the box, so a train is seen driving into the mouth, not sinking into the ground. Solid for walkers.
+    const portals = [];
+    {
+      const groups = [];
+      for (const d of N.dirs) {
+        if (d.line.mode !== 'metro') continue;
+        for (let k = 1; k < d.n; k++) {
+          if (d.tunnel[k] === d.tunnel[k - 1]) continue;
+          const sg = d.tunnel[k] ? 1 : -1, k0 = d.tunnel[k] ? k : k - 1;// sg: the tunnel lies ahead (+1) or behind (-1) along the line
+          let run = 0;for (let j = k0; j >= 0 && j < d.n && d.tunnel[j]; j += sg) run += TT.STEP;
+          if (run < 160 || !inWorld(d.X[k0], d.S[k0], 0)) continue;// a short tunnel (under a bridge) keeps the train at the ground
+          if (stations.some(S => S.sp.underground && Math.hypot(d.X[k0] - S.sp.c[0], d.S[k0] - S.sp.c[1]) < TS.HALL / 2 + 8)) continue;
+          let g = groups.find(q => Math.hypot(q.x - d.X[k0], q.s - d.S[k0]) < 18);
+          if (!g) {g = {x: d.X[k0], s: d.S[k0], tracks: []};groups.push(g);}
+          if (!g.tracks.some(t => Math.hypot(t.d.X[t.k] - d.X[k0], t.d.S[t.k] - d.S[k0]) < 1.5)) g.tracks.push({d, k: k0, sg});
+        }
+      }
+      const pos = [], col = [], dark = [];
+      const c3 = hex => {const c = new T.Color(hex);return [c.r, c.g, c.b];};
+      const quad = (a, b, c, d, k) => {pos.push(...a, ...b, ...c, ...a, ...c, ...d);for (let i = 0; i < 6; i++) col.push(...k);};
+      for (const g of groups) {
+        const t0 = g.tracks[0], d0 = t0.d, sg = t0.sg, kk = j => Math.max(0, Math.min(d0.n - 1, j));
+        // the frame: u into the tunnel along the first track, v across; the tracks' offsets give the width
+        const ux = (d0.X[kk(t0.k + 4 * sg)] - d0.X[t0.k]), us = (d0.S[kk(t0.k + 4 * sg)] - d0.S[t0.k]), ul = Math.hypot(ux, us) || 1;
+        const a = [ux / ul, us / ul], n = [-a[1], a[0]];
+        const vs = g.tracks.map(t => (t.d.X[t.k] - d0.X[t0.k]) * n[0] + (t.d.S[t.k] - d0.S[t0.k]) * n[1]);
+        const v0 = Math.min(...vs) - 2.95, v1 = Math.max(...vs) + 2.95, vm = (v0 + v1) / 2;
+        const o = [d0.X[t0.k], d0.S[t0.k]], L = (u, v) => [o[0] + a[0] * u + n[0] * v, o[1] + a[1] * u + n[1] * v];
+        const railAt = u => metroY(d0)[kk(t0.k + Math.round(u / TT.STEP) * sg)];
+        const P3 = (u, v, y) => {const q = W(...L(u, v));return [q.x, y, q.z];};
+        const gr = (u, v) => {const q = W(...L(u, v));return terrain(q.x, q.z);};
+        const concrete = c3(0xa7a49c), dim = c3(0x86837c), H = 5.4, rail0 = railAt(0);
+        // the cut-and-cover box: its walls (both faces), roof and ceiling, 2 m at a time, until the ground is over its roof
+        let end = 0, buried = 0;
+        for (let u = 0; u < 70 && buried < 3; u += 2) {
+          const ya = railAt(u), yb = railAt(u + 2), topA = ya + H, topB = yb + H;
+          for (const [v, sv] of [[v0, -1], [v1, 1]]) {
+            quad(P3(u, v, ya - .4), P3(u + 2, v, yb - .4), P3(u + 2, v, topB), P3(u, v, topA), dim);
+            quad(P3(u, v + sv * .45, ya - .4), P3(u + 2, v + sv * .45, yb - .4), P3(u + 2, v + sv * .45, topB + .45), P3(u, v + sv * .45, topA + .45), concrete);
+          }
+          quad(P3(u, v0 - .45, topA + .45), P3(u + 2, v0 - .45, topB + .45), P3(u + 2, v1 + .45, topB + .45), P3(u, v1 + .45, topA + .45), concrete);
+          quad(P3(u, v0, topA), P3(u, v1, topA), P3(u + 2, v1, topB), P3(u + 2, v0, topB), c3(0x2a2a2c));// the ceiling inside
+          end = u + 2;
+          if ([v0 - .45, vm, v1 + .45].every(v => gr(u + 2, v) > topB + .8)) buried++;else buried = 0;
+        }
+        // the dark inside, 3 m in: the train drives into it
+        const yd = railAt(3);dark.push(...P3(3, v0, yd - .4), ...P3(3, v1, yd - .4), ...P3(3, v1, yd + H), ...P3(3, v0, yd - .4), ...P3(3, v1, yd + H), ...P3(3, v0, yd + H));
+        // the portal face: pillars and the lintel round the opening, a parapet on top
+        for (const [va, vb] of [[v0 - .45, v0], [v1, v1 + .45]]) quad(P3(-.05, va, rail0 - .4), P3(-.05, vb, rail0 - .4), P3(-.05, vb, rail0 + H + 1.1), P3(-.05, va, rail0 + H + 1.1), concrete);
+        quad(P3(-.05, v0, rail0 + H), P3(-.05, v1, rail0 + H), P3(-.05, v1, rail0 + H + 1.1), P3(-.05, v0, rail0 + H + 1.1), concrete);
+        quad(P3(-.05, v0 - .45, rail0 + H + 1.1), P3(-.05, v1 + .45, rail0 + H + 1.1), P3(1.2, v1 + .45, rail0 + H + 1.1), P3(1.2, v0 - .45, rail0 + H + 1.1), dim);
+        // walls along the track in front: from the portal's height down to 1.2 m over the rail, 18 m out
+        const wtop = (u, y) => Math.max(rail0 + H * (1 + u / 18 * .78), y + 1.2);
+        for (const [v, sv] of [[v0, -1], [v1, 1]]) for (let u = 0; u > -18; u -= 2) {
+          const ya = railAt(u), yb = railAt(u - 2), ta = wtop(u, ya), tb = wtop(u - 2, yb);
+          quad(P3(u, v, ya - .4), P3(u - 2, v, yb - .4), P3(u - 2, v, tb), P3(u, v, ta), dim);
+          quad(P3(u - 2, v + sv * .35, yb - .4), P3(u, v + sv * .35, ya - .4), P3(u, v + sv * .35, ta), P3(u - 2, v + sv * .35, tb), concrete);
+          quad(P3(u, v, ta), P3(u - 2, v, tb), P3(u - 2, v + sv * .35, tb), P3(u, v + sv * .35, ta), concrete);
+        }
+        // solid for walkers (and cars): the box's walls, the wing walls, and the mouth itself
+        const gMin = Math.min(gr(0, vm), rail0) - 2;
+        const wallL = (ua, ub, v, t) => obstacles.push({points: [L(ua, v - t), L(ub, v - t), L(ub, v + t), L(ua, v + t)].map(q => W(...q)), minY: gMin, maxY: rail0 + H + 1.2, kind: 'portal'});
+        wallL(-18, end, v0 - .22, .25);wallL(-18, end, v1 + .22, .25);wallL(.3, 1.2, vm, (v1 - v0) / 2);
+        portals.push({x: o[0], s: o[1], tracks: g.tracks.length, length: end, rail: rail0, refs: [...new Set(g.tracks.map(t => t.d.line.ref))], face: W(...L(-14, vm)), look: W(...L(4, vm))});
+      }
+      if (pos.length) {
+        const geo = new T.BufferGeometry();geo.setAttribute('position', new T.Float32BufferAttribute(pos, 3));geo.setAttribute('color', new T.Float32BufferAttribute(col, 3));geo.computeVertexNormals();
+        const m = new T.Mesh(geo, new T.MeshStandardMaterial({vertexColors: true, roughness: .9, side: T.DoubleSide}));m.name = 'Metro tunnel mouths';m.castShadow = m.receiveShadow = true;group.add(m);
+        const dg = new T.BufferGeometry();dg.setAttribute('position', new T.Float32BufferAttribute(dark, 3));
+        const dm = new T.Mesh(dg, new T.MeshBasicMaterial({color: 0x050506, side: T.DoubleSide}));dm.name = 'Metro tunnel mouths, the dark inside';group.add(dm);portals.dark = dm;
+      }
+    }
     // ---------- Vehicle poses (pure apart from the ground) ----------
     function sectionsAt(dir, d) {
       const line = dir.line, K = TM.KINDS[kindOf(line)], out = [], metro = line.mode === 'metro';
@@ -779,6 +855,7 @@
       deep = under;
       updateTunnels(camera, under || api.showTunnels || (ride && ride.dir.line.mode === 'metro' && ride.a.st && ride.dir.tunnel[ride.a.st.k]));
       models.M.body.emissive.setHex(under ? 0x3a3d40 : 0x000000);
+      if (portals.dark) portals.dark.visible = !(ride && ride.dir.line.mode === 'metro');// riders see the tunnel itself
       if (!ride) hud.hidden = true;
     }
     // Someone (or a car) a tram or bus has come up against goes out to the nearest side.
@@ -806,7 +883,7 @@
     const api = {showTunnels: false,// test handle: draw the tunnels round the camera wherever it is
       group, floors, obstacles, cutsGround, poi, tick, prompt, panel, updateRide, overlay, legend, keepClear, pushOut, localState, pose, footprints: () => solids,
       get ride() {return ride;}, get deep() {return deep;}, get ticketUntil() {return ticketUntil;}, set ticketUntil(v) {ticketUntil = v;},
-      leave: () => exitRide(), timetable: N, stations, poles, active, sectionsAt, metroY, hud, inWorld, TICKET};
+      leave: () => exitRide(), timetable: N, stations, portals, poles, active, sectionsAt, metroY, hud, inWorld, TICKET};
     return api;
   }
   return {create, prepare, TICKET, TICKET_MIN, kindOf};

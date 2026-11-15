@@ -36,7 +36,9 @@
     let type = platV.some(v => v > t0 + .5 && v < t1 - .5) ? 'island' : platV.length ? 'side' : (t1 - t0 > 7 ? 'island' : 'side');
     if (type === 'island' && t1 - t0 > 16) type = 'side';
     if (type === 'island' && t1 - t0 < 2 * CLEAR + 4) {const m = (t0 + t1) / 2;tracks[0] = m - CLEAR - 2.5;tracks[tracks.length - 1] = m + CLEAR + 2.5;}
-    const underground = stops.filter(q => q.tunnel).length * 2 >= stops.length;
+    // Underground when the track at the stop is in a tunnel, unless it comes out in the open beside the platforms (Ensjø: a
+    // station in a cutting, partly covered): then it is an open station.
+    const underground = stops.filter(q => q.tunnel).length * 2 >= stops.length && !stops.some(q => q.openNear);
     const g = ground(c[0], c[1]);
     const depth = Math.max(9, Math.min(20, 6 + 4 * Math.abs(layer)));
     // Under the lower of the ground over the platforms and at the entrance (Carl Berner's entrance is 20 m below the station node).
