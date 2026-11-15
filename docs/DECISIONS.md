@@ -13,7 +13,7 @@ On `main`:
 - Your 4th-floor apartment (your kitchen + bedroom design) and stairwell; the street door and stairs work without the mission; eight neighbouring stairwells.
 - Flats you can buy: the 64 flats in the eight neighbouring stairwells are for sale (4 600–11 100 kr); each is a real flat you walk into, with windows to the street and the courtyard; a bought flat has one owner – your name on the door, only you unlock it, it is on your map and saved with your account; one flat each, sell for 80 % (issue #106).
 - Walking (2.5 m/s), running (6 m/s), crouch (tap ○), prone (hold ○), jump (✕); PS4 controller (USB / Bluetooth) plus keyboard and mouse; look sensitivity setting.
-- Vehicles: Honda CBF600S motorcycle and 7 more motorcycles, 30 cars near home and 367 more parked all over the city – by the kerb and in car parks, in every part of town (issue #105), excavator, helicopter, two-seat plane, Caravan jump plane; hands on bars / wheel / sticks.
+- Vehicles: Honda CBF600S motorcycle and 7 more motorcycles, 30 cars near home and 367 more parked all over the city – by the kerb and in car parks, in every part of town (issue #105), and about 7,500 more parked cars, vans, SUVs, taxis, lorries and motorcycles in every street and car park, all drivable, plus bicycles and mopeds at the bike racks (issue #113, PR __PR__, not merged yet), excavator, helicopter, two-seat plane, Caravan jump plane; hands on bars / wheel / sticks.
 - Cars and motorcycles follow gravity (9.81 m/s²) and fly over crests and bumps taken fast (PR #5).
 - FPV drone (hold △), photo camera with gallery (tap △), wristwatch (D-pad ↑), map (touchpad).
 - A waypoint you set on the map (✕ or a click) and a purple pin on screen that leads you there until you are within 7 m (issue #41); an optional round minimap in the bottom-left corner like GTA IV's, turned on in the pause menu (issue #42).
@@ -54,6 +54,40 @@ On `main`:
 Live site: runs `main` (Worker version f8651516, deployed 15 Nov 2026 after PRs #107 and #109; `main` builds byte-for-byte to the live page), so everything above is online. Account emails (issue #55) wait for the user's Brevo key.
 
 ## Log
+
+### 2026-11-15 · A lot more vehicles around the city (issue #113)
+- **What:**
+  - About 7,500 more parked vehicles you can drive, in every part of the world (planned numbers; a few are left out in the game where it keeps a place free): Torshov 1,246, Sagene / Myrens 112, Grünerløkka 903, Tøyen / Kampen 612, Grønland and the centre 553, Ensjø 373, Sinsen / Løren 274, Økern / Ulven 538. About 6,250 stand by the kerb, 1,350 in real car parks, and taxis wait at the taxi ranks. That is 20 times the 367 cars of issue #105. Grünerløkka has fewer than you might expect because OpenStreetMap marks many of its kerbs as no parking, and its tram streets have none.
+  - Many kinds, in Oslo proportions: small cars, electric hatchbacks, electric saloons, estate cars, SUVs (the most), vans, a few pickups and lorries, taxis, and motorcycles. Colours mostly white, black, grey and silver, like Norwegian cars. More vans, pickups and lorries in the industrial parts (Økern, Ulven, Løren, Ensjø).
+  - About 800 bicycles and 220 mopeds at the real bike racks (and a few mopeds at the kerb). They are locked: □ next to one says so.
+  - The kerbs fill in runs, the way people park: a row of cars, a gap, another row. On a one-way street cars park on both sides, facing the one way; otherwise on the right-hand side, facing the traffic.
+  - From OpenStreetMap where it says something: kerbs marked "no parking" stay empty, car parks are filled in rows of bays, parking lanes mapped as areas get a row of cars. Main roads (secondary, primary, trunk) have no parked cars unless the map says so.
+  - Never on a crossing street's corner (5 m from its kerb), before a pedestrian crossing (5 m), at a bus or tram stop (20 m), in front of a driveway, gate or entrance, on tram rails, beside a railway, in a building, on a tree or a street lamp, in water, on a job's stopping place (the taxi's ring; the taxi stops beside a parked car), on the driving test's route, on the airstrip, at the bike docks, or on another vehicle.
+  - Every car, van, SUV, taxi and pickup drives like the cars we have (førerkort B, passengers, the taxi job, the gust pushes them). A lorry needs class C. A motorcycle needs class A and rides as the Honda CBF600S, in its own colour. Inside you sit behind a wheel with your hands on it, at the right height for the vehicle.
+  - Parked vehicles are solid for walkers and for anything you drive, and stand level on the ground with all wheels down.
+- **Why:** the user (15 Nov 2026): "Place a lot more vehicles around the city." Issue #105 had put 367 parked cars out, two in every 300 m square.
+- **Decisions (Claude's, say if you want them changed):**
+  - How many: kerbs 30 % full on average (55 % where OpenStreetMap marks a parking lane), car parks 40 %, bike racks 60 %. That gave about 7,500 motor vehicles, which looks like a parked street without filling every place. More or fewer is one number each (`FILL` in `game-parking.js`, then `node tools/make-parking.cjs`).
+  - All motor vehicles can be driven; bicycles and mopeds cannot (they are someone's, and city bikes and e-scooters are for hire).
+  - Ordinary streets (residential, tertiary) park on both sides, narrow ones (unclassified) on one side, living streets and main roads on none, unless OpenStreetMap says otherwise. Only 271 streets in the area have parking tags, so this rule decides most streets.
+  - The rules come from the Norwegian traffic rules (5 m from a junction and before a crossing, 20 m from a bus stop) and the game's own places.
+  - Lorries park only by wide streets and in the industrial parts. They need class C (as the site's tipper).
+  - The 367 cars of issue #105 and the 30 near home are as they were.
+- **How it is built (performance):**
+  - The plan is made once by `tools/make-parking.cjs` and stored in `parking-data.js` (134 KB): the game does not work it out at start.
+  - All parked vehicles are drawn as instances: one near model (shaped, within 75 m) and one far model (two boxes, to 650 m) per body type, about 20 draw calls for all of them. A vehicle gets its full model (body, turning wheels, the hatchback's interior with the steering wheel and hands) only when somebody drives it, and goes back to an instance when it has stood still out of the way for 4 seconds.
+  - The parked ones are one collision layer, changed one vehicle at a time. Collision floors are now found by area (each step of a walker looked at all ~960 floors before; 5 times faster).
+  - Each place is checked against the collision world and set on the ground (taken from the game's ground at run time) when it first comes in sight, a few milliseconds a frame.
+- **Online:** the new vehicles come after every older vehicle (numbers 684 onward), so the old numbers stay. Every computer has the same list (it is in the game file); a place that fails the game's own check on a computer keeps its number and stays empty. The lobby server has no limit on vehicle numbers.
+- **Where:** `game-parking.js` (new: where they stand, pure), `game-fleet.js` (new: models, drawing, drivable parked vehicles), `parking-data.js` (new, generated), `tools/make-parking.cjs` (new), `assets/osm/parking-osm-2026-11-15.json.gz` (new), `game-main.js`, `game-vehicles.js` (models made on demand, shared interior), `walk-collision.js` (parked layer, floors by area), `game-licences.js` (lorry: class C), `game-jobs.js` (taxi sign height), `index.html`, `README.md`, `tests/city-cars.test.cjs`.
+- **Checked:**
+  - Node tests 226/226 (9 new): kerb side and direction, one-way streets and "no parking" tags, junctions / crossings / bus stops / gates / trams / buildings / other vehicles, car parks and parking lanes, taxi ranks and bike racks, the real map (7,609 motor vehicles, every district, every kind, none on a carriageway, tram line, building, bus stop, job stop or another vehicle), the stored plan is up to date, the game's kept-free places, the old vehicle numbers.
+  - In the browser (headless Chrome, simulated controller): 8,149 vehicles in all (684 before); the first 684 are the same as before (same kinds, names and places); a black estate car in Grünerløkka: "□ Drive the black estate car", you sit inside with the wheel and hands, 42 km/h after 3.5 s, brake, □ gets you out; walking away it went back to an instance within 8 s and stayed solid; walking into a parked SUV stops you at its side (1.14 m from its middle, half its width plus your own); "🔒 Someone's blue bicycle – locked".
+  - Draw calls and triangles at five fixed camera places (main, far and shadow passes), before → after: home street 1,950 → 1,974 calls, 1.562 → 1.596 M triangles, Grünerløkka 236 → 262, 0.822 → 0.894 M, Gamle Oslo 216 → 236, 0.617 → 0.659 M, Økern 256 → 250, 0.827 → 0.853 M, 300 m over Grünerløkka 742 → 760, 1.651 → 1.735 M.
+  - CPU time per frame (median of 60, the game's own frame function): before 48–51 ms (Grünerløkka), 58–70 ms (home), 44–49 ms (Gamle Oslo); after 32–46, 58–59 and 35–51 ms – no slower on this busy shared PC (the faster floor look-up pays for the rest).
+  - Start-up: the fleet takes about 0.3 s (unpack, the kept-free places, 7,500 vehicles made without models, the collision layer). The game file grows by about 200 KB (6.64 → 6.85 MB).
+- **Not done:** the parked vehicles stand still (no traffic). Their windows are tinted (you do not see in from outside). Not tried in a live lobby with two players (the list and numbers are the same file on every computer).
+- **Status:** PR #__PR__, not merged yet.
 
 ### 2026-11-15 · Flats you can buy, each owned by one player (issue #106)
 - **What:**
