@@ -138,6 +138,12 @@
           body.box(-hw, top + .15, z - sgn * .04, hw, H, z, L.mask);
           body.box(-hw, bottom, z - sgn * .02, hw, bottom + .3, z + sgn * .02, L.skirt);
           for (const x of [-hw + .35, hw - .35]) body.box(x - .18, sill - .42, z, x + .18, sill - .3, z + sgn * .015, 0xf6f2dd);// headlights
+        } else if (sgn < 0 && si === K.sections.length - 1 && (kind === 'bus' || kind === 'artic')) {
+          // a bus's back: red, the rear window, tail lights
+          body.box(-hw, bottom, z, hw, H, z + .04, L.body);
+          glass.box(-hw + .25, sill + .25, z - .03, hw - .25, top, z + .01, 0, '');
+          for (const x of [-hw + .2, hw - .2]) body.box(x - .12, sill - .55, z - .015, x + .12, sill - .2, z, 0xb3121b);
+          body.box(-hw, bottom, z - .02, hw, bottom + .3, z + .02, L.skirt);
         } else body.box(-hw + .1, bottom, z - sgn * .02, hw - .1, H - .1, z, 0x2b2f33);// the bellows face
       };
       endFace(hl, 1, cabFront);endFace(-hl, -1, cabBack);
