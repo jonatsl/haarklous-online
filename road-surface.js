@@ -35,15 +35,29 @@
   // ---------- Streets: pieces per data set, joined end to end into chains ----------
   function chainsOf(sets, slabsAt) {
     const pieces = [];
-    for (const set of sets) for (const r of set.roads) {
+    // Every car-road segment of every data set in a 32 m grid: a segment outside its own set's area is still kept when the set
+    // that owns that place has no street there (the old square's data lacks some streets near its edge that a patch has).
+    const grid = new Map(), cellOf = (x, s) => `${Math.floor(x / 32)},${Math.floor(s / 32)}`;
+    sets.forEach((set, k) => {for (const r of set.roads) if (RANK[r.k]) for (let i = 0; i + 3 < r.p.length; i += 2) {
+      const key = cellOf((r.p[i] + r.p[i + 2]) / 2, (r.p[i + 1] + r.p[i + 3]) / 2);if (!grid.has(key)) grid.set(key, []);grid.get(key).push([k, r.p[i], r.p[i + 1], r.p[i + 2], r.p[i + 3]]);
+    }});
+    const covered = (k, x, s) => {
+      for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (const [q, ax, as, bx, bs] of grid.get(`${Math.floor(x / 32) + a},${Math.floor(s / 32) + b}`) || []) {
+        if (q === k || !sets[q].owns(x, s)) continue;
+        const dx = bx - ax, ds = bs - as, u = Math.max(0, Math.min(1, ((x - ax) * dx + (s - as) * ds) / (dx * dx + ds * ds || 1)));if (Math.hypot(x - ax - u * dx, s - as - u * ds) < 2) return true;
+      }
+      return false;
+    };
+    sets.forEach((set, k) => {for (const r of set.roads) {
       if (!RANK[r.k]) continue;
       let cur = null;
       for (let i = 0; i + 3 < r.p.length; i += 2) {
-        const ax = r.p[i], as = r.p[i + 1], bx = r.p[i + 2], bs = r.p[i + 3];
+        const ax = r.p[i], as = r.p[i + 1], bx = r.p[i + 2], bs = r.p[i + 3], mx = (ax + bx) / 2, ms = (as + bs) / 2;
         if (Math.hypot(bx - ax, bs - as) < .05) continue;
-        if (set.owns((ax + bx) / 2, (as + bs) / 2)) {if (!cur) {cur = {k: r.k, w: r.w, n: r.n || '', p: [ax, as]};pieces.push(cur);}cur.p.push(bx, bs);} else cur = null;
+        const keep = set.owns(mx, ms) || (sets.some(q => q !== set && q.owns(mx, ms)) && !covered(k, mx, ms));
+        if (keep) {if (!cur) {cur = {k: r.k, w: r.w, n: r.n || '', p: [ax, as]};pieces.push(cur);}cur.p.push(bx, bs);} else cur = null;
       }
-    }
+    }});
     // Ends at the same point (within 0.4 m) of two pieces of the same kind and width are joined (OSM splits a street at every
     // junction, and the data sets split it at their borders).
     const ends = new Map(), key = (x, s) => `${Math.round(x)},${Math.round(s)}`;

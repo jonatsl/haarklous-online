@@ -132,6 +132,30 @@
     const room = data.rooms.find(r => r.id === w.room), best = room.lamps.slice().sort((p, q) => Math.hypot(p[0] - a, p[1] - b) - Math.hypot(q[0] - a, q[1] - b))[0];
     const big = room.id === 'living';return {a: best[0], b: best[1], y: lv.FL + 2.5, power: big ? 6 : 4.5, reach: big ? 8 : 6};
   }
+  // A piece of furniture's own frame (x across, z = its front, as drawn) -> wing coordinates: [a, b].
+  const placeOf = f => f.at || [(f.rect[0] + f.rect[2]) / 2, (f.rect[1] + f.rect[3]) / 2];
+  function pieceToWing(f, x, z) {const [a, b] = placeOf(f), r = (f.rot || 0) * Math.PI / 2, c = Math.cos(r), s = Math.sin(r);return [a + x * c + z * s, b - x * s + z * c];}
+  // Collision boxes of each kind of furniture in its own frame: [w, h, d, x, y (centre), z] (y defaults to h / 2).
+  const SOLIDS = {
+    wardrobe: f => [[f.w, f.h, f.d]], box: f => [[f.w, f.h, f.d]], dryingRack: f => [[f.w, f.h, f.d]], extinguisher: () => [[.15, .5, .15]],
+    coatRail: f => [[f.w, .95, .3, 0, 1.25, .15]], bed: f => [[f.w, .6, f.d + .05]], daybed: f => [[f.w, .6, f.d]], nightstand: f => [[f.w, f.h, f.d]],
+    basket: () => [[.4, .45, .4]], desk: f => [[f.w, .76, f.d]], mirrorWardrobe: f => [[f.w, f.h, f.d]], builtIn: (f, data) => [[f.w, data.ceiling, f.d]],
+    floorLamp: () => [[.3, 1.6, .3]], trolley: () => [[.48, .8, .38]], dresser: f => [[f.w, f.h, f.d]],
+    kitchen: f => [[f.rect[3] - f.rect[1], .9, f.rect[2] - f.rect[0]]], pipe: f => [[.12, f.h, .12]], sideboard: f => [[f.w, f.h + .4, f.d]],
+    // The dining table: its top and four legs (chairs tuck in under the top).
+    diningTable: f => [[f.w, .06, f.d, 0, .73, 0], ...[-1, 1].flatMap(sx => [-1, 1].map(sz => [.05, .7, .05, sx * (f.w / 2 - .06), .35, sz * (f.d / 2 - .08)]))],
+    sofa: f => [[f.w, .85, f.d]], coffeeTable: f => [[f.w, f.h, f.d]], wallUnit: f => [[f.w, .85, .45, 0, .425, .05]],
+    tv: () => [[1.3, 1.25, .35]], guitar: () => [[.35, 1.2, .15]], plant: f => [[.35, f.h, .35]], shoeRack: () => [[.82, .5, .3]]
+  };
+  // The furniture's collision boxes in wing coordinates: {pts: [[a, b] x 4], minY, maxY, kind}. Movable pieces are left out.
+  function furnitureSolids(data, FL = 0) {
+    const out = [];
+    for (const f of data.furniture) {
+      const S = !f.movable && SOLIDS[f.kind];if (!S) continue;
+      for (const [w, h, d, x = 0, y = h / 2, z = 0] of S(f, data)) out.push({kind: f.kind, minY: FL + y - h / 2, maxY: FL + y + h / 2, pts: [[-w / 2, -d / 2], [w / 2, -d / 2], [w / 2, d / 2], [-w / 2, d / 2]].map(([px, pz]) => pieceToWing(f, x + px, z + pz))});
+    }
+    return out;
+  }
 
   // ---------- Browser ----------
   function build({T, lib, world, data, top}) {
@@ -155,7 +179,7 @@
     const carpet = mat('carpet', () => lib.fabric(0x5d4636)), tilesW = mat('tilesW', () => lib.wallTiles()), tilesF = mat('tilesF', () => lib.floorTiles()), chrome = mat('chrome', () => lib.chrome());
     const oak = mat('oak', () => lib.wood(0xb98552, .5)), teak = mat('teak', () => lib.wood(0x8d4f27, .42)), birch = {pal: 0xd8b47c}, rail = {pal: 0x4a2014};
     const lino = {pal: 0x6b4434}, sofaM = {pal: 0x3b4249}, ceramic = {pal: 0xf7f7f5};
-    const glow = {glow: 0xfff1d8}, glowOrange = {glow: 0xff9a4a}, screen = {glow: 0x2c3c9a}, lavaM = {glow: 0xff4a8a};
+    const glow = {glow: 0xfff1d8}, glowOrange = {glow: 0xff9a4a};
     const hidden = new T.MeshBasicMaterial({visible: false});
     // Palette: one texture of colour swatches for every flat-coloured part (furniture, coats, appliances), one draw call.
     const PAL = document.createElement('canvas');PAL.width = PAL.height = 256;const palCtx = PAL.getContext('2d'), palIndex = new Map();
@@ -420,12 +444,10 @@
     {const s = data.soffit;box(inner, s[0], s[1], s[2], s[3], FL + s[4], FL + CEIL, plaster);}
 
     // ---------- Furniture (as in the video) ----------
-    const solids = [];// collision boxes in wing coordinates
-    function piece(f) {
-      const g = new T.Group();g.position.set(f.at[0], FL, f.at[1]);g.rotation.y = (f.rot || 0) * Math.PI / 2;inner.add(g);
-      g.userData.solid = (w, h, d, x = 0, y = h / 2, z = 0) => {const c = Math.cos(g.rotation.y), s = Math.sin(g.rotation.y), pts = [[-w / 2, -d / 2], [w / 2, -d / 2], [w / 2, d / 2], [-w / 2, d / 2]].map(([px, pz]) => [f.at[0] + (x + px) * c + (z + pz) * s, f.at[1] - (x + px) * s + (z + pz) * c]);solids.push({pts, minY: FL + y - h / 2, maxY: FL + y + h / 2});};
-      return g;
-    }
+    // Collision boxes in wing coordinates: the furniture's from the pure table SOLIDS (the movable chairs are dynamic, see
+    // game-rathkes-living.js), the bathroom's below.
+    const solids = furnitureSolids(data, FL);
+    function piece(f) {const g = new T.Group();g.position.set(f.at[0], FL, f.at[1]);g.rotation.y = (f.rot || 0) * Math.PI / 2;inner.add(g);return g;}
     const K = {
       wardrobe(g, f) {
         const {w, d, h} = f, wd = f.wood ? oak : null, body = (ww, hh, dd, x, y, z) => wd ? box(g, x - ww / 2, z - dd / 2, x + ww / 2, z + dd / 2, y - hh / 2, y + hh / 2, wd) : pbox(g, ww, hh, dd, x, y, z, f.color);
@@ -435,20 +457,20 @@
         else for (const s of [-1, 1]) pcyl(g, .015, .015, .02, s * .06, h * .52, d / 2 + .012, f.wood ? 0x2a2a2a : 0xe8e2d4, 8).rotation.x = Math.PI / 2;
         if (f.top) f.top.forEach((c, i) => pbox(g, w * .42, .22, d * .7, (i - .5) * w * .45, h + .11, 0, c));
         if (f.shelf) {for (const x of [-w / 2 + .02, w / 2 - .02]) pbox(g, .03, .7, .3, x, h + .35, -.1, 0x2a201b);for (const y of [h + .3, h + .68]) pbox(g, w, .025, .3, 0, y, -.1, 0x5a4a3a);pbox(g, .3, .2, .22, -.2, h + .42, -.1, 0x6aa0a8);pbox(g, .2, .25, .2, .25, h + .43, -.1, 0xd8d0c0);}
-        g.userData.solid(w, h, d);
+        
       },
-      box(g, f) {pbox(g, f.w, f.h, f.d, 0, f.h / 2, 0, f.color);pbox(g, f.w + .02, .03, f.d + .02, 0, f.h, 0, 0xcbb487);g.userData.solid(f.w, f.h, f.d);},
+      box(g, f) {pbox(g, f.w, f.h, f.d, 0, f.h / 2, 0, f.color);pbox(g, f.w + .02, .03, f.d + .02, 0, f.h, 0, 0xcbb487);},
       dryingRack(g, f) {
         const {w, d, h} = f;for (const x of [-w / 2, w / 2]) for (const z of [-d / 2, d / 2]) pbox(g, .015, h, .015, x, h / 2, z, 0xf2f2f2);
         for (let i = 0; i < 8; i++) pbox(g, w, .01, .01, 0, h, -d / 2 + i * d / 7, 0xf2f2f2);
         const cl = [0x2d3f8a, 0xc0392b, 0x2f8f6a, 0x1d1d1d, 0x3b5fae, 0x22324e];cl.forEach((c, i) => pbox(g, .32, .45, .012, -w / 2 + .2 + i * .19, h - .23, -d / 2 + .06 + (i % 4) * .13, c));
-        g.userData.solid(w, h, d);
+        
       },
-      extinguisher(g) {pcyl(g, .07, .07, .45, 0, .225, 0, 0xc0281f);pcyl(g, .025, .025, .08, 0, .49, 0, 0x202020);g.userData.solid(.15, .5, .15);},
+      extinguisher(g) {pcyl(g, .07, .07, .45, 0, .225, 0, 0xc0281f);pcyl(g, .025, .025, .08, 0, .49, 0, 0x202020);},
       coatRail(g, f) {
         pbox(g, f.w, .08, .025, 0, 1.78, .0125, 0x6b4a2e);for (let i = 0; i < 6; i++) pbox(g, .015, .05, .08, -f.w / 2 + .1 + i * (f.w - .2) / 5, 1.75, .06, 0xc0c0c0);
         [[0x2e6fd0, -.45], [0x1d1f24, -.2], [0x23262d, .05], [0x30333a, .3], [0x232020, .5]].forEach(([c, x], i) => {pbox(g, .42, .85, .16, x, 1.28, .12, c);pbox(g, .2, .12, .14, x, 1.68, .12, c);if (i === 1) pbox(g, .2, .1, .2, x + .1, 1.86, .1, 0x2b3a2a);});
-        g.userData.solid(f.w, .95, .3, 0, 1.25, .15);
+        
       },
       panel(g, f) {pbox(g, f.w, f.h, .05, 0, f.y + f.h / 2, .025, f.color);pcyl(g, .03, .03, .02, 0, f.y + f.h * .55, .055, 0xdddddd).rotation.x = Math.PI / 2;},
       intercom(g) {pbox(g, .1, .22, .04, 0, 1.45, .02, 0xf2f2f0);pbox(g, .05, .2, .04, -.01, 1.45, .055, 0xe4e4e2);},
@@ -458,25 +480,24 @@
         const {w, d} = f;pbox(g, w, .28, d, 0, .18, 0, f.frame);pbox(g, w - .04, .2, d - .06, 0, .42, .01, 0xf4f2ec);
         pbox(g, w - .02, .07, d * .7, 0, .54, d * .14, f.duvet);if (f.check) {for (let i = 1; i < 8; i++) pbox(g, .006, .072, d * .7, -w / 2 + i * w / 8, .545, d * .14, 0x9aa8d8);for (let i = 1; i < 6; i++) pbox(g, w - .03, .072, .006, 0, .545, d * .14 - d * .35 + i * d * .7 / 6, 0x9aa8d8);}
         for (const x of w > 1.3 ? [-w / 4, w / 4] : [0]) pbox(g, w > 1.3 ? w * .42 : w * .8, .12, .4, x, .58, -d / 2 + .28, 0xf6f4f0);
-        pbox(g, w + .04, .7, .05, 0, .45, -d / 2 - .02, f.frame);g.userData.solid(w, .6, d + .05);
+        pbox(g, w + .04, .7, .05, 0, .45, -d / 2 - .02, f.frame);
       },
       daybed(g, f) {
         const {w, d} = f;pbox(g, w, .22, d, 0, .34, 0, 0xf1f0ec);pbox(g, w - .02, .06, d - .1, 0, .48, .02, 0xd8dfcf);pbox(g, .5, .14, .55, -w / 2 + .35, .55, 0, 0xf6f4f0);
         for (const x of [-w / 2, w / 2]) {for (const z of [-d / 2, d / 2]) pbox(g, .03, .95, .03, x, .47, z, 0xf2f2f2);pbox(g, .02, .02, d, x, .95, 0, 0xf2f2f2);for (let i = 0; i < 5; i++) pbox(g, .015, .5, .015, x, .7, -d / 2 + (i + .5) * d / 5, 0xf2f2f2);}
-        pbox(g, w, .02, .02, 0, .62, -d / 2, 0xf2f2f2);g.userData.solid(w, .6, d);
+        pbox(g, w, .02, .02, 0, .62, -d / 2, 0xf2f2f2);
       },
-      nightstand(g, f) {pbox(g, f.w, f.h, f.d, 0, f.h / 2, 0, f.color);pbox(g, .2, .04, .25, 0, f.h + .02, 0, 0x2f6b8a);g.userData.solid(f.w, f.h, f.d);},
-      basket(g) {pcyl(g, .2, .17, .45, 0, .225, 0, 0xeae4d4, 16);g.userData.solid(.4, .45, .4);},
+      nightstand(g, f) {pbox(g, f.w, f.h, f.d, 0, f.h / 2, 0, f.color);pbox(g, .2, .04, .25, 0, f.h + .02, 0, 0x2f6b8a);},
+      basket(g) {pcyl(g, .2, .17, .45, 0, .225, 0, 0xeae4d4, 16);},
       curtains(g, f) {pbox(g, f.w + .1, .025, .025, 0, 2.7, .1, 0x8a8a8a);for (const s of [-1, 1]) pbox(g, .42, 2.6, .05, s * (f.w / 2 - .18), 1.38, .12, s > 0 && f.tapestry ? f.tapestry : f.color);},
       picture(g, f) {const p = plane(g, f.w, f.h, artM, cellUV(f.art));p.position.set(0, f.y + f.h / 2, .012);pbox(g, f.w + .03, f.h + .03, .012, 0, f.y + f.h / 2, .004, 0x2a2a2a);},
       radiator(g, f) {pbox(g, f.w, .55, .07, 0, .42, .1, 0xf3f3f0);for (let i = 0; i < Math.round(f.w / .08); i++) pbox(g, .012, .5, .008, -f.w / 2 + .04 + i * .08, .42, .138, 0xe4e4e0);},
-      desk(g, f) {pbox(g, f.w, .03, f.d, 0, .73, 0, f.color);for (const x of [-f.w / 2 + .04, f.w / 2 - .04]) for (const z of [-f.d / 2 + .04, f.d / 2 - .04]) pbox(g, .035, .72, .035, x, .36, z, 0x5a3a20);pbox(g, .9, .04, .28, 0, .765, .05, 0x1a1a1a);for (let i = 0; i < 14; i++) pbox(g, .05, .012, .14, -.4 + i * .062, .79, .08, 0xf4f4f4);pbox(g, .25, .15, .2, .4, .82, -.15, 0xb8442e);g.userData.solid(f.w, .76, f.d);},
-      mirrorWardrobe(g, f) {pbox(g, f.w, f.h, f.d - .03, 0, f.h / 2, -.015, 0xefefea);for (const s of [-1, 1]) {const m = box(g, s > 0 ? .005 : -f.w / 2 + .02, f.d / 2 - .02, s > 0 ? f.w / 2 - .02 : -.005, f.d / 2 - .005, .05, f.h - .05, chrome);if (m) m.castShadow = false;}g.userData.solid(f.w, f.h, f.d);},
-      builtIn(g, f) {const h = CEIL;pbox(g, f.w, h, f.d - .02, 0, h / 2, -.01, 0xf1f0eb);for (const s of [-1, 1]) {pbox(g, f.w / 2 - .008, h - .02, .018, s * f.w / 4, h / 2, f.d / 2 - .01, 0xf6f5f1);pbox(g, .015, .3, .02, s * .05, 1.05, f.d / 2 + .01, 0xbfc3c6);}pbox(g, f.w, .006, .02, 0, 2.25, f.d / 2 + .002, 0xdedcd5);g.userData.solid(f.w, h, f.d);},
-      floorLamp(g) {pcyl(g, .14, .14, .02, 0, .01, 0, 0x222222);pcyl(g, .012, .012, 1.5, 0, .76, 0, 0x222222);const s = mesh(new T.CylinderGeometry(.13, .18, .24, 16, 1, true), glow, g);s.position.y = 1.55;s.castShadow = false;g.userData.solid(.3, 1.6, .3);},
-      trolley(g) {for (const x of [-.22, .22]) for (const z of [-.16, .16]) pbox(g, .015, .8, .015, x, .4, z, 0x1b1b1b);for (const y of [.1, .42, .76]) pbox(g, .45, .02, .35, 0, y, 0, 0x1b1b1b);const bk = [0xd8c27a, 0x8a2f28, 0x2f4d6b, 0xe6e1d6, 0x3d5a3a];bk.forEach((c, i) => pbox(g, .03, .22, .2, -.15 + i * .05, .54, 0, c));pcyl(g, .07, .06, .12, .12, .84, 0, 0x6b4a2e);pbox(g, .18, .2, .18, .12, 1.0, 0, 0x3f7a3a);g.userData.solid(.48, .8, .38);},
-      dresser(g, f) {pbox(g, f.w, f.h, f.d, 0, f.h / 2, 0, f.color);for (let i = 1; i < 3; i++) pbox(g, f.w - .04, .006, .01, 0, i * f.h / 3, f.d / 2 + .003, 0x3a3a3a);pbox(g, .3, .35, .02, -.15, f.h + .18, -.12, 0x6d4c8a);pbox(g, .2, .25, .02, .2, f.h + .13, -.1, 0xe7e2d8);pcyl(g, .07, .07, .1, .3, f.h + .05, .05, 0xf3f3f3);g.userData.solid(f.w, f.h, f.d);},
-      foldingChair(g) {for (const x of [-.24, .24]) {pbox(g, .03, .9, .03, x, .45, -.2, 0x9a6a3a);pbox(g, .03, .6, .03, x, .3, .25, 0x9a6a3a);}const s = pbox(g, .48, .03, .55, 0, .42, 0, 0x7a5232);s.rotation.x = -.25;pbox(g, .5, .35, .15, 0, .55, .1, 0x2f3c6e);g.userData.solid(.55, .9, .6);},
+      desk(g, f) {pbox(g, f.w, .03, f.d, 0, .73, 0, f.color);for (const x of [-f.w / 2 + .04, f.w / 2 - .04]) for (const z of [-f.d / 2 + .04, f.d / 2 - .04]) pbox(g, .035, .72, .035, x, .36, z, 0x5a3a20);pbox(g, .9, .04, .28, 0, .765, .05, 0x1a1a1a);for (let i = 0; i < 14; i++) pbox(g, .05, .012, .14, -.4 + i * .062, .79, .08, 0xf4f4f4);pbox(g, .25, .15, .2, .4, .82, -.15, 0xb8442e);},
+      mirrorWardrobe(g, f) {pbox(g, f.w, f.h, f.d - .03, 0, f.h / 2, -.015, 0xefefea);for (const s of [-1, 1]) {const m = box(g, s > 0 ? .005 : -f.w / 2 + .02, f.d / 2 - .02, s > 0 ? f.w / 2 - .02 : -.005, f.d / 2 - .005, .05, f.h - .05, chrome);if (m) m.castShadow = false;}},
+      builtIn(g, f) {const h = CEIL;pbox(g, f.w, h, f.d - .02, 0, h / 2, -.01, 0xf1f0eb);for (const s of [-1, 1]) {pbox(g, f.w / 2 - .008, h - .02, .018, s * f.w / 4, h / 2, f.d / 2 - .01, 0xf6f5f1);pbox(g, .015, .3, .02, s * .05, 1.05, f.d / 2 + .01, 0xbfc3c6);}pbox(g, f.w, .006, .02, 0, 2.25, f.d / 2 + .002, 0xdedcd5);},
+      floorLamp(g) {pcyl(g, .14, .14, .02, 0, .01, 0, 0x222222);pcyl(g, .012, .012, 1.5, 0, .76, 0, 0x222222);const s = mesh(new T.CylinderGeometry(.13, .18, .24, 16, 1, true), glow, g);s.position.y = 1.55;s.castShadow = false;},
+      trolley(g) {for (const x of [-.22, .22]) for (const z of [-.16, .16]) pbox(g, .015, .8, .015, x, .4, z, 0x1b1b1b);for (const y of [.1, .42, .76]) pbox(g, .45, .02, .35, 0, y, 0, 0x1b1b1b);const bk = [0xd8c27a, 0x8a2f28, 0x2f4d6b, 0xe6e1d6, 0x3d5a3a];bk.forEach((c, i) => pbox(g, .03, .22, .2, -.15 + i * .05, .54, 0, c));pcyl(g, .07, .06, .12, .12, .84, 0, 0x6b4a2e);pbox(g, .18, .2, .18, .12, 1.0, 0, 0x3f7a3a);},
+      dresser(g, f) {pbox(g, f.w, f.h, f.d, 0, f.h / 2, 0, f.color);for (let i = 1; i < 3; i++) pbox(g, f.w - .04, .006, .01, 0, i * f.h / 3, f.d / 2 + .003, 0x3a3a3a);pbox(g, .3, .35, .02, -.15, f.h + .18, -.12, 0x6d4c8a);pbox(g, .2, .25, .02, .2, f.h + .13, -.1, 0xe7e2d8);pcyl(g, .07, .07, .1, .3, f.h + .05, .05, 0xf3f3f3);},
       kitchen(g, f) {
         const L = f.rect[3] - f.rect[1], D = f.rect[2] - f.rect[0], x0 = -L / 2, z0 = -D / 2;
         pbox(g, L, .1, D - .08, 0, .05, -.04, 0x111111);pbox(g, L, .765, D - .03, 0, .1 + .765 / 2, -.015, 0x1c1c1e);
@@ -493,25 +514,23 @@
         for (const [cx, c] of [[-1.3, 0xd2b07a], [-.5, 0xc9a56e], [.3, 0xd2b07a], [1.1, 0xc9a56e]]) {pbox(g, .5, .28, .3, cx, 2.34, z0 + .17, c);pbox(g, .46, .02, .26, cx, 2.43, z0 + .17, 0x5a4a32);}
         for (const cx of [-1.0, 1.4]) {pcyl(g, .05, .07, .12, cx, 2.62, z0 + .2, 0x9aa0a4);pcyl(g, .01, .01, .3, cx, 2.45, z0 + .25, 0x9aa0a4);const b = mesh(new T.SphereGeometry(.04, 10, 8), glow, g);b.position.set(cx, 2.55, z0 + .2);b.castShadow = false;}
         pbox(g, 2.2, .015, .015, -.5, 1.42, z0 + .05, 0xc0c4c6);[[-1.4, .1, 0x1e1e1e], [-1.05, .13, 0x8a8f92], [-.7, .11, 0x8a8f92], [-.35, .14, 0x1e1e1e], [0, .12, 0x8a8f92], [.35, .1, 0x9e3b2c]].forEach(([px, r, c]) => {pcyl(g, r, r, .08, px, 1.2, z0 + .1, c, 14).rotation.x = Math.PI / 2;pbox(g, .015, .12, .015, px, 1.34, z0 + .05, 0xc0c4c6);});
-        g.userData.solid(L, .9, D);
+        
       },
-      pipe(g, f) {pcyl(g, .05, .05, f.h, 0, f.h / 2, 0, 0x9da3a6, 10);g.userData.solid(.12, f.h, .12);},
-      sideboard(g, f) {pbox(g, f.w, .03, f.d, 0, f.h, 0, 0x1a1a1a);pbox(g, f.w - .04, f.h - .2, f.d - .04, 0, (f.h - .2) / 2 + .18, 0, 0xc8a26a);for (let i = 0; i < 18; i++) pbox(g, .012, f.h - .22, .006, -f.w / 2 + .05 + i * (f.w - .1) / 17, (f.h - .2) / 2 + .18, f.d / 2 - .015, 0x9a7444);for (const x of [-f.w / 2 + .05, f.w / 2 - .05]) for (const z of [-f.d / 2 + .05, f.d / 2 - .05]) pbox(g, .02, .18, .02, x, .09, z, 0x111111);pbox(g, .3, .36, .4, -.15, f.h + .2, -.02, 0xb9bec1);pbox(g, .18, .2, .2, -.15, f.h + .3, .2, 0x2a2a2a);pcyl(g, .06, .06, .3, .3, f.h + .15, 0, 0x222222);g.userData.solid(f.w, f.h + .4, f.d);},
+      pipe(g, f) {pcyl(g, .05, .05, f.h, 0, f.h / 2, 0, 0x9da3a6, 10);},
+      sideboard(g, f) {pbox(g, f.w, .03, f.d, 0, f.h, 0, 0x1a1a1a);pbox(g, f.w - .04, f.h - .2, f.d - .04, 0, (f.h - .2) / 2 + .18, 0, 0xc8a26a);for (let i = 0; i < 18; i++) pbox(g, .012, f.h - .22, .006, -f.w / 2 + .05 + i * (f.w - .1) / 17, (f.h - .2) / 2 + .18, f.d / 2 - .015, 0x9a7444);for (const x of [-f.w / 2 + .05, f.w / 2 - .05]) for (const z of [-f.d / 2 + .05, f.d / 2 - .05]) pbox(g, .02, .18, .02, x, .09, z, 0x111111);pbox(g, .3, .36, .4, -.15, f.h + .2, -.02, 0xb9bec1);pbox(g, .18, .2, .2, -.15, f.h + .3, .2, 0x2a2a2a);pcyl(g, .06, .06, .3, .3, f.h + .15, 0, 0x222222);},
       records(g, f) {const s = .31;for (let i = 0; i < 9; i++) {const p = plane(g, s, s, artM, cellUV(4 + i));p.position.set(-s - .02 + (i % 3) * (s + .02), f.y + s / 2 + Math.floor(i / 3) * (s + .02), .006);}},
       diningTable(g, f) {
         pbox(g, f.w, .04, f.d, 0, .74, 0, 0x151515);for (const x of [-f.w / 2 + .06, f.w / 2 - .06]) for (const z of [-f.d / 2 + .08, f.d / 2 - .08]) pbox(g, .05, .72, .05, x, .36, z, 0x151515);
-        for (const side of [-1, 1]) for (const z of [-.62, 0, .62]) {const c = new T.Group();c.position.set(side * (f.w / 2 + .12), 0, z);c.rotation.y = side * Math.PI / 2;g.add(c);pbox(c, .42, .04, .42, 0, .45, 0, 0x1d1d1f);for (const x of [-.18, .18]) for (const zz of [-.18, .18]) pbox(c, .03, .45, .03, x, .225, zz, 0x1d1d1f);pbox(c, .42, .3, .03, 0, .72, .2, 0x1d1d1f);}
+        // Its six chairs are movable pieces of their own (data 'diningChair', game-rathkes-living.js).
         pcyl(g, .06, .05, .2, 0, .86, -.2, 0x2a6fd0);for (const [x, z, c] of [[0, -.2, 0xe0601f], [.06, -.14, 0xc0281f], [-.05, -.25, 0xf0a020]]) pbox(g, .1, .1, .1, x, 1.0, z, c);
-        g.userData.solid(f.w + .5, .9, f.d);
       },
       sofa(g, f) {
         const {w, d} = f, s = (ww, hh, dd, x, y, z) => box(g, x - ww / 2, z - dd / 2, x + ww / 2, z + dd / 2, y - hh / 2, y + hh / 2, sofaM);
         s(w, .2, d, 0, .25, 0);s(w, .5, .2, 0, .6, -d / 2 + .1);for (const x of [-w / 2 + .08, w / 2 - .08]) s(.16, .32, d, x, .48, 0);for (const x of [-.6, 0, .6]) s(.6, .12, d - .25, x, .41, .1);
         for (const x of [-w / 2 + .06, w / 2 - .06]) for (const z of [-d / 2 + .06, d / 2 - .06]) pbox(g, .03, .15, .03, x, .075, z, 0x6b4a2e);pbox(g, .5, .03, .7, .55, .49, .05, 0xb9bcbd);
-        g.userData.solid(w, .85, d);
+        
       },
-      coffeeTable(g, f) {box(g, -f.w / 2, -f.d / 2, f.w / 2, f.d / 2, f.h - .035, f.h, teak);for (const x of [-f.w / 2 + .05, f.w / 2 - .05]) for (const z of [-f.d / 2 + .05, f.d / 2 - .05]) pbox(g, .04, f.h - .035, .04, x, (f.h - .035) / 2, z, 0x6a3a1e);pbox(g, .3, .02, .22, -.2, f.h + .01, 0, 0xd8d0c0);g.userData.solid(f.w, f.h, f.d);},
-      slingChair(g) {for (const x of [-.32, .32]) {pbox(g, .05, .05, .85, x, .05, 0, 0x2a1a12);const a = pbox(g, .05, .05, .7, x, .45, -.05, 0x2a1a12);a.rotation.x = .5;pbox(g, .05, .45, .05, x, .27, .3, 0x2a1a12);}const s = pbox(g, .6, .03, .5, 0, .33, .12, 0x7a3e1e);s.rotation.x = .18;const bk = pbox(g, .6, .03, .5, 0, .58, -.22, 0x7a3e1e);bk.rotation.x = -1.0;g.userData.solid(.75, .8, .8);},
+      coffeeTable(g, f) {box(g, -f.w / 2, -f.d / 2, f.w / 2, f.d / 2, f.h - .035, f.h, teak);for (const x of [-f.w / 2 + .05, f.w / 2 - .05]) for (const z of [-f.d / 2 + .05, f.d / 2 - .05]) pbox(g, .04, f.h - .035, .04, x, (f.h - .035) / 2, z, 0x6a3a1e);pbox(g, .3, .02, .22, -.2, f.h + .01, 0, 0xd8d0c0);},
       wallUnit(g, f) {
         const w = f.w, z0 = -.175;for (let i = 0; i <= 4; i++) box(g, -w / 2 + i * w / 4 - .015, z0 - .02, -w / 2 + i * w / 4 + .015, z0 + .02, 0, 2.15, teak);
         const T2 = (x0, x1, y0, y1, d) => box(g, x0, z0, x1, z0 + d, y0, y1, teak);
@@ -519,18 +538,20 @@
         for (const [a0, a1, y] of [[-w / 2, 0, 1.15], [-w / 2, w / 2, 1.5], [0, w / 2, 1.18], [-w / 2, -w / 4, 1.92], [0, w / 2, 1.95]]) T2(a0, a1, y, y + .025, .3);T2(-w / 4, 0, 1.6, 2.0, .35);
         for (let i = 0; i < 3; i++) pbox(g, w / 4 - .04, .005, .01, -w * 3 / 8, .42 + i * .16, z0 + .455, 0x4a2a14);
         const bk = [0x8c2f28, 0x2f4d6b, 0xd8cdb2, 0x3d5a3a, 0x1f1f22, 0xc9a24a, 0x6b4a7a, 0xe6e1d6];for (const [x0, y, n] of [[-w / 2 + .05, 1.175, 22], [.05, 1.205, 18], [-w / 2 + .1, 1.525, 14]]) for (let i = 0; i < n; i++) pbox(g, .028, .2 + (i % 3) * .02, .2, x0 + i * .032, y + .11, z0 + .12, bk[(i * 5) % bk.length]);
-        pbox(g, .38, .1, .32, w / 4 + .3, .9, z0 + .2, 0xb9bec1);pcyl(g, .14, .14, .01, w / 4 + .3, .955, z0 + .2, 0x111111, 18);
+        // The record player's plinth (its platter and tonearm, and the lava lamp on the shelf above, move: game-rathkes-living.js).
+        const rp = f.record || [w / 4 + .3, z0 + .2];pbox(g, .38, .1, .32, rp[0], .9, rp[1], 0xb9bec1);pbox(g, .05, .012, .05, rp[0] + .14, .956, rp[1] - .1, 0x2a2a2a);
         const sh = mesh(new T.CylinderGeometry(.09, .12, .14, 14, 1, true), glowOrange, g);sh.position.set(-w / 8, .92, z0 + .25);sh.castShadow = false;pcyl(g, .06, .07, .15, -w / 8, .82, z0 + .25, 0x1a1a1a);
-        const lava = mesh(new T.CylinderGeometry(.04, .06, .3, 12), lavaM, g);lava.position.set(w / 4 + .3, 1.36, z0 + .15);lava.castShadow = false;
         const wl = mesh(new T.CylinderGeometry(.1, .13, .16, 14, 1, true), glowOrange, g);wl.position.set(-w / 2 + .5, 2.1, z0 + .2);wl.castShadow = false;
-        g.userData.solid(w, .85, .45, 0, .425, z0 + .225);
+        
       },
-      tv(g) {pbox(g, .35, .5, .3, 0, .25, 0, 0x1b1b1b);pbox(g, 1.25, .74, .05, 0, .87, 0, 0x0c0c0c);const s = plane(g, 1.2, .68, screen);s.position.set(0, .87, .027);pbox(g, .25, .45, .25, .85, .225, -.05, 0x5a3a24);g.userData.solid(1.3, 1.25, .35);},
-      guitar(g) {const b = pcyl(g, .17, .17, .1, 0, .3, 0, 0xc98a4a, 16);b.rotation.x = Math.PI / 2;b.rotation.z = .12;pcyl(g, .13, .13, .1, 0, .58, 0, 0xc98a4a, 16).rotation.x = Math.PI / 2;pbox(g, .05, .55, .03, -.04, .95, 0, 0x3a2414);g.userData.solid(.35, 1.2, .15);},
-      plant(g, f) {pcyl(g, .14, .11, .25, 0, .125, 0, 0x2b2b2b, 14);for (let i = 0; i < 7; i++) {const l = pbox(g, .28, .02, .14, Math.cos(i) * .12, .3 + (i / 7) * f.h * .7, Math.sin(i * 2) * .12, i % 2 ? 0x2f6b2f : 0x3f8a3a);l.rotation.y = i * .9;l.rotation.z = .3;}g.userData.solid(.35, f.h, .35);},
-      shoeRack(g) {for (const y of [.08, .26, .44]) {pbox(g, .8, .012, .012, 0, y, -.1, 0x1b1b1b);pbox(g, .8, .012, .012, 0, y + .03, .1, 0x1b1b1b);}for (const x of [-.4, .4]) pbox(g, .015, .5, .25, x, .25, 0, 0x1b1b1b);[0xf0a020, 0x6a6a6a, 0xd94a2a, 0x2a2a2a, 0x8a7a6a, 0x3a5a8a].forEach((c, i) => pbox(g, .11, .08, .26, -.3 + (i % 3) * .28, .12 + Math.floor(i / 3) * .2, 0, c));g.userData.solid(.82, .5, .3);}
+      // The screen (a picture when it is on) is game-rathkes-living.js's.
+      tv(g) {pbox(g, .35, .5, .3, 0, .25, 0, 0x1b1b1b);pbox(g, 1.25, .74, .05, 0, .87, 0, 0x0c0c0c);pbox(g, .25, .45, .25, .85, .225, -.05, 0x5a3a24);},
+      guitar(g) {const b = pcyl(g, .17, .17, .1, 0, .3, 0, 0xc98a4a, 16);b.rotation.x = Math.PI / 2;b.rotation.z = .12;pcyl(g, .13, .13, .1, 0, .58, 0, 0xc98a4a, 16).rotation.x = Math.PI / 2;pbox(g, .05, .55, .03, -.04, .95, 0, 0x3a2414);},
+      plant(g, f) {pcyl(g, .14, .11, .25, 0, .125, 0, 0x2b2b2b, 14);for (let i = 0; i < 7; i++) {const l = pbox(g, .28, .02, .14, Math.cos(i) * .12, .3 + (i / 7) * f.h * .7, Math.sin(i * 2) * .12, i % 2 ? 0x2f6b2f : 0x3f8a3a);l.rotation.y = i * .9;l.rotation.z = .3;}},
+      shoeRack(g) {for (const y of [.08, .26, .44]) {pbox(g, .8, .012, .012, 0, y, -.1, 0x1b1b1b);pbox(g, .8, .012, .012, 0, y + .03, .1, 0x1b1b1b);}for (const x of [-.4, .4]) pbox(g, .015, .5, .25, x, .25, 0, 0x1b1b1b);[0xf0a020, 0x6a6a6a, 0xd94a2a, 0x2a2a2a, 0x8a7a6a, 0x3a5a8a].forEach((c, i) => pbox(g, .11, .08, .26, -.3 + (i % 3) * .28, .12 + Math.floor(i / 3) * .2, 0, c));}
     };
     for (const f of data.furniture) {
+      if (f.movable) continue;// the chairs: game-rathkes-living.js builds and moves them
       if (f.kind === 'kitchen') {K.kitchen(piece({at: [(f.rect[0] + f.rect[2]) / 2, (f.rect[1] + f.rect[3]) / 2], rot: f.rot}), f);continue;}
       const g = piece(f);if (K[f.kind]) K[f.kind](g, f);
     }
@@ -578,9 +599,12 @@
     function tick(camera) {const p = camera.position, near = Math.hypot(p.x - centre.x, p.z - centre.z) < 70;if (near !== shown) {shown = near;inner.visible = near;backing.visible = !near;}}
     const yd = toW((S.yardDoor.a[0] + S.yardDoor.a[1]) / 2, data.yard[1] + 1.2);
     const stats = {meshes: 0, triangles: 0};group.traverse(o => {if (o.isMesh && o.material !== hidden) {stats.meshes++;const g = o.geometry;stats.triangles += (g.index ? g.index.count : g.attributes.position.count) / 3;}});
-    return {group, far, floors, obstacles: obstaclesW, doors, hitboxes, inside: (x, z, feet) => whereW(x, z, feet), lampAt: lampW, placeName, tick, stats, levels: lv, yardDoor: {x: yd.x, z: yd.z, y: lv.G}, frame: F, toWorld: toW,
+    // What game-rathkes-living.js (issue #116) builds with: the wing group (x = a, z = b, y absolute; shown only near), the
+    // palette helpers, the collision boxes in wing coordinates, world <-> wing conversions and the wing's heading in the world.
+    const w0 = toW(0, 0), w1 = toW(0, 1), kit = {wing: inner, always: wing, FL, pbox, pcyl, mesh, paint, palette, hidden, solids, toWing: wingOf, yaw: Math.atan2(w1.x - w0.x, w1.z - w0.z)};
+    return {group, far, floors, obstacles: obstaclesW, doors, hitboxes, inside: (x, z, feet) => whereW(x, z, feet), lampAt: lampW, placeName, tick, stats, levels: lv, yardDoor: {x: yd.x, z: yd.z, y: lv.G}, frame: F, toWorld: toW, kit,
       spawn: {flat: toW(5.05, 5.7), stairTop: toW(5.6, 7.1), FL}};
   }
 
-  return {frame, cut, levels, stairFloors, flatFloors, obstacles, where, lampAt, turnHeight, clipHalf, area, build};
+  return {frame, cut, levels, stairFloors, flatFloors, obstacles, where, lampAt, turnHeight, clipHalf, area, pieceToWing, furnitureSolids, SOLIDS, build};
 });

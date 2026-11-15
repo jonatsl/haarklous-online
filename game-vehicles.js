@@ -143,9 +143,14 @@
 
     // ---------- 2005 Honda CBF600S ----------
     class Motorcycle extends Vehicle {
-      constructor(x, z, yaw, color = 0x56657c) {
+      // opt.lazy: the model is made later with buildBody(color) (the parked motorcycles of game-fleet.js, issue #113).
+      constructor(x, z, yaw, color = 0x56657c, opt = {}) {
         super(x, z, yaw, .45, 2.1);this.width = .8;this.height = 1.3;this.kind = 'motorcycle';this.name = 'Honda CBF600S';this.lean = 0;this.bar = 0;this.gear = 1;this.rpm = 1300;this.engine = null;this.wheelSpin = 0;
         this.hips = {d: {pos: V3(0, 1.0, .28), stance: 'ride'}, p: {pos: V3(0, 1.06, .66), stance: 'pillion'}};this.passengerEye = V3(0, 1.74, .76);this.flies = true;
+        if (opt.lazy) return;
+        this.buildBody(color);this.settle(1);this.place();
+      }
+      buildBody(color) {
         const paint = new T.MeshPhysicalMaterial({color, metalness: .55, roughness: .32, clearcoat: 1, clearcoatRoughness: .08});
         const black = lib.paint(0x17181a, .55), matte = lib.polymer(0x1c1d1f), chrome = lib.chrome(), alu = lib.metal(0xb7bcc0, .3), engineMat = lib.metal(0x6c6f72, .45), rubber = new T.MeshStandardMaterial({color: 0x161616, roughness: .9});
         const g = this.body = new T.Group();this.group.add(g);
@@ -196,7 +201,6 @@
         this.arms = new T.Group();g.add(this.arms);this.arms.visible = false;
         g.traverse(o => {if (o.isMesh) o.castShadow = true;});
         for (const m of [this.front, this.rw, this.steer]) m.userData.noMerge = true;lib.mergeStatic(g);
-        this.settle(1);this.place();
       }
       seat() {const f = this.forward(), up = 1.58;return {x: this.x - f.x * .36, y: this.y + up * Math.cos(this.lean) - this.squash, z: this.z - f.z * .36, lateral: Math.sin(this.lean) * up, yaw: this.yaw, pitch: this.pitch, roll: this.lean};}
       enter() {this.active = true;this.hands.visible = true;this.arms.visible = true;audio.sfx('starter');this.engine = audio.engine('bike');this.rpm = 1300;}
@@ -269,7 +273,14 @@
       for (const [wx, wz, front] of [[-.78, -1.3, true], [.78, -1.3, true], [-.78, 1.3, false], [.78, 1.3, false]]) {
         const holder = new T.Group();holder.position.set(wx, .31, wz);g.add(holder);const wh = wheel(holder, .31, .2, rimM, rubber, 5);P.wheels.push({holder, wheel: wh, front});
       }
-      // Interior (left-hand drive): floor, seats, dashboard, pillars, headliner, steering wheel with the driver's hands.
+      cabinParts(g, P, {interior, dashM});
+      g.traverse(o => {if (o.isMesh && o.material === glassM) o.castShadow = false;});
+      for (const w of P.wheels) w.holder.userData.noMerge = true;P.wheelPivot.userData.noMerge = true;P.arms.userData.noMerge = true;lib.mergeStatic(g);
+      return P;
+    }
+    // Interior (left-hand drive): floor, seats, dashboard, pillars, headliner, steering wheel with the driver's hands.
+    // Shared by the hatchback and the parked cars, vans and lorries of game-fleet.js (cabinProto, issue #113).
+    function cabinParts(g, P, {interior, dashM}) {
       const carpet = lib.fabric(0x1c1d1f), liner = lib.fabric(0x8d8a84);
       box(g, 1.36, .05, 1.64, 0, .3, .4, carpet);box(g, .2, .2, .75, 0, .42, -.05, dashM);box(g, 1.3, .42, .03, 0, .5, -.4, dashM);
       for (const sx of [-.38, .38]) {box(g, .5, .12, .5, sx, .52, .1, interior);const back = box(g, .5, .62, .12, sx, .85, .38, interior);back.rotation.x = -.18;box(g, .3, .2, .1, sx, 1.22, .45, interior);}
@@ -295,14 +306,24 @@
       }
       // Forearms in the car frame, solved each frame from the shoulders to the wrists (they follow the wheel).
       P.arms = new T.Group();P.arms.visible = false;g.add(P.arms);P.forearms = [-1, 1].map(() => mesh(P.arms, new T.CapsuleGeometry(.036, .26, 6, 12), sleeve));
-      g.traverse(o => {if (o.isMesh && o.material === glassM) o.castShadow = false;});
-      for (const w of P.wheels) w.holder.userData.noMerge = true;P.wheelPivot.userData.noMerge = true;P.arms.userData.noMerge = true;lib.mergeStatic(g);
-      return P;
+    }
+    // The interior on its own, built once; cabin() gives a copy with its moving parts (wheel, hands, forearms) found.
+    let cabinP = null;
+    function cabin() {
+      if (!cabinP) {cabinP = {};const g = cabinP.body = new T.Group();cabinParts(g, cabinP, {interior: lib.fabric(0x2a2b2e), dashM: lib.polymer(0x1e1f21)});cabinP.wheelPivot.userData.noMerge = true;cabinP.arms.userData.noMerge = true;lib.mergeStatic(g);}
+      const P = cabinP, g = P.body.clone(true), twin = new Map();
+      (function pair(a, b) {twin.set(a, b);a.children.forEach((c, i) => pair(c, b.children[i]));})(P.body, g);
+      return {body: g, wheelPivot: twin.get(P.wheelPivot), steeringWheel: twin.get(P.steeringWheel), hands: twin.get(P.hands), wrists: P.wrists.map(w => twin.get(w)), arms: twin.get(P.arms), forearms: P.forearms.map(m => twin.get(m))};
     }
     class Car extends Vehicle {
-      constructor(x, z, yaw, model = 0) {
-        super(x, z, yaw, .95, 4.2);this.width = 1.8;this.height = 1.45;this.kind = 'car';this.name = carNames[model % carColors.length] + ' hatchback';this.steerAngle = 0;this.rpm = 800;this.engine = null;this.wheelSpin = 0;
+      // opt.lazy: the model is made later with buildBody(model) (the parked cars of game-fleet.js, issue #113, override it).
+      constructor(x, z, yaw, model = 0, opt = {}) {
+        super(x, z, yaw, .95, opt.length || 4.2);this.width = 1.8;this.height = 1.45;this.kind = 'car';this.name = carNames[model % carColors.length] + ' hatchback';this.steerAngle = 0;this.rpm = 800;this.engine = null;this.wheelSpin = 0;
         this.hips = {d: {pos: V3(-.37, .62, .28), stance: 'drive'}, p: {pos: V3(.37, .62, .28), stance: 'sit'}};this.passengerEye = V3(.37, 1.24, .22);this.flies = true;
+        if (opt.lazy) return;
+        this.buildBody(model);this.settle(1);this.place();
+      }
+      buildBody(model) {
         const P = carProto || (carProto = carParts()), k = model % carColors.length, g = this.body = P.body.clone(true), twin = new Map();this.group.add(g);
         (function pair(a, b) {twin.set(a, b);a.children.forEach((c, i) => pair(c, b.children[i]));})(P.body, g);
         const paint = carPaints[k] || (carPaints[k] = Object.assign(P.paint.clone(), {color: new T.Color(carColors[k])}));
@@ -310,7 +331,6 @@
         this.wheels = P.wheels.map(w => ({holder: twin.get(w.holder), wheel: twin.get(w.wheel), front: w.front}));
         this.wheelPivot = twin.get(P.wheelPivot);this.steeringWheel = twin.get(P.steeringWheel);this.hands = twin.get(P.hands);this.wrists = P.wrists.map(w => twin.get(w));
         this.arms = twin.get(P.arms);this.forearms = P.forearms.map(m => twin.get(m));
-        this.settle(1);this.place();
       }
       seat() {const f = this.forward(), r = {x: -f.z, z: f.x};return {x: this.x + r.x * -.37 - f.x * .22, y: this.y + 1.24 - this.squash, z: this.z + r.z * -.37 - f.z * .22, yaw: this.yaw, pitch: this.pitch, roll: this.roll || 0};}
       enter() {this.active = true;this.hands.visible = true;this.arms.visible = true;audio.sfx('carDoor');audio.sfx('starter');this.engine = audio.engine('car');}
@@ -455,7 +475,7 @@
       netAnimate(dt) {this.trackPhase += dt;this.tracks[0].position.z = ((this.vl * this.trackPhase) % .156);this.tracks[1].position.z = ((this.vr * this.trackPhase) % .156);}
     }
     // The model helpers are shared with the e-scooters and city bikes (game-rentals.js).
-    return {Motorcycle, Car, Excavator, Vehicle, parts: {mesh, box, cyl, rounded, rod, hand, forearm, wheel, decal}};
+    return {Motorcycle, Car, Excavator, Vehicle, cabin, parts: {mesh, box, cyl, rounded, rod, hand, forearm, wheel, decal}};
   }
   return {create};
 });

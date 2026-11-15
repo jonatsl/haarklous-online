@@ -106,7 +106,7 @@
     const litMat = new T.MeshStandardMaterial({map: signMat, emissive: 0xffe066, emissiveMap: signMat, emissiveIntensity: .9, roughness: .4}), offMat = new T.MeshStandardMaterial({map: signMat, roughness: .5, color: 0x8a8a80});
     const sideMat = new T.MeshStandardMaterial({color: 0x222222, roughness: .5});
     function roofSign(car) {
-      if (!car.taxiSign) {const m = new T.Mesh(new T.BoxGeometry(.5, .16, .2), [sideMat, sideMat, sideMat, sideMat, litMat, litMat]);m.position.set(0, 1.53, .55);m.castShadow = true;car.group.add(m);car.taxiSign = m;}
+      if (!car.taxiSign) {const m = new T.Mesh(new T.BoxGeometry(.5, .16, .2), [sideMat, sideMat, sideMat, sideMat, litMat, litMat]);m.position.set(0, car.roofY || 1.53, car.signZ ?? .55);m.castShadow = true;car.group.add(m);car.taxiSign = m;}
       return car.taxiSign;
     }
     function setSign(car, state) {if (!state && !car.taxiSign) return;const m = roofSign(car);m.visible = !!state;const mat = state === 1 ? litMat : offMat;m.material[4] = m.material[5] = mat;}
