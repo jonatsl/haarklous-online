@@ -20,6 +20,7 @@
  *   distance) or null. While it is set the minimap is shown (even when switched off) and zooms so the hole you play (or the way to
  *   the next tee) fits; it and the big map draw the course outline, every hole's tee (with its number), basket and fairway line
  *   (the current hole bright, the others faded), your lie with the metres to the basket, and the way to the next tee.
+ * map.overlay(g, {P, k, d, big}) (optional): draws over the map and inside the minimap's circle (the transit lines and stops, issue #111).
  * Pure helpers (Node-tested): edgePoint, screenSpot, toRim, distanceText, minimapRange, courseOutline, courseRange.
  */
 (function (root, factory) {
@@ -155,6 +156,7 @@
       const key = [w, h, map.cx, map.cs, map.scale].join();if (key !== baseKey) {if (base.width !== w || base.height !== h) {base.width = w;base.height = h;}drawBase(w, h, k, P);baseKey = key;}
       ctx.drawImage(base, 0, 0);ctx.textAlign = 'center';
       if (map.course) {const l = lastPlayer && toLocal(lastPlayer.x, lastPlayer.z);drawCourse(ctx, map.course, P, devicePixelRatio, 1.4, l && P(l.x, l.s), null);}
+      if (map.overlay) map.overlay(ctx, {P, k, d: devicePixelRatio, big: true});// trams, buses and the metro (issue #111)
       // Points of interest.
       const icon = (x, s, color, label, glyph) => {const [u, v] = P(x, s), r = 11 * devicePixelRatio;ctx.fillStyle = color;ctx.beginPath();ctx.arc(u, v, r, 0, 7);ctx.fill();ctx.strokeStyle = '#fff';ctx.lineWidth = 2 * devicePixelRatio;ctx.stroke();ctx.fillStyle = '#fff';ctx.font = `bold ${12 * devicePixelRatio}px system-ui`;ctx.textBaseline = 'middle';ctx.fillText(glyph, u, v + .5);ctx.textBaseline = 'alphabetic';if (label) {ctx.fillStyle = '#222';ctx.font = `bold ${12 * devicePixelRatio}px system-ui`;ctx.fillText(label, u, v - r - 5 * devicePixelRatio);}};
       // A place with zoomLabel shows its label only when the map is zoomed in that far (the city bike docks, issue #57).
@@ -260,6 +262,7 @@
         const t = tile(i, j);if (t) mg.drawImage(t, i * TILE - PAD, j * TILE - PAD, TILE + 2 * PAD, TILE + 2 * PAD);
       }
       mg.setTransform(1, 0, 0, 1, 0, 0);
+      if (map.overlay) {mg.save();mg.beginPath();mg.arc(R, R, inner, 0, 7);mg.clip();map.overlay(mg, {P: (px, ps) => {const [u, v] = at(px, ps);return [R + u, R + v];}, k, d, big: false});mg.restore();}
       if (map.course) drawCourse(mg, map.course, (px, ps) => {const [u, v] = at(px, ps);return [R + u, R + v];}, d, 1, [R, R], (u, v) => {const q = toRim(u - R, v - R, inner - 9 * d);return [R + q.u, R + q.v];});
       // Places (only those in range), other players (on the rim when out of range), the waypoint (always), you in the middle.
       mg.textAlign = 'center';mg.textBaseline = 'middle';

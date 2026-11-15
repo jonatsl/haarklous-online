@@ -16,6 +16,7 @@
  * setDynamic(world, list): moving solids (doors, vehicles, people); a long list is put in the same CELL m grid as the static ones.
  * parkedLayer(list) -> layer {add(o), remove(o)}; setParked(world, layer): solids that seldom change (thousands of parked
  *   vehicles, issue #113), hashed by the layer for every world's margin and changed one solid at a time.
+ * setMoving(world, list): a short list of solids that move every frame (trams, buses, metro trains), set every frame, not hashed.
  * canStand(world, point, eyeHeight, y, staticOnly): staticOnly leaves out the dynamic and parked solids.
  * Worlds snapshot geometry; recreate after walls or room heights change.
  */
@@ -38,10 +39,12 @@
     const key=Math.floor(p.x/CELL)+','+Math.floor(p.z/CELL), base=world.cells ? (world.cells.get(key) || EMPTY).obstacles : world.obstacles;
     if (staticOnly) return base;
     const dyn=!world.dynamic || !world.dynamic.length ? NONE : world.dynamicCells ? world.dynamicCells.get(key) || NONE : world.dynamicPrepared || (world.dynamicPrepared=prepared(world.dynamic));
-    const park=world.parkedCells ? world.parkedCells.get(key) || NONE : NONE;
-    return dyn.length || park.length ? base.concat(dyn,park) : base;
+    const park=world.parkedCells ? world.parkedCells.get(key) || NONE : NONE, mov=world.moving || NONE;
+    return dyn.length || park.length || mov.length ? base.concat(dyn,park,mov) : base;
   }
   function setDynamic(world,list){world.dynamic=list;world.dynamicPrepared=prepared(list);world.dynamicCells=list.length>24 ? hashed(world.dynamicPrepared,world.radius+.8) : null;}
+  // A short list of solids that move every frame (the trams, buses and metro trains near you, issue #111), not hashed.
+  function setMoving(world,list){world.moving=list.length ? prepared(list) : NONE;}
   function parkedLayer(list){
     const set=new Set(prepared(list)),byPad=new Map();
     const each=(o,pad,fn)=>{const b=o.bounds;for(let i=Math.floor((b.minX-pad)/CELL);i<=Math.floor((b.maxX+pad)/CELL);i++)for(let j=Math.floor((b.minZ-pad)/CELL);j<=Math.floor((b.maxZ+pad)/CELL);j++)fn(i+','+j);};
@@ -261,5 +264,5 @@
     }
     return null;
   }
-  return {createWorld,supportAt,canStand,hitsSolid,move,findSafeSpawn,ceilingAt,clampEyeHeight,setDynamic,parkedLayer,setParked,STEP};
+  return {createWorld,supportAt,canStand,hitsSolid,move,findSafeSpawn,ceilingAt,clampEyeHeight,setDynamic,setMoving,parkedLayer,setParked,STEP};
 });
