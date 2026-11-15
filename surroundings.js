@@ -104,9 +104,9 @@
     const naturalLocal = RSW.natural, relLocal = streets.height;
     const yLocal = (x, s) => ground + relLocal(x, s), yNatural = (x, s) => ground + naturalLocal(x, s);
     const heightWorld = (x, z) => {const l = toLocal(x, z);return yLocal(l.x, l.s);};
-    // A building's walls reach 0.6 m below the lowest ground along them (corners and every 8 m), so a street eased below the
-    // real ground leaves no gap under a facade.
-    const lowestAlong = ring => {let m = Infinity;ring.forEach((a, i) => {const b = ring[(i + 1) % ring.length], n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 8));for (let k = 0; k < n; k++) m = Math.min(m, relLocal(a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n));});return m;};
+    // A building's walls reach 0.6 m below the lowest real ground at its corners, and another STREET_DROP further (out of sight
+    // under the ground), because a street eased below the real ground may lower the ground at a facade by up to ~1.6 m.
+    const STREET_DROP = 1.6, lowestAlong = ring => {let m = Infinity;for (const p of ring) m = Math.min(m, naturalLocal(p[0], p[1]));return m - STREET_DROP;};
     // A street-surface tile (RoadSurface.tile arrays, heights relative) as a mesh: uv = the painting's square, aStreet for the shader.
     function streetMesh(t, mat, name, uvOf) {
       const n = t.pos.length / 3, uv = new Float32Array(n * 2);
@@ -115,6 +115,12 @@
       g.setAttribute('uv', new T.BufferAttribute(uv, 2));g.setAttribute('aStreet', new T.BufferAttribute(t.street, 4));g.setIndex(new T.BufferAttribute(t.index, 1));g.computeBoundingSphere();
       const m = new T.Mesh(g, mat);m.receiveShadow = true;m.name = name;m.userData.noMerge = true;return m;
     }
+    // Ground tiles are cut from the street surface when the camera first comes near (update(): the ones within 60 m at once, then
+    // the nearest missing one within GROUND_REACH, one a frame), not all at the start. buildGround(x, s, r) forces them.
+    const groundTiles = [], GROUND_REACH = 1000;
+    const tileDist = (t, x, s) => Math.hypot(x - Math.max(t.x0, Math.min(t.x1, x)), s - Math.max(t.s0, Math.min(t.s1, s)));
+    function buildGroundTile(t) {t.done = true;t.mesh = t.build();if (t.mesh) t.parent.add(t.mesh);}
+    function buildGround(x, s, radius = 60) {for (const t of groundTiles) if (!t.done && tileDist(t, x, s) < radius) buildGroundTile(t);}
     // The old square's walkable ground (4 m grid): the inner ±300 m and the ring out to ±PLAY_HALF in eight tiles of about 508 m
     // (so the camera skips the ones out of view), cells wholly inside a `cut` rectangle (the paintball yard, the catacomb's
     // mausoleums) left out.
@@ -127,12 +133,16 @@
         if (hole > 0 && x >= -hole - 1e-6 && x1 <= hole + 1e-6 && s >= -hole - 1e-6 && s1 <= hole + 1e-6) return true;
         return cut.some(h => x >= h.x0 && x1 <= h.x1 && s >= h.s0 && s1 <= h.s1);
       };
-      const cuts = hole > 0 ? [lo, lo + Math.round((hi - lo) / 3), hi - Math.round((hi - lo) / 3), hi] : [lo, hi], meshes = [];
+      const cuts = hole > 0 ? [lo, lo + Math.round((hi - lo) / 3), hi - Math.round((hi - lo) / 3), hi] : [lo, hi];
       for (let a = 0; a + 1 < cuts.length; a++) for (let b = 0; b + 1 < cuts.length; b++) {
-        const t = streets.tile(G, cuts[a], cuts[b], cuts[a + 1], cuts[b + 1], skip);if (!t.index.length) continue;
-        meshes.push(streetMesh(t, mat, name, (x, s) => [(x + extent) / (2 * extent), 1 - (s + extent) / (2 * extent)]));parent.add(meshes[meshes.length - 1]);
+        const [x0, s0] = at(cuts[a], cuts[b]), [x1, s1] = at(cuts[a + 1], cuts[b + 1]);
+        if (hole > 0 && x0 >= -hole && x1 <= hole && s0 >= -hole && s1 <= hole) continue;// wholly the inner ground's
+        groundTiles.push({x0, s0, x1, s1, parent, done: false, build: () => {
+          const t = streets.tile(G, cuts[a], cuts[b], cuts[a + 1], cuts[b + 1], skip);
+          return t.index.length ? streetMesh(t, mat, name, (x, s) => [(x + extent) / (2 * extent), 1 - (s + extent) / (2 * extent)]) : null;
+        }});
       }
-      return {meshes, tex, mat};
+      return {tex, mat};
     }
     // The far pass's ground (8 m, drawn 0.5 m low): the real ground, no streets.
     function terrainMesh(parent, extent, res, canvas, name, drop = 0, hole = 0, cut = [], detail = true) {
@@ -399,7 +409,7 @@
     const nearCell = (x, s) => {const k = cellKey(x, s);if (!nearCells.has(k)) nearCells.set(k, cityBuilder());return nearCells.get(k);};
     data.buildings.forEach((b, i) => {
       const ring = pairs(b.r.o), cx = ring.reduce((s, p) => s + p[0], 0) / ring.length, cs = ring.reduce((s, p) => s + p[1], 0) / ring.length;
-      const g0 = ground + (b.g || 0), bottom = ground + Math.min(b.gm ?? b.g ?? 0, Math.abs(cx) < NEAR_REACH + 100 && Math.abs(cs) < NEAR_REACH + 100 ? lowestAlong(ring) : Infinity) - .6, top = g0 + b.h;
+      const g0 = ground + (b.g || 0), bottom = ground + (b.gm ?? b.g ?? 0) - STREET_DROP - .6, top = g0 + b.h;
       b.base = g0;b.top = top;b.bottom = bottom;
       const tags = looks.old(i) || {}, keep = b.enter !== undefined || keepBrick.has(i) ? 'brick' : null;
       const look = CT.classify({style: b.s, kind: tags.kind || (b.s === 'brick' ? 'apartments' : ''), h: b.h, x: cx, s: cs, colour: tags.colour || b.c, roofColour: tags.roofColour, roofShape: tags.roofShape,
@@ -639,7 +649,20 @@
       const pieces = [];
       if (near) {
         const gi = Math.round((x0 - d.x0) / res), gj = Math.round((s0 - d.s0) / res);
-        const t = streets.tile(G, gi, gj, gi + ni, gj + nj, (i, j) => {const st = state(i - gi, j - gj);if (st === 2) pieces.push([i - gi, j - gj]);return st !== 0;});
+        // Cells wholly inside a building's outline are never seen (the walls reach below the ground): left out of the mesh.
+        // (the ground you stand on is unchanged; Kiwi Storgata's shop, Rathkes gate 1C's model and the other buildings with
+        // their own insides are cut out of the outlines before this.)
+        const owner = new Int32Array((ni + 1) * (nj + 1)).fill(-1), hasCorner = new Uint8Array(ni * nj);
+        d.buildings.forEach((bd, id) => {
+          const ring = bd.ring;if (!ring || ring.length < 3) return;
+          let bx0 = Infinity, bx1 = -Infinity, bs0 = Infinity, bs1 = -Infinity;for (const q of ring) {bx0 = Math.min(bx0, q[0]);bx1 = Math.max(bx1, q[0]);bs0 = Math.min(bs0, q[1]);bs1 = Math.max(bs1, q[1]);}
+          if (bx1 < x0 || bx0 > x0 + ni * res || bs1 < s0 || bs0 > s0 + nj * res) return;
+          for (const q of ring) {const ci = Math.floor((q[0] - x0) / res), cj = Math.floor((q[1] - s0) / res);if (ci >= 0 && cj >= 0 && ci < ni && cj < nj) hasCorner[cj * ni + ci] = 1;}
+          for (let j = Math.max(0, Math.ceil((bs0 - s0) / res)); j <= Math.min(nj, Math.floor((bs1 - s0) / res)); j++) for (let i = Math.max(0, Math.ceil((bx0 - x0) / res)); i <= Math.min(ni, Math.floor((bx1 - x0) / res)); i++)
+            if (owner[j * (ni + 1) + i] < 0 && insideRing([x0 + i * res, s0 + j * res], ring)) owner[j * (ni + 1) + i] = id;
+        });
+        const hidden = (i, j) => {const o = owner[j * (ni + 1) + i];return o >= 0 && !hasCorner[j * ni + i] && owner[j * (ni + 1) + i + 1] === o && owner[(j + 1) * (ni + 1) + i] === o && owner[(j + 1) * (ni + 1) + i + 1] === o;};
+        const t = streets.tile(G, gi, gj, gi + ni, gj + nj, (i, j) => {const st = state(i - gi, j - gj);if (st === 2) pieces.push([i - gi, j - gj]);return st !== 0 || hidden(i - gi, j - gj);});
         for (let k = 0; k < t.pos.length / 3; k++) {pos.push(t.pos[k * 3], t.pos[k * 3 + 1], t.pos[k * 3 + 2]);nor.push(t.nor[k * 3], t.nor[k * 3 + 1], t.nor[k * 3 + 2]);uv.push((t.pos[k * 3] - d.x0) / (d.x1 - d.x0), 1 - (t.pos[k * 3 + 2] - d.s0) / (d.s1 - d.s0));for (let q = 0; q < 4; q++) street.push(t.street[k * 4 + q]);}
         for (let k = 0; k < t.index.length; k++) index.push(t.index[k]);
       } else for (let j = 0; j < nj; j++) for (let i = 0; i < ni; i++) {if (state(i, j) === 1) continue;const a = j * (ni + 1) + i, b = a + 1, c = a + ni + 1, e = c + 1;index.push(a, c, b, b, c, e);}
@@ -659,19 +682,15 @@
     }
     const patchMats = {water: new T.MeshStandardMaterial({color: 0x3e5d70, roughness: .15, metalness: .2, side: T.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2})};// always in front of the sea-level ground under it
     const groundOf = canvas => {const tex = new T.CanvasTexture(canvas);tex.colorSpace = T.SRGBColorSpace;tex.anisotropy = 8;return {tex, mat: new T.MeshStandardMaterial({map: tex, color: 0xa6a6a6, roughness: .97, metalness: 0, envMapIntensity: .35})};};
-    const groundTiles = [], GROUND_REACH = 1000;
-    function buildGroundTile(t) {
-      t.done = true;t.mesh = patchGround(t.d, t.x0, t.s0, t.x1, t.s1, t.d.step, t.P.near.mat, 'Terrain (district near)', 0, PLAY_HALF);if (t.mesh) geoNear.add(t.mesh);
-    }
-    const tileDist = (t, x, s) => Math.hypot(x - Math.max(t.x0, Math.min(t.x1, x)), s - Math.max(t.s0, Math.min(t.s1, s)));
-    // Every tile within `radius` metres of the local point now (the one you stand on at once; the rest one a frame in update()).
-    function buildGround(x, s, radius = 60) {for (const t of groundTiles) if (!t.done && tileDist(t, x, s) < radius) buildGroundTile(t);}
     const patches = districts.map(d => {
       const P = {d, farTrees: [], nearImagery: 'none'}, W = d.x1 - d.x0, H = d.s1 - d.s0;
       P.nearSize = Math.min(4096, 2 ** Math.ceil(Math.log2(Math.max(W, H) / .8)));P.farSize = Math.min(2048, P.nearSize / 2);
       P.near = groundOf(paintPatch(d, P.nearSize));P.far = groundOf(paintPatch(d, P.farSize));city.ground(P.near.mat);
       // The near ground tiles are cut from the street surface when the camera first comes near (update), not all at the start.
-      for (let tx = d.x0; tx < d.x1 - 1e-6; tx += PATCH_TILE) for (let ts = d.s0; ts < d.s1 - 1e-6; ts += PATCH_TILE) groundTiles.push({P, d, x0: tx, s0: ts, x1: Math.min(d.x1, tx + PATCH_TILE), s1: Math.min(d.s1, ts + PATCH_TILE), mesh: null, done: false});
+      for (let tx = d.x0; tx < d.x1 - 1e-6; tx += PATCH_TILE) for (let ts = d.s0; ts < d.s1 - 1e-6; ts += PATCH_TILE) {
+        const x1 = Math.min(d.x1, tx + PATCH_TILE), s1 = Math.min(d.s1, ts + PATCH_TILE);
+        groundTiles.push({x0: tx, s0: ts, x1, s1, parent: geoNear, done: false, build: () => patchGround(d, tx, ts, x1, s1, d.step, P.near.mat, 'Terrain (district near)', 0, PLAY_HALF)});
+      }
       const fm = patchGround(d, d.x0, d.s0, d.x1, d.s1, 16, P.far.mat, 'Terrain (district far)', .5, FAR_EXT);if (fm) geoFar.add(fm);
       const classSize = Math.min(2048, P.nearSize / 2), cls = paintPatch(d, classSize, true).getContext('2d').getImageData(0, 0, classSize, classSize).data;
       P.classSize = classSize;P.classes = new Uint8Array(classSize * classSize);for (let i = 0; i < P.classes.length; i++) P.classes[i] = cls[i * 4];
@@ -776,11 +795,11 @@
     }
     // Near imagery for a patch loads when the camera first comes within 700 m of it (a few hundred tiles at zoom 17).
     function update(camera) {
-      if (!patches.length) return;
       const l = toLocal(camera.x, camera.z);
-      // District ground: the tiles round the camera at once, then the nearest missing one within GROUND_REACH, one a frame.
+      // Ground: the tiles round the camera at once, then the nearest missing one within GROUND_REACH, one a frame.
       buildGround(l.x, l.s, 60);
       {let best = null, bd = GROUND_REACH;for (const t of groundTiles) if (!t.done) {const dd = tileDist(t, l.x, l.s);if (dd < bd) {bd = dd;best = t;}}if (best) buildGroundTile(best);}
+      if (!patches.length) return;
       for (const P of patches) {
         const d = P.d, dist = Math.hypot(l.x - Math.max(d.x0, Math.min(d.x1, l.x)), l.s - Math.max(d.s0, Math.min(d.s1, l.s)));
         if (P.nearImagery === 'wanted' && imageryState === 'on' && dist < 700) {P.nearImagery = 'loading';const token = imageryToken;loadPatchImagery(P, 'near', token).then(ok => {if (token === imageryToken) P.nearImagery = ok ? 'on' : 'failed';});}
