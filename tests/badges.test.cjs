@@ -49,7 +49,7 @@ test('best scores: holes in one, rounds, wins, the mission time and the closest 
 test('badges come from the best scores and the other saved states', () => {
   const none = {records: {}, gym: {}, kayak: {}, route: {}, got: {}};
   assert.deepEqual(B.BADGES.filter(b => b.test(none)).map(b => b.id), []);
-  const all = {records: {aces: 1, golfAces: 1, minigolf: {'Oslo Camping': {rounds: 1, best: 40, par: 40}}, mission: {done: 1}, disc: {'Muselunden DiscGolfPark': {holes: 12}}, petanque: {won: 1}, paintball: {won: 1}, skydive: {best: 9.5},
+  const all = {records: {aces: 1, golfAces: 1, minigolf: {'Oslo Camping': {rounds: 1, best: 40, par: 40}}, mission: {done: 1}, disc: {'Muselunden DiscGolfPark': {holes: 12}}, petanque: {won: 1}, paintball: {won: 1}, skydive: {best: 9.5}, prophunt: {matches: 1, survived: 1, cleared: 1},
     pingpong: {won: 1}, marks: {catacomb: 1, moby: 1, fire: 1, airborne: 1, inner: 1}},
     gym: {ticks: {a: 'flash'}, brattkort: true}, kayak: {0: 400}, route: {best: 600}, got: Object.fromEntries(B.SPOTS.map(s => [s.id, {}])),
     lic: {have: Object.fromEntries(['B', 'A', 'C', 'M', 'G', 'PPLA', 'PPLH', 'A1A3'].map(id => [id, '2026-11-03']))},
@@ -82,4 +82,13 @@ test('a hidden badge is not listed or counted until you have it (issue #95)', ()
   assert.equal(h.test(none), false);assert.equal(h.test({...none, records: {marks: {[h.id]: 1}}}), true);assert.ok(h.kr > 0);
   // Nothing else in the badge list points at it.
   for (const b of B.shown({})) assert.ok(!new RegExp(h.name, 'i').test(b.how), b.id);
+});
+
+test('prop hunt (issue #124): rounds and matches count up, the best score is kept, two copies join', () => {
+  const R = {};
+  B.record(R, 'prophunt-round', {role: 'p', survived: true, finds: 0});B.record(R, 'prophunt-round', {role: 'h', cleared: true, finds: 3});
+  assert.equal(B.record(R, 'prophunt-match', {won: true, pts: 14}).best, true);assert.equal(B.record(R, 'prophunt-match', {won: false, pts: 9}).best, false);
+  assert.deepEqual(R.prophunt, {rounds: 2, survived: 1, cleared: 1, finds: 3, matches: 2, won: 1, best: 14});
+  const joined = JSON.parse(B.MERGE['haarklous-records-v1'](JSON.stringify({prophunt: {matches: 2, won: 1, best: 14}}), JSON.stringify({prophunt: {matches: 3, won: 0, best: 20}}), 'move'));
+  assert.equal(joined.prophunt.matches, 5);assert.equal(joined.prophunt.best, 20);
 });

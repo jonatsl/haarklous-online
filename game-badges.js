@@ -61,6 +61,10 @@
     {id: 'minigolf', icon: '⛳', name: 'A round of minigolf', how: 'Play a full round at a real minigolf course: Torshov, Grünerløkka, Jordal park or Oslo Camping.', kr: 100, test: f => Object.values(f.records.minigolf || {}).some(r => n(r.rounds) > 0)},
     {id: 'minigolf-ace', icon: '🏌️', name: 'Minigolf ace', how: 'Hole a minigolf lane with the first stroke.', kr: 100, test: f => n(f.records.golfAces) > 0},
     {id: 'camping', icon: '🏕️', name: 'Camping in Møllergata', how: 'Play all 18 holes at Oslo Camping, the minigolf bar in Møllergata.', kr: 150, test: f => n(f.records.minigolf?.['Oslo Camping']?.rounds) > 0},
+    // Prop hunt (issue #124).
+    {id: 'prophunt', icon: '🙈', name: 'Hide and seek', how: 'Play a whole prop hunt match (the purple rings at Haarklous plass, Olaf Ryes plass and Rathkes gate 1).', kr: 100, test: f => n(f.records.prophunt?.matches) > 0},
+    {id: 'prophunt-hider', icon: '🪑', name: 'Just a bench', how: 'Survive a prop hunt round as a hider.', kr: 100, test: f => n(f.records.prophunt?.survived) > 0},
+    {id: 'prophunt-hunter', icon: '🎯', name: 'Nothing gets past you', how: 'Find every hider in a prop hunt round as a hunter.', kr: 100, test: f => n(f.records.prophunt?.cleared) > 0},
     {id: 'pingpong', icon: '🏓', name: 'Beat Ola', how: 'Win a table tennis match against Ola at Schous plass.', kr: 100, test: f => n(f.records.pingpong?.won) > 0},
     {id: 'run', icon: '🏃', name: 'Ensjø → Rathkes gate', how: 'Finish the timed run from Ensjø T-bane to Rathkes gate.', kr: 100, test: f => f.route.best != null},
     {id: 'catacomb', icon: '💀', name: 'Into the dark', how: 'Go down into the catacomb under Torshovdalen.', kr: 50, test: f => !!f.records.marks?.catacomb},
@@ -115,6 +119,8 @@
       const c = g('minigolf', {})[x.course] || (R.minigolf[x.course] = {});c.rounds = n(c.rounds) + 1;c.par = x.par;c.holes = x.holes;
       if (c.best == null || x.total < c.best) {c.best = x.total;best = true;}
     } else if (kind === 'pingpong') {const p = g('pingpong', {});if (x.won) p.won = n(p.won) + 1;else p.lost = n(p.lost) + 1;}
+    else if (kind === 'prophunt-round') {const p = g('prophunt', {});p.rounds = n(p.rounds) + 1;if (x.survived) p.survived = n(p.survived) + 1;if (x.cleared) p.cleared = n(p.cleared) + 1;p.finds = n(p.finds) + n(x.finds);}
+    else if (kind === 'prophunt-match') {const p = g('prophunt', {});p.matches = n(p.matches) + 1;if (x.won) p.won = n(p.won) + 1;if (p.best == null || n(x.pts) > p.best) {p.best = n(x.pts);best = true;}}
     else if (kind === 'mark') {g('marks', {})[x.id] = 1;}
     return {best};
   }
@@ -136,6 +142,8 @@
       if (x.best || y.best) out[k].best = !x.best ? y.best : !y.best ? x.best : (x.best.you - x.best.npc >= y.best.you - y.best.npc ? x.best : y.best);
     }
     {const x = a.paintball || {}, y = b.paintball || {};out.paintball = {won: count(x.won, y.won), played: count(x.played, y.played)};}
+    {const x = a.prophunt || {}, y = b.prophunt || {}, best = x.best == null ? y.best ?? null : y.best == null ? x.best : Math.max(x.best, y.best);
+      out.prophunt = {matches: count(x.matches, y.matches), won: count(x.won, y.won), rounds: count(x.rounds, y.rounds), survived: count(x.survived, y.survived), cleared: count(x.cleared, y.cleared), finds: count(x.finds, y.finds), best};}
     {const x = a.mission || {}, y = b.mission || {};out.mission = {done: count(x.done, y.done), failed: count(x.failed, y.failed), best: lower(x.best, y.best)};}
     {const x = a.skydive || {}, y = b.skydive || {};out.skydive = {jumps: count(x.jumps, y.jumps), soft: count(x.soft, y.soft), best: lower(x.best, y.best)};}
     out.marks = {...(b.marks || {}), ...(a.marks || {})};
@@ -203,6 +211,7 @@
       if (R.golfAces) rows.push(['Minigolf holes in one', String(R.golfAces)]);
       if (n(R.petanque?.won) + n(R.petanque?.lost)) rows.push(['Petanque against Arne', `${n(R.petanque.won)} won, ${n(R.petanque.lost)} lost${R.petanque.best ? ` · best ${R.petanque.best.you}–${R.petanque.best.npc}` : ''}`]);
       if (n(R.paintball?.played)) rows.push(['Paintball', `${n(R.paintball.won)} won of ${n(R.paintball.played)}`]);
+      if (n(R.prophunt?.rounds)) rows.push(['Prop hunt', `${n(R.prophunt.matches)} matches, ${n(R.prophunt.won)} won · ${n(R.prophunt.survived)} rounds survived · ${n(R.prophunt.finds)} finds${R.prophunt.best != null ? ` · best ${R.prophunt.best} points` : ''}`]);
       if (n(R.mission?.done) + n(R.mission?.failed)) rows.push(['Hostage rescue', `${n(R.mission.done)} rescued${R.mission.best != null ? ` · best time ${clock(R.mission.best)}` : ''}`]);
       if (n(R.skydive?.jumps)) rows.push(['Skydiving', `${n(R.skydive.jumps)} jumps, ${n(R.skydive.soft)} soft landings${R.skydive.best != null ? ` · closest to the target ${R.skydive.best} m` : ''}`]);
       if (n(R.pingpong?.won) + n(R.pingpong?.lost)) rows.push(['Table tennis against Ola', `${n(R.pingpong.won)} won, ${n(R.pingpong.lost)} lost`]);

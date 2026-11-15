@@ -393,6 +393,7 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
           <dt>Excavator</dt><dd>L1/L2 left track forward/back · R1/R2 right track · left stick: swing and stick · right stick: boom and bucket</dd>
           <dt>Disc golf / petanque</dt><dd>Aim with the camera · hold R2, release to throw · ○ quit · disc golf: walk to the next tee after each hole (□ takes you straight there); the minimap shows the course</dd>
           <dt>Construction site</dt><dd>North in Torshovdalen, through the gate: dozer, 30 t excavator, wheel loader, hauler, tipper truck, mobile crane and tower crane · □ climb in · R2 / L2 drive (excavator: L1/L2 R1/R2 tracks) · right stick (or the arrow keys) works the blade, bucket, body or boom · mobile crane: L1 outriggers · cranes: ✕ hook or set down a load · R3 / V view: cab, outside, above the hook</dd>
+          <dt>Prop hunt (hide and seek)</dt><dd>Stand in a purple ring (Haarklous plass, Olaf Ryes plass, the backyard of Rathkes gate 1) to join; the first one there is the admin: ←→ arena, ↑↓ rounds, hold ✕ start (alone: △ hunt or hide first, the game's players fill in) · hider: □ / E become the thing you look at, R1 / X lock or free its turning, D-pad ←/→ turn it, △ / F taunt · hunter: R2 / left mouse shoot, L2 / right mouse aim – a real thing costs you health · out: D-pad ←/→ watch someone else · hold △ leave</dd>
           <dt>Paintball</dt><dd>Walk into the lobby outside the course gate (the first one there is the admin) · ↑↓ team · admin: ←→ game, △ paint / reball, hold ✕ start · in a game: R2 / left mouse fire, L2 / right mouse aim, □ / R reload, hold △ leave</dd>
           <dt>Helicopter</dt><dd>Mode 2: left stick ↑↓ collective (centre = hover; tilting takes lift, so add collective to keep your height), ←→ pedals · right stick pitch and roll · R3 / V chase camera · □ get out after landing · Keyboard + mouse (Battlefield): W/S collective, A/D pedals, mouse pitch and roll (mouse up = nose down), hold Shift or the right mouse button to look around</dd>
           <dt>Plane</dt><dd>Mode 2: left stick ↑↓ throttle (stays where you leave it), ←→ rudder and nose wheel · right stick pitch and roll (pull back to lift off at about 95 km/h) · L2 brakes · R3 / V view · Keyboard + mouse: W/S throttle, A/D rudder, mouse pitch and roll, hold Shift to look around</dd>
@@ -3943,7 +3944,7 @@ window.BUILDING_LOOKS = {"table":[[],["school"],["retail"],["apartments"],["apar
     }
 
     streets.release();
-    return {near, far, setImagery, setSun, setOvercast, get imageryState() {return imageryState;}, attribution: data.attribution, ground, heightWorld, toLocal, toWorld, terrainFloor, terrainFloors, obstacles, surfaceAt, trafficDistance, greenery, data, playHalf: PLAY_HALF, trees: allTrees,
+    return {near, far, setImagery, setSun, setOvercast, get imageryState() {return imageryState;}, attribution: data.attribution, ground, heightWorld, toLocal, toWorld, terrainFloor, terrainFloors, obstacles, surfaceAt, trafficDistance, greenery, data, playHalf: PLAY_HALF, trees: allTrees, propKit: {bushGeo, bushMat, crownGeo, leafMats, trunkGeo, barkMat, poleMat},
       districts: patches.map(P => P.d), get districtImagery() {return patches.map(P => P.nearImagery);}, update, buildGround, yLocal, yNatural, streets, geoNear, geoFar, looks: lookCount, city, facadeFill};
   }
   return {create, walkRects, openEdges, PLAY_HALF};
@@ -4309,6 +4310,7 @@ window.BUILDING_LOOKS = {"table":[[],["school"],["retail"],["apartments"],["apar
  * Engines: inline-four motorcycle (CBF600), four-cylinder car, diesel excavator with hydraulics, helicopter (rotor slap
  * and turbine), light-aircraft piston engine and propeller, FPV drone motors.
  * GameAudio.create() -> {resume(), ambience(state), footstep(surface, inStair), sfx(name, opts), engine(kind), hydraulics(), water(level)}
+ *   sfx opts: gain, reverb, pan (-1 left … 1 right: a sound from somewhere, e.g. a prop hunt whistle)
  */
 (function (root, factory) {
   root.GameAudio = factory();
@@ -4420,8 +4422,10 @@ window.BUILDING_LOOKS = {"table":[[],["school"],["retail"],["apartments"],["apar
     function sfx(name, opts = {}) {
       if (!ctx || ctx.state !== 'running') return;
       const t = now(), level = opts.gain ?? 1, verb = opts.reverb ?? 0;
-      const burst = (freq, q, peak, attack, decay, type = 'bandpass', at = t) => {const n = noise(false), f = ctx.createBiquadFilter(), e = ctx.createGain();f.type = type;f.frequency.value = freq;f.Q.value = q;n.connect(f).connect(e);out(e, verb);env(e, at, peak * level, attack, decay);n.start(at);n.stop(at + attack + decay + .05);};
-      const tone = (f0, f1, peak, attack, decay, type = 'sine', at = t) => {const o = ctx.createOscillator(), e = ctx.createGain();o.type = type;o.frequency.setValueAtTime(f0, at);o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), at + attack + decay);o.connect(e);out(e, verb);env(e, at, peak * level, attack, decay);o.start(at);o.stop(at + attack + decay + .05);};
+      // From a direction: everything goes through one stereo panner.
+      const pan = opts.pan != null && ctx.createStereoPanner ? (() => {const P = ctx.createStereoPanner();P.pan.value = Math.max(-1, Math.min(1, opts.pan));out(P, verb);return P;})() : null, sink = e => pan ? e.connect(pan) : out(e, verb);
+      const burst = (freq, q, peak, attack, decay, type = 'bandpass', at = t) => {const n = noise(false), f = ctx.createBiquadFilter(), e = ctx.createGain();f.type = type;f.frequency.value = freq;f.Q.value = q;n.connect(f).connect(e);sink(e);env(e, at, peak * level, attack, decay);n.start(at);n.stop(at + attack + decay + .05);};
+      const tone = (f0, f1, peak, attack, decay, type = 'sine', at = t) => {const o = ctx.createOscillator(), e = ctx.createGain();o.type = type;o.frequency.setValueAtTime(f0, at);o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), at + attack + decay);o.connect(e);sink(e);env(e, at, peak * level, attack, decay);o.start(at);o.stop(at + attack + decay + .05);};
       switch (name) {
         case 'doorOpen': tone(320, 520, .03, .05, .35, 'sawtooth');burst(600, 1, .05, .01, .2);break;
         case 'doorClose': burst(160, .8, .5, .004, .25, 'lowpass');tone(90, 50, .3, .003, .2);break;
@@ -4489,6 +4493,18 @@ window.BUILDING_LOOKS = {"table":[[],["school"],["retail"],["apartments"],["apar
         case 'golfCup': tone(420, 300, .2, .002, .12, 'triangle');tone(980, 760, .1, .001, .07, 'square', t + .08);burst(1800, 3, .15, .001, .05, 'bandpass', t + .14);tone(330, 260, .18, .002, .18, 'sine', t + .18);break;
         case 'golfLoop': tone(300, 900, .06, .05, .45, 'sine');burst(1200, 1, .05, .1, .35);break;
         case 'noMana': tone(220, 180, .06, .01, .18, 'square');break;
+        // Prop hunt (issue #124): a hider's whistle (from where it stands), a taunt, hits, a wrong hit, found, the round's horns.
+        case 'phWhistle': tone(1650, 2350, .16, .04, .26, 'sine');tone(2350, 1550, .14, .02, .38, 'sine', t + .34);break;
+        case 'phTaunt': if (Math.random() < .5) {tone(784, 770, .16, .01, .22, 'sine');tone(622, 610, .16, .01, .3, 'sine', t + .3);tone(784, 770, .12, .01, .2, 'sine', t + .75);tone(622, 610, .12, .01, .3, 'sine', t + 1.05);}
+          else for (let i = 0; i < 3; i++) {tone(520, 300, .14, .005, .1, 'sawtooth', t + i * .18);burst(1400, 2, .08, .003, .06, 'bandpass', t + i * .18);}break;
+        case 'phHit': tone(900, 560, .2, .002, .08, 'triangle');burst(2200, 2, .25, .001, .05);break;
+        case 'phHurt': burst(420, 1, .35, .002, .14, 'lowpass');tone(320, 180, .12, .002, .12, 'square');break;
+        case 'phWrong': tone(190, 150, .14, .005, .3, 'square');burst(700, 1, .2, .002, .12, 'lowpass');break;
+        case 'phFound': burst(1300, 1, .35, .001, .08);for (let i = 0; i < 4; i++) tone(880 / (1 + i * .25), 840 / (1 + i * .25), .1, .005, .16, 'triangle', t + .1 + i * .13);break;
+        case 'phPoof': burst(900, .6, .3, .01, .28);tone(380, 920, .05, .01, .16, 'sine');break;
+        case 'phStart': [392, 523, 659].forEach((f, i) => tone(f, f, .1, .01, .3, 'triangle', t + i * .16));break;
+        case 'phGo': tone(1046, 1046, .1, .005, .2, 'square');tone(1568, 1568, .1, .005, .35, 'square', t + .22);break;
+        case 'phEnd': [659, 523, 392, 523].forEach((f, i) => tone(f, f, .1, .01, .3, 'triangle', t + i * .2));break;
       }
     }
 
@@ -4587,6 +4603,8 @@ window.BUILDING_LOOKS = {"table":[[],["school"],["retail"],["apartments"],["apar
  *                                  32 bars = 76.8 s
  *   minigolf  "Putting Green Swing" – swing with walking bass, brushes, ride, electric piano, whistle and bells, F major,
  *                                  120 bpm, AABA 32 bars = 64 s (issue #114; also plays inside Oslo Camping)
+ *   prophunt  "Tiptoe"          – sneaky pizzicato bass on tiptoe, muted hats, a chromatic creeping tune on pluck, whistle and bells,
+ *                                  E minor, 112 bpm, 32 bars = 68.6 s (issue #124, during a prop hunt match)
  * Records for the LP player in Rathkes gate 1C (issue #116; GameMusic.records): lp1 "Søndagsjazz" (jazz trio, 73.8 s),
  * lp2 "Bossa på Løkka" (bossa nova, 72.7 s), lp3 "Lavalampe" (soul and disco, 68.6 s), lp4 "Fjellvise" (folk waltz, 80 s).
  * GameMusic.create() -> {attach(audioContext), play(name|null), setVolume(0..1), volume, current, position(),
@@ -4843,6 +4861,31 @@ window.BUILDING_LOOKS = {"table":[[],["school"],["retail"],["apartments"],["apar
     }};
   })();
 
+  // ---------- Prop hunt: "Tiptoe" (E minor, 112 bpm, 32 bars = 68.6 s; issue #124) ----------
+  // A staccato bass that tiptoes on every beat, muted hats, soft piano stabs off the beat, and a creeping chromatic tune
+  // (pluck in bars 8–15, whistle with bells in 16–23, bells alone in 24–31). Em Em C C Am Am B7 B7.
+  const SNEAK = (() => {
+    const CH = [{b: 40, v: [64, 67, 71]}, {b: 40, v: [64, 67, 71]}, {b: 36, v: [64, 67, 72]}, {b: 36, v: [64, 67, 72]}, {b: 45, v: [64, 69, 72]}, {b: 45, v: [64, 69, 72]}, {b: 47, v: [63, 66, 69]}, {b: 47, v: [63, 66, 71]}];
+    const M = [
+      [[0, 64, .4], [.75, 63, .2], [1, 64, .4], [2, 67, .4], [2.75, 66, .2], [3, 67, .4]], [[0, 71, .3], [.5, 70, .3], [1, 69, .3], [1.5, 68, .3], [2, 67, 1.5]],
+      [[0, 64, .4], [.75, 63, .2], [1, 64, .4], [2, 72, .4], [2.75, 71, .2], [3, 72, .4]], [[0, 76, .3], [.5, 75, .3], [1, 74, .3], [1.5, 73, .3], [2, 72, 1.5]],
+      [[0, 69, .4], [.75, 68, .2], [1, 69, .4], [2, 72, .4], [2.75, 71, .2], [3, 72, .4]], [[0, 76, .4], [1, 74, .4], [2, 72, .4], [3, 71, .4]],
+      [[0, 71, .4], [.75, 70, .2], [1, 71, .4], [2, 75, .4], [2.75, 74, .2], [3, 75, .4]], [[0, 78, .3], [.5, 77, .3], [1, 76, .3], [1.5, 75, .3], [2, 71, 1], [3.5, 59, .25]]];
+    return {title: 'Tiptoe', bpm: 112, beats: 4, bars: 32, render(k, bus, bar, t, beat, rnd) {
+      const i = bar % 8, ch = CH[i], sec = Math.floor(bar / 8);
+      // Tiptoe bass: root, fifth, octave, a step toward the next chord; short as a pizzicato.
+      const nx = CH[(i + 1) % 8].b;[ch.b, ch.b + 7, ch.b + 12, nx + (nx > ch.b ? -1 : 1)].forEach((m, q) => k.pluck(bus, t + q * beat, m, beat * .22, q ? .85 : 1));
+      k.bass(bus, t, ch.b, beat * .7, .55);k.bass(bus, t + 2 * beat, ch.b + 7, beat * .6, .45);// a soft body under the tiptoe
+      for (let q = 0; q < 4; q++) k.hat(bus, t + q * beat + beat / 2, .22 + (q === 3 ? .08 : 0));
+      k.brush(bus, t + beat * 2, .3);if (sec >= 1) {k.kick(bus, t, .3);if (rnd() < .4) k.kick(bus, t + beat * 2.5, .18);}
+      if (bar % 2 === 1) ch.v.forEach((m, j) => k.epiano(bus, t + 1.5 * beat + j * .012, m, beat * .3, .2));
+      if (sec === 1) line(k, bus, 'pluck', t, beat, M[i], .5);
+      if (sec === 2) {line(k, bus, 'whistle', t, beat, M[i], .55);line(k, bus, 'bell', t, beat, M[i], .18, 12);}
+      if (sec === 3) line(k, bus, 'bell', t, beat, M[i], .35);
+      if (sec === 0 && i >= 4) line(k, bus, 'bell', t, beat, M[i].slice(0, 2), .2);
+    }};
+  })();
+
   // ---------- Records for the LP player in Rathkes gate 1C (issue #116): four original pieces, each with vinyl crackle ----------
   // Swung eighths: an off-beat note (x.5) comes a little late.
   const swing = (b, amt = .16) => Math.abs(b % 1 - .5) < 1e-6 ? b + amt : b;
@@ -4953,7 +4996,7 @@ window.BUILDING_LOOKS = {"table":[[],["school"],["retail"],["apartments"],["apar
     }};
   })();
 
-  const TRACKS = {main: MAIN, discgolf: DISC, petanque: PET, mission: MISSION, minigolf: GOLF, lp1: JAZZ, lp2: BOSSA, lp3: DISCO, lp4: FOLK};
+  const TRACKS = {main: MAIN, discgolf: DISC, petanque: PET, mission: MISSION, minigolf: GOLF, prophunt: SNEAK, lp1: JAZZ, lp2: BOSSA, lp3: DISCO, lp4: FOLK};
   const RECORDS = ['lp1', 'lp2', 'lp3', 'lp4'];
   const info = {};
   for (const [name, d] of Object.entries(TRACKS)) info[name] = {title: d.title, artist: d.artist, style: d.style, record: !!d.record, bpm: d.bpm, beats: d.beats, bars: d.bars, seconds: d.bars * d.beats * 60 / d.bpm};
@@ -13084,6 +13127,923 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
   }
   return {Rules, create, PB, sesToJson, sesFromJson, memberFromJson, score};
 });
+</script><script>/* Prop hunt arenas (issue #124), made by tools/make-prophunt.cjs from OpenStreetMap (surroundings-data.js, gamle-oslo-data.js). Local metres east (x) / south (s) of Haarklous plass 17A. */
+(function (data) {if (typeof module === 'object' && module.exports) module.exports = data;else window.PROPHUNT = data;})({"arenas":[{"id":"haarklous","name":"Haarklous plass","where":"the park by the firepit, Torshov","zones":[[[-29.8,-44.8],[-12,-72],[2,-70],[27,-63],[61,-47],[52,-33],[44,-2],[34.7,0.3],[5.9,-19.8],[-17.4,-36]]],"ring":[-4,-33],"spawn":[-6,-37,2.356],"old":true,"hunt":210,"props":[["bench",-22.67,-49.86,2.728],["bench",9.84,-22.11,4.313],["bench",12.54,-24.66,3.596],["bench",-9.24,-33.82,3.078],["bench",22.91,-46.09,4.534],["bench",0.5,-29.55,5.08],["bench",-17.14,-48.87,5.014],["bin",13.87,-25.31,3.596],["bin",-0.03,-30.93,5.08],["bin",-7.76,-33.73,3.078],["bin",-24.03,-50.45,2.728],["bin",23.17,-47.55,4.534],["bin",15.36,-65.3,6.141],["bin",20.27,-55.36,1.65],["lamp",1.71,-26.16,3.541],["lamp",-15.9,-44.29,0.302],["lamp",13.84,-65.38,1.429],["lamp",20.33,-56.28,3.22],["lamp",20.25,-43.12,0.291],["bush",1.89,-63.84,4.854,0.98],["bush",4.47,-62.94,2.595,0.96],["bush",6.47,-31.85,1.647,0.83],["bush",3.79,-31.69,1.207,1],["bush",9.16,-31.71,1.815,0.83],["bush",31.25,-34.01,0.732,0.95],["bush",32.94,-36.13,3.754,1.01],["bush",28.98,-32.68,1.81,1],["bush",33.95,-33.67,1.006,0.8],["tree",45.17,-21.91,0.969,1.14],["tree",24.68,-16.26,1.639,0.82],["tree",48.83,-37.43,5.516,1.12],["tree",45.08,-44.72,3.981,1],["tree",-19.87,-46.22,2.525,0.92],["tree",25.18,-19.12,3.065,1.02],["logs",23.25,-12.06,2.42],["logs",22.2,-24.77,4.007],["logs",23.65,-14.64,2.715],["picnic",15.4,-40.81,0.51],["picnic",29.27,-37.84,6.26],["picnic",36.86,-29.29,6.008],["boulder",32.61,-42.95,0.521,1.16],["boulder",37.8,-8.82,1.112,0.92],["boulder",30.93,-52.13,2.911,1.1],["boulder",32.6,-3.24,2.053,0.94],["boulder",38.68,-43.04,0.909,1.11],["boulder",45.5,-35.64,2.929,1.2],["bike",20.41,-53.3,3.22],["bike",2.46,-24.77,0.4],["bike",15.57,-27.04,2.622],["bike",6.96,-23.84,5.884],["scooter",30.79,-13.97,4.761],["scooter",50.91,-40.48,0.392],["scooter",43.93,-10.6,0.405],["scooter",47.26,-35.2,3.303],["cone",22.21,-23.17,2.18],["cone",-17.79,-56.12,4.426],["sign",-15.36,-39.03,4.74]]},{"id":"olafryes","name":"Olaf Ryes plass","where":"the park square, Grünerløkka","zones":[[[-1067.3,1550.6],[-981.9,1551.9],[-983.8,1460],[-1070,1458.6]]],"ring":[-1024.6,1543.2],"spawn":[-1024.6,1538.5,3.142],"old":false,"hunt":240,"props":[["bench",-1012.58,1534.48,0.328],["bench",-1039.67,1473.11,0.417],["bench",-1051.39,1477.27,2.286],["bench",-990.06,1542.05,5.448],["bench",-994.56,1524,4.193],["bench",-993.05,1508.84,1.488],["bench",-1058.65,1513.99,1.874],["bench",-1056.04,1520.93,2.081],["bench",-999.14,1549.26,0.01],["bench",-1066.36,1500.45,0.308],["bench",-1034.19,1497.98,2.259],["bench",-1017.4,1509.24,4.2],["bin",-997.66,1549.25,0.01],["bin",-1059.09,1512.58,1.874],["bin",-991.05,1540.95,5.448],["bin",-1013.98,1534.96,0.328],["bin",-1055.32,1522.22,2.081],["bin",-1000.62,1549.27,0.01],["lamp",-1049.36,1524.76,0.71],["lamp",-1006.64,1531.47,5.364],["lamp",-1025.12,1524.15,4.789],["lamp",-1056.24,1502.39,6.231],["lamp",-1063.89,1499.85,1.879],["lamp",-1029.18,1543.42,2.779],["lamp",-1021.64,1497.68,1.107],["lamp",-1025.84,1528.26,2.282],["bush",-1001.3,1546.39,3.049,1.19],["bush",-1002,1543.86,4.826,1.2],["bush",-998.71,1546.05,2.021,0.92],["bush",-1029.03,1546.34,1.499,1.15],["bush",-1026.51,1547.49,5.049,0.98],["bush",-1030.15,1483.97,1.7,1.03],["bush",-1030.62,1486.57,1.604,0.86],["bush",-997.34,1469.48,0.372,0.83],["bush",-999.92,1470.03,3.416,1.11],["bush",-1006.38,1505.18,3.244,1.05],["tree",-1024.99,1518.82,3.032,0.88],["tree",-1056.92,1544.17,4.907,0.92],["tree",-1066.38,1490.82,3.129,0.91],["tree",-1047.07,1505.15,1.886,0.86],["tree",-1039.02,1512.85,2.526,1.17],["bike",-1031.65,1539.91,2.779],["bike",-1015.7,1546.62,3.406],["bike",-1016.76,1497.54,5.564],["bike",-1051.93,1527.22,3.852],["bike",-1055.17,1512.62,0.303],["bike",-997.79,1487.97,0.557],["scooter",-995.39,1498,5.135],["scooter",-1006.8,1546.58,1.006],["scooter",-997.96,1510.29,4.327],["scooter",-1044.29,1465.67,6.016],["scooter",-984.44,1520.98,6.184],["planter",-1059.99,1461.52,5.428],["planter",-1055.9,1488.82,1.053],["planter",-995.07,1536.42,5.448],["planter",-989.3,1510.02,4.629],["planter",-1051.24,1530.61,0.897],["sign",-994.25,1486.69,5.27],["sign",-1022.38,1527.66,2.989],["sign",-1029.49,1526.75,0.711],["picnic",-1030.89,1480.2,2.109],["picnic",-1047.32,1464.63,0.874],["picnic",-985.01,1493.88,1.566],["boulder",-1066.3,1510.72,4.759,1.08],["boulder",-1064.56,1485.51,0.6,0.95],["boulder",-1055.58,1530.88,3.658,0.87],["boulder",-1052.88,1462.94,3.523,1.09],["cone",-1002.45,1541.73,0.255],["cone",-1035.44,1529.25,4.992],["cone",-1021.88,1545.51,1.358]]},{"id":"rathkes","name":"Bakgården, Rathkes gate 1","where":"the backyard and the passage, Grünerløkka","zones":[[[-834.6,1795.7],[-829.5,1790.8],[-828.6,1792.4],[-823.5,1789.2],[-821.4,1792.9],[-819.5,1796.9],[-828.9,1801.9],[-826.4,1806.4],[-833.7,1810.4],[-836.1,1806.3],[-835.7,1805.9],[-837.8,1802.3],[-836.5,1801.5],[-837.8,1799.3],[-839.1,1800.2],[-840.9,1797.2],[-835.6,1794]],[[-839,1784.4],[-833.04,1795.32],[-830.76,1794.08],[-836.72,1783.15]]],"ring":[-835.6,1789.6],"spawn":[-835.2,1788.6,0.503],"old":false,"hunt":150,"props":[["wheeliebin",-822.58,1797.72,3.63],["wheeliebin",-823.81,1798.38,3.63],["wheeliebin",-825.05,1799.04,3.63],["wheeliebin",-826.28,1799.69,3.63],["wheeliebin",-827.52,1800.35,3.63],["bike",-831.63,1795.4,3.652],["bike",-839.35,1797.48,5.253],["bike",-836.04,1799.94,5.246],["bike",-833.38,1796.38,3.652],["bike",-823.93,1790.88,3.702],["bike",-836.33,1802.79,3.693],["bike",-834.07,1807.41,5.242],["scooter",-827.65,1805.97,2.078],["scooter",-829.62,1802.42,2.078],["moped",-834.83,1804.97,5.24],["planter",-822.05,1793.21,5.229],["planter",-820.81,1796.78,3.63],["planter",-835.71,1795.23,5.244],["planter",-826.08,1791.67,0.56],["crate",-825.02,1796.57,4.206],["crate",-830.14,1794.13,2.909],["crate",-831.17,1807.36,5.1],["barrel",-827.16,1795.6,6.135],["barrel",-831.19,1797.47,5.183],["bench",-832.91,1809.24,3.632],["tree",-821.4,1794.52,1.691,1.24],["bush",-827.58,1793.14,0.56,1.05],["bush",-828.89,1804.33,5.219,0.86],["cone",-830.29,1795.56,3.917],["bin",-831.83,1793.54,2.061]]}]});
+</script><script>/* Prop hunt – hide and seek (issue #124, an idea from the user's friend): hiders turn into things that really stand in the
+ * arena (a bench, a bin, a bush, a bike, a street lamp ...) and hide as well as they can; one or more hunters with a paint
+ * marker look for them. Arenas (prophunt-data.js, made by tools/make-prophunt.cjs): Haarklous plass (the park by the
+ * firepit), Olaf Ryes plass and the backyard of Rathkes gate 1, each with a start ring (the lobby) and clear bounds.
+ *
+ * Lobby: stand in a start ring to join the prop hunt group; the first one in is the admin (earliest join time, then the
+ * lowest player id, like paintball), who picks the arena and the number of rounds and starts (hold ✕). Alone, the game's
+ * own players (bots) fill the round: you hunt four hiders, or you hide with three of them from a bot hunter.
+ * A round: hiding time (30 s; the hunters wait at the spawn with their screens blacked out), then hunting time (2.5–4 min).
+ * Hiders win if any of them are left at the end; hunters win when all are found. Hunters are picked fairly (fewest hunts
+ * so far, then who hunted longest ago): 1 up to 4 players, 2 for 5–8, 3 for 9–12. A match is N rounds; most points wins.
+ * Points: a find 2, surviving a round 3, a taunt 1 (at most 3 a round), every player of the winning side 1.
+ * Hiders: □ / E become the thing you look at (any number of times while hiding, CHANGES more while hunting); its health,
+ * speed and size come from its class (small things are quick and hard to hit but die from two hits). R1 / X locks or frees
+ * the prop's rotation (locked after a change, with the copied thing's heading), D-pad ←/→ turns it, △ / F taunts
+ * (a whistle: +1 point). A hider must whistle every 30 s anyway (every 12 s in the last 30 s); the game does it for them.
+ * Hunters: R2 / left mouse shoots (hit-scan, 3 shots a second), L2 / right mouse aims. A hit takes 25 from a hider and
+ * gives the hunter 5 back; shooting a real thing costs the hunter 10 (a puff shows it was a real one); at 0 the hunter is out.
+ * In the last 30 s hunters see "warmer / colder" for the nearest hider. Found hiders and hunters who are out watch others.
+ * Online: everything rides in the players' own state ('st', field 'ph') and the admin's session (relayed unchanged by the
+ * server). Each hider decides whether a shot hit it (its own view); the admin keeps the clock (mp.net.serverNow()) and the
+ * score, and the next earliest member takes over with the same session when the admin leaves.
+ *
+ * GameProphunt.Rules(data, ctx) is pure logic (Node tests); GameProphunt.create({...}) adds models, visuals, bots' bodies,
+ * the HUD and sound.
+ */
+(function (root, factory) {
+  const api = factory();
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  else root.GameProphunt = api;
+})(typeof window === 'undefined' ? globalThis : window, function () {
+  'use strict';
+  const PH = {HIDE_S: 30, END_S: 10, OVER_S: 16, TAUNT_S: 30, TAUNT_LATE_S: 12, LATE_S: 30, TAUNT_COOL_S: 8, HUNTER_HP: 100, DAMAGE: 25, WRONG: 10, HEAL: 5, RATE: 3, RANGE: 60,
+    CHANGES: 2, RING_R: 1.8, MAX: 12, BOTS: 4, EMPTY_S: 3, LEAVE_S: 2};
+  const POINTS = {find: 2, survive: 3, taunt: 1, tauntMax: 3, win: 1};
+  // Size classes: health, walking speed (m/s; walking is 2.5 and running 6), how far behind the camera sits.
+  const CLASS = {s: {hp: 50, speed: 3.2, cam: 2.6}, m: {hp: 75, speed: 2.6, cam: 3.2}, l: {hp: 100, speed: 2.1, cam: 4.2}, xl: {hp: 125, speed: 1.7, cam: 6.5}};
+  // The things: footprint w (across) x d (front to back) and height h in metres; the front faces -z in the model.
+  const KINDS = {
+    bench: {name: 'bench', w: 1.7, d: .66, h: .86, cls: 'l'}, bin: {name: 'bin', w: .56, d: .56, h: 1.02, cls: 's'}, bush: {name: 'bush', w: 1.7, d: 1.7, h: 1.3, cls: 'l', kit: 'bush'},
+    tree: {name: 'small tree', w: .5, d: .5, h: 5.2, cls: 'xl', kit: 'tree', hitW: 2.4, hitFrom: 1.9}, lamp: {name: 'street lamp', w: .3, d: .3, h: 5.15, cls: 'xl', kit: 'lamp', hitW: .5},
+    crate: {name: 'crate', w: .8, d: .8, h: .7, cls: 'm'}, cone: {name: 'traffic cone', w: .38, d: .38, h: .72, cls: 's'}, bike: {name: 'bicycle', w: .6, d: 1.74, h: 1.05, cls: 'm'},
+    scooter: {name: 'e-scooter', w: .52, d: 1.12, h: 1.2, cls: 's'}, moped: {name: 'moped', w: .7, d: 1.8, h: 1.2, cls: 'l'}, barrel: {name: 'barrel', w: .6, d: .6, h: .92, cls: 'm'},
+    sign: {name: 'sign', w: .62, d: .56, h: 1.0, cls: 's'}, logs: {name: 'pile of logs', w: 1.45, d: .95, h: .62, cls: 'l'}, picnic: {name: 'picnic table', w: 1.8, d: 1.55, h: .76, cls: 'xl'},
+    boulder: {name: 'boulder', w: 1.15, d: .95, h: .72, cls: 'l'}, planter: {name: 'planter', w: .8, d: .8, h: 1.05, cls: 'm'}, wheeliebin: {name: 'waste container', w: 1.28, d: .8, h: 1.3, cls: 'l'}
+  };
+  const KIND_LIST = Object.keys(KINDS), kindIndex = k => KIND_LIST.indexOf(k);
+  const hpOf = k => CLASS[KINDS[k].cls].hp, speedOf = k => CLASS[KINDS[k].cls].speed;
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const r3 = v => Math.round(v * 1000) / 1000, r2 = v => Math.round(v * 100) / 100;
+  const wrap = a => Math.atan2(Math.sin(a), Math.cos(a));
+
+  // ---------- Pure helpers ----------
+  const hunterCount = n => n <= 1 ? 0 : n <= 4 ? 1 : n <= 8 ? 2 : 3;
+  // Fair hunters: fewest hunts so far, then the one who hunted longest ago (never = first), then a shuffle by the match.
+  function pickHunters(ids, hunts = {}, last = {}, n = hunterCount(ids.length), seed = 1) {
+    const h = id => {let x = (Math.imul(id | 0, 2654435761) ^ seed) >>> 0;x ^= x >>> 15;x = Math.imul(x, 2246822507) >>> 0;return x ^ (x >>> 13);};
+    return ids.slice().sort((a, b) => (hunts[a] || 0) - (hunts[b] || 0) || (last[a] ?? -1) - (last[b] ?? -1) || h(a) - h(b) || a - b).slice(0, n);
+  }
+  // Session phase at server time t: lobby, hide, hunt, end (a round's result), over (the match's result).
+  function phaseOf(S, t) {
+    if (!S || S.state === 'lobby' || !S.id) return 'lobby';
+    if (S.state === 'round') return t < S.t0 + S.hide * 1000 ? 'hide' : 'hunt';
+    return S.state;
+  }
+  const huntEnd = S => S.t0 + (S.hide + S.hunt) * 1000;
+  const hideEnd = S => S.t0 + S.hide * 1000;
+  function timeLeft(S, t) {const p = phaseOf(S, t);return p === 'hide' ? (hideEnd(S) - t) / 1000 : p === 'hunt' ? (huntEnd(S) - t) / 1000 : 0;}
+  // A hider must whistle every TAUNT_S seconds while hunting (TAUNT_LATE_S in the last LATE_S): due from its last whistle.
+  function tauntDue(lastT, S, t) {
+    if (phaseOf(S, t) !== 'hunt') return false;
+    const late = huntEnd(S) - t <= PH.LATE_S * 1000, every = (late ? PH.TAUNT_LATE_S : PH.TAUNT_S) * 1000;
+    return t - Math.max(lastT || 0, hideEnd(S)) >= every;
+  }
+  // Points of polygons: inside any zone; nearest point inside (moved m in from the edge) when outside.
+  const inPoly = (x, s, poly) => {let c = false;for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {const a = poly[i], b = poly[j];if ((a[1] > s) !== (b[1] > s) && x < (b[0] - a[0]) * (s - a[1]) / (b[1] - a[1]) + a[0]) c = !c;}return c;};
+  const inZones = (zones, x, s) => zones.some(z => inPoly(x, s, z));
+  function clampToZones(zones, x, s, m = .35) {
+    if (inZones(zones, x, s)) return null;
+    let best = null, bd = Infinity;
+    for (const z of zones) {
+      const cx = z.reduce((a, p) => a + p[0], 0) / z.length, cs = z.reduce((a, p) => a + p[1], 0) / z.length;
+      for (let i = 0; i < z.length; i++) {
+        const a = z[i], b = z[(i + 1) % z.length], dx = b[0] - a[0], ds = b[1] - a[1], L = dx * dx + ds * ds || 1, t = clamp(((x - a[0]) * dx + (s - a[1]) * ds) / L, 0, 1);
+        const px = a[0] + dx * t, ps = a[1] + ds * t, d = Math.hypot(x - px, s - ps);
+        if (d < bd) {const k = Math.hypot(cx - px, cs - ps) || 1;bd = d;best = {x: px + (cx - px) / k * m, s: ps + (cs - ps) / k * m};}
+      }
+    }
+    return best;
+  }
+  // Ray (origin o, unit direction d) against a box standing on the ground: {x, y (bottom), z, yaw, w, d, h}. Distance or Infinity.
+  function rayBox(o, d, B) {
+    const C = Math.cos(B.yaw), S = Math.sin(B.yaw), px = o.x - B.x, pz = o.z - B.z, py = o.y - (B.y + (B.y0 || 0) + B.h / 2);
+    const lo = [px * C - pz * S, py, px * S + pz * C], ld = [d.x * C - d.z * S, d.y, d.x * S + d.z * C], H = [B.w / 2, B.h / 2, B.d / 2];
+    let t0 = 0, t1 = Infinity;
+    for (let k = 0; k < 3; k++) {
+      if (Math.abs(ld[k]) < 1e-9) {if (Math.abs(lo[k]) > H[k]) return Infinity;continue;}
+      let a = (-H[k] - lo[k]) / ld[k], b = (H[k] - lo[k]) / ld[k];if (a > b) [a, b] = [b, a];
+      t0 = Math.max(t0, a);t1 = Math.min(t1, b);if (t0 > t1) return Infinity;
+    }
+    return t0;
+  }
+  // The box a thing (or a hider) is hit in: a tree in its crown and trunk, a lamp along its pole.
+  function hitBox(kind, x, y, z, yaw, sc = 1) {
+    const K = KINDS[kind];if (!K) return null;
+    if (kind === 'tree') return [{x, y, z, yaw, w: .35, d: .35, h: K.h * sc, y0: 0}, {x, y, z, yaw, w: K.hitW * sc, d: K.hitW * sc, h: (K.h - K.hitFrom) * sc, y0: K.hitFrom * sc}];
+    return [{x, y, z, yaw, w: (K.hitW || K.w) * sc, d: (K.hitW || K.d) * sc, h: K.h * sc, y0: 0}];
+  }
+  const boxHit = (o, d, boxes) => {let t = Infinity;for (const b of boxes || []) t = Math.min(t, rayBox(o, d, b));return t;};
+  // Points of a finished round. roles {id: 'h'|'p'}, found {victim: finder}, alive {id: bool} (hiders at the end), taunts {id: n}.
+  function roundPoints({roles, found, alive, taunts, winner}) {
+    const pts = {};const add = (id, v) => {pts[id] = (pts[id] || 0) + v;};
+    for (const [v, f] of Object.entries(found)) if (roles[f] === 'h' && roles[v] === 'p') add(+f, POINTS.find);
+    for (const [id, r] of Object.entries(roles)) {
+      if (r === 'p') {if (alive[id]) add(+id, POINTS.survive);add(+id, Math.min(POINTS.tauntMax, taunts[id] || 0) * POINTS.taunt);}
+      if (winner && r === winner) add(+id, POINTS.win);else if (!(id in pts)) pts[id] = 0;
+    }
+    return pts;
+  }
+  const hotness = d => d < 6 ? 'hot' : d < 14 ? 'warm' : d < 26 ? 'cool' : 'cold';
+  // Where a bot hider goes: next to a real thing of the same kind (in line with it, or just beside it), clear of others.
+  function botSpot(things, kind, taken, rnd, clear) {
+    const same = things.filter(t => t.kind === kind), K = KINDS[kind];
+    for (let i = 0; i < 60 && same.length; i++) {
+      const a = same[Math.floor(rnd() * same.length)], along = kind === 'lamp' || kind === 'tree' ? true : rnd() < .65, side = rnd() < .5 ? -1 : 1;
+      const gap = kind === 'lamp' ? 7 + rnd() * 6 : kind === 'tree' ? 4 + rnd() * 3 : (along ? K.w : K.d) * (a.sc || 1) + .35 + rnd() * 1.2;
+      const ax = Math.cos(a.yaw), az = -Math.sin(a.yaw), fx = -Math.sin(a.yaw), fz = -Math.cos(a.yaw);
+      const x = a.x + (along ? ax : fx) * gap * side, z = a.z + (along ? az : fz) * gap * side, yaw = a.yaw + (rnd() < .8 ? 0 : (rnd() - .5) * .5);
+      if (taken.some(p => Math.hypot(p.x - x, p.z - z) < 1.2) || things.some(t => t !== a && Math.hypot(t.x - x, t.z - z) < .9)) continue;
+      if (clear && !clear(x, z)) continue;
+      return {x, z, yaw, near: a};
+    }
+    return null;
+  }
+
+  // ---------- Session (the admin's match) and member states: JSON on the wire, short keys ----------
+  const newSession = () => ({id: 0, arena: 0, state: 'lobby', t0: 0, hide: PH.HIDE_S, hunt: 210, round: 0, rounds: 3, roles: {}, score: {}, hunts: {}, last: {}, found: {}, endT: 0, winner: '', names: {}, bots: [], solo: 'hunt'});
+  const sesToJson = S => ({id: S.id, ar: S.arena, st: S.state, t0: S.t0, hs: S.hide, us: S.hunt, rn: S.round, rs: S.rounds, ro: {...S.roles}, sc: {...S.score}, hn: {...S.hunts}, lh: {...S.last}, fd: {...S.found},
+    et: S.endT, wi: S.winner, nm: {...S.names}, lp: {...(S.lastPts || {})}, bt: S.bots.map(b => [b.id, b.role === 'h' ? 1 : 0, r2(b.x), r2(b.y), r2(b.z), r3(b.yaw), b.kind, r3(b.pyaw), b.hp, b.alive ? 1 : 0, b.w, b.fb, b.tn, b.sc || 1, ...(b.out || []).slice(-6).flat()]), so: S.solo});
+  function sesFromJson(O) {
+    if (!O || typeof O !== 'object') return null;const S = newSession(), num = (v, d) => typeof v === 'number' && isFinite(v) ? v : d, obj = v => v && typeof v === 'object' ? v : {};
+    S.id = num(O.id, 0);S.arena = num(O.ar, 0);if (typeof O.st === 'string') S.state = O.st;S.t0 = num(O.t0, 0);S.hide = num(O.hs, PH.HIDE_S);S.hunt = num(O.us, 210);S.round = num(O.rn, 0);S.rounds = num(O.rs, 3);
+    for (const [k, v] of Object.entries(obj(O.ro))) if (v === 'h' || v === 'p') S.roles[+k] = v;
+    for (const key of [['sc', 'score'], ['hn', 'hunts'], ['lh', 'last'], ['fd', 'found']]) for (const [k, v] of Object.entries(obj(O[key[0]]))) S[key[1]][+k] = +v;
+    for (const [k, v] of Object.entries(obj(O.nm))) S.names[+k] = String(v).slice(0, 32);
+    S.lastPts = {};for (const [k, v] of Object.entries(obj(O.lp))) S.lastPts[+k] = +v;
+    S.endT = num(O.et, 0);S.winner = O.wi === 'h' || O.wi === 'p' ? O.wi : '';S.solo = O.so === 'hide' ? 'hide' : 'hunt';
+    S.bots = (Array.isArray(O.bt) ? O.bt : []).filter(b => Array.isArray(b) && b.length >= 14).slice(0, PH.BOTS + 1).map(b => {
+      const shots = [];for (let i = 14; i + 7 < b.length; i += 8) shots.push(b.slice(i, i + 8));
+      return {id: b[0], role: b[1] ? 'h' : 'p', x: b[2], y: b[3], z: b[4], yaw: b[5], kind: b[6], pyaw: b[7], hp: b[8], alive: !!b[9], w: b[10], fb: b[11], tn: b[12], sc: b[13], shots};
+    });
+    return S;
+  }
+  // A member from its 'ph' state (plus where its avatar is).
+  function memberFromJson(O, extra) {
+    if (!O || typeof O !== 'object') return null;const num = (v, d) => typeof v === 'number' && isFinite(v) ? v : d;
+    return {...extra, lobby: num(O.l, 0), ses: num(O.s, 0), round: num(O.r, 0), alive: num(O.a, 1) !== 0, hp: num(O.hp, 100), kind: num(O.k, -1), pyaw: num(O.y, 0), sc: num(O.c, 1), fb: num(O.f, 0), w: num(O.w, 0), tn: num(O.t, 0),
+      shots: Array.isArray(O.h) ? O.h.filter(s => Array.isArray(s) && s.length === 8 && s.every(v => typeof v === 'number' && isFinite(v))) : [], sesJson: O.ses && typeof O.ses === 'object' ? O.ses : null};
+  }
+  const BOT_NAMES = ['Kari', 'Ola', 'Ingrid', 'Lars', 'Sofie'];
+  // Walk-world obstacles of the things themselves (static), with the ground height at the start.
+  function obstacles(rules, heightAt) {
+    const out = [];
+    for (const A of rules.arenas) for (const t of A.things) {
+      if (t.world) continue;const K = KINDS[t.kind], y = heightAt(t.x, t.z), sc = t.sc || 1;
+      const w = (t.kind === 'tree' || t.kind === 'lamp' ? .3 : K.w * (t.kind === 'bush' ? .55 : 1)) * sc / 2, d = (t.kind === 'tree' || t.kind === 'lamp' ? .3 : K.d * (t.kind === 'bush' ? .55 : 1)) * sc / 2, Cy = Math.cos(t.yaw), Sy = Math.sin(t.yaw);
+      out.push({points: [[-w, -d], [w, -d], [w, d], [-w, d]].map(([a, b]) => ({x: t.x + a * Cy + b * Sy, z: t.z - a * Sy + b * Cy})), minY: y - .4, maxY: y + K.h * sc, kind: 'prop'});
+    }
+    return out;
+  }
+
+  // ---------- Rules ----------
+  class Rules {
+    // ctx: {serverNow(), you(), yourName(), others() -> members, feet() -> {x,y,z}, yaw(), teleport(x, z, yaw), setPos(x, z),
+    //   cameraPos(), cameraFwd(), toWorld(x, s) -> {x, z}, toLocal(x, z) -> {x, s}, headingToYaw(h), ground(x, z),
+    //   blockDist(o, d, max) -> metres to the first wall / building / tree (Infinity), clear(x, z) -> can a bot stand there,
+    //   realThings(arena) -> [{kind, x, z, yaw, sc}] (the world's own bushes and lamps in it), notice(text, s), sound(name, opts), random()}
+    constructor(data, ctx = {}) {
+      this.ctx = ctx;const tw = ctx.toWorld || ((x, s) => ({x, z: s})), hy = ctx.headingToYaw || (h => Math.atan2(-Math.sin(h), -Math.cos(h))), gr = ctx.ground || (() => 0);
+      this.arenas = data.arenas.map((A, i) => {
+        const ring = tw(A.ring[0], A.ring[1]), spawn = tw(A.spawn[0], A.spawn[1]);
+        const things = A.props.map(([kind, x, s, h, sc]) => {const p = tw(x, s);return {kind, x: p.x, z: p.z, y: gr(p.x, p.z), yaw: hy(h), sc: sc || 1, real: true};}).filter(t => KINDS[t.kind]);
+        const pts = A.zones.flat(), cx = pts.reduce((a, p) => a + p[0], 0) / pts.length, cs = pts.reduce((a, p) => a + p[1], 0) / pts.length, c = tw(cx, cs);
+        const reach = Math.max(...pts.map(p => Math.hypot(p[0] - cx, p[1] - cs)));
+        return {i, id: A.id, name: A.name, where: A.where, zones: A.zones, ring: {x: ring.x, z: ring.z, y: gr(ring.x, ring.z)}, spawn: {x: spawn.x, z: spawn.z, yaw: hy(A.spawn[2] || 0)}, things, centre: c, reach, hunt: A.hunt || 210};
+      });
+      for (const A of this.arenas) for (const t of A.things) t.boxes = hitBox(t.kind, t.x, t.y, t.z, t.yaw, t.sc);
+      this.realAdded = false;
+      // State.
+      this.ses = newSession();this.all = [];this.adminId = 0;this.lobbyT = 0;this.ringAt = -1;this.mySes = 0;this.myRound = 0;this.leftSes = 0;this.clock = 0;
+      this.alive = true;this.hp = PH.HUNTER_HP;this.kind = -1;this.sc = 1;this.pyaw = 0;this.locked = true;this.changes = PH.CHANGES;this.foundBy = 0;this.w = 0;this.wT = 0;this.tn = 0;this.tauntCool = 0;
+      this.seq = 0;this.outbox = [];this.coolT = 0;this.trigger = false;this.aimT = 0;this.recoilT = 0;this.startHold = 0;this.leaveHold = 0;this.emptyT = 0;
+      this.seenShot = new Map();this.seenW = new Map();this.seenFound = {};this.feed = [];this.events = [];this.puffs = [];this.whistles = [];this.hitMark = 0;this.hurt = 0;this.look = null;
+      this.bots = [];this.botClock = 0;this.lastSes = 0;this.spec = 0;this.seenState = '';this.result = null;this.matchDone = 0;
+    }
+    // ---- arenas ----
+    local(x, z) {return this.ctx.toLocal ? this.ctx.toLocal(x, z) : {x, s: z};}
+    arenaAt(x, z) {const l = this.local(x, z);return this.arenas.find(A => inZones(A.zones, l.x, l.s)) || null;}
+    ringNear(x, z) {return this.arenas.find(A => Math.hypot(A.ring.x - x, A.ring.z - z) < PH.RING_R) || null;}
+    get arena() {return this.arenas[this.ses.arena] || this.arenas[0];}
+    addReal() {if (this.realAdded || !this.ctx.realThings) return;this.realAdded = true;for (const A of this.arenas) for (const t of this.ctx.realThings(A)) {const T = {...t, real: true, world: true};T.boxes = hitBox(T.kind, T.x, T.y, T.z, T.yaw, T.sc);A.things.push(T);}}
+    // ---- state ----
+    you() {return this.ctx.you ? this.ctx.you() : 0;}
+    now() {return this.ctx.serverNow ? this.ctx.serverNow() : this.clock * 1000;}
+    rand() {return this.ctx.random ? this.ctx.random() : Math.random();}
+    sound(n, o) {if (this.ctx.sound) this.ctx.sound(n, o || {});}
+    notice(t, s) {if (this.ctx.notice) this.ctx.notice(t, s);}
+    phase() {return phaseOf(this.ses, this.now());}
+    inGame() {return this.mySes !== 0 && this.ses.id === this.mySes && this.ses.state !== 'lobby';}
+    role() {return this.inGame() ? this.ses.roles[this.you()] || '' : '';}
+    hider() {return this.role() === 'p';}
+    hunter() {return this.role() === 'h';}
+    playing() {const p = this.phase();return this.inGame() && (p === 'hide' || p === 'hunt') && !!this.role();}
+    spectating() {return this.inGame() && (!this.role() || !this.alive || this.phase() === 'end' || this.phase() === 'over');}
+    frozen() {return this.playing() && this.hunter() && this.phase() === 'hide';}
+    blind() {return this.frozen();}
+    armed() {return this.playing() && this.hunter() && this.alive && this.phase() === 'hunt';}
+    disguised() {return this.playing() && this.hider() && this.alive && this.kind >= 0;}
+    busy() {return this.inGame() || this.ringAt >= 0;}
+    isAdmin() {return this.adminId === this.you();}
+    memberOf(id) {return this.all.find(m => m.id === id);}
+    nameOf(id) {const m = this.memberOf(id);return m ? (m.local ? 'you' : m.name) : this.ses.names[id] || 'someone';}
+    // Is this other player (or bot) a hider in the round now, or out of it (then nobody sees them)?
+    disguiseOf(id) {
+      if (!this.ses.id || this.ses.state === 'lobby') return null;const m = this.memberOf(id);if (!m || m.ses !== this.ses.id) return null;
+      const r = this.ses.roles[id], p = this.phase();if (p !== 'hide' && p !== 'hunt') return null;
+      if (!r) return {hidden: true};// a late joiner watching
+      if (!m.alive && m.round === this.ses.round) return {hidden: true};
+      if (r === 'p' && m.kind >= 0 && m.round === this.ses.round) return {kind: KIND_LIST[m.kind], yaw: m.pyaw, sc: m.sc || 1};
+      return r === 'p' && m.round === this.ses.round ? {hiding: true} : null;
+    }
+    // Drawn as a thing (or not at all) instead of as a person; and kept off the map and the minimap.
+    concealed(id) {const g = this.disguiseOf(id);return !!g && !!(g.kind || g.hidden);}
+    offMap(id) {return !!this.disguiseOf(id);}
+    holdsMarker(id) {const m = this.memberOf(id), p = this.phase();return !!m && !m.local && this.ses.roles[id] === 'h' && m.ses === this.ses.id && m.alive && (p === 'hide' || p === 'hunt');}
+    addFeed(text) {this.feed.push({text, t: this.clock});if (this.feed.length > 5) this.feed.shift();}
+    readMembers() {
+      const c = this.ctx, f = c.feet ? c.feet() : {x: 0, y: 0, z: 0};
+      this.all = [{id: this.you(), local: true, name: c.yourName ? c.yourName() : 'You', lobby: this.lobbyT, ses: this.inGame() ? this.mySes : 0, round: this.myRound, alive: this.alive, hp: this.hp, kind: this.kind, pyaw: this.pyaw, sc: this.sc,
+        fb: this.foundBy, w: this.w, tn: this.tn, feet: f, yaw: c.yaw ? c.yaw() : 0, shots: [], sesJson: null}];
+      for (const m of (c.others ? c.others() : [])) if (m && m.lobby > 0) this.all.push(m);
+      // The game's players ride in the session (the admin moves them).
+      const src = this.isAdminNow() ? this.bots.filter(b => b.active) : this.ses.bots;
+      for (const b of src) this.all.push({id: b.id, bot: true, name: this.ses.names[b.id] || 'Bot', lobby: 1, ses: this.ses.id, round: this.ses.round, alive: b.alive, hp: b.hp, kind: b.kind, pyaw: b.pyaw, sc: b.sc || 1, fb: b.fb, w: b.w, tn: b.tn,
+        feet: {x: b.x, y: b.y, z: b.z}, yaw: b.yaw, shots: b.shots || [], ref: b});
+    }
+    isAdminNow() {return this.adminId === this.you() && this.lobbyT > 0;}
+    update(dt, input = {}) {
+      this.clock += dt;this.events = [];this.hitMark = Math.max(0, this.hitMark - dt);this.hurt = Math.max(0, this.hurt - dt);this.addReal();
+      this.outbox = this.outbox.filter(s => this.now() - s[1] <= 2000);
+      this.readMembers();
+      // The admin: the earliest member (then the lowest id). Its session is everybody's.
+      const prev = this.adminId;this.adminId = 0;let best = 0;
+      for (const m of this.all) if (!m.bot && m.lobby > 0 && (best === 0 || m.lobby < best || (m.lobby === best && m.id < this.adminId))) {best = m.lobby;this.adminId = m.id;}
+      if (this.adminId !== this.you()) for (const m of this.all) if (m.id === this.adminId && m.sesJson) {const s = sesFromJson(m.sesJson);if (s) this.ses = s;}
+      // Taking over as admin: the game's players are the old admin's, so they leave (their bodies were on its computer).
+      if (prev && prev !== this.adminId && this.adminId === this.you() && this.ses.bots.length) {this.ses.bots = [];this.bots = [];}
+      if (best > 0 && this.adminId === this.you()) this.runAdmin(dt, input);
+      this.readMembers();
+      this.shotsIn();this.whistlesIn();this.foundIn();
+      this.localTick(dt, input);
+      if (this.isAdminNow() && this.bots.length) this.botsTick(dt);
+    }
+    // ---- the admin ----
+    members() {return this.all.filter(m => m.lobby > 0 && !m.bot).sort((a, b) => a.lobby - b.lobby || a.id - b.id);}
+    runAdmin(dt, input) {
+      const S = this.ses, t = this.now();
+      if (S.state === 'lobby') {
+        if (this.ringAt < 0) return;
+        const alone = this.members().length === 1;
+        if (input.left || input.right) {S.arena = (S.arena + (input.right ? 1 : this.arenas.length - 1)) % this.arenas.length;this.sound('beep', {gain: .4});}
+        if (input.up || input.down) {const R = [3, 5, 8], k = R.indexOf(S.rounds);S.rounds = R[(Math.max(0, k) + (input.up ? 1 : R.length - 1)) % R.length];this.sound('beep', {gain: .4});}
+        if (input.triangle && alone) {S.solo = S.solo === 'hunt' ? 'hide' : 'hunt';this.sound('beep', {gain: .4});}
+        this.startHold = input.crossHeld ? this.startHold + dt : 0;
+        if (this.startHold > 1) {this.startHold = 0;this.startMatch();}
+        return;
+      }
+      const players = this.all.filter(m => S.roles[m.id] && (m.bot || m.ses === S.id));
+      if (S.state === 'round') {
+        // Nobody left in the match: back to the lobby.
+        this.emptyT = players.some(m => !m.bot) ? 0 : this.emptyT + dt;
+        if (this.emptyT > PH.EMPTY_S) {this.emptyT = 0;S.state = 'lobby';S.id = 0;return;}
+        for (const m of players) if (S.roles[m.id] === 'p' && !m.alive && m.round === S.round && !(m.id in S.found)) S.found[m.id] = m.fb || 0;
+        const cur = m => m.round === S.round || m.bot, hiders = players.filter(m => S.roles[m.id] === 'p'), hunters = players.filter(m => S.roles[m.id] === 'h');
+        const hidersLeft = hiders.filter(m => !cur(m) || m.alive).length, huntersLeft = hunters.filter(m => !cur(m) || m.alive).length;
+        let winner = '';
+        if (t < hideEnd(S)) return;// everybody joins during the hiding time; nobody can be found before the hunt
+        if (!hiders.length && !hunters.length) winner = 'p';
+        else if (!hidersLeft) winner = 'h';
+        else if (!huntersLeft) winner = 'p';
+        else if (t >= huntEnd(S)) winner = 'p';
+        if (winner) this.endRound(winner, hiders);
+        return;
+      }
+      if (S.state === 'end' && t >= S.endT + PH.END_S * 1000) {if (S.round >= S.rounds) {S.state = 'over';S.endT = t;} else this.startRound();return;}
+      if (S.state === 'over' && t >= S.endT + PH.OVER_S * 1000) {S.state = 'lobby';S.id = 0;S.bots = [];this.bots = [];}
+    }
+    startMatch() {
+      const S = this.ses, L = this.members().slice(0, PH.MAX);
+      S.id = Math.floor((this.now() / 1000) % 1e8) + 1;S.round = 0;S.score = {};S.hunts = {};S.last = {};S.names = {};S.bots = [];this.bots = [];
+      for (const m of L) S.names[m.id] = m.local ? (this.ctx.yourName ? this.ctx.yourName() : 'You') : m.name;
+      const A = this.arenas[S.arena] || this.arenas[0];S.hunt = A.hunt;
+      if (L.length === 1) {
+        // Alone: the game's own players. You hunt four hiders, or hide with three of them from a hunter.
+        for (let i = 0; i < PH.BOTS; i++) {const id = -(i + 1);S.names[id] = BOT_NAMES[i];this.bots.push(this.newBot(id));}
+      }
+      this.startRound();
+    }
+    newBot(id) {return {id, role: 'p', x: 0, y: 0, z: 0, yaw: 0, kind: -1, pyaw: 0, sc: 1, hp: 100, alive: true, w: 0, wT: 0, fb: 0, tn: 0, out: [], shots: [], seq: 0, state: 'go', t: 0, target: null, moveT: 0, cool: 0, heard: null, look: 0, goal: null, path: 0, moved: -1e9};}
+    startRound() {
+      const S = this.ses, A = this.arenas[S.arena] || this.arenas[0], t = this.now();
+      S.round++;S.state = 'round';S.t0 = t + 1500;S.hide = PH.HIDE_S;S.hunt = A.hunt;S.found = {};S.endT = 0;S.winner = '';S.roles = {};
+      const real = this.members().slice(0, PH.MAX);
+      for (const m of real) if (!(m.id in S.names)) S.names[m.id] = m.local ? (this.ctx.yourName ? this.ctx.yourName() : 'You') : m.name;
+      if (this.bots.length) {
+        // Alone: your role this round (you choose the first; then it changes every round), the rest are the game's players.
+        const youHunt = (S.solo === 'hunt') === (S.round % 2 === 1), me = real[0];
+        S.roles[me.id] = youHunt ? 'h' : 'p';
+        const hb = youHunt ? null : this.bots[(S.round >> 1) % this.bots.length];
+        for (const b of this.bots) {const keep = youHunt || b === hb || this.bots.filter(x => x !== hb).indexOf(b) < PH.BOTS - 1;b.active = keep;b.role = b === hb ? 'h' : 'p';}
+        for (const b of this.bots) if (b.active) S.roles[b.id] = b.role;
+        for (const id of Object.keys(S.roles)) if (S.roles[id] === 'h') {S.hunts[id] = (S.hunts[id] || 0) + 1;S.last[id] = S.round;}
+        this.resetBots();
+      } else {
+        const ids = real.map(m => m.id), H = pickHunters(ids, S.hunts, S.last, hunterCount(ids.length), S.id);
+        for (const id of ids) S.roles[id] = H.includes(id) ? 'h' : 'p';
+        for (const id of H) {S.hunts[id] = (S.hunts[id] || 0) + 1;S.last[id] = S.round;}
+      }
+      for (const id of Object.keys(S.roles)) if (!(id in S.score)) S.score[id] = 0;
+      S.bots = this.bots.filter(b => b.active);
+    }
+    endRound(winner, hiders) {
+      const S = this.ses, t = this.now(), alive = {}, taunts = {};
+      for (const m of hiders) {alive[m.id] = m.alive || (m.round !== S.round && !m.bot);taunts[m.id] = m.tn || 0;}
+      const pts = roundPoints({roles: S.roles, found: S.found, alive, taunts, winner});
+      for (const [id, v] of Object.entries(pts)) S.score[id] = (S.score[id] || 0) + v;
+      S.state = 'end';S.endT = t;S.winner = winner;S.lastPts = pts;
+    }
+    // ---- shots, whistles, finds ----
+    // The first thing a shot meets: a hider (id), a real thing, a wall, or nothing. skip: the shooter's id.
+    firstHit(o, d, skip, A = this.arena) {
+      let best = {t: PH.RANGE, what: 'none'};
+      if (this.ctx.blockDist) {const w = this.ctx.blockDist(o, d, PH.RANGE);if (w < best.t) best = {t: w, what: 'world'};}
+      for (const th of A.things) {if (Math.abs(th.x - o.x) > PH.RANGE + 3 || Math.abs(th.z - o.z) > PH.RANGE + 3) continue;const t = boxHit(o, d, th.boxes);if (t < best.t) best = {t, what: 'thing', thing: th};}
+      for (const m of this.all) {
+        if (m.id === skip) continue;const g = this.disguiseOf(m.id), mine = m.local && this.disguised();
+        if (!(g && g.kind) && !mine) continue;
+        const kind = mine ? KIND_LIST[this.kind] : g.kind, yaw = mine ? this.pyaw : g.yaw, sc = mine ? this.sc : g.sc;
+        const t = boxHit(o, d, hitBox(kind, m.feet.x, m.feet.y, m.feet.z, yaw, sc));if (t < best.t) best = {t, what: 'hider', id: m.id};
+      }
+      best.p = {x: o.x + d.x * best.t, y: o.y + d.y * best.t, z: o.z + d.z * best.t};
+      return best;
+    }
+    // Our shot: the hunter's own view decides what it hit (a real thing costs health); hiders decide hits on themselves.
+    fire(o, d, shooter = null) {
+      const id = shooter ? shooter.id : this.you(), h = this.firstHit(o, d, id), t = Math.round(this.now());
+      const rec = [0, t, r3(o.x), r3(o.y), r3(o.z), r3(d.x), r3(d.y), r3(d.z)];
+      if (shooter) {rec[0] = ++shooter.seq;shooter.out.push(rec);if (shooter.out.length > 12) shooter.out.shift();}
+      else {rec[0] = ++this.seq;this.outbox.push(rec);this.coolT = 1 / PH.RATE;this.recoilT = .08;}
+      this.puffs.push({p: h.p, what: h.what, from: o, kind: h.thing ? h.thing.kind : '', mine: !shooter});
+      if (h.what === 'thing') {
+        const hp = shooter ? shooter.hp : this.hp, left = Math.max(0, hp - PH.WRONG);
+        if (shooter) shooter.hp = left;else {this.hp = left;this.hurt = .6;this.sound('phWrong');this.notice(`That was a real ${KINDS[h.thing.kind].name}. −${PH.WRONG} health.`, 2);}
+        if (left <= 0) {if (shooter) shooter.alive = false;else this.outOfHealth();}
+      } else if (h.what === 'hider') {
+        if (shooter) shooter.hp = Math.min(PH.HUNTER_HP, shooter.hp + PH.HEAL);else {this.hp = Math.min(PH.HUNTER_HP, this.hp + PH.HEAL);this.hitMark = .35;this.sound('phHit');}
+        if (h.id < 0 && this.isAdminNow() && h.id !== id) this.hurtBot(h.id, id);// the game's hiders live on this computer
+      }
+      if (!shooter) this.sound('pbShot', {gain: .6});
+      return h;
+    }
+    outOfHealth() {this.alive = false;this.sound('phFound');this.notice('Out of health – too many wrong shots. You watch the rest of the round.', 4);this.events.push('hunterOut');}
+    // Shots by the others (players and the game's players): does one hit us (or one of our bots)?
+    shotsIn() {
+      const S = this.ses;if (!S.id || S.state !== 'round') return;
+      for (const m of this.all) {
+        if (m.local) continue;const shots = m.bot && this.isAdminNow() ? [] : m.shots;let last = this.seenShot.get(m.id) ?? 0;
+        for (const s of shots) {
+          if (s[0] <= last) continue;last = s[0];if (this.now() - s[1] > 1500 || S.roles[m.id] !== 'h') continue;
+          const o = {x: s[2], y: s[3], z: s[4]}, d = {x: s[5], y: s[6], z: s[7]};this.takeShot(m.id, o, d);
+        }
+        this.seenShot.set(m.id, last);
+      }
+    }
+    takeShot(from, o, d) {
+      const h = this.firstHit(o, d, from);
+      if (!(from < 0 && this.isAdminNow())) this.puffs.push({p: h.p, what: h.what, from: o, kind: h.thing ? h.thing.kind : ''});
+      if (h.what !== 'hider') return h;
+      if (h.id === this.you() && this.disguised() && this.phase() === 'hunt') {
+        this.hp -= PH.DAMAGE;this.hurt = .8;this.sound('phHurt');
+        if (this.hp <= 0) {this.hp = 0;this.alive = false;this.foundBy = from;this.sound('phFound');this.events.push('found');this.notice(`Found! ${this.nameOf(from)} got you.`, 4);}
+      } else if (h.id < 0 && this.isAdminNow()) this.hurtBot(h.id, from);
+      return h;
+    }
+    hurtBot(id, from) {
+      const b = this.bots.find(b => b.id === id);
+      if (b && b.alive && b.role === 'p' && this.phase() === 'hunt') {b.hp -= PH.DAMAGE;b.hurtT = this.clock;if (b.hp <= 0) {b.hp = 0;b.alive = false;b.fb = from;}}
+    }
+    // Whistles: every other hider's whistle is heard from where it stands.
+    whistlesIn() {
+      for (const m of this.all) {
+        const was = this.seenW.get(m.id);this.seenW.set(m.id, m.w);
+        if (m.local || was === undefined || m.w <= was) continue;
+        if (this.ses.roles[m.id] !== 'p' || this.phase() !== 'hunt' || m.ses !== this.ses.id) continue;
+        this.whistles.push({x: m.feet.x, y: m.feet.y + .6, z: m.feet.z, t: this.clock, id: m.id});
+        this.events.push({whistle: m.id, at: {x: m.feet.x, y: m.feet.y + .6, z: m.feet.z}, voluntary: m.tn > (this.seenTn?.get(m.id) || 0)});
+        (this.seenTn || (this.seenTn = new Map())).set(m.id, m.tn);
+      }
+      this.whistles = this.whistles.filter(w => this.clock - w.t < 2.5);
+    }
+    foundIn() {
+      const F = this.ses.found;
+      for (const [v, f] of Object.entries(F)) if (!(v in this.seenFound) && (this.ses.state === 'round' || this.ses.state === 'end') && this.inGame()) {
+        this.addFeed(`${this.nameOf(f) === 'you' ? 'You' : this.nameOf(f)} found ${this.nameOf(+v)}`);
+        if (+f === this.you() && +v !== this.you()) {this.notice(`Found ${this.nameOf(+v)}!`, 2.5);this.events.push('youFound');}
+      }
+      this.seenFound = {...F};
+    }
+    whistle(voluntary) {
+      this.w++;this.wT = this.now();if (voluntary) {this.tn++;this.tauntCool = PH.TAUNT_COOL_S;}
+      this.events.push({whistle: this.you(), at: null, voluntary, mine: true});
+    }
+    // ---- you ----
+    teleport(p, yaw) {if (this.ctx.teleport) this.ctx.teleport(p.x, p.z, yaw);}
+    spawnPoint(A, k = 0) {
+      if (!k) return A.spawn;const ang = k * 2.399, r = 1.2 + (k % 3) * .7;return {x: A.spawn.x + Math.sin(ang) * r, z: A.spawn.z + Math.cos(ang) * r, yaw: A.spawn.yaw};
+    }
+    newRound() {
+      const A = this.arena, role = this.role(), ids = Object.keys(this.ses.roles).map(Number).sort((a, b) => a - b), k = Math.max(0, ids.indexOf(this.you()));
+      this.myRound = this.ses.round;this.alive = true;this.kind = -1;this.sc = 1;this.locked = true;this.changes = PH.CHANGES;this.foundBy = 0;this.tn = 0;this.tauntCool = 0;this.wT = 0;this.seenFound = {...this.ses.found};
+      this.hp = role === 'h' ? PH.HUNTER_HP : 100;this.coolT = 0;this.spec = 0;this.result = null;
+      if (role) {const sp = this.spawnPoint(A, role === 'h' ? 0 : k + 1);this.teleport(sp, sp.yaw);}
+      this.notice(role === 'h' ? 'You hunt this round. Wait while they hide – then find them. Shooting a real thing costs you health.'
+        : role === 'p' ? 'You hide this round. Look at a thing and press □ to become it, then find a good place before the hunters come.' : 'A round is on – you play from the next one.', 6);
+      this.sound('phStart');
+    }
+    toRing(inside) {const A = this.arena, a = this.rand() * Math.PI * 2, r = inside ? .3 + this.rand() * .9 : 2.6 + this.rand();this.teleport({x: A.ring.x + Math.sin(a) * r, z: A.ring.z + Math.cos(a) * r}, A.spawn.yaw);}
+    localTick(dt, input) {
+      const f = this.ctx.feet ? this.ctx.feet() : {x: 0, y: 0, z: 0}, ring = this.ringNear(f.x, f.z), S = this.ses, t = this.now(), p = phaseOf(S, t);
+      this.ringAt = ring ? ring.i : -1;
+      // Out of a finished match (or the round we were in is gone): back to normal, still in the group by the ring.
+      if (this.mySes !== 0 && (S.id !== this.mySes || S.state === 'lobby')) {this.mySes = 0;this.kind = -1;this.alive = true;this.hp = PH.HUNTER_HP;this.toRing(true);this.backT = this.clock;this.lobbyT = Math.max(1, this.lobbyT);}
+      if (this.lastF && Math.hypot(f.x - this.lastF.x, f.z - this.lastF.z) > .02) this.movedT = this.clock;this.lastF = {x: f.x, z: f.z};
+      if (ring && this.lobbyT === 0) {this.lobbyT = Math.max(1, Math.round(t));this.notice(`Prop hunt – hide and seek at ${ring.name}. Wait here for the others; the first one here starts the game.`, 5);if (this.ses.state === 'lobby') this.ses.arena = ring.i;}
+      if (!ring && !this.inGame() && this.lobbyT > 0 && this.clock - (this.backT || -9) > 1) this.lobbyT = 0;
+      // Into a new match.
+      if (S.id && S.state !== 'lobby' && S.state !== 'over' && this.lobbyT > 0 && this.mySes !== S.id && this.leftSes !== S.id && (S.roles[this.you()] || this.ringAt >= 0)) {
+        this.mySes = S.id;this.myRound = -1;this.seenState = '';this.result = null;
+      }
+      if (!this.inGame()) {this.aimT = 0;return;}
+      if (S.round !== this.myRound && S.state === 'round') this.newRound();
+      if (this.seenState !== p) {
+        if (p === 'hunt') {this.sound('phGo');if (this.hider() && this.kind < 0) this.autoProp(f);if (this.hunter()) this.notice('Go! Find them. Listen for the whistles.', 3);}
+        if (p === 'end') {this.sound('phEnd');this.result = {round: S.round, winner: S.winner, pts: {...(S.lastPts || {})}};
+          if (this.role()) this.events.push({round: true, role: this.role(), won: S.winner === this.role(), survived: this.hider() && this.alive, finds: Object.values(S.found).filter(f => f === this.you()).length, cleared: this.hunter() && S.winner === 'h'});}
+        if (p === 'over') {this.sound('phEnd');this.matchOver();}
+        this.seenState = p;
+      }
+      // Leave the match: hold △ for 2 s.
+      this.leaveHold = input.triangleHeld ? this.leaveHold + dt : 0;
+      if (this.leaveHold > PH.LEAVE_S) {this.leaveHold = 0;if (this.isAdmin() && this.members().length === 1) {S.state = 'lobby';S.id = 0;S.bots = [];this.bots = [];}/* alone: the match ends with you */this.leftSes = this.mySes;this.mySes = 0;this.kind = -1;this.alive = true;this.lobbyT = 0;this.toRing();this.notice('You left the prop hunt.', 3);return;}
+      if (!this.playing()) {this.aimT = 0;this.specTick(input);return;}
+      // Bounds: nobody leaves the arena during a round.
+      {const A = this.arena, l = this.local(f.x, f.z), c = clampToZones(A.zones, l.x, l.s);if (c && this.ctx.setPos) {const w = this.ctx.toWorld ? this.ctx.toWorld(c.x, c.s) : {x: c.x, z: c.s};this.ctx.setPos(w.x, w.z);if (this.clock - (this.edgeT || -9) > 3) {this.edgeT = this.clock;this.notice('That is the edge of the arena.', 2);}}}
+      if (!this.alive) {this.specTick(input);return;}
+      if (this.hider()) this.hiderTick(dt, input, f, p);else if (this.hunter()) this.hunterTick(dt, input, p);
+    }
+    // The thing in the middle of the view (within 14 m of the camera), for □.
+    lookTarget() {
+      const o = this.ctx.cameraPos ? this.ctx.cameraPos() : null, d = this.ctx.cameraFwd ? this.ctx.cameraFwd() : null;if (!o || !d) return null;
+      const f = this.ctx.feet ? this.ctx.feet() : o;let best = null, bt = 14;
+      for (const th of this.arena.things) {if (Math.hypot(th.x - f.x, th.z - f.z) > 12) continue;const t = boxHit(o, d, th.boxes);if (t < bt) {bt = t;best = th;}}
+      return best;
+    }
+    become(th) {
+      const k = kindIndex(th.kind);if (k < 0) return false;
+      const hunting = this.phase() === 'hunt';if (hunting && this.changes <= 0) {this.notice('No more changes this round.', 2);return false;}
+      if (hunting) this.changes--;
+      this.kind = k;this.sc = th.sc || 1;this.pyaw = th.yaw;this.locked = true;this.hp = Math.min(this.hp, hpOf(th.kind));if (!hunting) this.hp = hpOf(th.kind);
+      this.sound('phPoof');this.events.push({become: th.kind});
+      this.notice(`You are a ${KINDS[th.kind].name} (${CLASS[KINDS[th.kind].cls].hp} health). R1 / X turns with the view, D-pad ←/→ turns it.${hunting ? ` ${this.changes} change${this.changes === 1 ? '' : 's'} left.` : ''}`, 4);
+      return true;
+    }
+    autoProp(f) {
+      const near = this.arena.things.slice().sort((a, b) => Math.hypot(a.x - f.x, a.z - f.z) - Math.hypot(b.x - f.x, b.z - f.z))[0];
+      if (near) {const c = this.changes;this.become(near);this.changes = c;this.notice(`Time's up – you were turned into a ${KINDS[near.kind].name}. Hide!`, 4);}
+    }
+    hiderTick(dt, input, f, p) {
+      this.tauntCool = Math.max(0, this.tauntCool - dt);
+      this.look = this.lookTarget();
+      if (input.square && this.look) this.become(this.look);
+      if (this.kind >= 0) {
+        if (input.r1) {this.locked = !this.locked;this.notice(this.locked ? 'Locked: the prop keeps its heading while you look round.' : 'Free: the prop turns with the view.', 2);}
+        const turn = (input.leftHeld ? 1 : 0) - (input.rightHeld ? 1 : 0);
+        if (!this.locked) this.pyaw = (this.ctx.yaw ? this.ctx.yaw() : 0) + (this.yawOff || 0);
+        if (turn) {if (this.locked) this.pyaw = wrap(this.pyaw + turn * dt * 1.2);else this.yawOff = wrap((this.yawOff || 0) + turn * dt * 1.2);}
+      }
+      if (input.triangle && p === 'hunt') {if (this.tauntCool > 0) this.notice(`Taunt again in ${Math.ceil(this.tauntCool)} s.`, 1.5);else this.whistle(true);}
+      if (tauntDue(this.wT, this.ses, this.now())) this.whistle(false);
+    }
+    hunterTick(dt, input, p) {
+      this.coolT -= dt;this.recoilT = Math.max(0, this.recoilT - dt);
+      const can = p === 'hunt' && this.alive;
+      this.aimT += ((input.l2 > .3 && can ? 1 : 0) - this.aimT) * Math.min(1, dt * 10);
+      if (input.r2 > .55 && !this.trigger) {
+        this.trigger = true;
+        if (can && this.coolT <= 0) {const o = this.ctx.cameraPos ? this.ctx.cameraPos() : {x: 0, y: 1.6, z: 0}, d = this.ctx.cameraFwd ? this.ctx.cameraFwd() : {x: 0, y: 0, z: -1};this.fire(o, d);}
+      } else if ((input.r2 || 0) < .35) this.trigger = false;
+    }
+    // Watching: the players still in the round, ← / → to switch.
+    watchList() {return this.all.filter(m => !m.local && this.ses.roles[m.id] && (m.alive || m.round !== this.ses.round) && (m.bot || m.ses === this.ses.id));}
+    specTick(input) {
+      const L = this.watchList();if (!L.length) {this.spec = 0;return;}
+      let k = L.findIndex(m => m.id === this.spec);if (k < 0) k = 0;
+      if (input.left) k = (k + L.length - 1) % L.length;if (input.right) k = (k + 1) % L.length;
+      this.spec = L[k].id;
+    }
+    watching() {return this.spectating() && this.inGame() && (this.phase() === 'hide' || this.phase() === 'hunt') ? this.memberOf(this.spec) || null : null;}
+    matchOver() {
+      const S = this.ses, me = this.you(), rows = this.scoreRows(), top = rows.length ? rows[0].pts : 0;
+      this.matchDone = S.id;
+      this.events.push({over: true, won: rows.length > 1 && (S.score[me] || 0) === top && rows.filter(r => r.pts === top).length === 1, pts: S.score[me] || 0, rounds: S.round, bots: S.bots.length > 0});
+    }
+    scoreRows() {const S = this.ses;return Object.entries(S.score).map(([id, pts]) => ({id: +id, name: S.names[id] || '?', pts, hunts: S.hunts[id] || 0, me: +id === this.you(), bot: +id < 0})).sort((a, b) => b.pts - a.pts || a.id - b.id);}
+    // Hiders left in the round (players and bots).
+    hidersLeft() {const S = this.ses;return Object.entries(S.roles).filter(([id, r]) => {if (r !== 'p') return false;const m = this.memberOf(+id);return m && (m.alive || m.round !== S.round);}).length;}
+    hidersTotal() {return Object.values(this.ses.roles).filter(r => r === 'p').length;}
+    // Warmer / colder in the last 30 s: how near the nearest hider still in is.
+    hint() {
+      if (!this.armed() || timeLeft(this.ses, this.now()) > PH.LATE_S) return '';const f = this.ctx.feet ? this.ctx.feet() : {x: 0, z: 0};let d = Infinity;
+      for (const m of this.all) if (!m.local && this.ses.roles[m.id] === 'p' && m.alive) d = Math.min(d, Math.hypot(m.feet.x - f.x, m.feet.z - f.z));
+      return isFinite(d) ? hotness(d) : '';
+    }
+    // 'ph' for our next 'st'; null when we are not in the group.
+    localState() {
+      if (this.lobbyT <= 0 && !this.inGame()) {this.outbox = [];return null;}
+      const o = {l: Math.round(this.lobbyT), s: this.inGame() ? this.mySes : 0, r: this.myRound, a: this.alive ? 1 : 0, hp: Math.round(this.hp), k: this.kind, y: r3(this.pyaw), f: this.foundBy, w: this.w, t: this.tn};
+      if (this.sc !== 1) o.c = r3(this.sc);
+      // Recent shots go out in every message (a state that is replaced before it is read loses nothing); others skip by number.
+      {const t = this.now(), h = this.outbox.filter(x => t - x[1] < 1200);if (h.length) o.h = h;}
+      if (this.isAdmin()) o.ses = sesToJson(this.ses);
+      return o;
+    }
+    // ---- the game's players (alone; the admin's computer moves them) ----
+    resetBots() {
+      const A = this.arena, kinds = [...new Set(A.things.filter(t => !t.world).map(t => t.kind))], taken = [];
+      this.bots.forEach((b, i) => {
+        const sp = this.spawnPoint(A, i + 2);Object.assign(b, {x: sp.x, z: sp.z, y: this.ctx.ground ? this.ctx.ground(sp.x, sp.z) : 0, yaw: sp.yaw, alive: true, fb: 0, tn: 0, w: 0, wT: 0, out: [], shots: [], kind: -1, sc: 1, state: b.role === 'h' ? 'wait' : 'go', t: 0, heard: null, look: 0, moved: -1e9, cool: 1, goal: null});
+        b.hp = b.role === 'h' ? PH.HUNTER_HP : 100;
+        if (b.role === 'p') {
+          // Pick a kind that stands here and a believable spot: in line with or beside a real one of the same kind.
+          for (let k = 0; k < 8 && !b.goal; k++) {const kind = kinds[Math.floor(this.rand() * kinds.length)], s = botSpot(A.things, kind, taken, () => this.rand(), (x, z) => this.botClear(x, z));if (s) {b.goal = s;b.goalKind = kind;taken.push(s);}}
+          if (b.goal) {b.kind = kindIndex(b.goalKind);b.pyaw = b.goal.yaw;b.sc = b.goal.near.sc || 1;b.hp = hpOf(b.goalKind);}
+        }
+      });
+    }
+    botClear(x, z) {const l = this.local(x, z);if (!inZones(this.arena.zones, l.x, l.s) || clampToZones(this.arena.zones, l.x, l.s) !== null) return false;return this.ctx.clear ? this.ctx.clear(x, z) : true;}
+    botsTick(dt) {
+      const S = this.ses, t = this.now(), p = phaseOf(S, t), A = this.arena;if (S.state !== 'round') {this.syncBots();return;}
+      const me = this.all.find(m => m.local), meF = me.feet, camF = this.ctx.cameraFwd ? this.ctx.cameraFwd() : {x: 0, z: -1};
+      for (const b of this.bots) {
+        if (!b.active) continue;b.shots = [];
+        if (b.role === 'p') {
+          if (!b.alive) continue;
+          // Hide: walk to the chosen spot during the hiding time.
+          if (b.goal && b.state === 'go') {const dx = b.goal.x - b.x, dz = b.goal.z - b.z, d = Math.hypot(dx, dz), v = speedOf(KIND_LIST[b.kind] || 'crate') * dt;if (d <= v) {b.x = b.goal.x;b.z = b.goal.z;b.state = 'hid';b.pyaw = b.goal.yaw;} else {b.x += dx / d * v;b.z += dz / d * v;b.pyaw = Math.atan2(-dx, -dz);}b.y = this.ctx.ground ? this.ctx.ground(b.x, b.z) : 0;b.moved = this.clock;}
+          if (p === 'hide' && b.state === 'go' && hideEnd(S) - t < 1500 && b.goal) {b.x = b.goal.x;b.z = b.goal.z;b.state = 'hid';b.pyaw = b.goal.yaw;b.y = this.ctx.ground ? this.ctx.ground(b.x, b.z) : 0;}
+          if (p === 'hunt') {
+            // Whistle on the timer (and now and then a cheeky taunt), and sometimes shuffle a little when you are not looking.
+            if (tauntDue(b.wT, S, t)) {b.w++;b.wT = t;}
+            else if (b.tn < 2 && this.rand() < dt / 90) {b.w++;b.wT = t;b.tn++;}
+            const dx = b.x - meF.x, dz = b.z - meF.z, d = Math.hypot(dx, dz), seen = d < 30 && (dx * camF.x + dz * camF.z) / (d || 1) > .45;
+            if (b.state === 'hid' && !seen && this.clock - b.moved > 15 && this.rand() < dt / 25) {const s = botSpot(A.things, KIND_LIST[b.kind], this.bots.filter(o => o !== b && o.alive), () => this.rand(), (x, z) => this.botClear(x, z) && Math.hypot(x - b.x, z - b.z) < 7);if (s) {b.goal = s;b.state = 'go';}}
+            if (b.state === 'go' && seen && b.goal && Math.hypot(b.goal.x - b.x, b.goal.z - b.z) > .2) {b.state = 'hid';b.goal = null;}// freeze when looked at
+          }
+        } else this.botHunt(b, dt, p);
+      }
+      this.syncBots();
+    }
+    syncBots() {this.ses.bots = this.bots.filter(b => b.active).map(b => ({...b}));}
+    // The game's hunter: wanders the arena, runs to a whistle and looks round there, shoots what looks out of place, moved
+    // or is near where it heard the whistle, and keeps shooting a thing that turned out to be a player.
+    botHunt(b, dt, p) {
+      if (p !== 'hunt' || !b.alive) return;const A = this.arena, S = this.ses;b.cool -= dt;
+      const hear = (x, z) => {b.lead = {x: x + (this.rand() - .5) * 5, z: z + (this.rand() - .5) * 5, t: this.clock};b.target = {x: b.lead.x, z: b.lead.z};b.mode = 'run';};
+      for (const e of this.whistles) if (e.id !== b.id && e.t > (b.heardT || -1)) {b.heardT = e.t;hear(e.x, e.z);}
+      if (this.events.some(e => e && e.whistle === this.you() && e.mine)) {const f = this.ctx.feet();b.heardT = this.clock;hear(f.x, f.z);}
+      if (S.round !== b.realRound) {b.real = new Set();b.realRound = S.round;b.lock = null;b.lead = null;b.mode = 'roam';}
+      if (b.mode === 'look') {b.yaw += dt * 1.3;if ((b.lookT -= dt) <= 0) {b.mode = 'roam';b.lead = null;b.target = null;}}
+      else {
+        if (!b.target) {const th = A.things[Math.floor(this.rand() * A.things.length)];b.target = th ? {x: th.x + (this.rand() - .5) * 4, z: th.z + (this.rand() - .5) * 4} : {x: A.centre.x, z: A.centre.z};}
+        const dx = b.target.x - b.x, dz = b.target.z - b.z, d = Math.hypot(dx, dz), v = (b.mode === 'run' ? 4 : 2.3) * dt;
+        if (d < 1.5) {b.mode = 'look';b.lookT = b.lead ? 6 : 2;b.target = null;}
+        else {const nx = b.x + dx / d * Math.min(v, d), nz = b.z + dz / d * Math.min(v, d);if (this.botClear(nx, nz)) {b.x = nx;b.z = nz;} else {b.target = null;b.mode = 'roam';}b.yaw = Math.atan2(-dx, -dz);b.y = this.ctx.ground ? this.ctx.ground(b.x, b.z) : 0;}
+      }
+      if (b.cool > 0) return;
+      // Look round for something to shoot: things and hiders within 9 m in front.
+      const eye = {x: b.x, y: b.y + 1.6, z: b.z}, opts = [], lead = b.lead && this.clock - b.lead.t < 25 ? b.lead : null;
+      const consider = (x, y, z, kind, sc, moved, id) => {
+        const ex = x - b.x, ez = z - b.z, dd = Math.hypot(ex, ez);if (dd > 9 || dd < .8 || (-Math.sin(b.yaw) * ex - Math.cos(b.yaw) * ez) / dd < .25) return;
+        const same = A.things.some(t => t.kind === kind && Math.hypot(t.x - x, t.z - z) > .5 && Math.hypot(t.x - x, t.z - z) < 6);
+        const near = lead && Math.hypot(lead.x - x, lead.z - z) < 5.5, locked = b.lock && b.lock.id === id && id && this.clock < b.lock.until;
+        opts.push({x, y: y + KINDS[kind].h * sc * (kind === 'tree' ? .7 : .5), z, s: locked ? 2 : .1 + (moved ? .45 : 0) + (near ? .45 : 0) + (same ? 0 : .1), id});
+      };
+      for (const th of A.things) if (!b.real || !b.real.has(th)) consider(th.x, th.y, th.z, th.kind, th.sc, false, 0);
+      for (const m of this.all) {if (m.id === b.id || S.roles[m.id] !== 'p' || !m.alive || m.kind < 0) continue;const mv = m.local ? (this.movedT || 0) : m.ref ? m.ref.moved : 0;consider(m.feet.x, m.feet.y, m.feet.z, KIND_LIST[m.kind], m.sc || 1, this.clock - mv < 3, m.id);}
+      if (!opts.length) {b.cool = .5;return;}
+      let o = null, os = -1;for (const c of opts) {const v = c.s + this.rand() * .3;if (v > os) {os = v;o = c;}}b.cool = o.s >= 2 ? .4 : .6 + this.rand() * .6;
+      if (this.rand() > Math.max(.015, o.s - .3) * .8) return;
+      const ax = o.x - eye.x, ay = o.y - eye.y, az = o.z - eye.z, L = Math.hypot(ax, ay, az), sp = .03;
+      const dir = {x: ax / L + (this.rand() - .5) * sp, y: ay / L + (this.rand() - .5) * sp, z: az / L + (this.rand() - .5) * sp}, dl = Math.hypot(dir.x, dir.y, dir.z);
+      dir.x /= dl;dir.y /= dl;dir.z /= dl;b.yaw = Math.atan2(-ax, -az);
+      const h = this.fire(eye, dir, b);
+      if (h.what === 'hider') b.lock = {id: h.id, until: this.clock + 5};// that was one of them: again
+      if (h.what === 'thing') (b.real || (b.real = new Set())).add(h.thing);// the puff showed it was a real one
+      // Its shot at you is decided by you, like any hunter's.
+      if (h.what === 'hider' && h.id === this.you()) this.takeShot(b.id, eye, dir);
+    }
+  }
+
+  // ---------- In the game: the things, the arenas' bounds, the rings, hiders' disguises, shots, the HUD ----------
+  const CSS = `
+#phHud{position:absolute;inset:0;pointer-events:none;font:14px/1.3 'Segoe UI',Arial,sans-serif;color:#fff;z-index:6}
+#phHud .ph-top{position:absolute;top:14px;left:50%;transform:translateX(-50%);display:flex;gap:16px;align-items:center;background:rgba(14,18,24,.72);border-radius:10px;padding:6px 14px;text-shadow:0 1px 2px #000}
+#phHud .ph-top big{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums}#phHud .ph-top b{font-size:15px}#phHud .ph-top small{opacity:.8}
+#phHud .ph-role{font-weight:800;letter-spacing:.06em}#phHud .ph-role.h{color:#ff7b54}#phHud .ph-role.p{color:#7ee0a1}
+#phHud .ph-black{position:absolute;inset:0;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;pointer-events:none}
+#phHud .ph-black big{font-size:96px;font-weight:800}#phHud .ph-black span{font-size:20px;opacity:.85}
+#phHud .ph-me{position:absolute;left:calc(18px + var(--mm,0px));bottom:18px;background:rgba(14,18,24,.72);border-radius:10px;padding:8px 12px;min-width:220px}
+#phHud .ph-bar{height:9px;background:#333;border-radius:5px;overflow:hidden;margin:4px 0}#phHud .ph-bar u{display:block;height:100%;background:#7ee0a1}#phHud .ph-bar.h u{background:#ff7b54}
+#phHud .ph-keys{font-size:12px;opacity:.85}#phHud .ph-cross{position:absolute;left:50%;top:50%;width:18px;height:18px;margin:-9px 0 0 -9px;border:2px solid rgba(255,255,255,.85);border-radius:50%}
+#phHud .ph-cross.hit{border-color:#ffb02e;transform:scale(1.5)}#phHud .ph-dot{position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;background:#fff;border-radius:50%;box-shadow:0 0 3px #000}
+#phHud .ph-look{position:absolute;left:50%;top:calc(50% + 26px);transform:translateX(-50%);background:rgba(14,18,24,.75);padding:3px 10px;border-radius:8px}
+#phHud .ph-lobby{position:absolute;right:18px;top:80px;width:300px;background:rgba(14,18,24,.82);border-radius:12px;padding:12px 14px}
+#phHud .ph-lobby ul,#phHud .ph-board ul{list-style:none;margin:6px 0;padding:0}#phHud .ph-lobby li,#phHud .ph-board li{display:flex;justify-content:space-between;padding:2px 0}#phHud li.me{color:#ffd54a}
+#phHud .meter{display:block;height:6px;background:#333;border-radius:3px;margin-top:6px}#phHud .meter u{display:block;height:100%;background:#7ee0a1;border-radius:3px}
+#phHud .ph-board em{font-style:normal;font-weight:400;color:#7ee0a1;margin-right:14px}
+#phHud .ph-board{position:absolute;left:50%;top:41%;max-height:56%;overflow:hidden;transform:translateX(-50%);min-width:380px;z-index:2;background:rgba(14,18,24,.88);border-radius:14px;padding:16px 20px;text-align:center}
+#phHud .ph-board h2{margin:0 0 4px;font-size:28px}#phHud .ph-board li span:last-child{font-variant-numeric:tabular-nums;font-weight:700}#phHud .ph-board small{opacity:.8}
+#phHud .ph-feed{position:absolute;right:18px;top:66px;text-align:right}#phHud .ph-feed div{background:rgba(14,18,24,.7);margin-bottom:4px;padding:3px 9px;border-radius:7px}
+#phHud .ph-hint{position:absolute;left:50%;top:76px;transform:translateX(-50%);font-weight:800;font-size:20px;padding:3px 14px;border-radius:9px;text-shadow:0 1px 2px #000}
+#phHud .ph-hint.hot{background:rgba(220,40,20,.75)}#phHud .ph-hint.warm{background:rgba(230,120,30,.7)}#phHud .ph-hint.cool{background:rgba(60,120,200,.6)}#phHud .ph-hint.cold{background:rgba(40,70,140,.6)}
+#phHud .ph-note{position:absolute;font-size:30px;color:#ffe680;text-shadow:0 0 6px #000;transform:translate(-50%,-50%)}
+#phHud .ph-hurt{position:absolute;inset:0;box-shadow:inset 0 0 120px rgba(255,40,20,.8)}#phHud .ph-spec{position:absolute;left:50%;bottom:90px;transform:translateX(-50%);background:rgba(14,18,24,.75);padding:5px 14px;border-radius:9px}
+`;
+  function create({T, scene, overlay, lib, kit, rules, view, ground, marker, audio}) {
+    if (typeof document !== 'undefined' && !document.getElementById('phCss')) {const s = document.createElement('style');s.id = 'phCss';s.textContent = CSS;document.head.append(s);}
+    const group = new T.Group();group.name = 'Prop hunt';scene.add(group);
+    // ---- Models: one vertex-coloured geometry per kind (one shared material); bushes, small trees and lamps use the world's own ----
+    const vcMat = new T.MeshStandardMaterial({vertexColors: true, roughness: .78, metalness: .04});
+    const C = new T.Color(), M4 = new T.Matrix4(), Q = new T.Quaternion(), E = new T.Euler(), V = new T.Vector3(), S3 = new T.Vector3();
+    function build(parts) {
+      const pos = [], nor = [], col = [];
+      for (const [geo, color, px, py, pz, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1] of parts) {
+        const g = geo.index ? geo.toNonIndexed() : geo;M4.compose(V.set(px, py, pz), Q.setFromEuler(E.set(rx, ry, rz)), S3.set(sx, sy, sz));g.applyMatrix4(M4);
+        C.setHex(color);const P = g.attributes.position, N = g.attributes.normal;
+        for (let i = 0; i < P.count; i++) {pos.push(P.getX(i), P.getY(i), P.getZ(i));nor.push(N.getX(i), N.getY(i), N.getZ(i));col.push(C.r, C.g, C.b);}
+      }
+      const g = new T.BufferGeometry();g.setAttribute('position', new T.Float32BufferAttribute(pos, 3));g.setAttribute('normal', new T.Float32BufferAttribute(nor, 3));g.setAttribute('color', new T.Float32BufferAttribute(col, 3));g.computeBoundingSphere();return g;
+    }
+    const box = (w, h, d) => new T.BoxGeometry(w, h, d), cyl = (a, b, h, n = 12) => new T.CylinderGeometry(a, b, h, n), tor = (r, t) => new T.TorusGeometry(r, t, 6, 20);
+    const H = Math.PI / 2;
+    function wheel(parts, z, r, color, x = 0) {parts.push([tor(r, .028), 0x1b1b1b, x, r, z, 0, H, 0], [cyl(.012, .012, r * 2 - .05, 4), 0x9aa0a6, x, r, z, 0, 0, 0], [cyl(.012, .012, r * 2 - .05, 4), 0x9aa0a6, x, r, z, H, 0, 0], [cyl(.03, .03, .1, 8), color, x, r, z, 0, 0, H]);}
+    const MODELS = {
+      bench() {const p = [], wood = 0x8a5a32, iron = 0x24302a;for (const z of [-.2, -.06, .08]) p.push([box(1.7, .045, .12), wood, 0, .45, z]);for (const y of [.62, .76]) p.push([box(1.7, .1, .035), wood, 0, y, .25 - (y - .62) * .25, -.18]);
+        for (const x of [-.72, .72]) {p.push([box(.06, .45, .56), iron, x, .225, 0], [box(.06, .44, .05), iron, x, .66, .24, -.18], [box(.07, .05, .5), iron, x, .64, -.02]);}return p;},
+      bin() {return [[cyl(.25, .23, .86, 14), 0x2f5e3a, 0, .43, 0], [cyl(.275, .275, .1, 14), 0x1c2a22, 0, .91, 0], [cyl(.18, .18, .02, 12), 0x0b0f0c, 0, .965, 0], [box(.3, .1, .04), 0xd8d8d0, 0, .62, -.245]];},
+      crate() {const p = [], a = 0xb08250, b = 0x8f6438;p.push([box(.8, .7, .8), a, 0, .35, 0]);for (const y of [.12, .35, .58]) {p.push([box(.82, .05, .82), b, 0, y, 0]);}for (const x of [-.38, .38]) for (const z of [-.38, .38]) p.push([box(.07, .7, .07), b, x, .35, z]);return p;},
+      cone() {return [[box(.38, .035, .38), 0x1d1d1d, 0, .018, 0], [cyl(.025, .16, .68, 14), 0xf26b1d, 0, .37, 0], [cyl(.09, .113, .11, 14), 0xf2f2f2, 0, .48, 0], [cyl(.055, .075, .07, 14), 0xf2f2f2, 0, .62, 0]];},
+      bike() {const p = [], fr = 0x1f4e8c;wheel(p, -.53, .34, fr);wheel(p, .53, .34, fr);
+        p.push([cyl(.017, .017, .62, 6), fr, 0, .56, .1, -1.05], [cyl(.017, .017, .6, 6), fr, 0, .62, -.2, H], [cyl(.017, .017, .52, 6), fr, 0, .48, -.38, .55], [cyl(.015, .015, .5, 6), fr, 0, .5, .34, -.95],
+          [cyl(.015, .015, .5, 6), fr, 0, .37, .26, H + .2], [cyl(.016, .016, .42, 6), fr, 0, .72, -.47, .3], [box(.12, .05, .26), 0x111111, 0, .88, .2], [cyl(.014, .014, .56, 6), 0x222222, 0, .94, -.53, 0, 0, H],
+          [box(.38, .03, .18), 0x2a2a2a, 0, .62, .6], [box(.1, .18, .03), 0x111111, 0, .5, -.06]);return p;},
+      scooter() {const p = [], c = 0xe8584d;wheel(p, -.48, .11, 0x222222);wheel(p, .46, .11, 0x222222);
+        p.push([box(.16, .07, .82), c, 0, .14, 0], [cyl(.022, .022, 1.04, 8), 0x2a2a2a, 0, .66, -.5, .12], [cyl(.016, .016, .5, 6), 0x2a2a2a, 0, 1.17, -.56, 0, 0, H], [box(.12, .06, .08), c, 0, 1.1, -.55], [box(.09, .24, .06), c, 0, .26, .46, -.3]);return p;},
+      moped() {const p = [], c = 0xb71c1c;wheel(p, -.62, .26, 0x333333);wheel(p, .62, .26, 0x333333);
+        p.push([box(.36, .36, .9), c, 0, .45, .18], [box(.32, .1, .62), 0x161616, 0, .7, .22], [box(.5, .5, .1), c, 0, .62, -.44, -.18], [box(.42, .28, .14), c, 0, .56, -.32], [cyl(.025, .025, .5, 6), 0x2a2a2a, 0, .85, -.55, .3],
+          [cyl(.016, .016, .64, 6), 0x2a2a2a, 0, 1.08, -.6, 0, 0, H], [box(.16, .12, .1), 0xe0e0d8, 0, .98, -.66], [box(.3, .08, .6), 0x2a2a2a, 0, .28, .05], [box(.3, .22, .3), 0x161616, 0, .9, .62]);return p;},
+      barrel() {return [[cyl(.29, .29, .92, 16), 0x1f5fa8, 0, .46, 0], [cyl(.3, .3, .05, 16), 0x174a85, 0, .3, 0], [cyl(.3, .3, .05, 16), 0x174a85, 0, .62, 0], [cyl(.26, .26, .02, 16), 0x174a85, 0, .925, 0]];},
+      sign() {const p = [];for (const s of [-1, 1]) p.push([box(.6, .98, .03), 0x222222, 0, .47, s * .15, -s * .3], [box(.52, .7, .01), 0xf4f1e6, 0, .45, s * .175, -s * .3], [box(.5, .12, .012), 0xc62828, 0, .7, s * .184, -s * .3]);p.push([box(.62, .05, .06), 0x222222, 0, .93, 0]);return p;},
+      logs() {const p = [], c = [0x6b4a2e, 0x7a5636, 0x5e4128];let k = 0;for (const [n, y] of [[3, .13], [2, .35], [1, .55]]) for (let i = 0; i < n; i++) p.push([cyl(.13, .13, 1.4, 10), c[k++ % 3], 0, y, (i - (n - 1) / 2) * .27, 0, 0, H]);return p;},
+      picnic() {const p = [], w = 0x9b6b3d;p.push([box(1.8, .05, .72), w, 0, .74, 0]);for (const z of [-.6, .6]) p.push([box(1.8, .045, .26), w, 0, .45, z]);
+        for (const x of [-.65, .65]) for (const s of [-1, 1]) p.push([box(.07, .86, .08), 0x7d552e, x, .38, s * .32, s * .62]);for (const x of [-.65, .65]) p.push([box(.07, .06, 1.45), 0x7d552e, x, .42, 0]);return p;},
+      boulder() {const g = new T.IcosahedronGeometry(.55, 1), P = g.attributes.position;for (let i = 0; i < P.count; i++) {const x = P.getX(i), y = P.getY(i), z = P.getZ(i), k = 1 + .14 * Math.sin(x * 7.3 + z * 3.1) * Math.cos(y * 5.7);P.setXYZ(i, x * k, Math.max(-.08, y * k), z * k);}g.computeVertexNormals();
+        return [[g, 0x8c8a84, 0, .14, 0, 0, .4, 0, 1.05, 1.05, .86]];},
+      planter() {const g = new T.IcosahedronGeometry(.36, 1);g.computeVertexNormals();return [[box(.8, .6, .8), 0x9d9a92, 0, .3, 0], [box(.7, .04, .7), 0x4a3524, 0, .6, 0], [g, 0x3f6b2c, 0, .78, 0, 0, 0, 0, 1, .8, 1], [g, 0x4d7c34, .12, .86, .08, .5, .3, 0, .6, .6, .6]];},
+      wheeliebin() {const p = [], c = 0x2e6b3b;p.push([box(1.2, 1.0, .74), c, 0, .62, 0], [box(1.26, .07, .8), 0x24502e, 0, 1.15, .02, -.05], [box(1.1, .04, .04), 0x1a1a1a, 0, 1.0, .4]);for (const x of [-.48, .48]) for (const z of [-.26, .26]) p.push([cyl(.08, .08, .05, 10), 0x111111, x, .08, z, H]);p.push([box(.5, .16, .02), 0xf0f0e8, 0, .75, -.375]);return p;}
+    };
+    const geos = {};for (const k of KIND_LIST) if (MODELS[k]) geos[k] = build(MODELS[k]());
+    // The world's own leafy things and lamps (surroundings.js propKit): the same geometry and material, so they look the same.
+    const lampGeo = (() => {const a = new T.CylinderGeometry(.05, .07, 5, 8).toNonIndexed(), b = new T.CylinderGeometry(.25, .12, .25, 10).toNonIndexed();a.translate(0, 2.5, 0);b.translate(0, 5, 0);
+      const g = new T.BufferGeometry();for (const att of ['position', 'normal', 'uv']) {const A1 = a.attributes[att], B1 = b.attributes[att], arr = new Float32Array(A1.array.length + B1.array.length);arr.set(A1.array);arr.set(B1.array, A1.array.length);g.setAttribute(att, new T.BufferAttribute(arr, A1.itemSize));}g.computeBoundingSphere();return g;})();
+    const treeShape = sc => {const h = KINDS.tree.h * sc, crown = h * .62, trunkH = h * .42, r = h * .3;return {h, crown, trunkH, r};};
+    // One thing as its own object (a hider's disguise).
+    function disguise(kind, sc = 1) {
+      const g = new T.Group();g.name = 'Disguise ' + kind;
+      if (kind === 'bush') {const m = new T.Mesh(kit.bushGeo, kit.bushMat);m.scale.set(sc, sc * .8, sc);m.position.y = -.1;g.add(m);}
+      else if (kind === 'tree') {const s = treeShape(sc), t = new T.Mesh(kit.trunkGeo, kit.barkMat), c = new T.Mesh(kit.crownGeo[0], kit.leafMats[0]);t.scale.set(1 + s.h / 25, s.trunkH, 1 + s.h / 25);c.scale.set(s.r * .95, s.crown * .5, s.r * .95);c.position.y = s.trunkH * .95;g.add(t, c);}
+      else if (kind === 'lamp') g.add(new T.Mesh(lampGeo, kit.poleMat));
+      else g.add(new T.Mesh(geos[kind], vcMat));
+      g.traverse(o => {if (o.isMesh) {o.castShadow = true;o.receiveShadow = true;}});return g;
+    }
+    // ---- Per arena: the things (merged / instanced), the ring with its sign, the bounds (only during a round) ----
+    const arenas = rules.arenas.map(A => {
+      const g = new T.Group();g.name = 'Prop hunt ' + A.id;g.visible = false;group.add(g);return {A, g, built: false, tape: null, ring: null};
+    });
+    function buildArena(R) {
+      const A = R.A, own = A.things.filter(t => !t.world);R.built = true;
+      for (const t of own) t.y = ground(t.x, t.z);for (const t of own) t.boxes = hitBox(t.kind, t.x, t.y, t.z, t.yaw, t.sc);
+      const pos = [], nor = [], col = [], tmp = new T.Matrix4();
+      for (const t of own) if (geos[t.kind]) {
+        const g0 = geos[t.kind], P = g0.attributes.position, N = g0.attributes.normal, Cc = g0.attributes.color;tmp.makeRotationY(t.yaw).setPosition(t.x, t.y, t.z);const nm = new T.Matrix3().getNormalMatrix(tmp);
+        for (let i = 0; i < P.count; i++) {V.set(P.getX(i), P.getY(i), P.getZ(i)).applyMatrix4(tmp);pos.push(V.x, V.y, V.z);V.set(N.getX(i), N.getY(i), N.getZ(i)).applyMatrix3(nm).normalize();nor.push(V.x, V.y, V.z);col.push(Cc.getX(i), Cc.getY(i), Cc.getZ(i));}
+      }
+      if (pos.length) {const geo = new T.BufferGeometry();geo.setAttribute('position', new T.Float32BufferAttribute(pos, 3));geo.setAttribute('normal', new T.Float32BufferAttribute(nor, 3));geo.setAttribute('color', new T.Float32BufferAttribute(col, 3));geo.computeBoundingSphere();const m = new T.Mesh(geo, vcMat);m.castShadow = m.receiveShadow = true;m.name = 'Prop hunt things';R.g.add(m);}
+      const lamps = own.filter(t => t.kind === 'lamp');
+      if (lamps.length) {const im = new T.InstancedMesh(lampGeo, kit.poleMat, lamps.length);lamps.forEach((t, i) => {tmp.makeRotationY(t.yaw).setPosition(t.x, t.y, t.z);im.setMatrixAt(i, tmp);});im.castShadow = true;im.receiveShadow = true;R.g.add(im);}
+      const bushes = own.filter(t => t.kind === 'bush');
+      if (bushes.length) {const im = new T.InstancedMesh(kit.bushGeo, kit.bushMat, bushes.length);bushes.forEach((t, i) => {M4.compose(V.set(t.x, t.y - .1, t.z), Q.setFromAxisAngle(V3Y, t.yaw), S3.set(t.sc, t.sc * .8, t.sc));im.setMatrixAt(i, M4);});im.castShadow = im.receiveShadow = true;R.g.add(im);}
+      const trees = own.filter(t => t.kind === 'tree');
+      if (trees.length) {
+        const tr = new T.InstancedMesh(kit.trunkGeo, kit.barkMat, trees.length), cr = new T.InstancedMesh(kit.crownGeo[0], kit.leafMats[0], trees.length);
+        trees.forEach((t, i) => {const s = treeShape(t.sc);Q.setFromAxisAngle(V3Y, t.yaw);M4.compose(V.set(t.x, t.y, t.z), Q, S3.set(1 + s.h / 25, s.trunkH, 1 + s.h / 25));tr.setMatrixAt(i, M4);M4.compose(V.set(t.x, t.y + s.trunkH * .95, t.z), Q, S3.set(s.r * .95, s.crown * .5, s.r * .95));cr.setMatrixAt(i, M4);});
+        tr.castShadow = cr.castShadow = true;tr.receiveShadow = cr.receiveShadow = true;R.g.add(tr, cr);
+      }
+      // The start ring and its sign.
+      const rg = new T.Group();rg.position.set(A.ring.x, ground(A.ring.x, A.ring.z), A.ring.z);rg.rotation.y = A.spawn.yaw;R.g.add(rg);
+      const ring = new T.Mesh(new T.TorusGeometry(PH.RING_R, .05, 8, 56), new T.MeshStandardMaterial({color: 0x7e57c2, emissive: 0x7e57c2, emissiveIntensity: .8}));ring.rotation.x = -H;ring.position.y = .04;rg.add(ring);
+      const post = new T.Mesh(new T.CylinderGeometry(.04, .04, 1.3, 10), new T.MeshStandardMaterial({color: 0x5c6166, roughness: .5, metalness: .4}));post.position.set(0, .65, PH.RING_R + .38);// ends under the signpost.castShadow = true;rg.add(post);
+      const c = document.createElement('canvas');c.width = 512;c.height = 320;const x = c.getContext('2d');x.fillStyle = '#3b2370';x.fillRect(0, 0, 512, 320);x.strokeStyle = '#fff';x.lineWidth = 10;x.strokeRect(10, 10, 492, 300);
+      x.fillStyle = '#fff';x.textAlign = 'center';x.font = 'bold 66px Segoe UI, Arial, sans-serif';x.fillText('PROP HUNT', 256, 96);x.font = '600 34px Segoe UI, Arial, sans-serif';x.fillText('hide and seek', 256, 146);
+      x.font = '600 30px Segoe UI, Arial, sans-serif';x.fillText(A.name.length > 26 ? A.name.slice(0, 26) : A.name, 256, 206);x.fillText('stand in the ring to join', 256, 262);
+      const tex = new T.CanvasTexture(c);tex.colorSpace = T.SRGBColorSpace;const sign = new T.Mesh(new T.PlaneGeometry(.96, .6), new T.MeshStandardMaterial({map: tex, side: T.DoubleSide, roughness: .6}));sign.position.set(0, 1.62, PH.RING_R + .35);sign.rotation.y = Math.PI;sign.castShadow = true;rg.add(sign);
+      R.ring = ring;
+      // The bounds: posts every 3 m with a tape between them, shown while a round is on here.
+      const tp = [], tn = [], tc = [], tape = (ax, az, bx, bz, y0, y1, color) => {C.setHex(color);const nx = -(bz - az), nz = bx - ax, nl = Math.hypot(nx, nz) || 1;
+        for (const [px, py, pz] of [[ax, y0[0], az], [bx, y0[1], bz], [bx, y1[1], bz], [ax, y0[0], az], [bx, y1[1], bz], [ax, y1[0], az]]) {tp.push(px, py, pz);tn.push(nx / nl, 0, nz / nl);tc.push(C.r, C.g, C.b);}};
+      const toW = (x, s) => rules.ctx.toWorld ? rules.ctx.toWorld(x, s) : {x, z: s};
+      for (const z of A.zones) {
+        if (A.zones.length > 1 && z !== A.zones[0]) continue;// the passage of a backyard is closed by the walls
+        for (let i = 0; i < z.length; i++) {
+          const a = toW(z[i][0], z[i][1]), b = toW(z[(i + 1) % z.length][0], z[(i + 1) % z.length][1]), L = Math.hypot(b.x - a.x, b.z - a.z), n = Math.max(1, Math.round(L / 3));
+          for (let k = 0; k < n; k++) {
+            const pa = {x: a.x + (b.x - a.x) * k / n, z: a.z + (b.z - a.z) * k / n}, pb = {x: a.x + (b.x - a.x) * (k + 1) / n, z: a.z + (b.z - a.z) * (k + 1) / n}, ya = ground(pa.x, pa.z), yb = ground(pb.x, pb.z);
+            tape(pa.x, pa.z, pb.x, pb.z, [ya + .82, yb + .82], [ya + .92, yb + .92], k % 2 ? 0xf5d020 : 0x1a1a1a);
+            tape(pa.x - .05, pa.z, pa.x + .05, pa.z, [ya, ya], [ya + 1.0, ya + 1.0], 0xe8e8e8);tape(pa.x, pa.z - .05, pa.x, pa.z + .05, [ya, ya], [ya + 1.0, ya + 1.0], 0xe8e8e8);
+          }
+        }
+      }
+      const tg = new T.BufferGeometry();tg.setAttribute('position', new T.Float32BufferAttribute(tp, 3));tg.setAttribute('normal', new T.Float32BufferAttribute(tn, 3));tg.setAttribute('color', new T.Float32BufferAttribute(tc, 3));tg.computeBoundingSphere();
+      R.tape = new T.Mesh(tg, new T.MeshStandardMaterial({vertexColors: true, roughness: .7, side: T.DoubleSide, emissive: 0x222222}));R.tape.visible = false;R.g.add(R.tape);
+    }
+    const V3Y = new T.Vector3(0, 1, 0);
+    // ---- Disguises of hiders (you, other players, the game's players) ----
+    const worn = new Map();// id -> {kind, sc, obj}
+    function wear(id, kind, sc, x, y, z, yaw) {
+      let w = worn.get(id);
+      if (!w || w.kind !== kind || w.sc !== sc) {if (w) group.remove(w.obj);w = {kind, sc, obj: disguise(kind, sc)};worn.set(id, w);group.add(w.obj);}
+      w.obj.position.set(x, y, z);w.obj.rotation.y = yaw;w.obj.visible = true;w.seen = true;
+    }
+    // Bodies of the game's players that are not disguised (a hunter, a hider still walking to its spot).
+    const avatars = window.GameAvatars ? window.GameAvatars.create({T, lib}) : null, botBodies = new Map();
+    // ---- Shots: a short tracer and a puff where each one ended ----
+    const MAXP = 48, puffGeo = new T.SphereGeometry(.09, 8, 6), puffMat = new T.MeshBasicMaterial({color: 0xffffff, transparent: true, opacity: .8, depthWrite: false});
+    const puffs = new T.InstancedMesh(puffGeo, puffMat, MAXP);puffs.count = 0;puffs.frustumCulled = false;puffs.instanceColor = new T.InstancedBufferAttribute(new Float32Array(MAXP * 3), 3);group.add(puffs);
+    const live = [];
+    const tracerGeo = new T.BufferGeometry();tracerGeo.setAttribute('position', new T.Float32BufferAttribute(new Float32Array(6 * 8), 3));const tracers = new T.LineSegments(tracerGeo, new T.LineBasicMaterial({color: 0xfff2b0, transparent: true, opacity: .7}));tracers.frustumCulled = false;group.add(tracers);
+    let tracerList = [];
+    // ---- HUD ----
+    const el = document.createElement('div');el.id = 'phHud';el.innerHTML = '<div class="ph-hurt" hidden></div><div class="ph-black" hidden></div><div class="ph-top" hidden></div><div class="ph-hint" hidden></div><div class="ph-feed"></div><div class="ph-me" hidden></div><div class="ph-cross" hidden></div><div class="ph-dot" hidden></div><div class="ph-look" hidden></div><div class="ph-lobby" hidden></div><div class="ph-board" hidden></div><div class="ph-spec" hidden></div><div class="ph-notes"></div>';view.append(el);
+    const $ = c => el.querySelector('.' + c), esc = s => String(s).replace(/[<>&"]/g, c => ({'<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;'})[c]);
+    const clock = s => {s = Math.ceil(Math.max(0, s));return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;};
+    let hudT = 0, notes = [];
+    function setHtml(c, html) {const n = $(c);if (n._h !== html) {n._h = html;n.innerHTML = html;}}
+    function hud(camera) {
+      const R = rules, S = R.ses, t = R.now(), p = R.phase(), inGame = R.inGame(), A = R.arena, role = R.role();
+      const top = $('ph-top');top.hidden = !(inGame && (p === 'hide' || p === 'hunt'));
+      if (!top.hidden) setHtml('ph-top', `<span class="ph-role ${role}">${role === 'h' ? 'HUNTER' : role === 'p' ? 'HIDER' : 'WATCHING'}</span><span><big>${clock(timeLeft(S, t))}</big> <small>${p === 'hide' ? 'hiding time' : 'hunting time'}</small></span><span><b>${R.hidersLeft()} of ${R.hidersTotal()}</b> <small>hiders left</small></span><span><small>Round ${S.round} of ${S.rounds} · ${esc(A.name)}</small></span>`);
+      const black = $('ph-black');black.hidden = !R.blind();
+      if (!black.hidden) setHtml('ph-black', `<span>They are hiding …</span><big>${Math.ceil(timeLeft(S, t))}</big><span>${esc(A.name)} · round ${S.round} of ${S.rounds}</span><span style="font-size:15px;opacity:.7">Shoot with R2 / left mouse · a real thing costs you ${PH.WRONG} health · listen for the whistles</span>`);
+      const me = $('ph-me');me.hidden = !(R.playing() && R.alive);
+      if (!me.hidden) {
+        const K = R.kind >= 0 ? KINDS[KIND_LIST[R.kind]] : null, max = role === 'h' ? PH.HUNTER_HP : K ? CLASS[K.cls].hp : 100;
+        setHtml('ph-me', role === 'h' ? `<b>Health ${Math.round(R.hp)}</b><div class="ph-bar h"><u style="width:${Math.round(100 * R.hp / max)}%"></u></div><div class="ph-keys">R2 / left mouse shoot · L2 / right mouse aim · hold △ leave</div>`
+          : `<b>${K ? `You are a ${K.name}` : 'Not hidden yet'}</b> · health ${Math.round(R.hp)}<div class="ph-bar"><u style="width:${Math.round(100 * R.hp / max)}%"></u></div>` +
+          `<div class="ph-keys">${p === 'hunt' ? `${R.changes} change${R.changes === 1 ? '' : 's'} left · ` : 'change as often as you like while hiding · '}${K ? (R.locked ? 'locked' : 'turns with the view') : ''}</div>` +
+          `<div class="ph-keys">□ / E become what you look at · R1 / X lock · D-pad ←/→ turn · △ / F taunt (+1) · hold △ leave</div>`);
+      }
+      $('ph-cross').hidden = !(R.armed() && R.aimT < .5);$('ph-cross').classList.toggle('hit', R.hitMark > 0);
+      $('ph-dot').hidden = !(R.playing() && R.hider() && R.alive);
+      const look = $('ph-look');look.hidden = !(R.playing() && R.hider() && R.alive && R.look);if (!look.hidden) setHtml('ph-look', `□ / E  become the ${KINDS[R.look.kind].name}`);
+      const hint = R.hint(), hn = $('ph-hint');hn.hidden = !hint;if (hint) {hn.className = 'ph-hint ' + hint;hn.textContent = {hot: 'HOT', warm: 'Warmer', cool: 'Cool', cold: 'Cold'}[hint];}
+      const hurt = $('ph-hurt');hurt.hidden = R.hurt <= 0;if (R.hurt > 0) hurt.style.opacity = Math.min(1, R.hurt * 1.5).toFixed(2);
+      // The lobby.
+      const lb = $('ph-lobby'), showLobby = R.ringAt >= 0 && !inGame;lb.hidden = !showLobby;
+      if (showLobby) {
+        const L = R.members(), alone = L.length === 1, Ar = R.arenas[S.arena] || A, on = S.state !== 'lobby' && S.id;
+        setHtml('ph-lobby', `<b>PROP HUNT · HIDE AND SEEK</b><div>${esc(Ar.name)} · ${S.rounds} rounds</div><small>${on ? `A match is on at ${esc(Ar.name)} – you play from the next round` : alone ? (S.solo === 'hunt' ? 'Alone: you hunt first, 4 of the game\'s players hide (then you swap)' : 'Alone: you hide first with 3 of the game\'s players, one of them hunts (then you swap)') : `${hunterCount(L.length)} hunter${hunterCount(L.length) > 1 ? 's' : ''} a round, taking turns`}</small><ul>` +
+          L.map(m => `<li class="${m.local ? 'me' : ''}"><span>${esc(m.local ? (rules.ctx.yourName ? rules.ctx.yourName() : 'You') : m.name)}${m.id === R.adminId ? '  (admin)' : ''}</span><i>${S.hunts[m.id] ? `hunted ${S.hunts[m.id]}×` : ''}</i></li>`).join('') +
+          `</ul><small>${R.isAdmin() && !on ? `←→ arena · ↑↓ rounds${alone ? ` · △ ${S.solo === 'hunt' ? 'hide' : 'hunt'} first` : ''} · hold ✕ start` : on ? 'Wait here for the next round' : 'The admin starts the game'}</small>${R.startHold > 0 ? `<i class="meter"><u style="width:${Math.round(Math.min(1, R.startHold) * 100)}%"></u></i>` : ''}`);
+      }
+      // A round's result, the match's result.
+      const bd = $('ph-board'), showBoard = inGame && (p === 'end' || p === 'over');bd.hidden = !showBoard;
+      if (showBoard) {
+        const rows = R.scoreRows(), last = S.lastPts || {}, mine = role || S.roles[R.you()];
+        const head = p === 'over' ? (() => {const w = rows[0];return `<h2>${w ? (w.me ? 'You win the match!' : `${esc(w.name)} wins the match`) : 'Match over'}</h2><small>${S.round} rounds at ${esc(A.name)}</small>`;})()
+          : `<h2>${S.winner === 'h' ? 'The hunters win' : 'The hiders win'}</h2><small>Round ${S.round} of ${S.rounds}${mine ? ` · you ${S.winner === mine ? 'won' : 'lost'} this one` : ''} · ${S.round < S.rounds ? 'next round soon' : 'final score next'}</small>`;
+        setHtml('ph-board', head + '<ul>' + rows.map(r => `<li class="${r.me ? 'me' : ''}"><span>${esc(r.name)}${r.bot ? ' (game)' : ''}${p === 'end' && S.roles[r.id] ? ` · ${S.roles[r.id] === 'h' ? 'hunter' : S.found[r.id] !== undefined ? 'found' : 'survived'}` : ''}</span><span>${p === 'end' && last[r.id] ? `<em>+${last[r.id]}</em>` : ''}${r.pts}</span></li>`).join('') + '</ul><small>2 a find · 3 for surviving · 1 a taunt (3 at most) · 1 for the winning side</small>');
+      }
+      const sp = $('ph-spec'), w = R.watching();sp.hidden = !(inGame && (p === 'hide' || p === 'hunt') && (R.spectating()));
+      if (!sp.hidden) setHtml('ph-spec', `${R.role() ? (R.hider() ? 'Found – ' : 'Out – ') : ''}watching ${w ? esc(w.bot ? R.ses.names[w.id] || 'a player' : w.name) : 'the arena'} · D-pad ←/→ switch · hold △ leave`);
+      setHtml('ph-feed', R.feed.filter(f => R.clock - f.t < 6).map(f => `<div>${esc(f.text)}</div>`).join(''));
+      // A note on the screen where a whistle came from (for hunters; the sound comes from there too).
+      notes = notes.filter(n => R.clock - n.t < 1.6);
+      const nh = notes.map(n => {const v = new T.Vector3(n.x, n.y, n.z).project(camera), behind = v.z > 1, k = behind ? -1 : 1;let x = v.x * k, y = v.y * k;const m = Math.max(Math.abs(x), Math.abs(y));if (behind || m > .9) {x = x / m * .9;y = y / m * .9;}
+        return `<div class="ph-note" style="left:${(50 + x * 50).toFixed(1)}%;top:${(50 - y * 50).toFixed(1)}%;opacity:${(1 - (R.clock - n.t) / 1.6).toFixed(2)}">♪</div>`;}).join('');
+      setHtml('ph-notes', nh);
+    }
+    function update(dt, input, {camera, remotes, player}) {
+      rules.update(dt, input);
+      const R = rules, S = R.ses, p = R.phase(), cam = camera.position;
+      // Arenas: built and shown near the camera; the bounds while a round is on there.
+      for (const a of arenas) {
+        const d = Math.hypot(a.A.centre.x - cam.x, a.A.centre.z - cam.z), near = d < a.A.reach + 220;
+        if (near && !a.built) buildArena(a);a.g.visible = near;
+        if (a.tape) a.tape.visible = near && S.id && (S.state === 'round' || S.state === 'end') && S.arena === a.A.i;
+        if (a.ring) a.ring.material.emissiveIntensity = .55 + .35 * Math.sin(R.clock * 3);
+      }
+      // Disguises.
+      for (const w of worn.values()) w.seen = false;
+      if (R.disguised() || (R.inGame() && R.hider() && R.alive && R.kind >= 0 && p === 'hide')) wear(R.you(), KIND_LIST[R.kind], R.sc, player.x, player.feet + (player.jumpY || 0), player.z, R.pyaw);
+      for (const m of R.all) {
+        if (m.local) continue;const g = R.disguiseOf(m.id);
+        if (g && g.kind) wear(m.id, g.kind, g.sc, m.feet.x, m.feet.y, m.feet.z, g.yaw);
+      }
+      for (const [id, w] of worn) if (!w.seen) {group.remove(w.obj);worn.delete(id);}
+      // The game's players' own bodies (the hunter, a hider still on its way).
+      const botSeen = new Set();
+      if (avatars) for (const m of R.all) {
+        if (!m.bot) continue;const g = R.disguiseOf(m.id);if (g && (g.kind || g.hidden)) continue;if (!S.id || S.state === 'lobby' || S.state === 'over') continue;
+        let b = botBodies.get(m.id);if (!b) {b = {av: avatars.avatar(Math.abs(m.id) + 3, R.ses.names[m.id] || 'Bot'), last: null};scene.add(b.av.group);botBodies.set(m.id, b);}
+        const at = new T.Vector3(m.feet.x, m.feet.y, m.feet.z), spd = b.last ? at.distanceTo(b.last) / Math.max(dt, 1e-3) : 0;b.last = at.clone();
+        b.av.group.visible = true;b.av.group.position.copy(at);b.av.group.rotation.set(0, m.yaw, 0);b.av.pose({stance: 'stand', speed: spd, dt, marker: S.roles[m.id] === 'h'});b.av.update(dt, camera, false);botSeen.add(m.id);
+      }
+      for (const [id, b] of botBodies) if (!botSeen.has(id)) b.av.group.visible = false;
+      // Shots: puffs (white on a real thing, orange on a hider, grey dust elsewhere) and tracers.
+      for (const pf of R.puffs) {
+        live.push({p: pf.p, t: 0, c: pf.what === 'hider' ? 0xff8a20 : pf.what === 'thing' ? 0xf4f4f0 : 0x9a8f80, n: pf.what === 'none' ? 0 : 7});
+        tracerList.push({a: pf.mine ? {x: pf.from.x, y: pf.from.y - .12, z: pf.from.z} : pf.from, b: pf.p, t: 0});
+        if (!pf.mine && audio) {const d = Math.hypot(pf.from.x - cam.x, pf.from.z - cam.z);if (d < 60) audio.sfx('pbShot', {gain: Math.max(.05, .5 * (1 - d / 60))});}
+      }
+      R.puffs = [];
+      let n = 0;
+      for (let i = live.length - 1; i >= 0; i--) {const L = live[i];L.t += dt;if (L.t > .55 || !L.n) {live.splice(i, 1);continue;}}
+      for (const L of live) for (let k = 0; k < L.n && n < MAXP; k++) {
+        const a = k * 2.4, r = .08 + L.t * .9, s = (1 - L.t / .55) * (.6 + .5 * (k % 3) / 2);
+        M4.compose(V.set(L.p.x + Math.cos(a) * r, L.p.y + L.t * .5 + (k % 3) * .05, L.p.z + Math.sin(a) * r), Q.identity(), S3.set(s, s, s));puffs.setMatrixAt(n, M4);C.setHex(L.c);puffs.setColorAt(n, C);n++;
+      }
+      puffs.count = n;puffs.instanceMatrix.needsUpdate = true;if (puffs.instanceColor) puffs.instanceColor.needsUpdate = true;
+      tracerList = tracerList.filter(x => (x.t += dt) < .07).slice(-8);
+      const tp = tracerGeo.attributes.position;tracerList.forEach((x, i) => {tp.setXYZ(i * 2, x.a.x, x.a.y, x.a.z);tp.setXYZ(i * 2 + 1, x.b.x, x.b.y, x.b.z);});tp.needsUpdate = true;tracerGeo.setDrawRange(0, tracerList.length * 2);
+      // Sound: whistles from where the hider stands; hits and finds.
+      for (const e of R.events) {
+        if (!e || typeof e !== 'object') continue;
+        if (e.whistle !== undefined && audio) {
+          if (e.mine) audio.sfx(e.voluntary ? 'phTaunt' : 'phWhistle', {gain: .45});
+          else if (e.at) {
+            const dx = e.at.x - cam.x, dz = e.at.z - cam.z, d = Math.hypot(dx, dz), right = new T.Vector3(1, 0, 0).applyQuaternion(camera.quaternion), pan = clamp((dx * right.x + dz * right.z) / (d || 1), -1, 1);
+            audio.sfx(e.voluntary ? 'phTaunt' : 'phWhistle', {gain: clamp(1.2 / (1 + d / 12), .08, 1), pan: pan * .9});if (R.inGame()) notes.push({...e.at, t: R.clock});
+          }
+        }
+      }
+      // The marker in the hunter's hands.
+      if (marker) {
+        const armed = R.armed() && player.mode === 'foot';marker.visible = armed;
+        if (armed) {const A2 = R.aimT, K = R.recoilT / .08;marker.position.set(.2 - .06 * A2, -.25 - .04 * A2, -.66 + .04 * A2 + .03 * K);marker.rotation.set(.035 * K, .07 * (1 - A2), 0);}
+      }
+      if ((hudT -= dt) <= 0) {hudT = .1;hud(camera);}
+    }
+    // The camera: behind your prop while you hide, behind the player you watch when you are out.
+    const camTmp = new T.Vector3();
+    function cameraFor(camera, player, groundY) {
+      const R = rules;let at = null, dist = 0, yaw = player.yaw, pitch = player.pitch;
+      if (R.inGame() && R.hider() && R.alive && R.kind >= 0 && R.playing()) {const K = KINDS[KIND_LIST[R.kind]];at = {x: player.x, y: player.feet + (player.jumpY || 0) + Math.min(2.2, K.h * R.sc * .7 + .5), z: player.z};dist = CLASS[K.cls].cam * Math.max(1, R.sc * .9);}
+      else {const w = R.watching();if (w) {const g = R.disguiseOf(w.id), K = g && g.kind ? KINDS[g.kind] : null;at = {x: w.feet.x, y: w.feet.y + (K ? Math.min(2.2, K.h * .7 + .5) : 1.7), z: w.feet.z};dist = K ? CLASS[K.cls].cam : 3.2;}}
+      if (!at) return false;
+      pitch = clamp(pitch, -1.1, .9);
+      const fx = -Math.sin(yaw) * Math.cos(pitch), fy = Math.sin(pitch), fz = -Math.cos(yaw) * Math.cos(pitch);
+      // Not through a wall: the camera comes in to just in front of the first solid behind the prop (backyards are tight).
+      if (R.ctx.blockDist) {const b = R.ctx.blockDist(at, {x: -fx, y: -fy, z: -fz}, dist + .4);if (b < dist + .4) dist = Math.max(.7, b - .4);}
+      camTmp.set(at.x - fx * dist, at.y - fy * dist, at.z - fz * dist);
+      const gy = groundY(camTmp.x, camTmp.z);if (camTmp.y < gy + .35) camTmp.y = gy + .35;
+      camera.position.copy(camTmp);camera.rotation.set(pitch, yaw, 0, 'YXZ');
+      return true;
+    }
+    // Solids for walkers: other hiders' disguises (you bump into a "bench" as into a bench).
+    function solids() {
+      const out = [];
+      for (const m of rules.all) {
+        if (m.local) continue;const g = rules.disguiseOf(m.id);if (!g || !g.kind) continue;const K = KINDS[g.kind], sc = g.sc || 1, w = (g.kind === 'tree' || g.kind === 'lamp' ? .35 : K.w * (g.kind === 'bush' ? .55 : 1)) * sc / 2, d = (g.kind === 'tree' || g.kind === 'lamp' ? .35 : K.d * (g.kind === 'bush' ? .55 : 1)) * sc / 2, Cy = Math.cos(g.yaw), Sy = Math.sin(g.yaw);
+        out.push({points: [[-w, -d], [w, -d], [w, d], [-w, d]].map(([a, b]) => ({x: m.feet.x + a * Cy + b * Sy, z: m.feet.z - a * Sy + b * Cy})), minY: m.feet.y - .2, maxY: m.feet.y + K.h * sc, kind: 'prop'});
+      }
+      return out;
+    }
+    const poi = () => rules.arenas.map(A => ({...(rules.ctx.toLocal ? rules.ctx.toLocal(A.ring.x, A.ring.z) : {x: A.ring.x, s: A.ring.z}), color: '#7e57c2', label: `Prop hunt · ${A.name}`, glyph: '🙈'}));
+    const bodyRadius = () => {if (!rules.disguised() && !(rules.inGame() && rules.hider() && rules.kind >= 0)) return 0;const K = KINDS[KIND_LIST[rules.kind]];return K.kit === 'tree' || K.kit === 'lamp' ? .18 : clamp(Math.min(K.w, K.d) * rules.sc / 2, .18, .55);};
+    return {rules, group, update, cameraFor, solids, poi, bodyRadius, disguise, geos, marker,
+      get busy() {return rules.busy();}, get frozen() {return rules.frozen() || rules.spectating();}, get armed() {return rules.armed();}, get aim() {return rules.aimT;},
+      get speed() {return rules.disguised() || (rules.inGame() && rules.hider() && rules.kind >= 0 && rules.alive) ? speedOf(KIND_LIST[rules.kind]) : 0;},
+      get ownsSquare() {return rules.playing() && rules.hider();}, get thirdPerson() {return rules.inGame() && ((rules.hider() && rules.alive && rules.kind >= 0 && rules.playing()) || !!rules.watching());},
+      get music() {return rules.inGame() && rules.phase() !== 'over';}};
+  }
+  return {Rules, create, obstacles, PH, POINTS, CLASS, KINDS, KIND_LIST, kindIndex, hpOf, speedOf, hunterCount, pickHunters, phaseOf, timeLeft, tauntDue, inZones, clampToZones, rayBox, hitBox, roundPoints, hotness, botSpot,
+    sesToJson, sesFromJson, memberFromJson, newSession};
+});
 </script><script>/* Photo camera: take it out (△ / F), raise it to the eye (L2 / right mouse) for the viewfinder and zoom,
  * take a photo (R2 / left mouse), browse the photos (□ / G opens the gallery, ←/→ or the left stick to scroll,
  * ✕ / Delete twice deletes the photo shown, ○ / Esc closes). Without an account the photos are kept in this browser
@@ -13239,6 +14199,10 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
     {id: 'minigolf', icon: '⛳', name: 'A round of minigolf', how: 'Play a full round at a real minigolf course: Torshov, Grünerløkka, Jordal park or Oslo Camping.', kr: 100, test: f => Object.values(f.records.minigolf || {}).some(r => n(r.rounds) > 0)},
     {id: 'minigolf-ace', icon: '🏌️', name: 'Minigolf ace', how: 'Hole a minigolf lane with the first stroke.', kr: 100, test: f => n(f.records.golfAces) > 0},
     {id: 'camping', icon: '🏕️', name: 'Camping in Møllergata', how: 'Play all 18 holes at Oslo Camping, the minigolf bar in Møllergata.', kr: 150, test: f => n(f.records.minigolf?.['Oslo Camping']?.rounds) > 0},
+    // Prop hunt (issue #124).
+    {id: 'prophunt', icon: '🙈', name: 'Hide and seek', how: 'Play a whole prop hunt match (the purple rings at Haarklous plass, Olaf Ryes plass and Rathkes gate 1).', kr: 100, test: f => n(f.records.prophunt?.matches) > 0},
+    {id: 'prophunt-hider', icon: '🪑', name: 'Just a bench', how: 'Survive a prop hunt round as a hider.', kr: 100, test: f => n(f.records.prophunt?.survived) > 0},
+    {id: 'prophunt-hunter', icon: '🎯', name: 'Nothing gets past you', how: 'Find every hider in a prop hunt round as a hunter.', kr: 100, test: f => n(f.records.prophunt?.cleared) > 0},
     {id: 'pingpong', icon: '🏓', name: 'Beat Ola', how: 'Win a table tennis match against Ola at Schous plass.', kr: 100, test: f => n(f.records.pingpong?.won) > 0},
     {id: 'run', icon: '🏃', name: 'Ensjø → Rathkes gate', how: 'Finish the timed run from Ensjø T-bane to Rathkes gate.', kr: 100, test: f => f.route.best != null},
     {id: 'catacomb', icon: '💀', name: 'Into the dark', how: 'Go down into the catacomb under Torshovdalen.', kr: 50, test: f => !!f.records.marks?.catacomb},
@@ -13293,6 +14257,8 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
       const c = g('minigolf', {})[x.course] || (R.minigolf[x.course] = {});c.rounds = n(c.rounds) + 1;c.par = x.par;c.holes = x.holes;
       if (c.best == null || x.total < c.best) {c.best = x.total;best = true;}
     } else if (kind === 'pingpong') {const p = g('pingpong', {});if (x.won) p.won = n(p.won) + 1;else p.lost = n(p.lost) + 1;}
+    else if (kind === 'prophunt-round') {const p = g('prophunt', {});p.rounds = n(p.rounds) + 1;if (x.survived) p.survived = n(p.survived) + 1;if (x.cleared) p.cleared = n(p.cleared) + 1;p.finds = n(p.finds) + n(x.finds);}
+    else if (kind === 'prophunt-match') {const p = g('prophunt', {});p.matches = n(p.matches) + 1;if (x.won) p.won = n(p.won) + 1;if (p.best == null || n(x.pts) > p.best) {p.best = n(x.pts);best = true;}}
     else if (kind === 'mark') {g('marks', {})[x.id] = 1;}
     return {best};
   }
@@ -13314,6 +14280,8 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
       if (x.best || y.best) out[k].best = !x.best ? y.best : !y.best ? x.best : (x.best.you - x.best.npc >= y.best.you - y.best.npc ? x.best : y.best);
     }
     {const x = a.paintball || {}, y = b.paintball || {};out.paintball = {won: count(x.won, y.won), played: count(x.played, y.played)};}
+    {const x = a.prophunt || {}, y = b.prophunt || {}, best = x.best == null ? y.best ?? null : y.best == null ? x.best : Math.max(x.best, y.best);
+      out.prophunt = {matches: count(x.matches, y.matches), won: count(x.won, y.won), rounds: count(x.rounds, y.rounds), survived: count(x.survived, y.survived), cleared: count(x.cleared, y.cleared), finds: count(x.finds, y.finds), best};}
     {const x = a.mission || {}, y = b.mission || {};out.mission = {done: count(x.done, y.done), failed: count(x.failed, y.failed), best: lower(x.best, y.best)};}
     {const x = a.skydive || {}, y = b.skydive || {};out.skydive = {jumps: count(x.jumps, y.jumps), soft: count(x.soft, y.soft), best: lower(x.best, y.best)};}
     out.marks = {...(b.marks || {}), ...(a.marks || {})};
@@ -13381,6 +14349,7 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
       if (R.golfAces) rows.push(['Minigolf holes in one', String(R.golfAces)]);
       if (n(R.petanque?.won) + n(R.petanque?.lost)) rows.push(['Petanque against Arne', `${n(R.petanque.won)} won, ${n(R.petanque.lost)} lost${R.petanque.best ? ` · best ${R.petanque.best.you}–${R.petanque.best.npc}` : ''}`]);
       if (n(R.paintball?.played)) rows.push(['Paintball', `${n(R.paintball.won)} won of ${n(R.paintball.played)}`]);
+      if (n(R.prophunt?.rounds)) rows.push(['Prop hunt', `${n(R.prophunt.matches)} matches, ${n(R.prophunt.won)} won · ${n(R.prophunt.survived)} rounds survived · ${n(R.prophunt.finds)} finds${R.prophunt.best != null ? ` · best ${R.prophunt.best} points` : ''}`]);
       if (n(R.mission?.done) + n(R.mission?.failed)) rows.push(['Hostage rescue', `${n(R.mission.done)} rescued${R.mission.best != null ? ` · best time ${clock(R.mission.best)}` : ''}`]);
       if (n(R.skydive?.jumps)) rows.push(['Skydiving', `${n(R.skydive.jumps)} jumps, ${n(R.skydive.soft)} soft landings${R.skydive.best != null ? ` · closest to the target ${R.skydive.best} m` : ''}`]);
       if (n(R.pingpong?.won) + n(R.pingpong?.lost)) rows.push(['Table tennis against Ola', `${n(R.pingpong.won)} won, ${n(R.pingpong.lost)} lost`]);
@@ -23483,7 +24452,11 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
   const LIC_SIGNS = (() => {const w = (x, s) => world.toWorld(x, s), a = w(-624.4, 35.5), b = w(-624.4 + .33, 35.5 - .94), c = w(-128.5, 367), d = w(-128.5, 366);
     return {school: {...a, yaw: Math.atan2(-(b.x - a.x), -(b.z - a.z)) + Math.PI}, site: {...c, yaw: Math.atan2(-(d.x - c.x), -(d.z - c.z)) + Math.PI}, airfield: {x: -123.3, z: 6.2, yaw: .5236 + Math.PI / 2}};})();
   const signObstacles = [...JOB_SIGNS, ...Object.values(LIC_SIGNS)].map(j => {const y = groundAt(j.x, j.z);return {points: [[-.5, -.15], [.5, -.15], [.5, .15], [-.5, .15]].map(([a, b]) => ({x: j.x + Math.cos(j.yaw) * a + Math.sin(j.yaw) * b, z: j.z - Math.sin(j.yaw) * a + Math.cos(j.yaw) * b})), minY: y - .3, maxY: y + 2.2, kind: 'sign'};});
-  const extraObstacles = [...(siteField ? window.GameSite.fenceObstacles(siteField, groundAt) : []), ...(pbRules ? pbRules.obstacles : []), ...(catacomb ? catacomb.obstacles : []), ...(rides ? rides.obstacles : []), ...signObstacles, ...(storgata ? storgata.obstacles : [])];
+  // Prop hunt (issue #124): hide and seek at three real places; the things standing there are solids from the start.
+  const phCtx = {toWorld: world.toWorld, toLocal: world.toLocal, ground: world.heightWorld,
+    headingToYaw: h => {const dx = Math.sin(h), ds = Math.cos(h), wx = dx * Math.cos(theta) + ds * Math.sin(theta), wz = -dx * Math.sin(theta) + ds * Math.cos(theta);return Math.atan2(-wx, -wz);}};
+  const phRules = window.GameProphunt && window.PROPHUNT ? new window.GameProphunt.Rules(window.PROPHUNT, phCtx) : null;let prophunt = null;
+  const extraObstacles = [...(phRules ? window.GameProphunt.obstacles(phRules, world.heightWorld) : []), ...(siteField ? window.GameSite.fenceObstacles(siteField, groundAt) : []), ...(pbRules ? pbRules.obstacles : []), ...(catacomb ? catacomb.obstacles : []), ...(rides ? rides.obstacles : []), ...signObstacles, ...(storgata ? storgata.obstacles : [])];
   const staticObstacles = [...apt.obstacles, ...towers.flatMap(towerObstacles), ...worldSolids(), ...(homes ? homes.obstacles : []), ...fire.obstacles, ...stash.obstacles, ...shops.obstacles, ...sculpture.obstacles, ...oksen.obstacles, ...gym.obstacles, ...extraObstacles, ...landmarks.obstacles];
   const walkFloors = [...apt.floors, ...towers.flatMap(towerFloors), ...(homes ? homes.floors : []), ...shops.floors, ...sculpture.floors, ...oksen.floors, ...landmarks.floors, ...gym.floors, ...(catacomb ? catacomb.floors : []), ...walkGroundFloors];
   staticObstacles.push(...grl.flatMap(m => m.obstacles || []));walkFloors.unshift(...grl.flatMap(m => m.floors || []), ...(kayak ? kayak.bridges.map(b => b.floor) : []));
@@ -23701,7 +24674,8 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     if (stanceEye(next) > stanceEye(player.stance) && !collision.canStand(walkWorld, player, stanceEye(next), player.feet)) {notice('No room to stand up here.');return;}
     player.stance = next;
   }
-  const move = (dx, dz) => {const n = collision.move(walkWorld, player, {x: dx, z: dz}, stanceEye(player.stance), player.feet);player.x = n.x;player.z = n.z;player.feet = n.y;};
+  const move = (dx, dz) => {const r0 = walkWorld.radius, pr = prophunt ? prophunt.bodyRadius() : 0;if (pr > r0) {walkWorld.radius = pr;if (!collision.canStand(walkWorld, player, stanceEye(player.stance), player.feet)) walkWorld.radius = r0;}
+    const n = collision.move(walkWorld, player, {x: dx, z: dz}, stanceEye(player.stance), player.feet);walkWorld.radius = r0;player.x = n.x;player.z = n.z;player.feet = n.y;};
   function inApartment() {return player.feet > -.5 && player.feet < 2.5 && apt.floors.some(f => inside(player, f.points));}
   // Ambience: the whole flat (also doorways and wall gaps) counts as indoors; the balcony is open air.
   const aptBox = (() => {const pts = apt.floors.filter(f => !/balcony/i.test(f.id || f.name || '')).flatMap(f => f.points);return {x0: Math.min(...pts.map(p => p.x)) - .15, x1: Math.max(...pts.map(p => p.x)) + .15, z0: Math.min(...pts.map(p => p.z)) - .15, z1: Math.max(...pts.map(p => p.z)) + .15};})();
@@ -23740,7 +24714,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
   // The trams, buses and metro trains near you are moving solids for walkers and cars (issue #111): a short list of their own
   // (setMoving), so the hashed dynamic list and the parked fleet's layer are left as they are.
   function transitDynamic() {
-    const t = transit.footprints();if (!t.length && !transitSolidsOn) return;transitSolidsOn = t.length > 0;
+    const t = [...(transit ? transit.footprints() : []), ...(prophunt ? prophunt.solids() : [])];if (!t.length && !transitSolidsOn) return;transitSolidsOn = t.length > 0;if (!transit) {collision.setMoving(walkWorld, t);return;}
     collision.setMoving(walkWorld, t);vehicleWorlds.forEach(w => collision.setMoving(w, t));
     // A tram or bus that comes up against you pushes you aside (it does not stop for you).
     if (player.mode === 'foot') {const p = transit.pushOut(player.x, player.z, player.feet, .3);if (p) {player.x = p.x;player.z = p.z;}}
@@ -23821,6 +24795,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     ...(catacomb ? catacomb.poi() : []),
     ...(homes && homeReg.mine && homes.byId.has(homeReg.mine) ? [(p => ({...world.toLocal(p.x, p.z), color: '#1f6f43', label: 'Your flat', glyph: '🏠'}))(homes.doorWorld(homeReg.mine))] : []),
     ...(rentals ? rentals.poi() : []),
+    ...(prophunt ? prophunt.poi() : []),
   ]});
   if (transit) {map.overlay = transit.overlay;transit.legend(view);}// the lines, stops and metro stations (issue #111)
   // Wristwatch (D-pad ↑) shares the first-person overlay with the photo camera.
@@ -23833,7 +24808,22 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     teleport: (x, z, yaw) => {if (player.mode === 'foot') place(x, z, yaw);}, cameraPos: () => camera.position.clone(), cameraFwd: () => camera.getWorldDirection(new T.Vector3()),
     ground: groundAt, notice: (t, sec) => notice(t, sec), sound: (n, g) => audio.sfx(n, {gain: g}), random: Math.random});
   const paintball = pbRules && window.PaintballModels ? window.GamePaintball.create({T, scene, overlay: overlayScene, models: window.PaintballModels.create({T, lib, data: PB_DATA}), data: PB_DATA, view, groundAt, ctx: pbCtx, rules: pbRules}) : null;
-  const pbBusy = () => !!paintball && paintball.busy, pbArmed = () => !!paintball && paintball.armed;
+  if (phRules) {
+    Object.assign(phCtx, {
+      serverNow: () => mp && mp.net.online ? mp.net.serverNow() : Date.now(), you: () => mp && mp.net.online ? mp.net.you : 0, yourName: () => mp ? mp.net.name : 'You',
+      others: () => mp ? [...mp.remotes.values()].filter(r => r.st && r.st.ph && r.seen).map(r => window.GameProphunt.memberFromJson(r.st.ph, {id: r.id, name: r.name, local: false, feet: {x: r.pos.x, y: r.pos.y, z: r.pos.z}, yaw: r.yaw})).filter(Boolean) : [],
+      feet: () => ({x: player.x, y: player.feet, z: player.z}), yaw: () => player.yaw,
+      teleport: (x, z, yaw) => {if (player.mode === 'foot') {world.buildGround(world.toLocal(x, z).x, world.toLocal(x, z).s, 60);place(x, z, yaw);}}, setPos: (x, z) => {player.x = x;player.z = z;},
+      cameraPos: () => camera.position.clone(), cameraFwd: () => camera.getWorldDirection(new T.Vector3()),
+      // A shot stops at the first building, wall or tree trunk (the walk world's solids at the shot's height).
+      blockDist: (o, d, max) => {const mv = walkWorld.moving;walkWorld.moving = null;try {for (let t = .3; t < max; t += .3) {const x = o.x + d.x * t, y = o.y + d.y * t, z = o.z + d.z * t;if (y < groundAt(x, z) - .05) return t;if (collision.hitsSolid(walkWorld, {x, z}, y - .02, y + .02) && !phSolidAt(x, y, z)) return t;}return Infinity;} finally {walkWorld.moving = mv;}},
+      clear: (x, z) => collision.canStand(walkWorld, {x, z}, 1.6, groundAt(x, z)), notice: (t, sec) => notice(t, sec), sound: (n, o) => audio.sfx(n, o), random: Math.random});
+    prophunt = window.GameProphunt.create({T, scene, lib, kit: world.propKit, rules: phRules, view, ground: groundAt, audio, marker: window.PaintballModels ? window.PaintballModels.create({T, lib, data: PB_DATA}).marker() : null});
+    if (prophunt.marker) {prophunt.marker.visible = false;prophunt.marker.scale.setScalar(.85);overlayScene.add(prophunt.marker);}
+  }
+  // The things of the arenas are solids too: a shot that meets one is the rules' business, not a wall.
+  function phSolidAt(x, y, z) {const A = phRules && phRules.arenaAt(x, z);return !!A && A.things.some(t => Math.abs(t.x - x) < 2.6 && Math.abs(t.z - z) < 2.6 && y < t.y + window.GameProphunt.KINDS[t.kind].h * (t.sc || 1) + .1);}
+  const pbBusy = () => (!!paintball && paintball.busy) || (!!prophunt && prophunt.busy), pbArmed = () => (!!paintball && paintball.armed) || (!!prophunt && prophunt.armed);
 
   // ---------- Drinking ----------
   let drunk = 0;// seconds of drunkenness remaining
@@ -24527,7 +25517,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     const np = music.position();$('nowPlaying').textContent = np ? `${np.title} (${Math.floor(np.length / 60)}:${String(Math.round(np.length % 60)).padStart(2, '0')} loop)` : '–';
   }
   $('musicVol').oninput = e => {music.setVolume(+e.target.value);renderSettings();};
-  function musicTrack() {if (caseGame?.active) return 'mission';if (catacomb?.state.inside) return null;if (mgl && player.mode === 'foot' && mgl.inside(player.x, player.z, player.feet)) return 'minigolf';if (player.mode === 'minigame') return player.minigame.music || (discCourses.includes(player.minigame) ? 'discgolf' : 'petanque');return 'main';}
+  function musicTrack() {if (caseGame?.active) return 'mission';if (prophunt && prophunt.music) return 'prophunt';if (catacomb?.state.inside) return null;if (mgl && player.mode === 'foot' && mgl.inside(player.x, player.z, player.feet)) return 'minigolf';if (player.mode === 'minigame') return player.minigame.music || (discCourses.includes(player.minigame) ? 'discgolf' : 'petanque');return 'main';}
   $('sensPad').oninput = e => {setSens('pad', +e.target.value);renderSettings();};$('sensMouse').oninput = e => {setSens('mouse', +e.target.value);renderSettings();};
   $('minimapOn').onchange = e => {map.minimap = e.target.checked;};
   $('imagery').onchange = e => {try {localStorage.setItem('haarklous-aerial-imagery-v1', e.target.checked ? 'on' : 'off');} catch {}world.setImagery(e.target.checked);};
@@ -24633,7 +25623,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     // The jump planes move first, so a jumper's seat (and camera) is where the plane is this frame.
     updateJumpFlight(dt);updateGamePilot(dt);
     licExaminer(input);
-    if (transit) {transit.tick(dt, {camera, player});transitDynamic();}
+    if (transit) transit.tick(dt, {camera, player});if (transit || prophunt) transitDynamic();
     if (player.mode === 'vehicle') updateVehicle(dt, input, dl);
     else if (player.mode === 'transit') transit.updateRide(dt, input, camera, dl);
     else if (player.mode === 'passenger') updatePassenger(dt, input, dl);
@@ -24660,12 +25650,19 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
       paintball.update(dt, {r2: foot ? input.r2 : 0, l2: foot ? input.l2 : 0, reload: p.has('square') || p.has('reload'), up: p.has('up'), down: p.has('down'), left: p.has('left'), right: p.has('right'),
         triangle: p.has('triangle'), cross: p.has('cross'), crossHeld: !!h.cross, triangleHeld: !!h.triangle}, {remotes: [...mp.remotes.values()], onFoot: foot, camera});
     }
+    if (prophunt) {
+      const foot = player.mode === 'foot', p = foot ? input.pressed : new Set(), h = foot ? input.held : {};
+      if (foot && prophunt.cameraFor(camera, player, groundAt)) {/* third person: behind your prop, or the player you watch */}
+      prophunt.update(dt, {r2: foot ? input.r2 : 0, l2: foot ? input.l2 : 0, square: p.has('square'), r1: p.has('r1') || p.has('cast'), up: p.has('up'), down: p.has('down'), left: p.has('left'), right: p.has('right'),
+        leftHeld: !!h.left, rightHeld: !!h.right, triangle: p.has('triangle'), cross: p.has('cross'), crossHeld: !!h.cross, triangleHeld: !!h.triangle}, {remotes: [...mp.remotes.values()], camera, player});
+      phEvents(prophunt.rules.events);
+    }
     {const fl = mp.fireLevel();fire.update(wdt, fl, camera);fireSoundT -= dt;if (fireSoundT <= 0) {fireSoundT = .25;const d = Math.hypot(player.x - FIRE_POS.x, player.z - FIRE_POS.z);audio.fire(fl, Math.max(0, 1 - d / 28));}}
     // Door animations.
     let doorsChanged = false;
     for (const d of doors) if (d.anim) {d.anim.t = Math.min(1, d.anim.t + dt * 2.2);const e = d.anim.t < .5 ? 2 * d.anim.t * d.anim.t : 1 - Math.pow(-2 * d.anim.t + 2, 2) / 2;setDoor(d, d.anim.from + (d.anim.to - d.anim.from) * e);if (d.anim.t >= 1) {d.open = d.anim.to === 1;d.anim = null;doorsChanged = true;}}
     if (doorsChanged || caseGame?.active) updateDynamic();
-    promptTimer -= dt;if (promptTimer <= 0) {promptTimer = .15;promptAction = player.mode === 'minigame' || player.mode === 'drone' || transit?.panel.open || gear?.open || quick || bag || gymMenu || lic.menu.open || jobs.phone.open || photo.active || storgata?.talking || (caseGame?.active && caseGame.state !== 'play') ? null : findPrompt();prompt(promptAction?.text);}
+    promptTimer -= dt;if (promptTimer <= 0) {promptTimer = .15;promptAction = player.mode === 'minigame' || player.mode === 'drone' || (prophunt && prophunt.ownsSquare) || transit?.panel.open || gear?.open || quick || bag || gymMenu || lic.menu.open || jobs.phone.open || photo.active || storgata?.talking || (caseGame?.active && caseGame.state !== 'play') ? null : findPrompt();prompt(promptAction?.text);}
     weather.update(dt, camera, {indoor: weatherIndoor, windWorld: weatherWind});
     ambienceTimer -= dt;if (ambienceTimer <= 0) {ambienceTimer = .25;updateAmbience();if (audio.context) music.attach(audio.context);music.play(musicTrack());}
     // Adaptive resolution keeps the frame rate in the 20–30+ fps range on slower PCs.
@@ -24675,7 +25672,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     renderFrame(dt, t);
   }
   // The other players' arrows on the map and the minimap (their slot colour and name).
-  const lobbyArrows = () => mp ? [...mp.remotes.values()].filter(r => r.seen).map(r => ({x: r.pos.x, z: r.pos.z, y: r.pos.y, headingLocal: -(r.yaw - theta), color: window.GameAvatars.slotCss(r.slot), name: r.name})) : [];
+  const lobbyArrows = () => mp ? [...mp.remotes.values()].filter(r => r.seen && !(phRules && phRules.offMap(r.id))).map(r => ({x: r.pos.x, z: r.pos.z, y: r.pos.y, headingLocal: -(r.yaw - theta), color: window.GameAvatars.slotCss(r.slot), name: r.name})) : [];
   // Minimap (issue #42) and the waypoint pin (issue #41): centred on you (on the drone while you fly it), turned with the camera.
   const camDir = new T.Vector3();
   function updateGuide(dt) {
@@ -24703,23 +25700,23 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
       if (player.circleAt) {if (!input.held.circle) {if (!player.circleHeld) setStance(player.stance === 'crouch' ? 'stand' : 'crouch');player.circleAt = null;} else if (!player.circleHeld && performance.now() - player.circleAt > 320) {player.circleHeld = true;setStance(player.stance === 'prone' ? 'stand' : 'prone');}}
       if (input.pressed.has('prone')) setStance(player.stance === 'prone' ? 'stand' : 'prone');
       if (input.pressed.has('l3')) player.run = !player.run;
-      if (input.pressed.has('square') && !photo.active && !caseGame?.active && !pbArmed()) interact();// paintball: □ reloads
+      if (input.pressed.has('square') && !photo.active && !caseGame?.active && !pbArmed() && !(prophunt && prophunt.ownsSquare)) interact();// paintball: □ reloads; prop hunt: □ becomes a thing
     }
     // Move.
-    const canMove = (!caseGame?.active || caseGame.canMove()) && !(paintball && paintball.frozen);
+    const canMove = (!caseGame?.active || caseGame.canMove()) && !(paintball && paintball.frozen) && !(prophunt && prophunt.frozen), propSpeed = prophunt ? prophunt.speed : 0;
     let mx = input.move.x, my = input.move.y;
     if (dl > 0) {mx += Math.sin(performance.now() / 700) * .55 * dl;my += Math.sin(performance.now() / 1100) * .15 * dl;}
     const mag = Math.min(1, Math.hypot(mx, my));
     player.running = false;
     if (canMove && mag > .05) {
-      const running = player.stance === 'stand' && !(hushed > 0) && (player.run || (!caseGame?.active && !photo.active && !pbArmed() && input.r2 > .3) || input.held.l3);player.running = running;
+      const running = !propSpeed && player.stance === 'stand' && !(hushed > 0) && (player.run || (!caseGame?.active && !photo.active && !pbArmed() && input.r2 > .3) || input.held.l3);player.running = running;
       // Standing: walk 2.5 m/s, run 6.0 m/s (issue #88, 5 Nov 2026); crouching and prone keep 1.45 x .55 and x .28.
-      const base = player.stance === 'stand' ? WALK_SPEED : 1.45 * stanceSpeed();
+      const base = propSpeed || (player.stance === 'stand' ? WALK_SPEED : 1.45 * stanceSpeed());
       const speed = (running ? RUN_SPEED : base) * (caseGame?.active ? caseGame.moveScale() : 1) * (1 - dl * .25) * (boostIs('speed') ? 3 : 1), fwd = -my, right = mx;
       const dx = (-Math.sin(player.yaw) * fwd + Math.cos(player.yaw) * right) * speed * dt, dz = (-Math.cos(player.yaw) * fwd - Math.sin(player.yaw) * right) * speed * dt;
       const bx = player.x, bz = player.z;move(dx, dz);
       player.stride += Math.hypot(player.x - bx, player.z - bz);
-      if (player.stride > (running || speed > 2.5 ? 1.05 : .72) * (player.stance === 'stand' ? 1 : .8)) {player.stride = 0;if (!(player.jumpY > .05)) footstep(running ? 1.2 : player.stance === 'stand' ? .8 : .45);}
+      if (player.stride > (running || speed > 2.5 ? 1.05 : .72) * (player.stance === 'stand' ? 1 : .8)) {player.stride = 0;if (!(player.jumpY > .05) && !propSpeed) footstep(running ? 1.2 : player.stance === 'stand' ? .8 : .45);}
     } else if (!mag) player.run = false;
     // Jump and stance easing.
     player.eyeNow += (stanceEye(player.stance) - player.eyeNow) * Math.min(1, dt * 9);
@@ -24732,7 +25729,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     const sway = dl ? {r: Math.sin(performance.now() / 1300) * .09 * dl, y: Math.sin(performance.now() / 1700) * .05 * dl, p: Math.sin(performance.now() / 900) * .03 * dl} : {r: 0, y: 0, p: 0};
     camera.position.set(player.x, player.feet + player.eyeNow + player.jumpY, player.z);
     camera.rotation.set(0, 0, 0, 'YXZ');camera.rotation.order = 'YXZ';camera.rotation.y = player.yaw + sway.y;camera.rotation.x = player.pitch + sway.p;camera.rotation.z = sway.r;
-    const fov = photo.active && photo.raised > .5 ? 70 / photo.zoom : caseGame?.active ? camera.fov : pbArmed() ? 70 / (1 + .45 * paintball.aim) : boostIs('speed') ? 82 : 70 + magicKick * 16;if (Math.abs(camera.fov - fov) > .01 && !caseGame?.active) {camera.fov = fov;camera.updateProjectionMatrix();}
+    const fov = photo.active && photo.raised > .5 ? 70 / photo.zoom : caseGame?.active ? camera.fov : pbArmed() ? 70 / (1 + .45 * (prophunt && prophunt.armed ? prophunt.aim : paintball.aim)) : boostIs('speed') ? 82 : 70 + magicKick * 16;if (Math.abs(camera.fov - fov) > .01 && !caseGame?.active) {camera.fov = fov;camera.updateProjectionMatrix();}
   }
   function footstep(soft = 1) {
     let surface = 'grass', stair = false;
@@ -25126,6 +26123,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     // This computer flies the game's pilot in the Caravan: what it is doing, for the jumpers' screens.
     if (gp && gp.f) {s.gp = gp.f.phase;if (gp.f.left) s.gl = Math.round(gp.f.left);if (gp.f.green) s.gg = 1;}
     const pb = paintball && paintball.rules.localState();if (pb) s.pb = pb;
+    const ph = prophunt && prophunt.rules.localState();if (ph) s.ph = ph;// prop hunt (issue #124)
     // A city bike you have locked outside a dock (issue #57); your job, the taxi light and passenger (issue #56).
     if (rentals) {const lb = rentals.locked();if (lb >= 0) s.cb = lb;}
     {const js = jobs.localState();if (js) Object.assign(s, js);}
@@ -25362,8 +26360,8 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     applyObj: (id, v) => {if (living) living.apply(id, v, true);},
     // Joining a lobby: alone in a lobby that has nothing stored, what you did offline is sent up; otherwise the lobby's state wins.
     resetObjs: m => {if (!living) return;if (m.players.length <= 1 && !Object.keys(m.objs || {}).length) living.publish();else living.reset();},
-    onRemoteWood: r => fire.throwLog({x: r.pos.x, y: r.pos.y + 1.3, z: r.pos.z}), holdsMarker: id => !!paintball && paintball.rules.memberPlaying(id),
-    autoAnchor: seat => autoPlane.hipAnchor('j' + seat), skyPose: (r, st, g) => {skyPose(r, st, g);kayakPose(r, st, g);orbPose(r, st, g);if (transit) transit.pose(r, st, g);golfPose(r, st);},
+    onRemoteWood: r => fire.throwLog({x: r.pos.x, y: r.pos.y + 1.3, z: r.pos.z}), holdsMarker: id => (!!paintball && paintball.rules.memberPlaying(id)) || (!!phRules && phRules.holdsMarker(id)),
+    autoAnchor: seat => autoPlane.hipAnchor('j' + seat), skyPose: (r, st, g) => {skyPose(r, st, g);kayakPose(r, st, g);orbPose(r, st, g);if (transit) transit.pose(r, st, g);golfPose(r, st);if (phRules && phRules.concealed(r.id)) g.visible = false;},
     // In a paintball game you see your team-mates' names, not your opponents' (issue #25).
     showTag: id => !paintball || !paintball.rules.inGame() || !paintball.rules.memberPlaying(id) || paintball.rules.teamOfMember(id) === paintball.rules.myTeam()});
   // Flat 501's living room (issue #116): its record player, TV, lava lamp and chairs are shared through the lobby.
@@ -25441,7 +26439,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     renderer.autoClear = false;renderer.clear();if (!deepNow) renderer.render(farScene, farCamera);renderer.clearDepth();renderer.render(scene, camera);
     if (!forPhoto) {
       if (caseGame?.active) caseGame.renderOverlay(camera);
-      else {const showWatch = watch.update(dt), showPhoto = photo.active && !photo.gallery;photo.model.visible = showPhoto;if (showPhoto || showWatch || paintball?.marker.visible) {renderer.clearDepth();renderer.render(overlayScene, overlayCamera);}}
+      else {const showWatch = watch.update(dt), showPhoto = photo.active && !photo.gallery;photo.model.visible = showPhoto;if (showPhoto || showWatch || paintball?.marker.visible || prophunt?.marker?.visible) {renderer.clearDepth();renderer.render(overlayScene, overlayCamera);}}
     }
     renderer.autoClear = true;
     // Drunk: blur and a drifting double image.
@@ -25692,6 +26690,14 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
       else if (j.d < GRONLAND.maxDist * 1.6) notice(`Even's photo of Grønland kirke: ${{far: `come closer (within ${GRONLAND.maxDist} m)`, frame: 'aim at the tower', small: 'get the whole tower in, a bit bigger – go closer or zoom in', blocked: 'something is in the way'}[j.why] || 'try again'}.`, 5);
     }
   }
+  // Prop hunt (issue #124): a round's result and the match's, for the best scores, badges and a small reward.
+  function phEvents(list) {
+    for (const e of list) {
+      if (!e || typeof e !== 'object') continue;
+      if (e.round) badges.record('prophunt-round', {role: e.role, won: e.won, survived: e.survived, finds: e.finds, cleared: e.cleared});
+      if (e.over) {badges.record('prophunt-match', {won: e.won, pts: e.pts, bots: e.bots});earn(Math.min(150, 20 + e.pts * 5), `Prop hunt: ${e.pts} points${e.won ? ' – you won the match!' : ''}`);}
+    }
+  }
   // Badges that come from what you do: checked twice a second (the rest come from the best scores and saved states).
   let badgeT = 0, pbSeen = 0;
   function badgeTick(dt) {
@@ -25706,7 +26712,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     }
     badges.check();
   }
-  window.haarklousGame = {player, vehicles, cc, transit, get liftMenu() {return liftMenu;}, site, paintball, catacomb, groundAt, heli, plane, drone, watch, fire, stash, shops, gym, startClimb, openGymMenu, startBelay, get belay() {return belay;}, sculpture, oksen, weather, caravan, get skyd() {return skyd;}, get autoPlane() {return autoPlane;}, get jumpFlight() {return jumpFlight;}, boardAuto, boardCaravan, jump, get gp() {return gp;}, callGamePilot, handOver, CARAVAN_HOLD, applyWeather, wallet, get basket() {return basket;}, payAt, takeProduct, useItem, earn, openBag, takeBoost, get boost() {return boost;}, set boost(b) {boost = b;}, get mp() {return mp;}, sitDown, standUp, tryDrive, tryRide, openChat, startDrone, stopDrone, floorBelow, doors, mini, music, photo, map, world, apt, towers, walkWorld, route, landmarks, districts: DISTRICTS, get caseGame() {return caseGame;}, place, toggleDoor, enterVehicle, exitVehicle, startMinigame, startMission, drink, interact, findPrompt, renderFrame, begin, get fps() {return fpsAvg;}, kick: () => requestAnimationFrame(frame), get drunk() {return drunk;}, set drunk(v) {drunk = v;}, lic, licBegin, licEnd, get licTest() {return licTest;}, setStance, camera, scene};
+  window.haarklousGame = {player, vehicles, cc, transit, get prophunt() {return prophunt;}, get liftMenu() {return liftMenu;}, site, paintball, catacomb, groundAt, heli, plane, drone, watch, fire, stash, shops, gym, startClimb, openGymMenu, startBelay, get belay() {return belay;}, sculpture, oksen, weather, caravan, get skyd() {return skyd;}, get autoPlane() {return autoPlane;}, get jumpFlight() {return jumpFlight;}, boardAuto, boardCaravan, jump, get gp() {return gp;}, callGamePilot, handOver, CARAVAN_HOLD, applyWeather, wallet, get basket() {return basket;}, payAt, takeProduct, useItem, earn, openBag, takeBoost, get boost() {return boost;}, set boost(b) {boost = b;}, get mp() {return mp;}, sitDown, standUp, tryDrive, tryRide, openChat, startDrone, stopDrone, floorBelow, doors, mini, music, photo, map, world, apt, towers, walkWorld, route, landmarks, districts: DISTRICTS, get caseGame() {return caseGame;}, place, toggleDoor, enterVehicle, exitVehicle, startMinigame, startMission, drink, interact, findPrompt, renderFrame, begin, get fps() {return fpsAvg;}, kick: () => requestAnimationFrame(frame), get drunk() {return drunk;}, set drunk(v) {drunk = v;}, lic, licBegin, licEnd, get licTest() {return licTest;}, setStance, camera, scene};
   Object.assign(window.haarklousGame, {library, pingpong, rathkes, living, kayak, startKayak, hushedFor: () => hushed});
   Object.assign(window.haarklousGame, {badges, huntSpots, huntPhoto, sightBlocked, SKY_TARGET, progress, account});
   Object.assign(window.haarklousGame, {rides, get rentals() {return rentals;}, jobs, openPhone, rentDrive, JOB_SIGNS});

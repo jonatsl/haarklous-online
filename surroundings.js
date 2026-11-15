@@ -949,7 +949,7 @@
     }
 
     streets.release();
-    return {near, far, setImagery, setSun, setOvercast, get imageryState() {return imageryState;}, attribution: data.attribution, ground, heightWorld, toLocal, toWorld, terrainFloor, terrainFloors, obstacles, surfaceAt, trafficDistance, greenery, data, playHalf: PLAY_HALF, trees: allTrees,
+    return {near, far, setImagery, setSun, setOvercast, get imageryState() {return imageryState;}, attribution: data.attribution, ground, heightWorld, toLocal, toWorld, terrainFloor, terrainFloors, obstacles, surfaceAt, trafficDistance, greenery, data, playHalf: PLAY_HALF, trees: allTrees, propKit: {bushGeo, bushMat, crownGeo, leafMats, trunkGeo, barkMat, poleMat},
       districts: patches.map(P => P.d), get districtImagery() {return patches.map(P => P.nearImagery);}, update, buildGround, yLocal, yNatural, streets, geoNear, geoFar, looks: lookCount, city, facadeFill};
   }
   return {create, walkRects, openEdges, PLAY_HALF};
