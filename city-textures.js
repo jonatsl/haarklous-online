@@ -492,8 +492,8 @@
     function ground(mat) {
       mat.onBeforeCompile = sh => {
         Object.assign(sh.uniforms, groundU);
-        sh.vertexShader = 'varying vec2 vGround;varying float vSlope;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvGround = position.xz;vSlope = 1.0 - normalize(objectNormal).y;');
-        sh.fragmentShader = `uniform sampler2D uDetail;uniform float uPhoto;varying vec2 vGround;varying float vSlope;
+        sh.vertexShader = 'attribute vec4 aStreet;varying vec2 vGround;varying float vSlope;varying vec4 vStreet;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvGround = position.xz;vSlope = 1.0 - normalize(objectNormal).y;vStreet = aStreet;');
+        sh.fragmentShader = `uniform sampler2D uDetail;uniform float uPhoto;varying vec2 vGround;varying float vSlope;varying vec4 vStreet;
           float gHash(vec2 p){return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);}
           float gNoise(vec2 p){vec2 i = floor(p), f = fract(p);f = f * f * (3.0 - 2.0 * f);return mix(mix(gHash(i), gHash(i + vec2(1, 0)), f.x), mix(gHash(i + vec2(0, 1)), gHash(i + vec2(1, 1)), f.x), f.y);}
           vec3 gPerturb(vec3 pos, vec3 n, vec2 dh){vec3 sx = dFdx(pos), sy = dFdy(pos), r1 = cross(sy, n), r2 = cross(n, sx);float det = dot(sx, r1);vec3 g = sign(det) * (dh.x * r1 + dh.y * r2);return normalize(abs(det) * n - g);}
@@ -501,17 +501,30 @@
           .replace('#include <map_fragment>', `
             vec4 gTexel = texture2D(map, vMapUv);
             vec3 gMacro = gTexel.rgb;
+            // What the ground is (issue #112, road-surface.js): from the street geometry, exact at every distance. vStreet = (kind:
+            // 0 ground, 1 kerb face, 3 road with a white edge line; metres outside the nearest carriageway; metres outside the
+            // nearest pavement; 1 = granite slabs). The road, the 18 cm granite kerb top and its 12 cm face, the pavement.
+            float sKind = vStreet.x, sEd = vStreet.y, sPd = vStreet.z;
+            float aE = fwidth(sEd) * .6 + 1e-4, aP = fwidth(sPd) * .6 + 1e-4;
+            float kFace = 1.0 - step(.5, abs(sKind - 1.0)), kLine = 1.0 - step(.5, abs(sKind - 3.0));
+            float cRoad = (1.0 - smoothstep(-aE, aE, sEd)) * (1.0 - kFace);
+            float inPave = (1.0 - smoothstep(-aP, aP, sPd)) * (1.0 - cRoad) * (1.0 - kFace);
+            float cKerb = max(kFace, inPave * (1.0 - smoothstep(.18 - aE, .18 + aE, sEd)));
+            float cPave = inPave * (1.0 - cKerb), cOther = max(0.0, 1.0 - cRoad - cKerb - cPave);
+            float cLine = kLine * cRoad * smoothstep(-.35 - aE, -.35 + aE, sEd) * (1.0 - smoothstep(-.2 - aE, -.2 + aE, sEd));
+            // Street colours: the map's (or the photo's) tone where it agrees, the set colour where its blurry edge does not.
+            vec3 gs0 = sqrt(gMacro);float gLum0 = dot(gs0, vec3(.3, .59, .11)), gGrey = 1.0 - smoothstep(.03, .08, max(abs(gs0.r - gs0.g), abs(gs0.g - gs0.b)));
+            vec3 roadC = mix(vec3(.070, .074, .080), gMacro, .45 * gGrey * (1.0 - smoothstep(.36, .46, gLum0)));
+            vec3 paveC = mix(mix(vec3(.205, .21, .212), vec3(.40, .38, .34), vStreet.w), gMacro, .35 * gGrey * smoothstep(.3, .4, gLum0));
+            gMacro = gMacro * cOther + roadC * (cRoad - cLine) + vec3(.62) * cLine + vec3(.51, .49, .45) * cKerb + paveC * cPave;
             vec3 gs = sqrt(gMacro);
             float gLum = dot(gs, vec3(.3, .59, .11)), gGreen = gs.g - max(gs.r, gs.b), gWarm = gs.r - gs.b;
-            // What the texel is (issue #98, surroundings.js streetClasses): alpha 1 other ground, .85 pavement, .7 kerb, .55 road.
-            float cRoad = 1.0 - smoothstep(.6, .64, gTexel.a), cKerb = smoothstep(.6, .64, gTexel.a) * (1.0 - smoothstep(.75, .79, gTexel.a));
-            float cPave = smoothstep(.75, .79, gTexel.a) * (1.0 - smoothstep(.91, .95, gTexel.a)), cOther = 1.0 - cRoad - cKerb - cPave;
             float wGrass = cOther * smoothstep(.012, .055, gGreen);
             float wDirt = (cOther - wGrass) * smoothstep(.035, .1, gWarm);
             // Other grey ground: dark = asphalt, light = paving slabs in the map painting. The photo is brightened, so there grey is all
             // asphalt (its squares and yards look alike from the air; a slab pattern on asphalt would be worse than none on slabs).
             float wNeutral = cOther - wGrass - wDirt;
-            float gSlab = smoothstep(.5, .58, gLum);// a pavement is slabs where it is painted light (Grünerløkka), else asphalt
+            float gSlab = vStreet.w;// a pavement is granite slabs in Grünerløkka, Tøyen, Grønland, Kampen and Bjørvika, else asphalt
             float wAsph = wNeutral * mix(1.0 - smoothstep(.43, .56, gLum), 1.0, uPhoto) + cRoad + cPave * (1.0 - gSlab);
             float wPave = wNeutral * (1.0 - mix(1.0 - smoothstep(.43, .56, gLum), 1.0, uPhoto)) + cPave * gSlab;
             float gDist = length(vViewPosition), gNear = 1.0 - smoothstep(35.0, 140.0, gDist), gMid = 1.0 - smoothstep(120.0, 520.0, gDist);
@@ -543,7 +556,7 @@
             normal = gPerturb(-vViewPosition, normal, vec2(dFdx(gHeight), dFdy(gHeight)) * .045);`)
           .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = roughness - wAsph * .08 * gNear;');
       };
-      mat.customProgramCacheKey = () => 'city-ground-v2';
+      mat.customProgramCacheKey = () => 'city-ground-v3';
       return mat;
     }
     const bytes = {atlas: AW * AH * 4 * 4 / 3, normal: AW * AH / 4 * 4 * 4 / 3, ground: GS * GS * 4 * 4 / 3};

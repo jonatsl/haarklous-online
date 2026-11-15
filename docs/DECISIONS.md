@@ -49,6 +49,7 @@ On `main`:
 - Kiwi Storgata 33 at its real place in the city centre, with a hot-food counter; the regulars outside give small tasks (bottles for the deposit, a harmonica on the Opera roof, coffee and a hot dog, a note for Rolf at Schous plass, a photo of Grønland kirke), in Norwegian with English below; Sopp-Sigvald the mushroom wizard teaches four magic powers after mushroom hunts in Torshovdalen, along Akerselva, in the catacomb and at MUNCH: levitation, blink, a gust and a light orb (R1 / X, D-pad ← chooses, keys 1–4); saved with your progress (issue #65).
 - Licences for every vehicle, each won by a test with a theory part and a practical part (rings, the speed limit, no crash, park or land): førerkort B and A at Soria Moria Trafikkskole on Vogts gate (a school car and motorcycle, a test route on the real streets), class C, the machine certificate and the crane certificate at the site office, PPL(A) and PPL(H) at the airstrip, the drone certificate A1/A3 on the phone (free); a part you fail is free to take again; bikes, e-scooters, the kayak and riding along need none; saved with your progress (issue #59).
 - Streets you can read: dark asphalt roads, a light granite kerb, and asphalt or slab pavements by part of town, with or without the aerial photo (issue #98).
+- Flat, smooth streets with sharp edges: flat across, smooth along (still following the real hills), pavements on a real 12 cm granite kerb, a white edge line on big roads; what you see is what you drive and walk on (issue #112, not merged yet).
 - Ground with real detail up close (grass, asphalt, paving slabs, gravel, pavements and kerbs) with or without the aerial photo, and buildings that look like their part of town – Torshov brick and Harald Hals' plastered blocks, Grünerløkka's tenements with shop fronts, buff brick, wooden houses, new blocks – chosen from OpenStreetMap and Street View notes (issues #67 and #68, PR #81, not merged yet).
 - Friends (needs an account): add a friend by their player name, they accept or decline; see which friends are online and in which lobby; Join goes straight into a friend's lobby, Invite asks them into yours (a message in their game, Options then ✕ to come); "friends can join my lobby" can be turned off; pause menu → Friends (L1 / N), with a red count of new requests and invites (issue #115, PR #117, not merged yet).
 
@@ -56,6 +57,47 @@ Live site: runs `main` (Worker version f8651516, deployed 15 Nov 2026 after PRs 
 
 ## Log
 
+### 2026-11-15 · Flat streets with clear edges (issue #112)
+- **What:**
+  - Every car street is flat across its width and smooth along its length. It still climbs and falls with the real hill, but the bumps from the height grid are gone, so driving is calm. Where streets meet, the bigger street keeps its line and the smaller one bends to meet it, so junctions have no steps.
+  - Pavements stand 12 cm above the road. Between them there is a real granite kerb: an 18 cm light stone strip and a 12 cm vertical face. A car going over it bumps; you step up onto it when walking.
+  - The edges are sharp at every distance, with or without the aerial photo. The road is dark asphalt, the kerb light granite, the pavement asphalt or granite slabs by part of town. Big roads with no pavement (Ring 3, Trondheimsveien at Sinsen) have a white edge line.
+  - What you see is exactly what wheels and feet stand on: the ground you see is cut from the same surface the game uses for walking, driving and parking.
+  - Next to a street the ground goes back to the real terrain over a few metres. Buildings reach down to the new ground, so no gaps open under them.
+- **Why:** the user: "FIx the roads, make cleare boundaries of where the road goes along the edges. And make the road less rough (make it flat) - right now its very bumpy."
+- **Decisions (Claude's, say if you want them changed):**
+  - Kerb 12 cm high and 18 cm wide (typical Oslo granite kerb). Pavement widths as before (issue #67).
+  - The street's height along its length is the real ground smoothed over about 8 m. Real hills and crests stay; noise shorter than about 20 m goes.
+  - At a junction the street with the higher class (then the longer one) wins. A street with no pavement meets the ground beside it at the same level.
+  - Under a bridge (where the real ground drops more than about 1.5 m below the street line) the ground is not filled in; the bridge decks are as before.
+  - The district ground is now built when you come within 1 km instead of all at the start, so the start is not slower.
+- **Where:** `road-surface.js` (new: the streets, the ground surface and its mesh), `surroundings.js` (uses it for the ground, the ground tiles and building walls), `city-textures.js` (the ground shader draws road, kerb, pavement and edge line from the street geometry), `index.html`, `tools/road-roughness.cjs` (new: the measurements), `tests/roads.test.cjs` (new), `README.md`, `docs/HANDOFF.md`.
+- **Checked:**
+  - Eleven real streets in all five map patches, before (the raw height grids) → now, measured along the centre line at 1 m steps (`node tools/road-roughness.cjs`):
+
+    | Street (patch) | bumps, mm (RMS of 2nd difference) | cross-fall, % | car at 40 km/h, m/s² (RMS) |
+    |---|---|---|---|
+    | Vogts gate (Torshov, 354 m) | 9.5 → 2.3 | 1.38 → 0.06 | 2.32 → 0.72 |
+    | Sandakerveien (Torshov) | 9.6 → 0.8 | 1.93 → 0.02 | 1.19 → 0.31 |
+    | Agathe Grøndahls gate (Torshov) | 8.0 → 1.8 | 2.09 → 0.44 | 1.85 → 0.49 |
+    | Hegermanns gate (Torshov) | 7.4 → 1.7 | 1.94 → 0.18 | 1.28 → 0.61 |
+    | Trondheimsveien (Gamle Oslo) | 5.0 → 2.0 | 1.31 → 0.23 | 1.07 → 0.59 |
+    | Thorvald Meyers gate (Grünerløkka) | 1.7 → 0.8 | 2.66 → 0.09 | 0.52 → 0.36 |
+    | Grønlandsleiret (Gamle Oslo) | 4.0 → 0.8 | 2.40 → 0.03 | 1.49 → 0.15 |
+    | Økernveien (Gamle Oslo) | 19.1 → 1.4 | 5.36 → 0.12 | 6.16 → 0.41 |
+    | Sinsenveien (Sinsen / Løren) | 9.6 → 1.4 | 4.00 → 0.19 | 2.02 → 0.58 |
+    | Ulvenveien (Økern / Ulven) | 5.7 → 1.0 | 1.08 → 0.03 | 1.41 → 0.59 |
+    | Treschows gate (Myrens) | 4.4 → 1.9 | 0.75 → 0.08 | 1.92 → 1.26 |
+
+    At 60 km/h the car's vertical shaking is 0.07–2.0 m/s² RMS (was 0.9–10.8), and it no longer leaves the ground on Sinsenveien and Økernveien. The side-to-side rocking of the view (roll rate) is 0.2–1.8 °/s (was 1.6–20).
+  - Node tests 246/246 after merging `main` (4 new: limits for the sample streets, the 12 cm kerb on both sides, the drawn ground equals the ground you stand on within 5 mm, the real terrain away from streets).
+  - The parked vehicles (issue #113): of 6,253 kerb places, 6,021 are fully on the road beside the kerb and 14 have wheels on two levels (junction corners). In the browser in six places (Torshov ×2, Grünerløkka, Grønland, Sinsen, Ulven, 252 cars) the wheels are within 1–5 cm of the surface; 3 cars stand across a level change of 12 cm.
+  - Found and fixed on the way: 121 streets near the edge of the old square (Rødstuveien, Schouterrassen, Askergata …) were in the patches' data but not in the old square's, so they had no street surface; now they do.
+  - Drawing cost at the same ten camera spots, `main` → this branch (both with the parked vehicles): draw calls the same or +1 to +3 (the old square's ground is now eight tiles the camera can skip); triangles 2–7 % fewer in Torshov, Grünerløkka and Sinsen, 9–10 % more in Grønland, Ulven and Økern (kerb faces and cut pieces), +2 % on Trondheimsveien.
+  - Start-up on this (very busy, shared) PC: the ground's part took 9.6 s on `main` and 12.5 s here in one run each; the numbers jump a lot between runs, so it is not measured well. The district ground is no longer built at the start (only when you come within 1 km).
+  - Doors of the nine stair towers: the pavement outside is now 12 cm below to 6 cm above the threshold (was 7 cm below to 3.5 cm above).
+  - In the browser (headless Chrome): pictures at street level and from the driver's seat in Torshov, Grünerløkka, Grønland, Sinsen, Økern and on Trondheimsveien, before and after, with and without the aerial photo, and in dim evening light.
+- **Status:** [PR #121](https://github.com/jonatsl/haarklous-online/pull/121), not merged yet.
 ### 2026-11-15 · A lot more vehicles around the city (issue #113)
 - **What:**
   - About 7,500 more parked vehicles you can drive, in every part of the world (planned numbers; a few are left out in the game where it keeps a place free): Torshov 1,246, Sagene / Myrens 112, Grünerløkka 903, Tøyen / Kampen 612, Grønland and the centre 553, Ensjø 373, Sinsen / Løren 274, Økern / Ulven 538. About 6,250 stand by the kerb, 1,350 in real car parks, and taxis wait at the taxi ranks. That is 20 times the 367 cars of issue #105. Grünerløkka has fewer than you might expect because OpenStreetMap marks many of its kerbs as no parking, and its tram streets have none.
