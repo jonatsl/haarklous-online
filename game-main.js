@@ -46,6 +46,10 @@
   const DISTRICTS = window.District ? (window.DISTRICTS || []).map(d => window.District.decode(d)) : [];
   // Kiwi Storgata 33 (issue #65) is cut into its office building in the Gamle Oslo patch, like Joker and Kiwi in the old square.
   window.GameShops.applyDistrictNotches(DISTRICTS);
+  // Minigolf at the real courses (issue #114): Oslo Camping is cut into Fredshuset in the Møllergata patch; no map tree on a lane.
+  const MG_DATA = window.GameMinigolf && window.MINIGOLF && DISTRICTS.length ? window.MINIGOLF : null;if (MG_DATA) window.GameMinigolf.prepare(DISTRICTS, MG_DATA);
+  // The Møllergata patch (issue #114) came after the vehicles were placed: their plans use the patches they had, so no number changes.
+  const PLAN_DISTRICTS = DISTRICTS.filter(d => d.name !== 'mollergata');
   // Grünerløkka (issues #44, #45): Deichman Grünerløkka draws its own building, Rathkes gate 1 gets the passage to its
   // backyard, and Akerselva's bed is lowered along the river so its water shows in the ground grids.
   if (window.GameLibrary) window.GameLibrary.prepare(DISTRICTS);if (window.GameRathkes) window.GameRathkes.prepare(DISTRICTS, window.District && window.District.height);if (window.GameKayak && window.AKERSELVA) window.GameKayak.prepare(DISTRICTS, D);
@@ -77,7 +81,9 @@
     safeSpot: (x, z, y) => collision.findSafeSpawn(walkWorld, {x, z}, player.eye, {y, maxDistance: 3}),
     onBoard: () => {watch.hide();if (photo.active) photo.toggle();player.mode = 'transit';player.vehicle = null;setClip(.05, 450);},
     onLeave: (spot, yaw) => {player.mode = 'foot';if (spot) place(spot.x, spot.z, yaw, spot.y);else place(player.x, player.z, player.yaw, player.feet);updateDynamic();}}) : null;
-  const grl = [library, pingpong, rathkes, kayak, cc, transit].filter(Boolean);grl.forEach(m => {scene.add(m.group);m.group.updateMatrixWorld(true);});
+  const golfHooks = {};// filled in below, once the wallet, the menu and the lobby exist
+  const mgl = MG_DATA ? window.GameMinigolf.create({T, lib, world, audio, avatars: window.GameAvatars.create({T, lib}), root: view, data: MG_DATA, now: () => golfHooks.now ? golfHooks.now() : Date.now() / 1000, hooks: golfHooks}) : null;
+  const grl = [library, pingpong, rathkes, kayak, cc, transit, mgl].filter(Boolean);grl.forEach(m => {scene.add(m.group);m.group.updateMatrixWorld(true);});
   let hushed = 0;// seconds the librarian's shush keeps you walking
   const apt = window.GameApartment.build({T, lib, data: window.APARTMENT});scene.add(apt.group);
   // Stair towers: ours (model coordinates) and one in each enterable neighbouring building.
@@ -165,7 +171,7 @@
   }
   // Inside a catacomb mausoleum the ground is not walked on: its door threshold, landing and stair take over (far below = no floor).
   // Under Construction City, its entrance aprons and the top of its garage ramp the building's own floors take over too.
-  const floorsOver = ground => world.terrainFloors().map(f => ({...f, height: p => (catacomb && catacomb.cutsGround(p.x, p.z)) || (cc && cc.cutsGround(p.x, p.z)) || (transit && transit.cutsGround(p.x, p.z)) ? -1e4 : ground(p.x, p.z)}));
+  const floorsOver = ground => world.terrainFloors().map(f => ({...f, height: p => (catacomb && catacomb.cutsGround(p.x, p.z)) || (cc && cc.cutsGround(p.x, p.z)) || (transit && transit.cutsGround(p.x, p.z)) || (mgl && mgl.cutsGround(p.x, p.z)) ? -1e4 : ground(p.x, p.z)}));
   const groundFloors = floorsOver(groundAt), walkGroundFloors = floorsOver(terrainAt);// vehicles drive on the decks as ground
   // Oslo city bike docks (issue #57) at their real places, from the operator's open data: posts and a totem with the name.
   const rides = window.GameRentals && window.RIDES ? window.GameRentals.create({T, lib, audio, data: window.RIDES, toWorld: world.toWorld, heightAt: groundAt}) : null;
@@ -289,7 +295,7 @@
     const RV = rides.vehicles(VH);vehicles.push(...RV.bikes);
     const w = worldFor(.6), taken = vehicles.map(v => ({x: v.x, z: v.z, r: 4})).concat(rides.keepOut);
     const regions = [{count: 26, inside: (x, s) => Math.hypot(x, s) < 520}, {count: 22, inside: (x, s) => x > -1250 && x < -350 && s > 880 && s < 2000}];
-    const spots = window.GameRentals.scooterSpots({roads: [...D.roads, ...DISTRICTS.flatMap(d => d.roads)], regions, ok: (x, s) => {
+    const spots = window.GameRentals.scooterSpots({roads: [...D.roads, ...PLAN_DISTRICTS.flatMap(d => d.roads)], regions, ok: (x, s) => {
       const p = toWorld(x, s);if (taken.some(k => Math.hypot(k.x - p.x, k.z - p.z) < k.r)) return false;
       const y = heightAt(p.x, p.z);return collision.canStand(w, p, 1.4, y) && collision.canStand(w, {x: p.x + .5, z: p.z}, 1.4, y) && collision.canStand(w, {x: p.x - .5, z: p.z}, 1.4, y);}});
     vehicles.push(...RV.placeScooters(spots));
@@ -311,12 +317,12 @@
   // After every older vehicle, so their numbers stay the same online; seeded and checked the same way on every computer.
   const cityCars = [];
   if (window.GameCityCars) {
-    const w = worldFor(1.25), areas = [...D.areas, ...DISTRICTS.flatMap(d => d.areas)], local = v => world.toLocal(v.x, v.z);
+    const w = worldFor(1.25), areas = [...D.areas, ...PLAN_DISTRICTS.flatMap(d => d.areas)], local = v => world.toLocal(v.x, v.z);
     // Keep free: the old street cars' part of town, every vehicle that is there already, the docks, and the driving test's route.
     const clear = [{x: 0, s: 0, r: 300}, ...vehicles.map(v => ({...local(v), r: 9})), ...(rides ? rides.keepOut.map(k => ({...local(k), r: k.r + 3})) : [])];
     {const g = [GL.COURSES.road.start, ...GL.COURSES.road.gates.map(q => q.p)];for (let i = 0; i + 1 < g.length; i++) {const n = Math.ceil(Math.hypot(g[i + 1][0] - g[i][0], g[i + 1][1] - g[i][1]) / 5);for (let k = 0; k <= n; k++) clear.push({x: g[i][0] + (g[i + 1][0] - g[i][0]) * k / n, s: g[i][1] + (g[i + 1][1] - g[i][1]) * k / n, r: 8});}}
-    const spots = window.GameCityCars.plan({roads: [...D.roads, ...DISTRICTS.flatMap(d => d.roads)], lots: areas.filter(a => a.k === 'parking').map(a => a.o),
-      water: [...areas.filter(a => a.k === 'water').map(a => a.o), ...DISTRICTS.flatMap(d => d.sea)], rects: window.Surroundings.walkRects(D.terrain.half, world.playHalf, DISTRICTS), clear,
+    const spots = window.GameCityCars.plan({roads: [...D.roads, ...PLAN_DISTRICTS.flatMap(d => d.roads)], lots: areas.filter(a => a.k === 'parking').map(a => a.o),
+      water: [...areas.filter(a => a.k === 'water').map(a => a.o), ...PLAN_DISTRICTS.flatMap(d => d.sea)], rects: window.Surroundings.walkRects(D.terrain.half, world.playHalf, PLAN_DISTRICTS), clear,
       ok: c => {
         const p = toWorld(c.x, c.s), h = heightAt(p.x, p.z), yaw = localHeadingToYaw(c.heading), f = {x: -Math.sin(yaw), z: -Math.cos(yaw)};c.at = p;c.yaw = yaw;
         if (cc && cc.cutsGround(p.x, p.z)) return false;
@@ -342,7 +348,7 @@
     // Left out: the ones on the helicopter pad, the firepit, the skydivers' target, a bike dock, a job or licence sign, the driving
     // test's route, the airstrip, or a vehicle that is there already.
     const clear = [lp(AIR.heli.x, AIR.heli.z, 16), lp(FIRE_POS.x, FIRE_POS.z, 10), lp(SKY_TARGET.x, SKY_TARGET.z, 14), ...(rides ? rides.keepOut.map(k => lp(k.x, k.z, k.r + 2)) : []),
-      ...JOB_SIGNS.map(j => lp(j.x, j.z, 3)), ...Object.values(LIC_SIGNS).map(j => lp(j.x, j.z, 3))];
+      ...JOB_SIGNS.map(j => lp(j.x, j.z, 3)), ...Object.values(LIC_SIGNS).map(j => lp(j.x, j.z, 3)), ...(mgl ? mgl.keepClear().map(k => lp(k.x, k.z, k.r)) : [])];// minigolf lanes, gates, kiosks, the bar's door (issue #114)
     const course = [GL.COURSES.road.start, ...GL.COURSES.road.gates.map(q => q.p)], lines = course.slice(1).map((q, i) => ({p: [...course[i], ...q], r: 8}));
     {const a = local(AIR.plane.x, AIR.plane.z), b = local(AIR.plane.x - Math.sin(AIR.plane.yaw) * 300, AIR.plane.z - Math.cos(AIR.plane.yaw) * 300);lines.push({p: [a.x, a.s, b.x, b.s], r: 20});}
     const taken = vehicles.flatMap(v => [].concat(v.footprint())).filter(f => f.points.length === 4).map(f => f.points.flatMap(q => {const l = local(q.x, q.z);return [l.x, l.s];}));
@@ -607,6 +613,7 @@
       if (canRide && !pas) return {text: `□ Ride along with ${driverName(i)} (${v.kind === 'motorcycle' ? 'pillion' : 'passenger'})`, act: () => tryRide(v)};
       return {text: `${driverName(i)} is ${v.aircraft ? 'flying' : 'driving'} the ${v.name}`, act: () => {}};
     }
+    {const t = mgl && mgl.prompt({x: player.x, z: player.z, y: player.feet}, lookTarget());if (t) return t;}
     {const b = fleet && player.mode === 'foot' ? fleet.lockedNear(player) : null;if (b) return {text: `🔒 Someone's ${b.name} – locked`, act: () => notice(`The ${b.name} is locked. City bikes and e-scooters are for hire.`, 3)};}
     for (const g of [...discCourses, mini.petanque, ...(pingpong ? [pingpong] : [])]) {const t = g.near({x: player.x, z: player.z, y: player.feet});if (t) return {text: t, act: () => startMinigame(g)};}
     const o = lookTarget();
@@ -1159,6 +1166,7 @@
     if (cc) cc.tick(camera, player);
     if (kayak) kayak.tick(dt);
     if (rathkes) rathkes.tick(camera);
+    if (mgl) mgl.tick(dt, camera, player);
     for (const r of remoteKayaks) if (!mp.remotes.has(r.id)) {scene.remove(r.kayak);remoteKayaks.delete(r);}
     hushed = Math.max(0, hushed - dt);
     if (!library) return;
@@ -1173,7 +1181,7 @@
   if (pingpong) {pingpong.onWin = () => earn(60, 'You beat Ola at table tennis');pingpong.onEnd = won => badges.record('pingpong', {won});}
 
   // ---------- Minigames and mission start ----------
-  function startMinigame(g) {const s = g.start({x: player.x, z: player.z, y: player.feet});player.mode = 'minigame';player.minigame = g;if (s) place(s.x, s.z, s.yaw);}
+  function startMinigame(g) {const s = g.start({x: player.x, z: player.z, y: player.feet});player.mode = 'minigame';player.minigame = g;if (s) place(s.x, s.z, s.yaw, s.y);}
   function startMission() {
     if (!caseGame) return;if (photo.active) photo.toggle();
     caseGame.start(false);notice('');
@@ -1234,7 +1242,7 @@
     const np = music.position();$('nowPlaying').textContent = np ? `${np.title} (${Math.floor(np.length / 60)}:${String(Math.round(np.length % 60)).padStart(2, '0')} loop)` : '–';
   }
   $('musicVol').oninput = e => {music.setVolume(+e.target.value);renderSettings();};
-  function musicTrack() {if (caseGame?.active) return 'mission';if (catacomb?.state.inside) return null;if (player.mode === 'minigame') return player.minigame.music || (discCourses.includes(player.minigame) ? 'discgolf' : 'petanque');return 'main';}
+  function musicTrack() {if (caseGame?.active) return 'mission';if (catacomb?.state.inside) return null;if (mgl && player.mode === 'foot' && mgl.inside(player.x, player.z, player.feet)) return 'minigolf';if (player.mode === 'minigame') return player.minigame.music || (discCourses.includes(player.minigame) ? 'discgolf' : 'petanque');return 'main';}
   $('sensPad').oninput = e => {setSens('pad', +e.target.value);renderSettings();};$('sensMouse').oninput = e => {setSens('mouse', +e.target.value);renderSettings();};
   $('minimapOn').onchange = e => {map.minimap = e.target.checked;};
   $('imagery').onchange = e => {try {localStorage.setItem('haarklous-aerial-imagery-v1', e.target.checked ? 'on' : 'off');} catch {}world.setImagery(e.target.checked);};
@@ -1392,7 +1400,7 @@
     const alt = player.mode === 'drone' || player.mode === 'skydive' || player.vehicle?.aircraft ? camera.position.y - groundAt(at.x, at.z) : 0;
     if (map.guide({dt, camera, x: at.x, z: at.z, you: player, heading, view, alt, others: lobbyArrows(), ground: groundAt, show: !photo.active}) === 'reached') notice('Waypoint reached.', 2.5);
   }
-  function placeName() {if (inApartment()) return 'Haarklous plass 17A, 4th floor';{const at = homes && homes.inside(player.x, player.z, player.feet);if (at) return `${GH.address(at.home)}${homeReg.mine === at.home.id ? ' – your flat' : ''}`;}{const r = rathkes && rathkes.placeName(player.x, player.z, player.feet);if (r) return r;}{const c = cc && cc.placeName(player.x, player.z, player.feet);if (c) return c;}{const c = catacomb && catacomb.placeName(player);if (c) return c;}{const z = gym.zoneAt(player, player.feet);if (z) return `Klatreverket Torshov, ${gym.ZONE_NAME[z]}`;}const tw = towerAt(player.x, player.z, player.feet);if (tw) return tw.t.own ? 'Stairwell, Haarklous plass 17A' : 'Stairwell, Torshov';
+  function placeName() {if (inApartment()) return 'Haarklous plass 17A, 4th floor';{const g = mgl && mgl.placeName(player.x, player.z, player.feet);if (g) return g;}{const at = homes && homes.inside(player.x, player.z, player.feet);if (at) return `${GH.address(at.home)}${homeReg.mine === at.home.id ? ' – your flat' : ''}`;}{const r = rathkes && rathkes.placeName(player.x, player.z, player.feet);if (r) return r;}{const c = cc && cc.placeName(player.x, player.z, player.feet);if (c) return c;}{const c = catacomb && catacomb.placeName(player);if (c) return c;}{const z = gym.zoneAt(player, player.feet);if (z) return `Klatreverket Torshov, ${gym.ZONE_NAME[z]}`;}const tw = towerAt(player.x, player.z, player.feet);if (tw) return tw.t.own ? 'Stairwell, Haarklous plass 17A' : 'Stairwell, Torshov';
     if (storgata && Math.hypot(player.x - storgata.people.kjell.at.x, player.z - storgata.people.kjell.at.z) < 60) return 'Kiwi Storgata 33, Oslo';
     // In a district patch: the nearest mapped neighbourhood (Ensjø, Kampen, Vålerenga, Gamlebyen …).
     const l = world.toLocal(player.x, player.z);if (Math.abs(l.x) > world.playHalf || Math.abs(l.s) > world.playHalf) {const near = DISTRICTS.flatMap(d => d.places).sort((a, b) => Math.hypot(a.x - l.x, a.s - l.s) - Math.hypot(b.x - l.x, b.s - l.s))[0];if (near) return `${near.name}, Oslo`;}
@@ -1825,6 +1833,8 @@
     if (player.mode === 'kayak' && kayak && kayak.pose) {const k = kayak.pose;s.st = 'sit';s.p = [r(k.x), r(k.y + .28), r(k.z)];s.y = r(k.yaw);s.ky = [r(k.x), r(k.y), r(k.z), r(k.yaw)];}
     if (player.running) s.rn = 1;
     if (magic.orb) s.mg = 1;// the light orb (issue #65): others see it by your shoulder
+    // Minigolf (issue #114): which course and hole, and where your ball is, so others see it on the lane.
+    if (player.mode === 'minigame' && player.minigame && player.minigame.net) {const g = player.minigame.net();if (g) s.golf = g;}
     // Skydiving: a jump seat in the flown Caravan (a vehicle seat 'j0'..'j11'), in the scheduled flight (ja), or in the air.
     if (player.mode === 'jumpseat' && skyd.ride) {if (skyd.ride.auto) s.ja = skyd.ride.seat;else {s.v = vehicles.indexOf(caravan);s.s = 'j' + skyd.ride.seat;}}
     if (player.mode === 'skydive' && skyd.jumper) {const J = skyd.jumper;s.p = [r(J.pos.x), r(J.pos.y), r(J.pos.z)];s.y = r(J.yaw);s.sky = J.state === 'freefall' ? 'f' : 'c';if (J.pose.pitch || J.pose.roll) s.sk = [r(J.pose.pitch), r(J.pose.roll)];}
@@ -2068,7 +2078,7 @@
     // Joining a lobby: alone in a lobby that has nothing stored, what you did offline is sent up; otherwise the lobby's state wins.
     resetObjs: m => {if (!living) return;if (m.players.length <= 1 && !Object.keys(m.objs || {}).length) living.publish();else living.reset();},
     onRemoteWood: r => fire.throwLog({x: r.pos.x, y: r.pos.y + 1.3, z: r.pos.z}), holdsMarker: id => !!paintball && paintball.rules.memberPlaying(id),
-    autoAnchor: seat => autoPlane.hipAnchor('j' + seat), skyPose: (r, st, g) => {skyPose(r, st, g);kayakPose(r, st, g);orbPose(r, st, g);if (transit) transit.pose(r, st, g);},
+    autoAnchor: seat => autoPlane.hipAnchor('j' + seat), skyPose: (r, st, g) => {skyPose(r, st, g);kayakPose(r, st, g);orbPose(r, st, g);if (transit) transit.pose(r, st, g);golfPose(r, st);},
     // In a paintball game you see your team-mates' names, not your opponents' (issue #25).
     showTag: id => !paintball || !paintball.rules.inGame() || !paintball.rules.memberPlaying(id) || paintball.rules.teamOfMember(id) === paintball.rules.myTeam()});
   // Flat 501's living room (issue #116): its record player, TV, lava lamp and chairs are shared through the lobby.
@@ -2091,7 +2101,7 @@
     const release = !holding && (g.charge || 0) > 0, power = g.charge || 0;if (release) g.charge = 0;
     const r = g.update(dt * worldScale(), {aimYaw: player.yaw + (dl ? Math.sin(performance.now() / 600) * .05 * dl : 0), aimPitch: player.pitch, charge: g.charge || 0, power, release, alt: input.l2 > .5, hyzer: input.move.x, cancel: input.pressed.has('circle'), drunk: dl, at: {x: player.x, z: player.z, y: player.feet}, skip: walking && input.pressed.has('square')}, camera) || {};
     if (r.walk) {input.pressed.delete('square');input.pressed.delete('circle');updateFoot(dt, input, dl);return;}
-    if (r.teleport) place(r.teleport.x, r.teleport.z, r.teleport.yaw);
+    if (r.teleport) place(r.teleport.x, r.teleport.z, r.teleport.yaw, r.teleport.y);// y: a floor over the ground (Oslo Camping, issue #114)
     if (r.stand) {player.x = r.stand.x;player.z = r.stand.z;player.feet = r.stand.y ?? heightAt(player.x, player.z);}
     if (r.face !== undefined) {player.yaw = r.face;player.pitch = -.12;}
     if (r.done) {notice(r.done, 6);player.mode = 'foot';player.minigame = null;}
@@ -2121,13 +2131,14 @@
   }
   let weatherIndoor = false;
   function updateAmbience() {
-    const inApt = inFlat(), tw = towerAt(player.x, player.z, player.feet), under = catacomb?.state.depth > .3, r501 = rathkes && rathkes.inside(player.x, player.z, player.feet), homeAt = homes && homes.inside(player.x, player.z, player.feet), indoor = inApt || tw || under || r501 || homeAt || shops.shopAt(player, player.feet) || (library && library.inside(player.x, player.z, player.feet)) || gym.zoneAt(player, player.feet) || (cc && cc.indoor(player.x, player.z, player.feet)) ? 1 : player.mode === 'jumpseat' ? .6 : player.mode === 'transit' || (transit && transit.deep) ? .8 : player.vehicle && player.vehicle.kind === 'car' ? .7 : player.vehicle && player.vehicle.aircraft ? .4 : 0;
+    const golfIn = mgl && mgl.inside(player.x, player.z, player.feet);
+    const inApt = inFlat(), tw = towerAt(player.x, player.z, player.feet), under = catacomb?.state.depth > .3, r501 = rathkes && rathkes.inside(player.x, player.z, player.feet), homeAt = homes && homes.inside(player.x, player.z, player.feet), indoor = inApt || tw || under || r501 || homeAt || golfIn || shops.shopAt(player, player.feet) || (library && library.inside(player.x, player.z, player.feet)) || gym.zoneAt(player, player.feet) || (cc && cc.indoor(player.x, player.z, player.feet)) ? 1 : player.mode === 'jumpseat' ? .6 : player.mode === 'transit' || (transit && transit.deep) ? .8 : player.vehicle && player.vehicle.kind === 'car' ? .7 : player.vehicle && player.vehicle.aircraft ? .4 : 0;
     weatherIndoor = indoor >= 1 && player.mode !== 'drone';
     const skyAir = player.mode === 'skydive' && skyd.jumper ? Math.hypot(skyd.jumper.vel.x, skyd.jumper.vel.y, skyd.jumper.vel.z) : 0;const ws = weather.state, wet = ws && ['rain', 'sleet', 'snow'].includes(ws.kind) ? ws.intensity : 0;
     audio.ambience({indoor, rain: ws && ws.kind === 'rain' ? wet : ws && ws.kind === 'sleet' ? wet * .6 : 0, windSpeed: Math.max(ws ? ws.wind : 4, skyAir), green: world.greenery(player.x, player.z), traffic: world.trafficDistance(player.x, player.z), height: Math.max(0, player.feet - heightAt(player.x, player.z)) + (inApt ? 10 : 0), stair: Boolean(tw) || under || (r501 && r501.place === 'stair'), kitchen: inApt && roomAt() === 'kitchen'});
     // Stair-tower light follows the player into whichever stairwell they are in.
     // Rathkes gate 1C (issue #72): the same lamp lights the room or stair landing of flat 501 you are in.
-    const rl = !tw && r501 ? rathkes.lampAt(player.x, player.z, player.feet) : !tw && homeAt ? (l => l && {...l, reach: l.distance})(homes.lampAt(player.x, player.z, player.feet)) : null;
+    const rl = !tw && r501 ? rathkes.lampAt(player.x, player.z, player.feet) : !tw && homeAt ? (l => l && {...l, reach: l.distance})(homes.lampAt(player.x, player.z, player.feet)) : !tw && golfIn ? mgl.lampAt(player.x, player.z, player.feet) : null;
     if (tw) {const l = tw.t.stair.lampAt({x: tw.l.x, z: tw.l.z}, player.feet - tw.t.matrix.elements[13]);if (l) {const p = new T.Vector3(l.x, l.y, l.z).applyMatrix4(tw.t.matrix);towerLamp.position.copy(p);towerLamp.intensity = 5.5;towerLamp.distance = 7;}} else if (rl) {towerLamp.position.set(rl.x, rl.y, rl.z);towerLamp.intensity = rl.power;towerLamp.distance = rl.reach;} else towerLamp.intensity = 0;
     if (!['vehicle', 'passenger', 'jumpseat', 'skydive', 'kayak'].includes(player.mode)) $('speedo').hidden = true;
     const dl = drunkLevel();$('drunk').hidden = !dl;if (dl) $('drunk').textContent = `Drunk · ${Math.ceil(drunk)} s`;
@@ -2137,7 +2148,7 @@
   const ghost = $('ghost'), gctx = ghost.getContext('2d');
   function renderFrame(dt, t, forPhoto = false) {
     // Sun shadow frustum follows the player (wide outdoors, tight indoors for crisp shadows).
-    const flying = player.mode === 'drone' || player.vehicle?.aircraft, indoor = !flying && (inApartment() || towerAt(player.x, player.z, player.feet) || !!(homes && homes.inside(player.x, player.z, player.feet)) || !!gym.zoneAt(player, player.feet) || catacomb?.state.inside || !!(rathkes && rathkes.inside(player.x, player.z, player.feet))), reach = indoor ? 16 : 42;
+    const flying = player.mode === 'drone' || player.vehicle?.aircraft, indoor = !flying && (inApartment() || towerAt(player.x, player.z, player.feet) || !!(mgl && mgl.inside(player.x, player.z, player.feet)) || !!(homes && homes.inside(player.x, player.z, player.feet)) || !!gym.zoneAt(player, player.feet) || catacomb?.state.inside || !!(rathkes && rathkes.inside(player.x, player.z, player.feet))), reach = indoor ? 16 : 42;
     if (flying) {const c = camera.position;sun.target.position.set(c.x, Math.max(heightAt(c.x, c.z), c.y - 25), c.z);} else sun.target.position.set(player.x, player.feet, player.z);sun.position.copy(sun.target.position).addScaledVector(sunDir, indoor ? 45 : 110);sun.target.updateMatrixWorld();
     if (sun.shadow.camera.right !== reach) {Object.assign(sun.shadow.camera, {left: -reach, right: reach, top: reach, bottom: -reach, near: 1, far: indoor ? 100 : 240});sun.shadow.camera.updateProjectionMatrix();}
     camera.updateMatrixWorld();
@@ -2339,6 +2350,12 @@
   }
   // Other players' light orbs: a small glowing ball by their shoulder (no light, to keep the light count fixed).
   const remoteOrbMat = new T.MeshBasicMaterial({color: 0xfff1c8});
+  // Other players' minigolf balls (issue #114).
+  function golfPose(r, st) {
+    if (!mgl) return;
+    if (st.golf && !r.golfBall) {r.golfBall = mgl.remoteBall();scene.add(r.golfBall);}
+    if (r.golfBall) {r.golfBall.visible = !!st.golf && r.seen !== false;if (r.golfBall.visible) r.golfBall.position.set(st.golf[2], st.golf[3], st.golf[4]);}
+  }
   function orbPose(r, st) {
     if (st.mg && !r.orb) {r.orb = new T.Mesh(new T.SphereGeometry(.09, 12, 8), remoteOrbMat);r.orb.name = 'Remote light orb';scene.add(r.orb);}
     if (r.orb) {r.orb.visible = !!st.mg && r.seen !== false;if (r.orb.visible) r.orb.position.set(r.pos.x + Math.cos(r.yaw) * .55, r.pos.y + 1.85 + Math.sin(performance.now() / 500) * .05, r.pos.z - Math.sin(r.yaw) * .55);}
@@ -2412,6 +2429,13 @@
   Object.assign(window.haarklousGame, {licences: lic, licBegin, licVehicle, openLicPlace, openLicPhone, schoolCar, schoolBike, LIC_SIGNS});
   Object.defineProperty(window.haarklousGame, 'licTest', {get: () => licTest});
   Object.assign(window.haarklousGame, {cityCars, fleet, friends});
+  // Minigolf (issue #114): paying, the bar's drinks (the same drunk effect as a beer), records and badges, the shared clock.
+  if (mgl) {
+    Object.assign(golfHooks, {pay: v => {const ok = wallet.pay(v);if (ok) walletT = 6;return ok;}, money: () => wallet.money, earn, notice, menu: lic.menu, drunk: () => drunk, start: g => startMinigame(g),
+      now: () => (mp && mp.net ? mp.net.serverNow() : Date.now()) / 1000, onEvent: (kind, d) => badges.record(kind, d).best,
+      drink: it => {audio.sfx(it.group ? 'bottleOpen' : 'click');audio.sfx('gulp');if (it.drunk > 0) {drunk += it.drunk;beerT = 20;} else drunk = Math.max(0, drunk + it.drunk);notice(`${it.name}${it.drunk > 0 ? ` (+${it.drunk} s drunk)` : it.drunk < 0 ? ` (${it.drunk} s drunk)` : ''}`, 3);}});
+    Object.assign(window.haarklousGame, {minigolf: mgl});
+  }
   Object.assign(window.haarklousGame, {homes, homeReg, openHomeMenu, buyHome, sellHome, homeRefresh, homeDoorPrompt, homePlatePrompt});
   Object.assign(window.haarklousGame, {storgata, magic, magicFxApi: fx, castPower, GRONLAND, storgataAct, questWaypoint, collision});
   loading.remove();$('start').hidden = false;

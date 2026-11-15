@@ -10,6 +10,7 @@ Haarklous online is a first-person open-world game that runs in your web browser
 - You can walk, drive, ride, paddle and fly. There are cars, motorcycles, bikes, e-scooters, a kayak, aircraft and a drone.
 - Thousands of parked cars, vans, taxis, lorries and motorcycles line the streets and fill the car parks, and you can drive them.
 - There are minigames, jobs, shops, a mission and badges. You find out how each one works in the game.
+- You can play minigolf where the real courses are: Torshov, Grünerløkka, Jordal park and the minigolf bar Oslo Camping in Møllergata. Aim with the right stick or the mouse, hold R2 or the left mouse button and let go to putt.
 - Trams, buses and the metro run on Ruter's real lines, about as often as the real ones. Every stop has a timetable (□ / E), and you can ride.
 - With the money you earn you can buy a flat. It is yours alone: nobody else can own it or unlock its door.
 - In the flat in Rathkes gate 1C you can play records, watch TV from the sofa, move the chairs and turn on the lava lamp.

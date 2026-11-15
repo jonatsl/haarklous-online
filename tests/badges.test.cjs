@@ -49,7 +49,7 @@ test('best scores: holes in one, rounds, wins, the mission time and the closest 
 test('badges come from the best scores and the other saved states', () => {
   const none = {records: {}, gym: {}, kayak: {}, route: {}, got: {}};
   assert.deepEqual(B.BADGES.filter(b => b.test(none)).map(b => b.id), []);
-  const all = {records: {aces: 1, mission: {done: 1}, disc: {'Muselunden DiscGolfPark': {holes: 12}}, petanque: {won: 1}, paintball: {won: 1}, skydive: {best: 9.5},
+  const all = {records: {aces: 1, golfAces: 1, minigolf: {'Oslo Camping': {rounds: 1, best: 40, par: 40}}, mission: {done: 1}, disc: {'Muselunden DiscGolfPark': {holes: 12}}, petanque: {won: 1}, paintball: {won: 1}, skydive: {best: 9.5},
     pingpong: {won: 1}, marks: {catacomb: 1, moby: 1, fire: 1, airborne: 1, inner: 1}},
     gym: {ticks: {a: 'flash'}, brattkort: true}, kayak: {0: 400}, route: {best: 600}, got: Object.fromEntries(B.SPOTS.map(s => [s.id, {}])),
     lic: {have: Object.fromEntries(['B', 'A', 'C', 'M', 'G', 'PPLA', 'PPLH', 'A1A3'].map(id => [id, '2026-11-03']))},
