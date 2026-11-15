@@ -19,7 +19,7 @@ On `main`:
 - Your 4th-floor apartment (your kitchen + bedroom design) and stairwell; the street door and stairs work without the mission; eight neighbouring stairwells.
 - Flats you can buy: the 64 flats in the eight neighbouring stairwells are for sale (4 600–11 100 kr); each is a real flat you walk into, with windows to the street and the courtyard; a bought flat has one owner – your name on the door, only you unlock it, it is on your map and saved with your account; one flat each, sell for 80 % (issue #106).
 - Walking (2.5 m/s), running (6 m/s), crouch (tap ○), prone (hold ○), jump (✕); PS4 controller (USB / Bluetooth) plus keyboard and mouse; look sensitivity setting.
-- Vehicles: Honda CBF600S motorcycle and 7 more motorcycles, 30 cars near home and 367 more parked all over the city – by the kerb and in car parks, in every part of town (issue #105), and about 7,500 more parked cars, vans, SUVs, taxis, lorries and motorcycles in every street and car park, all drivable, plus bicycles and mopeds at the bike racks (issue #113, PR #119, not merged yet), excavator, helicopter, two-seat plane, Caravan jump plane; hands on bars / wheel / sticks.
+- Vehicles: Honda CBF600S motorcycle and 7 more motorcycles, 30 cars near home and 367 more parked all over the city – by the kerb and in car parks, in every part of town (issue #105), and about 7,500 more parked cars, vans, SUVs, taxis, lorries and motorcycles in every street and car park, all drivable, plus bicycles and mopeds at the bike racks (issue #113, PR #119, not merged yet), excavator, eleven helicopters (one by Haarklous plass and ten on helipads in parks all over the city, each marked H on the map, issue #126), two-seat plane, Caravan jump plane; hands on bars / wheel / sticks.
 - Cars and motorcycles follow gravity (9.81 m/s²) and fly over crests and bumps taken fast (PR #5).
 - FPV drone (hold △), photo camera with gallery (tap △), wristwatch (D-pad ↑), map (touchpad).
 - A waypoint you set on the map (✕ or a click) and a purple pin on screen that leads you there until you are within 7 m (issue #41); an optional round minimap in the bottom-left corner like GTA IV's, turned on in the pause menu (issue #42).
@@ -62,6 +62,21 @@ On `main`:
 Live site: runs `main` (Worker version c4f59555, deployed 15 Nov 2026 after PR #125; `main` builds byte-for-byte to the live page), so everything above is online. Account emails (issue #55) wait for the user's Brevo key.
 
 ## Log
+
+### 2026-11-15 · Ten more helicopters around the map, marked on the map (issue #126)
+- **What:**
+  - Ten more Airbus H125 helicopters, each on its own painted helipad (a white H in a yellow ring) in a park or on a big lawn: Torshov north, Sagene, Refstad, Økern north, Ulven, Sofienberg, Tøyen, Jordal, Etterstad and Gamlebyen. With the one by Haarklous plass there are now eleven.
+  - They fly like the old one (the same model and controls, PPL(H) needed). After a crash a helicopter goes back to its own pad.
+  - The map marks every new helicopter with a blue **H** labelled *Helicopter*, at the place where it is now (so one somebody flew away and parked is shown where it stands). The map's legend says so. The old pad by Haarklous plass keeps its *Helipad* mark.
+  - Online: everybody in a lobby gets the same helicopters on the same pads.
+- **Why:** the user (15 Nov 2026): "Place more helicopters (like 10) around the map. Mark where they are on the map".
+- **Decisions (Claude's, say if you want them changed):**
+  - Ten, one in each part of town, at least 400 m from each other and from Haarklous plass.
+  - A pad must be on grass or a pitch at least 8 m in from its edge, out of water, not in a bus or tram lane, flat (under 0.7 m up or down 6 m out) and with nothing within 7 m up to 4 m high (so the 4.6 m rotor is clear of buildings, trees and lamp posts). The game looks outwards from each chosen place until it finds such a spot; seven stand exactly on the chosen place, two within 16 m of it and one (Økern north) 44 m away.
+  - The parked cars, scooters and bikes keep off the new pads. The helicopters come after every older vehicle in the list, so the older vehicle numbers online stay the same.
+- **Where:** `game-helipads.js` (new: the ten places, the search, the pad picture), `game-main.js` (pads, helicopters, kept-free circles, map marks, `haarklousGame.helis`), `game-map.js` + `style.css` (legend), `index.html`, `tests/helipads.test.cjs` (new), `docs/HANDOFF.md`.
+- **Checked:** Node: 284 tests pass (3 new: the ten places spread out; on the real map every place gets a pad on grass, out of water; the game's check and kept-free circles move a pad, and the result is the same every time). In headless Chrome on the built file: all ten helicopters and pads are there, standing on the ground (vehicle numbers 8148–8157); pictures at Torshov north, Ulven, Tøyen and Gamlebyen; the map shows the H marks (Sofienberg and Tøyen in the picture); got into the Tøyen helicopter, climbed to 32 m and landed again without a crash. Not checked: a real controller, the frame rate on the user's PC, two players online.
+- **Status:** PR #128, on `main` and live (15 Nov 2026).
 
 ### 2026-11-15 · Prop hunt: hide and seek as things in the map (issue #124)
 - **What:**

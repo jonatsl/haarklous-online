@@ -293,11 +293,36 @@
   // Skydiving (issue #22): the Cessna 208 Caravan jump plane beside the airstrip, flown by a player with up to 12 jumpers.
   AIR.jump = {x: -107.6, z: -16.7, yaw: .5236};
   const caravan = new AC.JumpPlane(AIR.jump.x, AIR.jump.z, AIR.jump.yaw);vehicles.push(caravan);
+  // Ten more helicopters on helipads in parks all over the city (issue #126). The pads are planned here, so the parked cars,
+  // scooters and bikes below keep off them; the helicopters themselves come after every older vehicle (their numbers stay).
+  const HELIPADS = (() => {
+    if (!window.GameHelipads) return [];
+    const areas = [...D.areas, ...PLAN_DISTRICTS.flatMap(d => d.areas)], wR = worldFor(7), local = (x, z) => world.toLocal(x, z);
+    const water = [...areas.filter(a => a.k === 'water').map(a => a.o), ...PLAN_DISTRICTS.flatMap(d => d.sea)];
+    const clear = [...vehicles.map(v => ({...local(v.x, v.z), r: 20})), {...local(AIR.heli.x, AIR.heli.z), r: 200}, {...local(SKY_TARGET.x, SKY_TARGET.z), r: 30}, ...(rides ? rides.keepOut.map(k => ({...local(k.x, k.z), r: k.r + 12})) : []),
+      ...JOB_SIGNS.map(j => ({...local(j.x, j.z), r: 12})), ...Object.values(LIC_SIGNS).map(j => ({...local(j.x, j.z), r: 12})), ...(mgl ? mgl.keepClear().map(k => ({...local(k.x, k.z), r: k.r + 10})) : [])];
+    return window.GameHelipads.plan({areas, water, clear, ok: (x, s) => {
+      const p = toWorld(x, s), h = heightAt(p.x, p.z);
+      if (cc && cc.cutsGround(p.x, p.z)) return false;
+      if (transit && transit.keepClear(p.x, p.z, 7, 0)) return false;
+      for (let k = 0; k < 8; k++) {const a = k * Math.PI / 4;if (Math.abs(heightAt(p.x + Math.sin(a) * 6, p.z + Math.cos(a) * 6) - h) > .7) return false;}
+      return collision.canStand(wR, p, 4, h, true);// nothing within 7 m up to 4 m high: the rotor (4.6 m) and the tail stay clear
+    }}).map(q => ({...q, ...toWorld(q.x, q.s)}));
+  })();
+  {// The painted pads: a disc laid on the ground (it follows the slope), lifted a little against flicker.
+    const tex = HELIPADS.length ? new T.CanvasTexture(window.GameHelipads.padTexture(document)) : null;if (tex) {tex.colorSpace = T.SRGBColorSpace;tex.anisotropy = 4;}
+    const mat = tex && new T.MeshLambertMaterial({map: tex, alphaTest: .5, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2});
+    for (const p of HELIPADS) {
+      const R = 6.5, geo = new T.PlaneGeometry(2 * R, 2 * R, 10, 10);geo.rotateX(-Math.PI / 2);const pos = geo.attributes.position;
+      for (let i = 0; i < pos.count; i++) {const x = p.x + pos.getX(i), z = p.z + pos.getZ(i);pos.setXYZ(i, x, groundAt(x, z) + .05, z);}
+      geo.computeVertexNormals();const m = new T.Mesh(geo, mat);m.name = `Helipad ${p.area}`;m.receiveShadow = true;scene.add(m);
+    }
+  }
   // City bikes in the docks and e-scooters on the pavements (issue #57), after every older vehicle so their numbers stay.
   // The scooters' places are seeded and checked the same way on every computer, so the lobby agrees on them.
   if (rides) {
     const RV = rides.vehicles(VH);vehicles.push(...RV.bikes);
-    const w = worldFor(.6), taken = vehicles.map(v => ({x: v.x, z: v.z, r: 4})).concat(rides.keepOut);
+    const w = worldFor(.6), taken = vehicles.map(v => ({x: v.x, z: v.z, r: 4})).concat(rides.keepOut, HELIPADS.map(p => ({x: p.x, z: p.z, r: 12})));
     const regions = [{count: 26, inside: (x, s) => Math.hypot(x, s) < 520}, {count: 22, inside: (x, s) => x > -1250 && x < -350 && s > 880 && s < 2000}];
     const spots = window.GameRentals.scooterSpots({roads: [...D.roads, ...PLAN_DISTRICTS.flatMap(d => d.roads)], regions, ok: (x, s) => {
       const p = toWorld(x, s);if (taken.some(k => Math.hypot(k.x - p.x, k.z - p.z) < k.r)) return false;
@@ -323,7 +348,7 @@
   if (window.GameCityCars) {
     const w = worldFor(1.25), areas = [...D.areas, ...PLAN_DISTRICTS.flatMap(d => d.areas)], local = v => world.toLocal(v.x, v.z);
     // Keep free: the old street cars' part of town, every vehicle that is there already, the docks, and the driving test's route.
-    const clear = [{x: 0, s: 0, r: 300}, ...vehicles.map(v => ({...local(v), r: 9})), ...(rides ? rides.keepOut.map(k => ({...local(k), r: k.r + 3})) : [])];
+    const clear = [{x: 0, s: 0, r: 300}, ...vehicles.map(v => ({...local(v), r: 9})), ...HELIPADS.map(p => ({x: p.x, s: p.s, r: 14})),...(rides ? rides.keepOut.map(k => ({...local(k), r: k.r + 3})) : [])];
     {const g = [GL.COURSES.road.start, ...GL.COURSES.road.gates.map(q => q.p)];for (let i = 0; i + 1 < g.length; i++) {const n = Math.ceil(Math.hypot(g[i + 1][0] - g[i][0], g[i + 1][1] - g[i][1]) / 5);for (let k = 0; k <= n; k++) clear.push({x: g[i][0] + (g[i + 1][0] - g[i][0]) * k / n, s: g[i][1] + (g[i + 1][1] - g[i][1]) * k / n, r: 8});}}
     const spots = window.GameCityCars.plan({roads: [...D.roads, ...PLAN_DISTRICTS.flatMap(d => d.roads)], lots: areas.filter(a => a.k === 'parking').map(a => a.o),
       water: [...areas.filter(a => a.k === 'water').map(a => a.o), ...PLAN_DISTRICTS.flatMap(d => d.sea)], rects: window.Surroundings.walkRects(D.terrain.half, world.playHalf, PLAN_DISTRICTS), clear,
@@ -351,7 +376,7 @@
     const t0 = performance.now(), GP = window.GameParking, local = (x, z) => world.toLocal(x, z), lp = (x, z, r) => ({...local(x, z), r});
     // Left out: the ones on the helicopter pad, the firepit, the skydivers' target, a bike dock, a job or licence sign, the driving
     // test's route, the airstrip, or a vehicle that is there already.
-    const clear = [lp(AIR.heli.x, AIR.heli.z, 16), lp(FIRE_POS.x, FIRE_POS.z, 10), lp(SKY_TARGET.x, SKY_TARGET.z, 14), ...(rides ? rides.keepOut.map(k => lp(k.x, k.z, k.r + 2)) : []),
+    const clear = [lp(AIR.heli.x, AIR.heli.z, 16), ...HELIPADS.map(p => ({x: p.x, s: p.s, r: 16})),lp(FIRE_POS.x, FIRE_POS.z, 10), lp(SKY_TARGET.x, SKY_TARGET.z, 14), ...(rides ? rides.keepOut.map(k => lp(k.x, k.z, k.r + 2)) : []),
       ...JOB_SIGNS.map(j => lp(j.x, j.z, 3)), ...Object.values(LIC_SIGNS).map(j => lp(j.x, j.z, 3)), ...(mgl ? mgl.keepClear().map(k => lp(k.x, k.z, k.r)) : [])];// minigolf lanes, gates, kiosks, the bar's door (issue #114)
     const course = [GL.COURSES.road.start, ...GL.COURSES.road.gates.map(q => q.p)], lines = course.slice(1).map((q, i) => ({p: [...course[i], ...q], r: 8}));
     {const a = local(AIR.plane.x, AIR.plane.z), b = local(AIR.plane.x - Math.sin(AIR.plane.yaw) * 300, AIR.plane.z - Math.cos(AIR.plane.yaw) * 300);lines.push({p: [a.x, a.s, b.x, b.s], r: 20});}
@@ -375,6 +400,9 @@
     fleet.cars.forEach((v, k) => {v.index = vehicles.length + k;});vehicles.push(...fleet.cars);
     fleet.ms = Math.round(performance.now() - t0);
   }
+  // The helicopters on the new pads (issue #126), nose a different way on each, after every older vehicle so their numbers stay.
+  const helis = HELIPADS.map((p, i) => {const h = new AC.Helicopter(p.x, p.z, (i * 2.4) % (2 * Math.PI));h.pad = p;h.onCrash = heli.onCrash;return h;});
+  vehicles.push(...helis);
   vehicles.forEach(v => {v.spawn = v.netGet();});
   vehicles.forEach(v => {if (!v.lazy) scene.add(v.group);});// a parked fleet vehicle adds its own when it is built
   vehicles.filter(v => v.kind === 'excavator').forEach(ex => {
@@ -520,6 +548,7 @@
     ...(window.MUSELUNDEN ? window.MUSELUNDEN.holes.map(h => ({x: h.basket[0], s: h.basket[1], color: '#9c4dcc', label: '', glyph: '⛳', course: window.MUSELUNDEN.name})) : []),
     ...(D.petanque ? [{x: D.petanque.x, s: D.petanque.s, color: '#00838f', label: 'Petanque', glyph: '●'}] : []),
     {...world.toLocal(AIR.heli.x, AIR.heli.z), color: '#1565c0', label: 'Helipad', glyph: 'H'},
+    ...helis.map(h => ({...world.toLocal(h.x, h.z), color: '#1565c0', label: 'Helicopter', glyph: 'H'})),// where each one is now (issue #126)
     {...world.toLocal(AIR.plane.x, AIR.plane.z), color: '#1565c0', label: 'Airstrip', glyph: '✈'},
     {...world.toLocal(SKY_TARGET.x, SKY_TARGET.z), color: '#ff6d00', label: 'Skydiving target', glyph: '◎'},
     {...world.toLocal(FIRE_POS.x, FIRE_POS.z), color: '#e65100', label: 'Firepit', glyph: '🔥'},
@@ -2458,7 +2487,7 @@
     }
     badges.check();
   }
-  window.haarklousGame = {player, vehicles, cc, transit, get prophunt() {return prophunt;}, get liftMenu() {return liftMenu;}, site, paintball, catacomb, groundAt, heli, plane, drone, watch, fire, stash, shops, gym, startClimb, openGymMenu, startBelay, get belay() {return belay;}, sculpture, oksen, weather, caravan, get skyd() {return skyd;}, get autoPlane() {return autoPlane;}, get jumpFlight() {return jumpFlight;}, boardAuto, boardCaravan, jump, get gp() {return gp;}, callGamePilot, handOver, CARAVAN_HOLD, applyWeather, wallet, get basket() {return basket;}, payAt, takeProduct, useItem, earn, openBag, takeBoost, get boost() {return boost;}, set boost(b) {boost = b;}, get mp() {return mp;}, sitDown, standUp, tryDrive, tryRide, openChat, startDrone, stopDrone, floorBelow, doors, mini, music, photo, map, world, apt, towers, walkWorld, route, landmarks, districts: DISTRICTS, get caseGame() {return caseGame;}, place, toggleDoor, enterVehicle, exitVehicle, startMinigame, startMission, drink, interact, findPrompt, renderFrame, begin, get fps() {return fpsAvg;}, kick: () => requestAnimationFrame(frame), get drunk() {return drunk;}, set drunk(v) {drunk = v;}, lic, licBegin, licEnd, get licTest() {return licTest;}, setStance, camera, scene};
+  window.haarklousGame = {player, vehicles, cc, transit, get prophunt() {return prophunt;}, get liftMenu() {return liftMenu;}, site, paintball, catacomb, groundAt, heli, helis, plane, drone, watch, fire, stash, shops, gym, startClimb, openGymMenu, startBelay, get belay() {return belay;}, sculpture, oksen, weather, caravan, get skyd() {return skyd;}, get autoPlane() {return autoPlane;}, get jumpFlight() {return jumpFlight;}, boardAuto, boardCaravan, jump, get gp() {return gp;}, callGamePilot, handOver, CARAVAN_HOLD, applyWeather, wallet, get basket() {return basket;}, payAt, takeProduct, useItem, earn, openBag, takeBoost, get boost() {return boost;}, set boost(b) {boost = b;}, get mp() {return mp;}, sitDown, standUp, tryDrive, tryRide, openChat, startDrone, stopDrone, floorBelow, doors, mini, music, photo, map, world, apt, towers, walkWorld, route, landmarks, districts: DISTRICTS, get caseGame() {return caseGame;}, place, toggleDoor, enterVehicle, exitVehicle, startMinigame, startMission, drink, interact, findPrompt, renderFrame, begin, get fps() {return fpsAvg;}, kick: () => requestAnimationFrame(frame), get drunk() {return drunk;}, set drunk(v) {drunk = v;}, lic, licBegin, licEnd, get licTest() {return licTest;}, setStance, camera, scene};
   Object.assign(window.haarklousGame, {library, pingpong, rathkes, living, kayak, startKayak, hushedFor: () => hushed});
   Object.assign(window.haarklousGame, {badges, huntSpots, huntPhoto, sightBlocked, SKY_TARGET, progress, account});
   Object.assign(window.haarklousGame, {rides, get rentals() {return rentals;}, jobs, openPhone, rentDrive, JOB_SIGNS});
