@@ -37,6 +37,11 @@ class_name = "Profile"
 name = "HOMES"
 class_name = "Homes"
 
+# Friends, who is online and invites (issue #115): one object for the whole game.
+[[durable_objects.bindings]]
+name = "FRIENDS"
+class_name = "Friends"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["Lobby"]
@@ -55,3 +60,8 @@ new_sqlite_classes = ["Profile"]
 [[migrations]]
 tag = "v4"
 new_sqlite_classes = ["Homes"]
+
+# Friends (issue #115).
+[[migrations]]
+tag = "v5"
+new_sqlite_classes = ["Friends"]

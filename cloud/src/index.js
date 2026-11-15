@@ -2,17 +2,20 @@
  * The Worker serves the game (static assets in ./public) and routes /lobby/<CODE> WebSockets to one Durable Object per
  * lobby code. A lobby holds up to 12 players. It relays player states (~10 Hz), vehicle states from whoever is driving,
  * chat, door and firepit events and WebRTC voice signalling, and it arbitrates vehicle seats (one driver, one passenger).
- * It also remembers where vehicles were left, which doors are open, the fire and the last chat lines for players who join.
+ * It also remembers where vehicles were left, which doors are open, the fire, small shared things ('obj': id -> a small JSON value,
+ * e.g. the record player, TV, lava lamp and chairs in Rathkes gate 1C, issue #116) and the last chat lines for players who join.
  * /api/auth/* is the player accounts (Better Auth + Supabase, see auth.js; emails through Brevo, mail.js); /api/progress and /api/photos/* are a logged-in
  * player's saved progress and photos (one Durable Object per account, see progress.js); /api/homes is who owns which flat
- * (one Durable Object for the whole game, see homes.js).
+ * (one Durable Object for the whole game, see homes.js); /api/friends/ws is a logged-in player's friends list, presence and
+ * invites (one Durable Object for the whole game, see friends.js).
  */
 import {accountFeatures, handleAuth} from './auth.js';
 import {handleProgress, Profile} from './progress.js';
 import {handleHomes, Homes} from './homes.js';
-export {Profile, Homes};
+import {handleFriends, Friends} from './friends.js';
+export {Profile, Homes, Friends};
 // A lobby holds 12 players (6 v 6 paintball; the user's decision for the Unreal version, 28 Oct 2026).
-const MAX_PLAYERS = 12, CODE = /^[A-HJ-NP-Z2-9]{4}$/, FIRE_DECAY_MS = 90000, FIRE_MAX = 6;
+const MAX_PLAYERS = 12, CODE = /^[A-HJ-NP-Z2-9]{4}$/, FIRE_DECAY_MS = 90000, FIRE_MAX = 6, OBJ_MAX = 200, OBJ_BYTES = 300;
 const clean = (s, n) => String(s ?? '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, n);
 
 export default {
@@ -31,6 +34,8 @@ export default {
     if (url.pathname === '/api/progress' || url.pathname === '/api/photos' || url.pathname.startsWith('/api/photos/')) return handleProgress(request, env, ctx);
     // Flats you can buy (issue #106): the one list of owners.
     if (url.pathname === '/api/homes' || url.pathname === '/api/homes/buy' || url.pathname === '/api/homes/sell') return handleHomes(request, env, ctx);
+    // Friends (issue #115): one WebSocket per logged-in game (friends.js).
+    if (url.pathname === '/api/friends/ws') return handleFriends(request, env, ctx);
     // Real weather (issue #23): one shared cache of MET Norway's forecast for Haarklous plass.
     if (url.pathname === '/weather') return env.WEATHER.get(env.WEATHER.idFromName('haarklous')).fetch(request);
     return env.ASSETS.fetch(request);
@@ -40,7 +45,7 @@ export default {
 export class Lobby {
   constructor(ctx, env) {
     this.ctx = ctx;this.players = new Map();this.next = 1;
-    this.vehicles = {};this.occ = {};this.doors = {};this.fire = {level: 2, t: Date.now()};this.chat = [];
+    this.vehicles = {};this.occ = {};this.doors = {};this.objs = {};this.fire = {level: 2, t: Date.now()};this.chat = [];
   }
   fetch(request) {
     const code = new URL(request.url).pathname.split('/').pop().toUpperCase();this.code = code;
@@ -61,7 +66,7 @@ export class Lobby {
       case 'hello': {
         p.name = clean(m.name, 24) || 'Player';p.hello = true;
         const states = {};for (const q of this.players.values()) if (q !== p && q.st) states[q.id] = q.st;
-        this.send(p, {t: 'welcome', you: p.id, slot: p.slot, code: this.code, max: MAX_PLAYERS, players: this.roster(), states, vehicles: this.vehicles, occ: this.occ, doors: this.doors, fire: this.fire, chat: this.chat.slice(-20), now: Date.now()});
+        this.send(p, {t: 'welcome', you: p.id, slot: p.slot, code: this.code, max: MAX_PLAYERS, players: this.roster(), states, vehicles: this.vehicles, occ: this.occ, doors: this.doors, objs: this.objs, fire: this.fire, chat: this.chat.slice(-20), now: Date.now()});
         this.broadcast({t: 'join', id: p.id, slot: p.slot, name: p.name, mic: p.mic}, p);
         break;
       }
@@ -85,6 +90,13 @@ export class Lobby {
         this.broadcast({t: 'chat', ...line});break;
       }
       case 'door': this.doors[clean(m.id, 60)] = !!m.open;this.broadcast({t: 'door', id: clean(m.id, 60), open: !!m.open}, p);break;
+      // A small shared thing (null removes it): kept for players who join later, passed on to the others.
+      case 'obj': {
+        const id = clean(m.id, 60), v = m.v ?? null, size = JSON.stringify(v).length;
+        if (!id || size > OBJ_BYTES || (v !== null && !(id in this.objs) && Object.keys(this.objs).length >= OBJ_MAX)) break;
+        if (v === null) delete this.objs[id];else this.objs[id] = v;
+        this.broadcast({t: 'obj', id, v}, p);break;
+      }
       case 'fire': {const now = Date.now();this.fire = {level: Math.min(FIRE_MAX, this.fireNow(now) + 1), t: now};this.broadcast({t: 'fire', fire: this.fire, by: p.id});break;}
       case 'name': p.name = clean(m.name, 24) || p.name;this.broadcast({t: 'name', id: p.id, name: p.name});break;
       case 'mic': p.mic = !!m.on;this.broadcast({t: 'mic', id: p.id, on: p.mic});break;
