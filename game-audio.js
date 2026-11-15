@@ -178,6 +178,12 @@
         case 'gust': burst(500, .5, .5, .05, .9, 'lowpass');burst(1800, .4, .25, .1, .8, 'bandpass');burst(3600, .6, .1, .05, .5, 'highpass', t + .1);break;
         case 'orbOn': tone(880, 1320, .07, .02, .4, 'sine');tone(1320, 1760, .05, .02, .5, 'sine', t + .1);break;
         case 'orbOff': tone(1320, 660, .05, .01, .3, 'sine');break;
+        // Minigolf (issue #114): the putter's click, the ball against a rail, rattling round the rim, dropping in, the loop.
+        case 'putt': tone(1050, 900, .18, .001, .05, 'triangle');burst(2400, 3, .22, .001, .025);break;
+        case 'golfWall': tone(820, 640, .14, .001, .06, 'square');burst(3200, 4, .14, .001, .02);break;
+        case 'golfLip': for (let i = 0; i < 3; i++) tone(1500 - i * 200, 1300 - i * 200, .06, .001, .04, 'triangle', t + i * .05);break;
+        case 'golfCup': tone(420, 300, .2, .002, .12, 'triangle');tone(980, 760, .1, .001, .07, 'square', t + .08);burst(1800, 3, .15, .001, .05, 'bandpass', t + .14);tone(330, 260, .18, .002, .18, 'sine', t + .18);break;
+        case 'golfLoop': tone(300, 900, .06, .05, .45, 'sine');burst(1200, 1, .05, .1, .35);break;
         case 'noMana': tone(220, 180, .06, .01, .18, 'square');break;
       }
     }

@@ -7,6 +7,8 @@
  *                                  64 bars = 72 s
  *   mission   "Stairwell"       – tense pulse ostinato, drone, heartbeat kick, strings, low brass, D minor, 100 bpm,
  *                                  32 bars = 76.8 s
+ *   minigolf  "Putting Green Swing" – swing with walking bass, brushes, ride, electric piano, whistle and bells, F major,
+ *                                  120 bpm, AABA 32 bars = 64 s (issue #114; also plays inside Oslo Camping)
  * GameMusic.create() -> {attach(audioContext), play(name|null), setVolume(0..1), volume, current, position()}
  * GameMusic.tracks -> {name: {title, bpm, beats, bars, seconds}}
  * GameMusic.renderOffline(name, seconds) -> Promise<AudioBuffer> (tests and previews)
@@ -233,7 +235,34 @@
     }};
   })();
 
-  const TRACKS = {main: MAIN, discgolf: DISC, petanque: PET, mission: MISSION};
+  // ---------- Minigolf: "Putting Green Swing" (F major, 120 bpm swing, AABA 32 bars = 64 s; issue #114) ----------
+  // Walking bass, brushes and a ride cymbal, electric piano comping on the off-beats, a whistled tune with bells over the A parts.
+  const GOLF = (() => {
+    const C = {F: {b: 41, v: [57, 60, 64, 65], t: 4}, Dm: {b: 38, v: [57, 60, 62, 65], t: 3}, Gm: {b: 43, v: [58, 62, 65, 67], t: 3}, C7: {b: 36, v: [58, 60, 64, 67], t: 4},
+      Bb: {b: 46, v: [57, 62, 65, 70], t: 4}, Bbm: {b: 46, v: [58, 61, 65, 67], t: 3}, D7: {b: 38, v: [57, 60, 62, 66], t: 4}};
+    const A = 'F Dm Gm C7 F Dm Gm C7'.split(' '), B = 'Bb Bbm F D7 Gm C7 F C7'.split(' ');
+    const MA = [
+      [[0, 72, .67], [.67, 74, .33], [1, 77, 1], [2, 76, .67], [2.67, 74, .33], [3, 72, 1]], [[0, 69, 1.5], [2, 72, .67], [2.67, 74, .33], [3, 77, 1]],
+      [[0, 79, 1], [1, 77, .67], [1.67, 74, .33], [2, 70, 2]], [[0, 72, 2.5], [3, 76, .67], [3.67, 77, .33]],
+      [[0, 81, .67], [.67, 79, .33], [1, 77, 1], [2, 74, .67], [2.67, 77, .33], [3, 81, 1]], [[0, 79, 1.5], [2, 77, .67], [2.67, 74, .33], [3, 72, 1]],
+      [[0, 74, .67], [.67, 77, .33], [1, 79, .67], [1.67, 77, .33], [2, 74, 1], [3, 70, 1]], [[0, 72, 3]]];
+    return {title: 'Putting Green Swing', bpm: 120, beats: 4, bars: 32, render(k, bus, bar, t, beat, rnd) {
+      const part = bar < 16 ? 'A' : bar < 24 ? 'B' : 'A', i = bar % 8, name = (part === 'A' ? A : B)[i], ch = C[name], next = C[(part === 'A' ? A : B)[(i + 1) % 8]];
+      const sw = beat * .33;// swung eighths: the off-beat comes a third late
+      // Walking bass: root, third, fifth, a step into the next chord.
+      [ch.b, ch.b + ch.t, ch.b + 7, next.b + (next.b > ch.b ? -1 : 1)].forEach((m, q) => k.bass(bus, t + q * beat, m, beat * .85, q ? .5 : .62));
+      // Comping: short chords on the "and" of 2 and on 4.
+      for (const at of [1 + .67, 3]) ch.v.forEach((m, j) => k.epiano(bus, t + at * beat + j * .01, m, beat * .45, .28));
+      // Ride cymbal (swung), brush on 2 and 4, a soft kick on 1.
+      for (let q = 0; q < 4; q++) {k.hat(bus, t + q * beat, .38, q % 2 === 1);if (q % 2 === 1) k.hat(bus, t + q * beat + beat - sw, .2);}
+      k.brush(bus, t + beat, .55);k.brush(bus, t + beat * 3, .6);k.kick(bus, t, .35);if (rnd() < .3) k.kick(bus, t + beat * 2.67, .2);
+      if (part === 'A' && bar >= 8) {line(k, bus, 'whistle', t, beat, MA[i], .7);if (bar >= 24) line(k, bus, 'bell', t, beat, MA[i], .25);}
+      else if (part === 'A' && bar >= 2) line(k, bus, 'bell', t, beat, MA[i], .4);
+      if (part === 'B') ch.v.forEach((m, j) => k.pluck(bus, t + j * beat * .5 + (j % 2 ? sw * .5 : 0), m + 12, beat * .5, .32));
+    }};
+  })();
+
+  const TRACKS = {main: MAIN, discgolf: DISC, petanque: PET, mission: MISSION, minigolf: GOLF};
   const info = {};
   for (const [name, d] of Object.entries(TRACKS)) info[name] = {title: d.title, bpm: d.bpm, beats: d.beats, bars: d.bars, seconds: d.bars * d.beats * 60 / d.bpm};
   const barSeed = (name, bar) => mulberry32(bar * 977 + name.length * 31 + 13);

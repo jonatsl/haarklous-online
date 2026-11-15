@@ -55,6 +55,39 @@ Live site: runs `main` (Worker version f8651516, deployed 15 Nov 2026 after PRs 
 
 ## Log
 
+### 2026-11-15 · Minigolf at the real courses, and the minigolf bar Oslo Camping (issue #114)
+- **What:**
+  - Four real minigolf courses, each at its real place, playable with the controller or keyboard and mouse:
+    - **Torshov minigolfpark** (Hegermanns gate 25, Christiania Minigolf Club): 18 Eternit lanes in its real 45 × 14 m strip, the real kiosk, a fence with a gate and a MINIGOLF sign, benches. A ticket costs 90 kr (children 60) at the table by the kiosk.
+    - **Grünerløkka Minigolfpark** (Søndre gate 1, the same club): 18 lanes in its real fenced ground, its hut as the kiosk, 90 kr.
+    - **Jordal park**: the small free course in the park (three short holes, no ticket).
+    - **Oslo Camping** (Møllergata 12, in Fredshuset): the minigolf bar. You walk in from Møllergata through the shop window front under the OSLO CAMPING sign. Inside: a bar counter with a bartender, taps and a back bar full of bottles, stools, picnic tables by the window, tents and camping chairs, string lights under a black ceiling, 11 felt holes upstairs, and a stair down to 7 more holes in the basement ("SKOGEN", with pine trees). A round costs 155 kr, as on the real price list.
+  - At the bar you buy pils, cider, wine, moroslush, a shot, a soda or a toast with the game's money. Drinks make you drunk like the beer at home (+30 s each). The bartender follows the Norwegian serving rules: alcohol only while the bar is open and within Oslo's serving hours (beer and wine 06–03, spirits 13–03), and no alcohol at all for someone who is obviously drunk (you get a soda instead).
+  - Playing: buy a ticket, go to any tee and press □ / E. Aim with the right stick or the mouse (the left stick fine-tunes); hold R2 or the left mouse button – the power meter goes up and down – and let go to putt. A dashed aim line shows the way. L2 / right mouse shows the whole lane from above. The camera follows the ball.
+  - Real-feeling ball: it rolls and slows, curves on slopes, rolls back down a ramp that is too steep for its speed, bounces off the rails with some speed lost, rattles round the rim and lips out when it is too fast, and drops when it is slow enough. Every lane is different: pyramids, an angle wall, a double wave, a plateau, the lightning zigzag, a windmill whose blades block the gap part of the time, a middle hill, a loop (you need speed), a bridge over water (falling in costs a stroke), a volcano, a tube, a wall with three small gates, a sloping lane, a bowl, bumpers, a bank shot and an uphill finish; at Oslo Camping they are dressed as a tent, a caravan door, a campfire and a canoe over a lake.
+  - Par for every hole, at most 7 strokes (after six strokes not holed, 7 is written), a scorecard in the corner and a full scorecard with the total against par at the end. Walk to the next tee after each hole (□ takes you there); the minimap shows the course.
+  - A hole in one pays 50 kr, a round at or under par 100 kr. Best rounds per course are saved with your progress. Three new badges: *A round of minigolf*, *Minigolf ace* and *Camping in Møllergata*.
+  - Its own music ("Putting Green Swing"), also inside Oslo Camping, and sounds for the putt, the rails, the rim, the cup and the loop.
+  - The courses are on the map (⛳). Online, the others in your lobby see you standing at the lane and see your ball (pink) rolling.
+  - The world is bigger by a small piece west of Youngstorget (Møllergata, Torggata, Grubbegata), so that Oslo Camping is inside it.
+- **Why:** the user (15 Nov 2026): "Create minigolf courses where there actually are minigolf courses. If its in a bar, then create the bar."
+- **Research (sources):**
+  - OpenStreetMap, Overpass `leisure=miniature_golf` in the Oslo box (15 Nov 2026): Torshov minigolfpark (way 72563100, kiosk way 801539736), Grünerløkka Minigolf park (way 44044598, fenced), a free course in Jordal park (way 1297710953, fee=no), Oslo Camping (node 4958723297, amenity=pub, indoor=yes, inside Fredshuset way 183822363).
+  - minigolfparken.no (Christiania Minigolf Club): Grünerløkka Søndregate 1 and Torshov Hegermans gate 25, 18 holes each, 90 kr adults, 60 kr children, every day 12–21 in the season (last start 20:00). A 2015 blog post and VisitOSLO: Grünerløkka is an Eternit competition course approved by the Norwegian Minigolf Federation, open in the summer half-year.
+  - campingen.no/oslo: Oslo Camping, Møllergata 12: indoor 18-hole course and bar, 155 kr adults (students 130, children 120), Mon–Tue 13–22, Wed–Thu 13–24, Fri 13–01:30, Sat 12–01:30, Sun 12–22, 20-year limit after 19:00; beer, wine, spirits and "moroslush". Reviews (Tripadvisor via search): 11 holes upstairs, 7 downstairs; "creative" holes.
+  - Inside the world but not built: none. Outside the world (not built): Marienlyst minigolfbane (Kirkeveien 92), Underground Golf Club Majorstua, Søylehuset café og minigolf at Ekeberg, the Lindøya course, and an unnamed course at Nydalen.
+- **Decisions (Claude's, say if you want them changed):**
+  - Oslo Camping was 40–80 m outside the world's west edge. Instead of leaving the bar out (or moving it), the world got a small new map patch there (192 × 288 m, 8 KB), so the bar is in its real building at its real address. The vehicles' places are worked out without the new patch, so no vehicle changed number or place.
+  - The real lane plans are not published, so the lanes are laid out in rows inside each real outline, with the standard Eternit obstacle kinds in my order. The outdoor lanes are 5.6 m (real Eternit lanes are about 6.25 m) so two rows fit Torshov's narrow strip.
+  - Jordal park's course is a tiny area in OpenStreetMap with nothing more known about it: I made three short free holes.
+  - Inside Oslo Camping I kept the real split (11 holes up, 7 down) and made the decor camping-themed (tents, picnic tables, a caravan, a campfire, a canoe); the basement is dressed as SKOGEN (the club that uses it).
+  - The courses are open whenever you play (like the shops in the game). The drinks follow the bar's real opening hours and the law. The drink prices are my estimates (no price list found): pils 119 kr, cider 109, wine 145, moroslush 129, shot 135, soda 49, toast 89.
+  - Paying for a round: you pay the adult price. The ticket lasts until you finish or quit the round.
+  - Playing together in turns is not built: each player plays their own round; the others see you and your ball.
+- **Where:** `game-minigolf.js` (new), `minigolf-data.js` + `tools/make-minigolf.py` + `assets/osm/minigolf-osm-2026-11-15.json` (new), `mollergata-data.js` + `assets/osm/mollergata-*` (new map patch), `game-main.js` (wiring, prompts, the shared clock, other players' balls), `game-music.js` (the new track), `game-audio.js` (sounds), `game-badges.js` (records and badges), `index.html` (scripts, help), `README.md`, `docs/HANDOFF.md`, `tests/minigolf.test.cjs` (new), `tests/badges.test.cjs`.
+- **Checked:** CHECKED_PLACEHOLDER
+- **Status:** PR #PR_PLACEHOLDER, not merged yet.
+
 ### 2026-11-15 · Flats you can buy, each owned by one player (issue #106)
 - **What:**
   - 64 flats are for sale: the two flats on each of the four floors of the eight neighbouring stair towers round Haarklous plass (Sigurd Lies gate and Edvard Griegs allé). Before, their doors were fixed and "locked".
