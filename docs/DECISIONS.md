@@ -9,7 +9,7 @@ Live game: https://haarklous-online.server-smoke.workers.dev · Source: https://
 ## Features (what the game has now)
 
 On `main`:
-- Metro, bus and tram (issue #111, PR #PR_PLACEHOLDER, not merged yet): Ruter's real trams, buses and metro lines on a timetable as often as the real ones – the same vehicles for everyone in a lobby; a timetable and a live board at every stop, every line and stop on the map; get on (46 kr, 60 minutes) and ride; the metro stations near home are underground with real entrances, stairs and platforms.
+- Metro, bus and tram (issue #111, PR #120, not merged yet): Ruter's real trams, buses and metro lines on a timetable as often as the real ones – the same vehicles for everyone in a lobby; a timetable and a live board at every stop, every line and stop on the map; get on (46 kr, 60 minutes) and ride; the metro stations near home are underground with real entrances, stairs and platforms.
 - Open world around Haarklous plass 17A, Torshov: real buildings and streets (OpenStreetMap), real ground heights (Kartverket), optional aerial photos; walkable out to about 760 m (540 m before PR #13), drawn properly everywhere you can walk.
 - Your 4th-floor apartment (your kitchen + bedroom design) and stairwell; the street door and stairs work without the mission; eight neighbouring stairwells.
 - Flats you can buy: the 64 flats in the eight neighbouring stairwells are for sale (4 600–11 100 kr); each is a real flat you walk into, with windows to the street and the courtyard; a bought flat has one owner – your name on the door, only you unlock it, it is on your map and saved with your account; one flat each, sell for 80 % (issue #106).
@@ -90,7 +90,7 @@ Live site: runs `main` (Worker version f8651516, deployed 15 Nov 2026 after PRs 
   - Parked vehicles: 63 that stood in a bus or tram lane were moved sideways to the kerb, 1 could not be moved; all 684 vehicles keep their numbers.
   - Draw calls and triangles at five fixed camera spots, the same frame state before → after (the loop stopped, so every parked car near was drawn too): home 2881 → 2894 (2.446 → 2.450 M triangles), Torshov stop 1344 → 1383 (1.483 → 1.489 M), Olaf Ryes plass 1385 → 1418 (1.663 → 1.672 M), Carl Berners plass 1366 → 1430 (1.544 → 1.552 M), Tøyen 1393 → 1418 (1.083 → 1.093 M). The vehicles, stops, rails and stations add 13–64 draw calls and 4–10 k triangles, depending on what is near. The timetable takes about 0.1 s to set up when the game starts.
 - **Not done / not checked:** real minute-by-minute timetables (the frequencies are); tunnel mouths are not modelled (a train going into a tunnel goes into the ground); the escalators beside the stairs do not move; trams and buses do not stop for people or cars; a car someone parks on the rails is driven through; not tried with a real DualShock 4; frame rate on a real laptop not measured (the shared PC's GPU is busy).
-- **Status:** PR #PR_PLACEHOLDER, not merged yet.
+- **Status:** PR #120, not merged yet.
 
 ### 2026-11-15 · Flats you can buy, each owned by one player (issue #106)
 - **What:**
