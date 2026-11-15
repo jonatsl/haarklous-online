@@ -6,12 +6,14 @@
  * e.g. the record player, TV, lava lamp and chairs in Rathkes gate 1C, issue #116) and the last chat lines for players who join.
  * /api/auth/* is the player accounts (Better Auth + Supabase, see auth.js; emails through Brevo, mail.js); /api/progress and /api/photos/* are a logged-in
  * player's saved progress and photos (one Durable Object per account, see progress.js); /api/homes is who owns which flat
- * (one Durable Object for the whole game, see homes.js).
+ * (one Durable Object for the whole game, see homes.js); /api/friends/ws is a logged-in player's friends list, presence and
+ * invites (one Durable Object for the whole game, see friends.js).
  */
 import {accountFeatures, handleAuth} from './auth.js';
 import {handleProgress, Profile} from './progress.js';
 import {handleHomes, Homes} from './homes.js';
-export {Profile, Homes};
+import {handleFriends, Friends} from './friends.js';
+export {Profile, Homes, Friends};
 // A lobby holds 12 players (6 v 6 paintball; the user's decision for the Unreal version, 28 Oct 2026).
 const MAX_PLAYERS = 12, CODE = /^[A-HJ-NP-Z2-9]{4}$/, FIRE_DECAY_MS = 90000, FIRE_MAX = 6, OBJ_MAX = 200, OBJ_BYTES = 300;
 const clean = (s, n) => String(s ?? '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, n);
@@ -32,6 +34,8 @@ export default {
     if (url.pathname === '/api/progress' || url.pathname === '/api/photos' || url.pathname.startsWith('/api/photos/')) return handleProgress(request, env, ctx);
     // Flats you can buy (issue #106): the one list of owners.
     if (url.pathname === '/api/homes' || url.pathname === '/api/homes/buy' || url.pathname === '/api/homes/sell') return handleHomes(request, env, ctx);
+    // Friends (issue #115): one WebSocket per logged-in game (friends.js).
+    if (url.pathname === '/api/friends/ws') return handleFriends(request, env, ctx);
     // Real weather (issue #23): one shared cache of MET Norway's forecast for Haarklous plass.
     if (url.pathname === '/weather') return env.WEATHER.get(env.WEATHER.idFromName('haarklous')).fetch(request);
     return env.ASSETS.fetch(request);

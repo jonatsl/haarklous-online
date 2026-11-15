@@ -50,6 +50,7 @@ On `main`:
 - Licences for every vehicle, each won by a test with a theory part and a practical part (rings, the speed limit, no crash, park or land): førerkort B and A at Soria Moria Trafikkskole on Vogts gate (a school car and motorcycle, a test route on the real streets), class C, the machine certificate and the crane certificate at the site office, PPL(A) and PPL(H) at the airstrip, the drone certificate A1/A3 on the phone (free); a part you fail is free to take again; bikes, e-scooters, the kayak and riding along need none; saved with your progress (issue #59).
 - Streets you can read: dark asphalt roads, a light granite kerb, and asphalt or slab pavements by part of town, with or without the aerial photo (issue #98).
 - Ground with real detail up close (grass, asphalt, paving slabs, gravel, pavements and kerbs) with or without the aerial photo, and buildings that look like their part of town – Torshov brick and Harald Hals' plastered blocks, Grünerløkka's tenements with shop fronts, buff brick, wooden houses, new blocks – chosen from OpenStreetMap and Street View notes (issues #67 and #68, PR #81, not merged yet).
+- Friends (needs an account): add a friend by their player name, they accept or decline; see which friends are online and in which lobby; Join goes straight into a friend's lobby, Invite asks them into yours (a message in their game, Options then ✕ to come); "friends can join my lobby" can be turned off; pause menu → Friends (L1 / N), with a red count of new requests and invites (issue #115, PR #117, not merged yet).
 
 Live site: runs `main` (Worker version f8651516, deployed 15 Nov 2026 after PRs #107 and #109; `main` builds byte-for-byte to the live page), so everything above is online. Account emails (issue #55) wait for the user's Brevo key.
 
@@ -85,6 +86,36 @@ Live site: runs `main` (Worker version f8651516, deployed 15 Nov 2026 after PRs 
   - Cost, same camera spots before → after: draw calls living room 1490 → 1510, at the shelf 1468 → 1479, hall 1536 → 1555, backyard 1424 → 1443; triangles about +2,200 (+0.2 %). Two point lights added once at the start (off = intensity 0).
   - Not checked: by ear (headless), a real DS4 and real frame rates.
 - **Status:** PR #118, not merged yet.
+### 2026-11-15 · Friends: add friends, see who is online, invite them or join their lobby (issue #115)
+
+- **What:**
+  - A new **Friends** list in the pause menu (L1 on the controller, N on the keyboard, or click). It needs an account; without one, or in the offline copy of the game, it says so.
+  - **Add a friend** by their player name (the name in the lobby). Type it on the keyboard, or with the controller on an on-screen keyboard (✕ types, □ deletes, △ sends). The other player gets a message and accepts or declines in their list. You can cancel a request you sent and remove a friend (Remove asks once more).
+  - The list shows which friends are **online** (green dot) and where they are: "lobby ABCD · 3/12 players", "in your lobby", "full", "playing (invite only)" or "Offline".
+  - **Join** takes you straight into a friend's lobby. **Invite** sends a friend a message in their game ("Kari invites you to their lobby"); they press Options and then ✕ to come (the list opens on the invite), or "No thanks".
+  - "Friends can join my lobby": on (the start) or off. Off = friends do not see your lobby code and can come only when you invite them.
+  - Small messages at the top right: a friend request, a friend accepted, an invite, a friend came online. The pause menu's Friends button shows how many friends are online and a red number for new requests and invites.
+  - Clear answers when something cannot be done: the lobby is full, the friend has left that lobby, the friend went offline, the invite ran out (after 2 minutes), the friend only lets people in by invite, no player has that name.
+- **Why:** the user: "Allow to add friends, see when they are online and invite to your lobby/join their lobby."
+- **Decisions (Claude's, say if you want them changed):**
+  - **How a friend is found:** by account name plus a 4-digit number, like "Kari #1024". Account names are not unique, so the number tells two players with the same name apart. Your own number is at the top of your Friends list. The name alone is enough while only one player has it; if several have it, the game asks for the number. Nobody can see anybody's email.
+  - **Friends can join you without asking** unless you turn that off. Invites always work.
+  - **Limits:** 100 friends; 20 requests waiting for an answer; 50 requests waiting for one player; 20 tries to add a friend an hour (so nobody can test names by the thousand); after a "no", the same person can ask again after a day; an invite lasts 2 minutes.
+  - **Online** means the game is open and logged in. Closing the game makes you offline for your friends at once; a game that just disappears (a sleeping laptop, lost network) counts as offline after about 2½–3½ minutes.
+  - The "is online" message is not shown when somebody just reconnects (within 2 minutes).
+  - Adding friends straight from the players in your lobby is not built: lobby names are not checked against accounts (a guest can call themselves anything), so it could add the wrong person.
+- **How it is built:**
+  - The server keeps the friends in one place for the whole game (a new Durable Object `Friends`, like the flats' owners). Each logged-in game keeps one connection to it; that connection is how friends see you are online and which lobby you are in, and how invites arrive within a second. Idle connections cost nothing on Cloudflare's free plan (they "hibernate"; the game's keep-alive every 25 s is answered by Cloudflare without waking the server).
+  - It deploys with `npx wrangler deploy` alone (new migration v5 in `cloud/wrangler.toml`). No database change and no new secret.
+- **Where:** `game-friends.js` (new: the list, the on-screen keyboard, the messages, the connection), `cloud/src/friends.js` and `cloud/src/friends-rules.js` (new), `cloud/src/index.js` (the route), `cloud/wrangler.toml` (binding `FRIENDS`, migration v5), `cloud/src/auth.js` (local tests only: a second test player by cookie), `game-main.js` (pause menu keys, lobby changes, account changes), `index.html` (the Friends button, help on the start and pause screens), `README.md`, `docs/HANDOFF.md`, `tests/friends.test.cjs` (new).
+- **Checked:**
+  - Node tests 226/226 (9 new): numbers per name, request / accept / decline / cancel / remove, asking back, unknown names, two players with one name, every limit, invites (only friends, only online, run out, left, full, offline), join (friends only, invite only, full, already there, offline), renamed accounts, and the game's list and on-screen keyboard.
+  - In the browser (headless Chrome, two test players Kari and Ola on a local copy of the server): Kari typed "Ola" with the simulated controller's on-screen keyboard and sent the request; Ola got the message, opened the list with N and accepted with the mouse; both saw each other online with the lobby code; Kari invited Ola with the controller; Ola pressed Options (the list opened on the invite) and ✕, and was in Kari's lobby with her (both lists said "in your lobby", Ola saw Kari standing there with her name); Kari joined Ola's lobby with Join; with joining turned off Kari had no Join button and was told "invite only"; with 11 more test players in Ola's lobby it showed "full (12/12)" and joining was refused; Ola invited Kari and moved to another lobby before Kari answered: "Ola has left that lobby."; closing Ola's game showed her offline in Kari's list after 0.1 s (navigating her tab to another page: 9.6 s); a game that went silent without closing (no keep-alive) dropped off after 161 s; Ola opening the game again after more than 2 minutes gave Kari the message "Ola is online"; Kari removed Ola (asked twice) and both lists were empty.
+  - A connection from another web site is refused.
+  - Nothing new is drawn in 3D, so frame rate, draw calls and triangles are as before.
+- **Not done / not checked:** a real account on the live site (Claude does not create accounts there), a real DualShock 4, and many players at once on the live server. No blocking of a player (declining and removing are there).
+- **For the deploy:** nothing extra: `npx wrangler deploy` creates the new `Friends` object (migration v5). If another PR merged first also adds a migration v5, renumber this one to v6.
+- **Status:** PR #117, not merged yet.
 
 ### 2026-11-15 · Flats you can buy, each owned by one player (issue #106)
 - **What:**

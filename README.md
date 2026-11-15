@@ -18,6 +18,7 @@ Haarklous online is a first-person open-world game that runs in your web browser
 - Online: open https://haarklous-online.server-smoke.workers.dev.
 - On this PC: double-click `PLAY-Controller-Windows.cmd`, or open `haarklous-game.html` in Chrome, Edge or Firefox.
 - To play with friends, give them your lobby code from the pause menu.
+- With an account you can add friends (pause menu → Friends, L1 or N). You see when they are online, and you can invite them to your lobby or join theirs.
 
 ## Controls
 
