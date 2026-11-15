@@ -244,7 +244,7 @@ Live site: runs `main` (Worker version f8651516, deployed 15 Nov 2026 after PRs 
   - `AGENTS.md` now says to keep the README short: at most one bullet for a feature.
 - **Why:** the user said the README was too long and too complicated; players find things out in the game (3 Nov 2026).
 - **Where:** `README.md`, `docs/HANDOFF.md`, `AGENTS.md`.
-- **Status:** branch `docs/short-readme`, [PR #74](https://github.com/jonatsl/haarklous-online/pull/74), not merged. Only documents change, so the live game does not need a new deploy.
+- **Status:** branch `docs/short-readme`, [PR #74](https://github.com/jonatsl/haarklous-online/pull/74), merged into `main` on 4 Nov 2026 (357c16f). Only documents change, so the live game does not need a new deploy.
 
 ### 2026-11-04 · `main` is live (issues #55, #59, #63, #64, #65, #67, #68 and #72)
 - **What:** seven pull requests are merged into `main` (a27f7a8) and deployed (Cloudflare Worker version 645c84cc):
