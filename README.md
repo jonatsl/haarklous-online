@@ -6,6 +6,7 @@ Haarklous online is a first-person open-world game that runs in your web browser
 
 - The game starts at your apartment in Haarklous plass 17A, Torshov, Oslo.
 - The streets, buildings and ground heights are real. They come from OpenStreetMap and Kartverket.
+- The streets are smooth to drive on, with a granite kerb between the road and the pavement.
 - You can walk, drive, ride, paddle and fly. There are cars, motorcycles, bikes, e-scooters, a kayak, aircraft and a drone.
 - Thousands of parked cars, vans, taxis, lorries and motorcycles line the streets and fill the car parks, and you can drive them.
 - There are minigames, jobs, shops, a mission and badges. You find out how each one works in the game.
