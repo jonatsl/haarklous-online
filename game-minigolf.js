@@ -903,6 +903,10 @@
       lampAt: (x, z, feet) => {const i = inside(x, z, feet);if (!i) return null;const c = bar.plan, p = (a, b) => {const q = world.toWorld(...barLocal(bar.data.local, a, b));return q;}, q = p(c.W / 2, c.D / 2);return {x: q.x, y: bar.floorY + (i.floor ? -1.0 : 3.2), z: q.z, power: 30, reach: 18};},
       placeName: (x, z, feet) => {const i = inside(x, z, feet);if (i) return i.floor ? 'Oslo Camping, downstairs · Møllergata 12' : 'Oslo Camping · Møllergata 12';for (const C of courses) if (C.data.outline && insidePoly((q => [q.x, q.s])(world.toLocal(x, z)), C.data.outline)) return C.data.name;return null;},
       poi: () => courses.map(C => {const q = world.toLocal(C.centre.x, C.centre.z);return {x: q.x, s: q.s, color: '#2e7d32', label: C.data.kind === 'bar' ? 'Oslo Camping (minigolf bar)' : `Minigolf · ${C.data.short}`, glyph: '⛳', course: C.data.name};}),
+      // Places parked vehicles and bike racks must keep free (game-main's fleet): every lane, the gates, the ticket tables, the bar's door.
+      keepClear: () => [...courses.flatMap(C => C.lanes.map(l => ({...l.world(l.L / 2, 0, 0), r: l.L / 2 + 1.2}))),
+        ...courses.filter(C => C.ticketAt).map(C => ({...C.ticketAt, r: 3})), ...courses.filter(C => C.data.gate).map(C => ({...world.toWorld(...C.data.gate), r: 3})),
+        ...courses.filter(C => C.barLocal).map(C => ({...C.barLocal(C.plan.door.a, -2), r: 5}))],
       remoteBall: () => {const m = new T.Mesh(ballGeo, remoteBallMat);m.name = 'Remote minigolf ball';return m;},
       get active() {return courses.map(C => C.game).find(g => g.active) || null;}};
   }

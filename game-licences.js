@@ -126,7 +126,7 @@
     if (k === 'scooter' || k === 'bicycle' || k === 'kayak') return null;
     if (k === 'car') return 'B';
     if (k === 'motorcycle') return 'A';
-    if (k === 'tipper') return 'C';
+    if (k === 'tipper' || k === 'lorry') return 'C';// a parked lorry (issue #113) needs class C like the site's tipper
     if (MACHINES.includes(k)) return 'M';
     if (k === 'crane' || k === 'tower') return 'G';
     if (k === 'plane' || k === 'jumpplane') return 'PPLA';

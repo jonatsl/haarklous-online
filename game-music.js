@@ -9,8 +9,11 @@
  *                                  32 bars = 76.8 s
  *   minigolf  "Putting Green Swing" – swing with walking bass, brushes, ride, electric piano, whistle and bells, F major,
  *                                  120 bpm, AABA 32 bars = 64 s (issue #114; also plays inside Oslo Camping)
- * GameMusic.create() -> {attach(audioContext), play(name|null), setVolume(0..1), volume, current, position()}
- * GameMusic.tracks -> {name: {title, bpm, beats, bars, seconds}}
+ * Records for the LP player in Rathkes gate 1C (issue #116; GameMusic.records): lp1 "Søndagsjazz" (jazz trio, 73.8 s),
+ * lp2 "Bossa på Løkka" (bossa nova, 72.7 s), lp3 "Lavalampe" (soul and disco, 68.6 s), lp4 "Fjellvise" (folk waltz, 80 s).
+ * GameMusic.create() -> {attach(audioContext), play(name|null), setVolume(0..1), volume, current, position(),
+ *   recordPlay(name, pos, needle), recordStop(fade), recordOutput (GainNode to route), record, duck(0..1), context}
+ * GameMusic.tracks -> {name: {title, artist, style, record, bpm, beats, bars, seconds}}
  * GameMusic.renderOffline(name, seconds) -> Promise<AudioBuffer> (tests and previews)
  */
 (function (root, factory) {
@@ -262,9 +265,120 @@
     }};
   })();
 
-  const TRACKS = {main: MAIN, discgolf: DISC, petanque: PET, mission: MISSION, minigolf: GOLF};
+  // ---------- Records for the LP player in Rathkes gate 1C (issue #116): four original pieces, each with vinyl crackle ----------
+  // Swung eighths: an off-beat note (x.5) comes a little late.
+  const swing = (b, amt = .16) => Math.abs(b % 1 - .5) < 1e-6 ? b + amt : b;
+  function sline(k, bus, voice, t, beat, notes, vel, shift = 0) {notes.forEach(([b, m, d]) => k[voice](bus, t + swing(b) * beat, m + shift, d * beat, vel));}
+  const strumAt = (k, bus, voice, t, notes, dur, vel, spread = .012) => notes.forEach((m, i) => k[voice](bus, t + i * spread, m, dur, vel));
+  // A bass note near the last one (walking lines stay in one octave).
+  const near = (n, r) => {while (n - r > 6) n -= 12;while (r - n > 6) n += 12;return n;};
+
+  // "Søndagsjazz" – Trio Herslebs: a swinging jazz trio (electric piano, walking bass, brushes and ride, vibes melody),
+  // F major, 104 bpm, AABA of 8 bars = 32 bars (73.8 s).
+  const JAZZ = (() => {
+    const C = {Gm9: [43, [58, 62, 65, 69], 3], C13: [36, [58, 62, 64, 69], 4], Fmaj9: [41, [57, 60, 64, 67], 4], Dm9: [38, [57, 60, 64, 65], 3],
+      C7b9: [36, [58, 61, 64, 67], 4], F6: [41, [57, 60, 62, 65], 4], Bbmaj7: [46, [57, 62, 65, 69], 4], Eb9: [39, [55, 58, 61, 65], 4],
+      Am7: [45, [55, 60, 64, 67], 3], D7b9: [38, [54, 57, 60, 63], 4], Gm7: [43, [58, 62, 65, 67], 3], C7sus: [36, [55, 58, 60, 65], 5]};
+    const A = 'Gm9 C13 Fmaj9 Dm9 Gm9 C7b9 F6 F6'.split(' '), B = 'Bbmaj7 Eb9 Am7 D7b9 Gm7 C7b9 F6 C7sus'.split(' ');
+    const MA = [[[0, 74, 1.5], [1.5, 72, .5], [2, 70, 1], [3, 69, 1]], [[0, 67, 2], [2.5, 69, .5], [3, 70, 1]], [[0, 72, 1.5], [1.5, 69, .5], [2, 67, 2]], [[0, 69, 3], [3, 65, 1]],
+      [[0, 70, 1], [1, 74, 1], [2, 77, 1.5], [3.5, 76, .5]], [[0, 73, 1], [1, 70, 1], [2, 67, 1], [3, 64, 1]], [[0, 65, 1.5], [1.5, 67, .5], [2, 69, 2]], [[0, 65, 3]]];
+    const MB = [[[0, 74, 1], [1, 77, 1], [2, 81, 2]], [[0, 79, 1.5], [1.5, 77, .5], [2, 73, 2]], [[0, 76, 1], [1, 72, 1], [2, 79, 2]], [[0, 78, 1.5], [1.5, 75, .5], [2, 72, 2]],
+      [[0, 74, 1], [1, 70, 1], [2, 77, 2]], [[0, 76, 2], [2, 70, 1], [3, 72, 1]], [[0, 69, 2], [2, 74, 2]], [[0, 72, 3], [3, 79, 1]]];
+    const chordAt = bar => {const sec = Math.floor(bar / 8) % 4, list = sec === 2 ? B : A;return C[list[bar % 8]];};
+    return {title: 'Søndagsjazz', artist: 'Trio Herslebs', style: 'jazz trio', bpm: 104, beats: 4, bars: 32, record: true, render(k, bus, bar, t, beat, rnd) {
+      const sec = Math.floor(bar / 8), [r, v, third] = chordAt(bar), [nr] = chordAt((bar + 1) % 32);
+      k.crackle(bus, t, beat * 4, rnd, .7);
+      // Walking bass: root, third, fifth, a step into the next chord.
+      const walk = [r, r + third, r + 7, near(nr, r) + (bar % 2 ? 1 : -1)].map(n => n > 55 ? n - 12 : n);
+      walk.forEach((n, i) => k.bass(bus, t + i * beat, n, beat * .9, i ? .5 : .6));
+      // Comping (the Charleston rhythm, turned round every other bar).
+      for (const [b, d, vel] of bar % 2 ? [[1, .5, .3], [2.5, 1.2, .34]] : [[0, .9, .36], [1.5, .4, .28]]) strumAt(k, bus, 'epiano', t + swing(b) * beat, v, d * beat, vel);
+      // Ride cymbal (ding, ding-da), brushes on 2 and 4, a soft kick.
+      for (const b of [0, 1, 1.5, 2, 3, 3.5]) k.hat(bus, t + swing(b) * beat, b % 1 ? .25 : .38, b === 0 || b === 2);
+      k.brush(bus, t + beat, .55);k.brush(bus, t + beat * 3, .6);k.kick(bus, t, .22);
+      const mel = (sec === 2 ? MB : MA)[bar % 8];
+      if (sec === 1) {sline(k, bus, 'epiano', t, beat, mel, .42, 12);sline(k, bus, 'bell', t, beat, mel, .18);}
+      else sline(k, bus, 'bell', t, beat, mel, sec === 3 ? .55 : .5);
+    }};
+  })();
+
+  // "Bossa på Løkka" – Akerselva Kvartett: bossa nova (nylon-string guitar, bass, shaker and rim, whistled tune), D minor,
+  // 132 bpm, intro 8 + AABA = 40 bars (72.7 s).
+  const BOSSA = (() => {
+    const C = {Dm9: [38, [53, 57, 60, 64]], G13: [43, [53, 57, 59, 64]], Cmaj9: [36, [52, 55, 59, 62]], A7b13: [45, [55, 61, 65, 69]],
+      Fmaj7: [41, [57, 60, 64, 65]], Bb9: [46, [56, 60, 62, 65]], Em7b5: [40, [55, 58, 62, 64]], A7: [45, [55, 61, 64, 69]], Gm9: [43, [53, 57, 58, 62]]};
+    const A = 'Dm9 Dm9 G13 G13 Cmaj9 Cmaj9 A7b13 A7b13'.split(' '), B = 'Fmaj7 Bb9 Em7b5 A7 Dm9 G13 Gm9 A7b13'.split(' ');
+    const MA = [[[0, 69, 1.5], [1.5, 72, .5], [2, 74, 1], [3, 76, 1]], [[0, 77, 3], [3, 76, 1]], [[0, 74, 1], [1, 71, 1], [2, 76, 2]], [[0, 74, 3]],
+      [[0, 71, 1.5], [1.5, 74, .5], [2, 76, 1], [3, 79, 1]], [[0, 76, 2], [2, 74, 1], [3, 72, 1]], [[0, 73, 1], [1, 77, 1], [2, 76, 2]], [[0, 73, 3]]];
+    const MB = [[[0, 76, 1.5], [1.5, 77, .5], [2, 81, 2]], [[0, 80, 1.5], [1.5, 77, .5], [2, 74, 2]], [[0, 74, 1], [1, 72, 1], [2, 70, 2]], [[0, 73, 2], [2, 76, 2]],
+      [[0, 77, 1.5], [1.5, 76, .5], [2, 74, 1], [3, 72, 1]], [[0, 71, 2], [2, 76, 2]], [[0, 74, 1.5], [1.5, 70, .5], [2, 69, 2]], [[0, 73, 1], [1, 76, 1], [2, 77, 2]]];
+    return {title: 'Bossa på Løkka', artist: 'Akerselva Kvartett', style: 'bossa nova', bpm: 132, beats: 4, bars: 40, record: true, render(k, bus, bar, t, beat, rnd) {
+      const sec = bar < 8 ? 'intro' : bar < 16 ? 'A' : bar < 24 ? 'A2' : bar < 32 ? 'B' : 'A3', [r, v] = C[(sec === 'B' ? B : A)[bar % 8]];
+      k.crackle(bus, t, beat * 4, rnd, .7);
+      const fifth = r + 7 > 50 ? r - 5 : r + 7;
+      for (const [b, n, d] of [[0, r, 1.4], [1.5, r, .4], [2, fifth, 1.4], [3.5, fifth, .4]]) k.bass(bus, t + b * beat, n, d * beat, b % 1 ? .38 : .5);
+      // The guitar's two-bar pattern; the rim clicks between its chords.
+      const hits = bar % 2 ? [1, 2.5] : [0, 1.5, 3], rim = bar % 2 ? [0, 1.5, 3] : [1, 2.5];
+      for (const b of hits) strumAt(k, bus, 'pluck', t + b * beat, v, beat * .5, .32, .008);
+      for (const b of rim) k.clap(bus, t + b * beat, .16);
+      for (let i = 0; i < 8; i++) k.shaker(bus, t + i * beat / 2, i % 2 ? .35 : .55);
+      k.kick(bus, t, .28);k.kick(bus, t + beat * 2, .22);
+      if (sec === 'A' || sec === 'A2') {sline(k, bus, 'whistle', t, beat, MA[bar % 8], .7);if (sec === 'A2') sline(k, bus, 'bell', t, beat, MA[bar % 8], .2, 12);}
+      if (sec === 'B') sline(k, bus, 'whistle', t, beat, MB[bar % 8], .7);
+      if (sec === 'A3') sline(k, bus, 'bell', t, beat, MA[bar % 8], .45);
+    }};
+  })();
+
+  // "Lavalampe" – Disko Herslebs: seventies soul and disco (four on the floor, octave bass, electric piano stabs, strings,
+  // vibes lead), A minor, 112 bpm, 32 bars (68.6 s).
+  const DISCO = (() => {
+    const C = {Am9: [33, [55, 59, 60, 64], 10], D9: [38, [54, 57, 60, 64], 10], Fmaj7: [41, [53, 57, 60, 64], 7], E7: [40, [56, 59, 62, 67], 10]};
+    const A = 'Am9 Am9 D9 D9'.split(' '), B = 'Fmaj7 Fmaj7 E7 E7'.split(' ');
+    const LEAD = [[[0, 76, .5], [.5, 79, .5], [1, 81, 1], [2.5, 79, .5], [3, 76, 1]], [[0, 74, .75], [.75, 72, .75], [1.5, 69, 2.5]], [[0, 72, .5], [.5, 74, .5], [1, 76, 1], [2.5, 78, .5], [3, 76, 1]], [[0, 74, 2], [2, 72, 1], [3, 69, 1]],
+      [[0, 81, .5], [.5, 84, .5], [1, 83, 1], [2, 81, 1], [3, 79, 1]], [[0, 76, 3], [3, 79, 1]], [[0, 78, 1], [1, 76, .5], [1.5, 74, .5], [2, 72, 1], [3, 74, 1]], [[0, 69, 4]]];
+    const RIFF = [[[0, 77, .5], [.5, 76, .5], [1, 72, 1.5]], [], [[0, 74, .5], [.5, 71, .5], [1, 68, 1.5]], []];
+    return {title: 'Lavalampe', artist: 'Disko Herslebs', style: 'soul and disco', bpm: 112, beats: 4, bars: 32, record: true, render(k, bus, bar, t, beat, rnd) {
+      const sec = bar < 16 ? 'A' : bar < 24 ? 'B' : 'A2', [r, v, step] = C[(sec === 'B' ? B : A)[bar % 4]], e = beat / 2;
+      k.crackle(bus, t, beat * 4, rnd, .7);
+      [0, 12, 0, 12, 0, 12, step, 12].forEach((o, i) => k.bass(bus, t + i * e, r + o, e * .8, i % 2 ? .42 : .55));
+      for (let i = 0; i < 4; i++) {k.kick(bus, t + i * beat, .55);k.hat(bus, t + (i + .5) * beat, .38, true);k.hat(bus, t + (i + .25) * beat, .15);k.hat(bus, t + (i + .75) * beat, .15);}
+      k.clap(bus, t + beat, .45);k.clap(bus, t + beat * 3, .5);
+      if (bar >= 4) for (const b of [.5, 1.75, 2.5, 3.75]) strumAt(k, bus, 'epiano', t + b * beat, v, beat * .3, .26, .006);
+      if (sec === 'B') {v.forEach(m => k.strings(bus, t, m + 12, beat * 4, .55));sline(k, bus, 'bell', t, beat, RIFF[bar % 4], .45);}
+      else if (bar % 2 === 1) v.forEach(m => k.strings(bus, t + beat * 3.5, m + 12, beat * .45, .7));
+      if (sec === 'A2') sline(k, bus, 'bell', t, beat, LEAD[bar % 8], .55);
+      if (sec === 'A' && bar >= 8) sline(k, bus, 'epiano', t, beat, LEAD[bar % 8], .3, -12);
+    }};
+  })();
+
+  // "Fjellvise" – Rathkes Spellemenn: a folk waltz (plucked strings, drone, whistled tune with a Lydian C#, bells), G major,
+  // 3/4, 108 bpm, 48 bars (80 s).
+  const FOLK = (() => {
+    const C = {G: [43, [55, 59, 62]], C: [36, [55, 60, 64]], Em: [40, [55, 59, 64]], D: [38, [54, 57, 62]], Am: [45, [57, 60, 64]]};
+    const A = 'G G C G Em C D G'.split(' '), B = 'C G Am D G Em D G'.split(' '), INTRO = 'G G G G'.split(' '), OUTRO = 'G C G G'.split(' ');
+    const MA = [[[0, 74, 1], [1, 76, 1], [2, 78, 1]], [[0, 79, 2], [2, 74, 1]], [[0, 76, 1], [1, 73, 1], [2, 74, 1]], [[0, 71, 3]],
+      [[0, 71, 1], [1, 74, 1], [2, 79, 1]], [[0, 76, 2], [2, 72, 1]], [[0, 74, 1], [1, 72, 1], [2, 69, 1]], [[0, 67, 3]]];
+    const MB = [[[0, 76, 1], [1, 79, 1], [2, 81, 1]], [[0, 83, 2], [2, 81, 1]], [[0, 81, 1], [1, 79, 1], [2, 76, 1]], [[0, 78, 2], [2, 74, 1]],
+      [[0, 79, 1], [1, 78, 1], [2, 79, 1]], [[0, 76, 2], [2, 71, 1]], [[0, 72, 1], [1, 74, 1], [2, 78, 1]], [[0, 79, 3]]];
+    const part = bar => bar < 4 ? ['intro', INTRO[bar]] : bar < 12 ? ['A', A[(bar - 4) % 8]] : bar < 20 ? ['A2', A[(bar - 4) % 8]] : bar < 28 ? ['B', B[(bar - 4) % 8]] : bar < 36 ? ['A3', A[(bar - 4) % 8]] : bar < 44 ? ['B2', B[(bar - 4) % 8]] : ['outro', OUTRO[bar - 44]];
+    return {title: 'Fjellvise', artist: 'Rathkes Spellemenn', style: 'folk waltz', bpm: 108, beats: 3, bars: 48, record: true, render(k, bus, bar, t, beat, rnd) {
+      const [sec, name] = part(bar), [r, v] = C[name], i = (bar - 4) % 8;
+      k.crackle(bus, t, beat * 3, rnd, .7);
+      if (bar % 2 === 0) {k.pad(bus, t, 55, beat * 6 + .2, .55, 700);k.pad(bus, t, 62, beat * 6 + .2, .45, 700);}
+      k.bass(bus, t, r, beat * .9, .62);
+      for (const b of [1, 2]) strumAt(k, bus, 'pluck', t + b * beat, v, beat * .45, .34, .01);
+      if (bar % 4 === 3) k.shaker(bus, t + beat * 2.5, .4);
+      if (sec === 'A' || sec === 'A2') {line(k, bus, 'whistle', t, beat, MA[i], sec === 'A2' ? .6 : .9);if (sec === 'A2') line(k, bus, 'pluck', t, beat, MA[i], .55, 12);}
+      if (sec === 'B' || sec === 'B2') {line(k, bus, 'whistle', t, beat, MB[i], .85);if (sec === 'B') line(k, bus, 'bell', t, beat, MB[i], .32);}
+      if (sec === 'A3') {line(k, bus, 'bell', t, beat, MA[i], .65);line(k, bus, 'whistle', t, beat, MA[i], .4, -12);}
+      if (sec === 'outro' && bar === 47) k.whistle(bus, t, 67, beat * 2.5, .45);
+    }};
+  })();
+
+  const TRACKS = {main: MAIN, discgolf: DISC, petanque: PET, mission: MISSION, minigolf: GOLF, lp1: JAZZ, lp2: BOSSA, lp3: DISCO, lp4: FOLK};
+  const RECORDS = ['lp1', 'lp2', 'lp3', 'lp4'];
   const info = {};
-  for (const [name, d] of Object.entries(TRACKS)) info[name] = {title: d.title, bpm: d.bpm, beats: d.beats, bars: d.bars, seconds: d.bars * d.beats * 60 / d.bpm};
+  for (const [name, d] of Object.entries(TRACKS)) info[name] = {title: d.title, artist: d.artist, style: d.style, record: !!d.record, bpm: d.bpm, beats: d.beats, bars: d.bars, seconds: d.bars * d.beats * 60 / d.bpm};
   const barSeed = (name, bar) => mulberry32(bar * 977 + name.length * 31 + 13);
 
   // Shared output chain: master volume -> gentle compressor -> speakers; one generated hall reverb.
@@ -279,15 +393,40 @@
   }
 
   function create() {
-    let ctx = null, kit = null, out = null, current = null, volume = .5;
+    let ctx = null, kit = null, out = null, current = null, volume = .5, duckK = 1;
     const loadVolume = () => {try {const v = localStorage.getItem('haarklous-music-volume-v1');if (v !== null && v !== '') volume = Math.max(0, Math.min(1, +v));} catch {}};
     loadVolume();
     const lanes = {};
-    const level = () => volume * .8;
+    const level = () => volume * .8 * duckK;
+    // The record player (issue #116): its own lane into `recOut` (not the soundtrack's master), which the game routes through
+    // the room (volume by distance, pan, walls); a small room reverb of its own.
+    let rec = null, recOut = null, recVerb = null;
     function attach(c) {
       if (ctx || !c) return;ctx = c;kit = makeKit(ctx);out = chain(ctx, level());
+      recOut = ctx.createGain();recVerb = ctx.createConvolver();
+      {const len = Math.floor(ctx.sampleRate * 1.1), ir = ctx.createBuffer(2, len, ctx.sampleRate);for (let ch = 0; ch < 2; ch++) {const d = ir.getChannelData(ch);for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3) * (i < 300 ? i / 300 : 1);}recVerb.buffer = ir;const wet = ctx.createGain();wet.gain.value = .35;recVerb.connect(wet).connect(recOut);}
       setInterval(tick, 60);const want = current;current = undefined;play(want);
     }
+    // Put a record on: `pos` = seconds into it (it loops); a negative pos = seconds until the music starts, with the needle's
+    // thump and crackle from `needle` seconds before that. The music starts on a bar line, so every player is in step.
+    function recordPlay(name, pos, needle = 1.4) {
+      if (!ctx || !TRACKS[name]) return false;
+      recordStop(.08);
+      const def = TRACKS[name], beat = 60 / def.bpm, barLen = beat * def.beats, len = def.bars * barLen, now = ctx.currentTime;
+      const bus = {dry: ctx.createGain(), wet: ctx.createGain()};bus.dry.connect(recOut);bus.wet.connect(recVerb);
+      let bar = 0, startT = now - pos;
+      if (pos >= 0) {const p = pos % len;bar = Math.ceil(p / barLen - 1e-6);startT = now + bar * barLen - p;bar %= def.bars;}
+      else {const rnd = mulberry32(7), from = Math.max(now, startT - needle);if (startT - needle >= now - .05) kit.kick(bus, from + .02, .18);for (let t = from; t < startT; t += .5) kit.crackle(bus, t, .5, rnd, 1.6);}
+      rec = {name, def, bus, bar, nextT: startT, barLen};return true;
+    }
+    function recordStop(fadeS = .35) {
+      if (!rec || !ctx) {rec = null;return;}
+      const r = rec, now = ctx.currentTime;rec = null;
+      for (const g of [r.bus.dry.gain, r.bus.wet.gain]) {g.cancelScheduledValues(now);g.setValueAtTime(g.value, now);g.linearRampToValueAtTime(0, now + fadeS);}
+      setTimeout(() => {try {r.bus.dry.disconnect();r.bus.wet.disconnect();} catch {}}, (fadeS + 3) * 1000);
+    }
+    // The soundtrack steps back (0..1) while a record or the TV is heard.
+    function duck(k) {k = Math.max(0, Math.min(1, k));if (Math.abs(k - duckK) < .01) return;duckK = k;if (out) out.master.gain.setTargetAtTime(level(), ctx.currentTime, .4);}
     function lane(name) {
       if (!lanes[name]) {const dry = ctx.createGain(), wet = ctx.createGain();dry.gain.value = 0;wet.gain.value = 0;dry.connect(out.master);wet.connect(out.reverb);lanes[name] = {name, def: TRACKS[name], bus: {dry, wet}, bar: 0, nextT: 0, active: false, until: 0};}
       return lanes[name];
@@ -310,6 +449,11 @@
         if (L.nextT < now) L.nextT = now + .05;
         while (L.nextT < now + 1.2) {L.def.render(kit, L.bus, L.bar, L.nextT, beat, barSeed(L.name, L.bar));L.nextT += barLen;L.bar = (L.bar + 1) % L.def.bars;}
       }
+      // The record keeps its own clock: bars missed while the tab slept are skipped, not squeezed in.
+      if (rec) {
+        while (rec.nextT < now) {rec.nextT += rec.barLen;rec.bar = (rec.bar + 1) % rec.def.bars;}
+        while (rec.nextT < now + 1.2) {rec.def.render(kit, rec.bus, rec.bar, rec.nextT, 60 / rec.def.bpm, barSeed(rec.name, rec.bar));rec.nextT += rec.barLen;rec.bar = (rec.bar + 1) % rec.def.bars;}
+      }
     }
     function setVolume(v) {
       volume = Math.round(Math.max(0, Math.min(1, v)) * 100) / 100;try {localStorage.setItem('haarklous-music-volume-v1', String(volume));} catch {}
@@ -318,7 +462,8 @@
     // Where the current track is: bar, seconds into the loop, loop length.
     if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('haarklous-progress', () => {loadVolume();if (out) out.master.gain.setTargetAtTime(level(), ctx.currentTime, .1);});
     function position() {const L = current && lanes[current];if (!L) return null;const i = info[current];return {track: current, title: i.title, bar: L.bar, seconds: L.bar * i.seconds / i.bars, length: i.seconds};}
-    return {attach, play, setVolume, position, get volume() {return volume;}, get current() {return current;}, tracks: info};
+    return {attach, play, setVolume, position, recordPlay, recordStop, duck, get volume() {return volume;}, get current() {return current;}, tracks: info, records: RECORDS,
+      get context() {return ctx;}, get recordOutput() {return recOut;}, get record() {return rec ? rec.name : null;}, get ducked() {return duckK;}};
   }
 
   // Renders a track without the game (tests / previews): every bar is scheduled up front on an offline context.
@@ -330,5 +475,5 @@
     for (let t = .05, bar = startBar % def.bars; t < seconds; t += barLen, bar = (bar + 1) % def.bars) def.render(kit, bus, bar, t, beat, barSeed(name, bar));
     return c.startRendering();
   }
-  return {create, tracks: info, renderOffline};
+  return {create, tracks: info, records: RECORDS, renderOffline};
 });

@@ -129,6 +129,8 @@
     if (F && FD && DATA.parts) {
       const tops = DATA.parts.map(b => b.top).filter(Number.isFinite);
       flat = F.build({T, lib, world, data: FD, top: tops.length ? Math.max(...tops) : null});
+      // The living room you can use (issue #116): record player, sofa and TV, chairs, lava lamp.
+      if (typeof window !== 'undefined' && window.GameRathkesLiving) {flat.living = window.GameRathkesLiving.create({T, lib, flat, data: FD});flat.hitboxes.push(...flat.living.hitboxes);}
       group.add(flat.group);doors.push(...flat.doors);hitboxes.push(...flat.hitboxes);
       if (world.far && flat.far) world.far.add(flat.far);
     }
@@ -143,7 +145,7 @@
     const at1C = flat ? world.toLocal(flat.yardDoor.x, flat.yardDoor.z) : {x: DATA.address['1C'][0], s: DATA.address['1C'][1]};
     const poi = () => [{x: at1C.x, s: at1C.s, color: '#1f3b6e', label: flat ? 'Rathkes gate 1C · flat 501' : 'Rathkes gate 1C', glyph: '⌂'}];
     const none = () => null;
-    return {group, doors, hitboxes, prompt, poi, data: DATA, stairDoors, gate: W(...P.from), flat,
+    return {group, doors, hitboxes, prompt, poi, data: DATA, stairDoors, gate: W(...P.from), flat, living: flat && flat.living,
       floors: flat ? flat.floors : [], obstacles: flat ? flat.obstacles : [],
       inside: flat ? flat.inside : none, lampAt: flat ? flat.lampAt : none, placeName: flat ? flat.placeName : none, tick: flat ? flat.tick : () => {}};
   }

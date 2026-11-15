@@ -42,7 +42,8 @@ similar to the video. the video is the real rathkes gate 1C unit 501 apartment."
     row of black wall cabinets with wooden crates and two clamp lamps on top, a rail with pots and pans), the grey riser pipe in the
     corner, the rattan sideboard with an espresso machine under nine record sleeves, the long black dining table with six chairs and
     flowers, the dark grey sofa, the teak coffee table on a red and teal rug, the leather sling chair, the teak wall shelving with
-    books, lamps, a record player and a lava lamp, the TV in the corner by the chimney breast, a guitar and plants.
+    books, lamps, a record player and a lava lamp, the TV in the corner by the chimney breast, a guitar and plants. The record
+    player, sofa, TV, chairs and lava lamp can be used (issue #116, below).
   - The **bathroom** behind the closed panelled door at the end of the hall (not seen in the video, "a small bathroom"): 2.9 × 2.1 m,
     white 15 cm wall tiles, grey floor tiles, basin on a vanity under a mirror cabinet with a light, wall-hung toilet, shower corner
     with a glass screen, washing machine, towel radiator, extractor fan.
@@ -72,6 +73,29 @@ similar to the video. the video is the real rathkes gate 1C unit 501 apartment."
   on the street front) are not from the video.
 - The video was filmed at night; the game shows the flat by day.
 
+## The living room you can use (issue #116, 15 Nov 2026)
+- **Record player** on the teak wall unit's low cabinet: □ puts a record on (the platter turns, the arm swings in, the needle lands
+  with a crackle, then the music); □ again: the next of four records, after the last: stop. The records are the game's own synth
+  music (`game-music.js` lp1–lp4): «Søndagsjazz» (Trio Herslebs, jazz trio), «Bossa på Løkka» (Akerselva Kvartett, bossa nova),
+  «Lavalampe» (Disko Herslebs, soul and disco), «Fjellvise» (Rathkes Spellemenn, folk waltz). The band names are made up.
+  The music comes from the record player: full in the living room, softer further away, faint and muffled in the other rooms,
+  nothing outside the flat; the game's soundtrack steps back while you hear it.
+- **Sofa and TV:** □ on the sofa sits you down (three seats) facing the TV; there □ is the TV's button (on – news, football, a
+  nature film, the weather with the game's real weather – off) and ✕ stands you up. □ on the TV works standing too. The picture
+  moves, a quiet sound matches it, and the screen lights the room.
+- **The chairs** (the six dining chairs, the leather sling chair, the folding chair in the navy bedroom): tap □ picks one up, □
+  puts it down in front of you, turned the way you face (in 15° steps); not in a wall, on furniture or another chair, in a
+  doorway or in another room than yours. Hold □ sits on it.
+- **Lava lamp** on the shelf above the record player: □ on / off; it warms up over a few seconds, the wax rises and sinks, and a
+  warm light falls on the shelf and the wall.
+- All of it is shared online: everybody in the lobby hears the same record at the same point, sees the same channel and the chairs
+  where they were put (while the lobby lives; not saved between sessions).
+- **What was wrong with the chairs** (found in the game, 15 Nov 2026): the leather sling chair was built wrong – its arms tilted the
+  wrong way, the seat floated between loose legs and the back lay forward like a lid; the dining chairs' backs floated 10 cm over
+  the seats with nothing holding them; the folding chair's back posts stood loose behind the seat and its cushion floated. All
+  three are rebuilt from joined parts (a test checks that every part stands on the floor or touches another). The sofa's arm also
+  reached 27 cm into the wall unit's cabinet: the sofa now stands at a 7.3 (was 7.05) and is 2.0 m long (was 2.1).
+
 ## Not done / later
 - The façade's real colours (grey plaster, yellow brick pilasters) for the whole block.
-- Nothing in the flat can be used yet (no drinks or chairs to sit on, like in 17A).
+- No drinks in this flat (as in 17A).
