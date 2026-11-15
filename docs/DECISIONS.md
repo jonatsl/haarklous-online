@@ -90,9 +90,14 @@ Live site: runs `main` (Worker version f8651516, deployed 15 Nov 2026 after PRs 
     | Treschows gate (Myrens) | 4.4 → 1.9 | 0.75 → 0.08 | 1.92 → 1.26 |
 
     At 60 km/h the car's vertical shaking is 0.07–2.0 m/s² RMS (was 0.9–10.8), and it no longer leaves the ground on Sinsenveien and Økernveien. The side-to-side rocking of the view (roll rate) is 0.2–1.8 °/s (was 1.6–20).
-  - Node tests 221/221 (4 new: limits for the sample streets, the 12 cm kerb on both sides, the drawn ground equals the ground you stand on within 5 mm, the real terrain away from streets).
+  - Node tests 246/246 after merging `main` (4 new: limits for the sample streets, the 12 cm kerb on both sides, the drawn ground equals the ground you stand on within 5 mm, the real terrain away from streets).
+  - The parked vehicles (issue #113): of 6,253 kerb places, 6,021 are fully on the road beside the kerb and 14 have wheels on two levels (junction corners). In the browser in six places (Torshov ×2, Grünerløkka, Grønland, Sinsen, Ulven, 252 cars) the wheels are within 1–5 cm of the surface; 3 cars stand across a level change of 12 cm.
+  - Found and fixed on the way: 121 streets near the edge of the old square (Rødstuveien, Schouterrassen, Askergata …) were in the patches' data but not in the old square's, so they had no street surface; now they do.
+  - Drawing cost at the same ten camera spots, `main` → this branch (both with the parked vehicles): draw calls the same or +1 to +3 (the old square's ground is now eight tiles the camera can skip); triangles 2–7 % fewer in Torshov, Grünerløkka and Sinsen, 9–10 % more in Grønland, Ulven and Økern (kerb faces and cut pieces), +2 % on Trondheimsveien.
+  - Start-up on this (very busy, shared) PC: the ground's part took 9.6 s on `main` and 12.5 s here in one run each; the numbers jump a lot between runs, so it is not measured well. The district ground is no longer built at the start (only when you come within 1 km).
+  - Doors of the nine stair towers: the pavement outside is now 12 cm below to 6 cm above the threshold (was 7 cm below to 3.5 cm above).
   - In the browser (headless Chrome): pictures at street level and from the driver's seat in Torshov, Grünerløkka, Grønland, Sinsen, Økern and on Trondheimsveien, before and after, with and without the aerial photo, and in dim evening light.
-- **Status:** PR (number below), not merged yet.
+- **Status:** [PR #121](https://github.com/jonatsl/haarklous-online/pull/121), not merged yet.
 ### 2026-11-15 · A lot more vehicles around the city (issue #113)
 - **What:**
   - About 7,500 more parked vehicles you can drive, in every part of the world (planned numbers; a few are left out in the game where it keeps a place free): Torshov 1,246, Sagene / Myrens 112, Grünerløkka 903, Tøyen / Kampen 612, Grønland and the centre 553, Ensjø 373, Sinsen / Løren 274, Økern / Ulven 538. About 6,250 stand by the kerb, 1,350 in real car parks, and taxis wait at the taxi ranks. That is 20 times the 367 cars of issue #105. Grünerløkka has fewer than you might expect because OpenStreetMap marks many of its kerbs as no parking, and its tram streets have none.
