@@ -119,7 +119,7 @@
     {kind: 'trolley', at: [9.4, 6.68], rot: 0},
     {kind: 'bed', at: [7.95, 9.68], w: 1.6, d: 2.0, rot: 2, frame: 0x8f9296, duvet: 0x9cc0cf},
     {kind: 'dresser', at: [9.55, 10.6], w: .85, d: .45, h: .75, rot: 2, color: 0x1f2125},
-    {kind: 'foldingChair', at: [9.45, 9.55], rot: 3},
+    {kind: 'foldingChair', at: [9.45, 9.55], rot: 3, movable: true},
     {kind: 'rug', at: [8.6, 8.9], w: 2.2, d: 2.4, colors: [0x4f7d62, 0xb9cdb0, 0x30584a]},
     {kind: 'curtains', at: [8.9, 10.85], w: 2.0, color: 0x1d2a4d, rot: 2},
     {kind: 'radiator', at: [8.9, 10.85], w: 1.1, rot: 2},
@@ -129,11 +129,16 @@
     {kind: 'sideboard', at: [11.85, 4.67], w: 1.1, d: .45, h: .72, rot: 2},
     {kind: 'records', at: [11.85, 4.9], w: 1.25, y: 1.25, rot: 2},
     {kind: 'diningTable', at: [10.9, 2.7], w: .9, d: 2.0},
-    {kind: 'sofa', at: [7.05, .95], w: 2.1, d: .9, rot: 0, color: 0x3b4249},
+    // The chairs (issue #116) are pieces of their own: □ picks one up (game-rathkes-living.js), hold □ sits on it.
+    {kind: 'diningChair', at: [10.33, 2.08], rot: 1, movable: true}, {kind: 'diningChair', at: [10.33, 2.7], rot: 1, movable: true}, {kind: 'diningChair', at: [10.33, 3.32], rot: 1, movable: true},
+    {kind: 'diningChair', at: [11.47, 2.08], rot: 3, movable: true}, {kind: 'diningChair', at: [11.47, 2.7], rot: 3, movable: true}, {kind: 'diningChair', at: [11.47, 3.32], rot: 3, movable: true},
+    // The sofa stands clear of the wall unit (its arm used to reach 27 cm into the shelf's cabinet) and of the radiator.
+    {kind: 'sofa', at: [7.3, .95], w: 2.0, d: .9, rot: 0, color: 0x3b4249},
     {kind: 'coffeeTable', at: [6.95, 2.25], w: 1.2, d: .6, h: .45},
     {kind: 'rug', at: [7.15, 2.7], w: 2.4, d: 2.5, colors: [0x8a2a22, 0x2a6f6c, 0xcfa868]},
-    {kind: 'slingChair', at: [8.05, 3.65], rot: 2},
-    {kind: 'wallUnit', at: [6.0, 2.6], w: 3.2, rot: 1},
+    {kind: 'slingChair', at: [8.05, 3.65], rot: 2, movable: true},
+    // Teak wall shelving; record = the record player on the low cabinet, lava = the lava lamp on the shelf above (local x, z).
+    {kind: 'wallUnit', at: [6.0, 2.6], w: 3.2, rot: 1, record: [1.1, .025], lava: [1.1, -.025]},
     {kind: 'tv', at: [6.75, 4.3], rot: 1.9},
     {kind: 'guitar', at: [6.4, 4.38]},
     {kind: 'plant', at: [9.0, 4.55], h: 1.0}, {kind: 'plant', at: [6.35, 4.05], h: .6},

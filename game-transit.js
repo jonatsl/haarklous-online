@@ -752,15 +752,16 @@
     // ---------- Parked vehicles out of the lanes ----------
     // A parked vehicle (by its world spot and half width) that stands in a bus or tram lane is moved sideways out of it, or
     // null if it is clear. The caller checks the new spot (and keeps the vehicle's number).
-    function keepClear(x, z, half) {
+    function keepClear(x, z, half, margin = .35) {
       // -> null (clear) or the spots to try, best first: out to its own side of the lane, then to the other side, then further.
+      // Clear = the vehicle's half width + margin away from the bus's (1.28 m) or tram's (1.33 m) swept half width.
       const l = toLocal(x, z), n = nearestLane(l.x, l.s, 8);if (!n) return null;
-      const need = 1.3 + half + .35;
+      const need = (n.tram ? 1.33 : 1.28) + half + margin;
       if (Math.abs(n.off) >= need) return null;
       const sg = n.off >= 0 ? 1 : -1, out = [];
       for (const [side, extra] of [[sg, .1], [sg, 1.2], [-sg, .1], [-sg, 1.2]]) {
         const move = side * (need + extra) - n.off, ls = {x: l.x - n.hs * move, s: l.s + n.hx * move}, again = nearestLane(ls.x, ls.s, 8);
-        if (again && Math.abs(again.off) < 1.3 + half + .3) continue;
+        if (again && Math.abs(again.off) < (again.tram ? 1.33 : 1.28) + half + margin - .05) continue;
         out.push(W(ls.x, ls.s));
       }
       return out.length ? out : [];
