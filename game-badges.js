@@ -197,7 +197,7 @@
         award({...good.s, icon: '📷'}, {thumb: thumbOf(canvas)});check();return null;
       }
       const x = near.find(x => !state.got[x.s.id]);if (!x) return null;
-      return `Photo hunt · ${x.s.name}: ${{far: `come closer (within ${x.s.maxDist} m)`, side: 'take it from the front', frame: 'it is not in the picture – aim at it', small: 'it is too small in the picture – go closer or zoom in (L2, right stick)', blocked: 'something is in the way'}[x.j.why]}.`;
+      return `Photo hunt · ${x.s.name}: ${{far: `come closer (within ${x.s.maxDist} m)`, side: 'take it from the front', frame: 'it is not in the picture – aim at it', small: 'it is too small in the picture – go closer or zoom in (L2, then D-pad ↑ or the mouse wheel)', blocked: 'something is in the way'}[x.j.why]}.`;
     }
     function render() {
       const R = records, f = facts(), list = shown(state.got), all = [...SPOTS, ...list], have = all.filter(b => state.got[b.id]).length;

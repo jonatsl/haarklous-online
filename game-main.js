@@ -1318,7 +1318,10 @@
 
   // ---------- Input ----------
   const keys = new Set(), keyEdges = new Set();let mouse = {dx: 0, dy: 0, left: false, right: false, leftEdge: false, leftUp: false, wheel: 0};
+  // The keys that type + and − (the camera's and binoculars' zoom, issue #133), learnt from the character so they work on any layout (Norwegian too).
+  const zoomKeys = {};
   document.addEventListener('keydown', e => {if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) {if (e.code === 'Escape') e.target.blur();return;}if (e.repeat) return;
+    if (e.key === '+' || e.key === '=') zoomKeys[e.code] = 'zoomIn';else if (e.key === '-' || e.key === '_') zoomKeys[e.code] = 'zoomOut';
     if ((e.code === 'Enter' || e.code === 'KeyT') && started && !paused) {e.preventDefault();openChat();return;}keys.add(e.code);keyEdges.add(e.code);if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.code)) e.preventDefault();audio.resume();});
   document.addEventListener('keyup', e => {keys.delete(e.code);});
   window.addEventListener('blur', () => keys.clear());
@@ -1326,7 +1329,7 @@
   canvas.addEventListener('mousedown', e => {audio.resume();if (document.pointerLockElement !== canvas) {if (started) lockPointer();return;}if (e.button === 0) {mouse.left = true;mouse.leftEdge = true;}if (e.button === 2) mouse.right = true;if (caseGame?.active) caseGame.mouse(e.button, true);});
   document.addEventListener('mouseup', e => {if (e.button === 0) {if (mouse.left) mouse.leftUp = true;mouse.left = false;}if (e.button === 2) mouse.right = false;if (caseGame?.active) caseGame.mouse(e.button, false);});
   canvas.addEventListener('contextmenu', e => e.preventDefault());
-  canvas.addEventListener('wheel', e => {mouse.wheel += e.deltaY;}, {passive: true});
+  canvas.addEventListener('wheel', e => {mouse.wheel += e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY;}, {passive: true});// in pixels (about 100 a notch)
   let padPrev = null;
   function readInput() {
     const pads = navigator.getGamepads ? navigator.getGamepads() : [], gp = padReader.pickGamepad(pads), st = gp ? padReader.read(gp) : null;
@@ -1340,6 +1343,7 @@
     if (kx || ky) {input.move.x = kx;input.move.y = ky;}
     const map = {Space: 'cross', KeyC: 'circle', KeyE: 'square', KeyF: 'triangle', Escape: 'options', KeyM: 'touchpad', KeyG: 'gallery', KeyZ: 'prone', KeyR: 'reload', ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down', ShiftLeft: 'l3', KeyQ: 'l1', KeyV: 'view', KeyY: 'share', KeyP: 'phone', KeyB: 'badges', KeyN: 'friends', Delete: 'delete', KeyX: 'cast', Digit1: 'magic1', Digit2: 'magic2', Digit3: 'magic3', Digit4: 'magic4'};
     for (const [code, name] of Object.entries(map)) {if (ke(code)) input.pressed.add(name);if (k(code)) input.held[name] = true;}
+    for (const code of keys) if (zoomKeys[code]) input.held[zoomKeys[code]] = true;
     // Flying (helicopter, plane, drone): hold Shift or the right mouse button to look around (Battlefield's free look, issue #16).
     const flying = player.mode === 'drone' || (player.mode === 'vehicle' && !!player.vehicle?.aircraft);
     input.freeLook = flying && (k('ShiftLeft') || k('ShiftRight') || mouse.right);
@@ -1444,18 +1448,20 @@
       // The map's "up" is north (-s); facing (-sin yaw, -cos yaw) in the world is -(yaw - theta) on the map (issue #21: it was 180° off).
       map.draw({x: player.x, z: player.z, headingLocal: -(player.yaw - theta), others: lobbyArrows()});renderFrame(dt, t);return;
     }
-    // △: a tap takes out the photo camera (or puts it away); holding it opens the gear menu: camera or FPV drone.
+    // △: a tap takes out the photo camera (or puts away the camera or binoculars); holding it opens the gear menu: camera, binoculars or FPV drone.
     if (player.mode === 'foot' && !caseGame?.active && !pbBusy()) {// the paintball lobby and game use △ and the D-pad
-      if (input.pressed.has('triangle')) {if (photo.active) photo.toggle();else gear = {t0: performance.now(), open: false, sel: gearLast, stick: false};}
+      if (input.pressed.has('triangle')) {if (photo.active) photo.toggle();else gear = {t0: performance.now(), open: false, sel: gearLast, stick: false, mx: 0};}
       if (gear) {
         if (input.held.triangle) {
           if (!gear.open && performance.now() - gear.t0 > 280) {gear.open = true;watch.hide();}
           if (gear.open) {
-            const sx = Math.abs(input.move.x) > Math.abs(input.move.y) ? input.move.x : input.move.y;if (input.pressed.has('left') || input.pressed.has('up') || (sx < -.5 && !gear.stick)) gear.sel = 0;if (input.pressed.has('right') || input.pressed.has('down') || (sx > .5 && !gear.stick)) gear.sel = 1;gear.stick = Math.abs(sx) > .5;
-            if (input.mouse.dx < -4) gear.sel = 0;else if (input.mouse.dx > 4) gear.sel = 1;
+            const sx = Math.abs(input.move.x) > Math.abs(input.move.y) ? input.move.x : input.move.y;let step = 0;
+            if (input.pressed.has('left') || input.pressed.has('up') || (sx < -.5 && !gear.stick)) step = -1;if (input.pressed.has('right') || input.pressed.has('down') || (sx > .5 && !gear.stick)) step = 1;gear.stick = Math.abs(sx) > .5;
+            gear.mx += input.mouse.dx;if (Math.abs(gear.mx) > 40) {step = Math.sign(gear.mx);gear.mx = 0;}
+            gear.sel = Math.max(0, Math.min(GEAR.length - 1, gear.sel + step));
             input.move.x = input.move.y = 0;input.look.x = input.look.y = 0;input.mouse.dx = input.mouse.dy = 0;showGear(gear.sel);
           }
-        } else {const g = gear;gear = null;showGear(null);if (g.open) {gearLast = g.sel;if (g.sel === 1) startDrone();else photo.toggle();} else photo.toggle();}
+        } else {const g = gear;gear = null;showGear(null);if (g.open) {gearLast = g.sel;if (GEAR[g.sel] === 'drone') startDrone();else photo.toggle(GEAR[g.sel]);} else photo.toggle();}
       }
       if (input.pressed.has('up') && !photo.active && !gear) watch.toggle();
       if (input.pressed.has('down') && !photo.active && !gear && !bag && !gymMenu) {openBag();input.pressed.delete('down');}
@@ -1466,8 +1472,10 @@
       if (input.pressed.has('square') || input.pressed.has('gallery')) photo.openGallery();
       if (photo.gallery) {if (input.pressed.has('left')) photo.browse(-1);if (input.pressed.has('right')) photo.browse(1);if (input.move.x > .6 && !photo.stick) {photo.browse(1);photo.stick = true;} else if (input.move.x < -.6 && !photo.stick) {photo.browse(-1);photo.stick = true;} else if (Math.abs(input.move.x) < .3) photo.stick = false;if (input.pressed.has('cross') || input.pressed.has('delete')) photo.deleteShown();if (input.pressed.has('circle') && !photo.cancelDelete()) photo.openGallery(false);renderFrame(dt, t);return;}
       if (input.pressed.has('circle')) photo.toggle();
-      photo.setRaised(input.l2 > .4 ? 1 : 0);if (photo.raised > .5 && input.look.y) photo.setZoom(photo.zoom * Math.exp(-input.look.y * dt * 1.5));
-      if (input.r2 > .6 && !photo.shutterHeld) {photo.shutterHeld = true;renderFrame(0, t, true);photo.capture(canvas, placeName());huntPhoto();renderFrame(dt, t);return;}
+      photo.setRaised(input.l2 > .4 ? 1 : 0);
+      // Zoom on its own controls (issue #133; the right stick only looks): D-pad ↑↓ or + − held zoom smoothly, the mouse wheel in steps.
+      if (photo.raised > .5 && !quick) {const z = (input.held.up || input.held.zoomIn ? 1 : 0) - (input.held.down || input.held.zoomOut ? 1 : 0);if (z || input.mouse.wheel) photo.setZoom(photo.zoom * Math.exp(z * dt * 1.1 - input.mouse.wheel * .0022));}
+      if (photo.kind === 'camera' && input.r2 > .6 && !photo.shutterHeld) {photo.shutterHeld = true;renderFrame(0, t, true);photo.capture(canvas, placeName());huntPhoto();renderFrame(dt, t);return;}
       if (input.r2 < .3) photo.shutterHeld = false;
     }
     // Drunk effect: decays in real time.
@@ -1544,7 +1552,8 @@
 
   function updateFoot(dt, input, dl) {
     // Look.
-    const mouseScale = .0024 * sensitivity.mouse, padScale = sensitivity.pad * (photo.raised > .5 ? 1 / photo.zoom : 1) * (caseGame?.active ? caseGame.lookScale() : 1), curve = v => Math.sign(v) * v * v;
+    // Looking slows down with the camera's or binoculars' zoom (1 / zoom, so the picture moves as fast at any zoom), for the mouse too.
+    const zoomLook = photo.active && photo.raised > .5 ? 1 / photo.zoom : 1, mouseScale = .0024 * sensitivity.mouse * zoomLook, padScale = sensitivity.pad * zoomLook * (caseGame?.active ? caseGame.lookScale() : 1), curve = v => Math.sign(v) * v * v;
     player.yaw -= input.mouse.dx * mouseScale + curve(input.look.x) * 2.8 * padScale * dt;
     player.pitch = Math.max(-1.5, Math.min(1.5, player.pitch - input.mouse.dy * mouseScale - curve(input.look.y) * 1.9 * padScale * dt));
     // Buttons: ✕ jump, ○ tap crouch / hold prone, □ interact, L3 run toggle.
@@ -1563,7 +1572,7 @@
     const mag = Math.min(1, Math.hypot(mx, my));
     player.running = false;
     if (canMove && mag > .05) {
-      const running = !propSpeed && player.stance === 'stand' && !(hushed > 0) && (player.run || (!caseGame?.active && !photo.active && !pbArmed() && input.r2 > .3) || input.held.l3);player.running = running;
+      const running = !propSpeed && player.stance === 'stand' && !(hushed > 0) && (player.run || (!caseGame?.active && !(photo.active && photo.kind === 'camera') && !pbArmed() && input.r2 > .3) || input.held.l3);player.running = running;
       // Standing: walk 2.5 m/s, run 6.0 m/s (issue #88, 5 Nov 2026); crouching and prone keep 1.45 x .55 and x .28.
       const base = propSpeed || (player.stance === 'stand' ? WALK_SPEED : 1.45 * stanceSpeed());
       const speed = (running ? RUN_SPEED : base) * (caseGame?.active ? caseGame.moveScale() : 1) * (1 - dl * .25) * (boostIs('speed') ? 3 : 1), fwd = -my, right = mx;
@@ -1949,7 +1958,7 @@
     if (ps.green) return `GREEN LIGHT · ${m} m · ✕ / Space: JUMP`;
     return `The game's pilot · ${ps.ph === 'run' ? 'jump run, door open' : ps.ph === 'orbit' ? 'circling' : ps.ph === 'away' ? 'flying home' : 'climbing (sped up)'} · ${m} m · ${jumpHint}`;
   }
-  let gear = null, gearLast = 0;
+  let gear = null, gearLast = 0;const GEAR = ['camera', 'binoculars', 'drone'];// the gear menu's items, in #gearMenu's order (data-i)
   function showGear(sel) {const m = $('gearMenu');m.hidden = sel === null;if (sel !== null) m.querySelectorAll('.gm-item').forEach(e => e.classList.toggle('sel', +e.dataset.i === sel));}
   function updatePassenger(dt, input, dl) {
     const v = player.vehicle;
@@ -2317,7 +2326,7 @@
     renderer.autoClear = false;renderer.clear();if (!deepNow) renderer.render(farScene, farCamera);renderer.clearDepth();renderer.render(scene, camera);
     if (!forPhoto) {
       if (caseGame?.active) caseGame.renderOverlay(camera);
-      else {const showWatch = watch.update(dt), showPhoto = photo.active && !photo.gallery;photo.model.visible = showPhoto;if (showPhoto || showWatch || paintball?.marker.visible || prophunt?.marker?.visible) {renderer.clearDepth();renderer.render(overlayScene, overlayCamera);}}
+      else {const showWatch = watch.update(dt), showPhoto = photo.active && !photo.gallery && photo.raised < .5;photo.model.visible = showPhoto;if (showPhoto || showWatch || paintball?.marker.visible || prophunt?.marker?.visible) {renderer.clearDepth();renderer.render(overlayScene, overlayCamera);}}
     }
     renderer.autoClear = true;
     // Drunk: blur and a drifting double image.

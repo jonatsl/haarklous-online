@@ -50,6 +50,12 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
 #photoCam .gallery[hidden]{display:none}
 #photoCam .gallery img{max-width:100%;max-height:100%;border:4px solid #fff;border-radius:4px}
 #photoCam .g-bar{display:flex;gap:24px;font-weight:600}
+/* Binoculars raised (issue #133): two round fields joined, black round them (a CSS mask, no extra render pass). */
+#photoCam.bino .vf{display:none!important}
+#photoCam.bino.raised{background:none}
+#photoCam .bino{position:absolute;inset:0;display:none;background:#000;-webkit-mask-image:radial-gradient(circle 33vmin at calc(50% - 19vmin) 50%,#0000 93%,#000 100%),radial-gradient(circle 33vmin at calc(50% + 19vmin) 50%,#0000 93%,#000 100%);-webkit-mask-composite:source-in;mask-image:radial-gradient(circle 33vmin at calc(50% - 19vmin) 50%,#0000 93%,#000 100%),radial-gradient(circle 33vmin at calc(50% + 19vmin) 50%,#0000 93%,#000 100%);mask-composite:intersect}
+#photoCam.bino.raised .bino{display:block}
+#photoCam .b-info{position:absolute;left:50%;top:calc(50% + 35vmin);transform:translateX(-50%);font:600 14px ui-monospace,Consolas,monospace;color:#cfd6dc}
 #photoCam .cam-help{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);font-size:13px;text-shadow:0 1px 2px #000;white-space:nowrap}
 /* Map */
 #mapOverlay{position:absolute;inset:0;z-index:5;background:#e8e4d8}
@@ -101,8 +107,8 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
 
 /* Aircraft HUD, hold-△ gear menu, FPV drone OSD */
 #speedo.air{font-size:16px;line-height:1.3;max-width:70%;text-align:right}
-#gearMenu{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;flex-wrap:wrap;gap:14px;justify-content:center;max-width:min(520px,92%);pointer-events:none}
-#gearMenu .gm-item{width:190px;padding:16px 14px;border-radius:14px;background:#0b0f14d9;border:2px solid #ffffff22;display:flex;flex-direction:column;align-items:center;gap:6px;color:#dfe6ec}
+#gearMenu{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;flex-wrap:wrap;gap:14px;justify-content:center;max-width:min(640px,94%);pointer-events:none}
+#gearMenu .gm-item{width:176px;padding:16px 14px;border-radius:14px;background:#0b0f14d9;border:2px solid #ffffff22;display:flex;flex-direction:column;align-items:center;gap:6px;color:#dfe6ec}
 #gearMenu .gm-item svg{width:52px;height:52px}
 #gearMenu .gm-item small{opacity:.7}
 #gearMenu .gm-item.sel{border-color:#ffd166;background:#1d2633e6;color:#fff;box-shadow:0 0 0 3px #ffd16633}

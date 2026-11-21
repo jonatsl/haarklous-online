@@ -80,6 +80,12 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
 #photoCam .gallery[hidden]{display:none}
 #photoCam .gallery img{max-width:100%;max-height:100%;border:4px solid #fff;border-radius:4px}
 #photoCam .g-bar{display:flex;gap:24px;font-weight:600}
+/* Binoculars raised (issue #133): two round fields joined, black round them (a CSS mask, no extra render pass). */
+#photoCam.bino .vf{display:none!important}
+#photoCam.bino.raised{background:none}
+#photoCam .bino{position:absolute;inset:0;display:none;background:#000;-webkit-mask-image:radial-gradient(circle 33vmin at calc(50% - 19vmin) 50%,#0000 93%,#000 100%),radial-gradient(circle 33vmin at calc(50% + 19vmin) 50%,#0000 93%,#000 100%);-webkit-mask-composite:source-in;mask-image:radial-gradient(circle 33vmin at calc(50% - 19vmin) 50%,#0000 93%,#000 100%),radial-gradient(circle 33vmin at calc(50% + 19vmin) 50%,#0000 93%,#000 100%);mask-composite:intersect}
+#photoCam.bino.raised .bino{display:block}
+#photoCam .b-info{position:absolute;left:50%;top:calc(50% + 35vmin);transform:translateX(-50%);font:600 14px ui-monospace,Consolas,monospace;color:#cfd6dc}
 #photoCam .cam-help{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);font-size:13px;text-shadow:0 1px 2px #000;white-space:nowrap}
 /* Map */
 #mapOverlay{position:absolute;inset:0;z-index:5;background:#e8e4d8}
@@ -131,8 +137,8 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
 
 /* Aircraft HUD, hold-△ gear menu, FPV drone OSD */
 #speedo.air{font-size:16px;line-height:1.3;max-width:70%;text-align:right}
-#gearMenu{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;flex-wrap:wrap;gap:14px;justify-content:center;max-width:min(520px,92%);pointer-events:none}
-#gearMenu .gm-item{width:190px;padding:16px 14px;border-radius:14px;background:#0b0f14d9;border:2px solid #ffffff22;display:flex;flex-direction:column;align-items:center;gap:6px;color:#dfe6ec}
+#gearMenu{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;flex-wrap:wrap;gap:14px;justify-content:center;max-width:min(640px,94%);pointer-events:none}
+#gearMenu .gm-item{width:176px;padding:16px 14px;border-radius:14px;background:#0b0f14d9;border:2px solid #ffffff22;display:flex;flex-direction:column;align-items:center;gap:6px;color:#dfe6ec}
 #gearMenu .gm-item svg{width:52px;height:52px}
 #gearMenu .gm-item small{opacity:.7}
 #gearMenu .gm-item.sel{border-color:#ffd166;background:#1d2633e6;color:#fff;box-shadow:0 0 0 3px #ffd16633}
@@ -302,7 +308,7 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
     <div id="climbHud" class="game-card" hidden></div>
     <div id="discHud" class="game-card" hidden></div>
     <div id="petanqueHud" class="game-card" hidden></div>
-    <div id="gearMenu" hidden><div class="gm-item" data-i="0"><svg viewBox="0 0 48 48" aria-hidden="true"><path d="M6 15h9l4-6h10l4 6h9v24H6z" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/><circle cx="24" cy="27" r="8" fill="none" stroke="currentColor" stroke-width="3"/></svg><b>Camera</b><small>Take photos · gallery</small></div><div class="gm-item" data-i="1"><svg viewBox="0 0 48 48" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="3"><circle cx="11" cy="11" r="7"/><circle cx="37" cy="11" r="7"/><circle cx="11" cy="37" r="7"/><circle cx="37" cy="37" r="7"/><path d="M16 16l16 16M32 16L16 32"/></g><rect x="19" y="19" width="10" height="10" rx="2" fill="currentColor"/></svg><b>FPV drone</b><small>Fly it in first person</small></div><p>Keep holding △ · ←/→ (or ↑/↓) to choose · release to take it out</p></div>
+    <div id="gearMenu" hidden><div class="gm-item" data-i="0"><svg viewBox="0 0 48 48" aria-hidden="true"><path d="M6 15h9l4-6h10l4 6h9v24H6z" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/><circle cx="24" cy="27" r="8" fill="none" stroke="currentColor" stroke-width="3"/></svg><b>Camera</b><small>Take photos · gallery</small></div><div class="gm-item" data-i="1"><svg viewBox="0 0 48 48" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"><circle cx="13" cy="32" r="8"/><circle cx="35" cy="32" r="8"/><path d="M6 29l4-17h7l3 17M42 29l-4-17h-7l-3 17M20 22h8"/></g></svg><b>Binoculars</b><small>Look far · zoom 4–12×</small></div><div class="gm-item" data-i="2"><svg viewBox="0 0 48 48" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="3"><circle cx="11" cy="11" r="7"/><circle cx="37" cy="11" r="7"/><circle cx="11" cy="37" r="7"/><circle cx="37" cy="37" r="7"/><path d="M16 16l16 16M32 16L16 32"/></g><rect x="19" y="19" width="10" height="10" rx="2" fill="currentColor"/></svg><b>FPV drone</b><small>Fly it in first person</small></div><p>Keep holding △ · ←/→ (or ↑/↓) to choose · release to take it out</p></div>
     <div id="osd" hidden></div>
     <div id="chat"><div id="chatLog" aria-live="polite"></div><input id="chatInput" maxlength="200" autocomplete="off" placeholder="Say something… (Enter sends, Esc cancels)" hidden></div>
     <div id="quickChat" hidden></div>
@@ -316,7 +322,7 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
           <dt>✕ / Space</dt><dd>Jump</dd>
           <dt>○ / C · hold ○ / Z</dt><dd>Crouch · lie prone</dd>
           <dt>□ / E</dt><dd>Use: doors, drinks, vehicles, games, mission · at a tram, bus or metro stop: the timetable · at an open door: get on (get off when the doors open)</dd>
-          <dt>△ / F</dt><dd>Tap: photo camera (R2 / left mouse takes a photo, □ / G gallery, ✕ / Delete twice deletes a photo) · hold: choose camera or FPV drone</dd>
+          <dt>△ / F</dt><dd>Tap: photo camera (L2 / right mouse raises it, R2 / left mouse takes a photo, □ / G gallery, ✕ / Delete twice deletes a photo) · hold: choose camera, binoculars or FPV drone · with the camera or binoculars raised: zoom with D-pad ↑↓, the mouse wheel or + −; the right stick / mouse only looks, and you can walk</dd>
           <dt>D-pad ↑ / ↑</dt><dd>Check the time on your wristwatch</dd>
           <dt>D-pad → / P</dt><dd>Phone: delivery and taxi jobs, the nearest e-scooter and city bike dock, your licences (and the drone test)</dd>
           <dt>Touchpad / M</dt><dd>Map · ✕ / click sets a waypoint (a purple pin shows the way until you are within 7 m) · □ / Delete removes it</dd>
@@ -418,7 +424,7 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
           <dt>Minigolf</dt><dd>The real courses: Torshov and Grünerløkka (18 holes, ticket at the kiosk), Jordal park (free) and Oslo Camping, the minigolf bar in Møllergata (ticket and drinks at the bar, 11 holes upstairs, 7 downstairs) · □ / E at a tee starts · aim with the right stick / mouse, the left stick fine-tunes · hold R2 / left mouse and let go to putt (the meter goes up and down) · L2 / right mouse shows the whole lane · max 7 strokes a hole · walk to the next tee (□ takes you there) · ○ / C quit</dd>
           <dt>Table tennis</dt><dd>Schous plass, against Ola: R2 / left mouse swing (early = cross-court, late = down the line) · aim with the camera · L2 smash · left stick / A D move · R2 serves · first to 11 · ○ quit</dd>
           <dt>Deichman Grünerløkka</dt><dd>□ on a real book: “The Inner Game of Tennis” on the sports shelf, Moby-Dick on the reading table (○ closes it) · don’t run or talk loudly on voice chat inside – the librarian will shush you</dd>
-          <dt>Badges and photo hunt</dt><dd>R1 / B in this menu: your badges, the photo hunt and your best scores · photo hunt: take a good photo of each known place (in the picture, big enough – go closer or zoom in with L2 and the right stick – and nothing in the way) · every new badge pays some kroner · skydiving: land on the orange target 180 m down the airstrip (◎ on the map)</dd>
+          <dt>Badges and photo hunt</dt><dd>R1 / B in this menu: your badges, the photo hunt and your best scores · photo hunt: take a good photo of each known place (in the picture, big enough – go closer or zoom in: L2, then D-pad ↑ or the mouse wheel – and nothing in the way) · every new badge pays some kroner · skydiving: land on the orange target 180 m down the airstrip (◎ on the map)</dd>
           <dt>Licences</dt><dd>Driving a vehicle needs its licence (riding along does not): class B for cars and A for motorcycles at Soria Moria Trafikkskole on Vogts gate, class C (the tipper and parked lorries), the machine certificate (dozer, excavators, wheel loader, hauler) and the crane certificate at the site office by the construction site's north gate, PPL(A) (planes) and PPL(H) (the helicopter) at the flight school by the airstrip, the drone certificate A1/A3 on the phone (free) · □ at the sign: five questions (↑↓ choose, ✕ answer, at most one wrong), then the practical test in the test vehicle: the rings in order (orange = next, green = stop or land there), keep the speed limit, do not crash, finish in time · a failed test says why; try again for the fee · phone (D-pad → / P) · Licences: the list, the way to each test place, stop a test · bikes, e-scooters and the kayak need no licence</dd>
           <dt>Friends</dt><dd>L1 / N in this menu (N in the game too), with an account · add a friend by their player name (name#1234 when several players have that name; your own number is at the top of the list) – they accept or decline · see who is online and in which lobby · Join goes straight into a friend’s lobby, Invite asks them into yours (they get a message and press Options, then ✕) · “Friends can join my lobby” off = by invite only · ↑↓ choose, ←→ choose a button, ✕ do it, ○ back · ⌨ On-screen keyboard: ✕ type, □ delete, △ send</dd>
           <dt>Account progress</dt><dd>Logged in, your money, bag, photos, badges, best scores, licences and settings are saved to your account by themselves and are there on any PC; without an account they stay in this browser</dd>
@@ -14159,7 +14165,10 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
  * take a photo (R2 / left mouse), browse the photos (□ / G opens the gallery, ←/→ or the left stick to scroll,
  * ✕ / Delete twice deletes the photo shown, ○ / Esc closes). Without an account the photos are kept in this browser
  * (IndexedDB), so they are still there next time; logged in, they are in the account's album on the server (issue #54).
- * GameCamera.create({T, lib, audio, root, notice}) -> {active, raised, gallery, photos, toggle(), capture(canvas, place), ...,
+ * Binoculars (issue #133) are a second kind of the same hand-held thing: held, raised (L2 / right mouse) to the
+ * classic two-circle view, zoom 4–12×, no photos. Zoom has its own controls (game-main: D-pad ↑↓, wheel, + −).
+ * GameCamera.create({T, lib, audio, root, notice}) -> {active, kind ('camera' | 'binoculars'), raised, zoom, gallery, photos,
+ *   toggle(kind = 'camera') (takes it out, or puts away whatever is out), setZoom(z) (clamped to ZOOM[kind]), capture(canvas, place), ...,
  *   local: {all(), remove(id)} (this browser's photos), useAlbum(album | null) -> Promise (null = this browser's photos)}
  *   album: {remote: true, list() -> [{id, place, src}], add({id, data, place}), remove(id)}, see GameProgress.
  */
@@ -14167,6 +14176,7 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
   root.GameCamera = factory();
 })(typeof window === 'undefined' ? globalThis : window, function () {
   'use strict';
+  const ZOOM = {camera: [1, 4], binoculars: [4, 12]};
   function create({T, lib, audio, root, notice = () => {}}) {
     const photos = [];let db = null, album = null, deleteArm = 0;
     // This browser's photos (IndexedDB 'haarklous-photos'): always kept, also while an account's album is shown.
@@ -14188,23 +14198,39 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
     local.all().then(list => {if (!album) show(list);}).catch(() => {});
     // Overlay: viewfinder frame and gallery.
     const el = document.createElement('div');el.id = 'photoCam';el.hidden = true;
-    el.innerHTML = '<div class="vf"><i></i><i></i><i></i><i></i><b class="focus"></b><span class="vf-info"></span></div><div class="flash"></div><img class="preview" alt=""><div class="gallery" hidden><img alt=""><div class="g-bar"><span class="g-pos"></span><span class="g-date"></span><span class="g-help"></span></div></div><div class="cam-help"></div>';
+    el.innerHTML = '<div class="vf"><i></i><i></i><i></i><i></i><b class="focus"></b><span class="vf-info"></span></div><div class="flash"></div><img class="preview" alt=""><div class="gallery" hidden><img alt=""><div class="g-bar"><span class="g-pos"></span><span class="g-date"></span><span class="g-help"></span></div></div><div class="bino"><span class="b-info"></span></div><div class="cam-help"></div>';
     root.append(el);
     const $ = s => el.querySelector(s);
-    const cam = {active: false, raised: 0, zoom: 1, gallery: false, index: 0, photos};
-    // A camera body held in the gloved hands (drawn in the weapon overlay scene).
-    const model = new T.Group(), body = lib.polymer(0x1a1b1d), metal = lib.metal(0x3c3f42, .35), glass = new T.MeshStandardMaterial({color: 0x10161c, roughness: .02, metalness: .9});
-    const add = (geo, mat, x, y, z) => {const m = new T.Mesh(geo, mat);m.position.set(x, y, z);model.add(m);return m;};
+    const cam = {active: false, kind: 'camera', raised: 0, zoom: 1, gallery: false, index: 0, photos};
+    // A camera body or binoculars held in the gloved hands (drawn in the weapon overlay scene).
+    const model = new T.Group(), camBody = new T.Group(), binoBody = new T.Group(), body = lib.polymer(0x1a1b1d), metal = lib.metal(0x3c3f42, .35), glass = new T.MeshStandardMaterial({color: 0x10161c, roughness: .02, metalness: .9});
+    model.add(camBody, binoBody);
+    let part = camBody;
+    const add = (geo, mat, x, y, z) => {const m = new T.Mesh(geo, mat);m.position.set(x, y, z);part.add(m);return m;};
     add(new T.BoxGeometry(.14, .095, .07), body, 0, 0, 0);add(new T.BoxGeometry(.05, .08, .045), body, .055, -.005, -.04);
     const lens = add(new T.CylinderGeometry(.034, .036, .09, 24), metal, -.012, 0, -.075);lens.rotation.x = Math.PI / 2;
     const front = add(new T.CylinderGeometry(.028, .028, .004, 24), glass, -.012, 0, -.122);front.rotation.x = Math.PI / 2;
     add(new T.BoxGeometry(.05, .03, .04), body, -.03, .06, .005);add(new T.CylinderGeometry(.009, .009, .01, 12), metal, .05, .053, -.01);
     const glove = lib.glove();for (const s of [-1, 1]) {const h = add(new T.BoxGeometry(.04, .09, .08), glove, s * .085, -.01, .01);h.rotation.z = s * .1;}
+    // Binoculars: two rubber-armoured barrels with eyecups, a hinge bridge with the focus wheel, glass at the front.
+    part = binoBody;const armour = lib.polymer(0x23292a);
+    for (const s of [-1, 1]) {
+      const barrel = add(new T.CylinderGeometry(.031, .029, .13, 20), armour, s * .042, 0, -.045);barrel.rotation.x = Math.PI / 2;
+      const cup = add(new T.CylinderGeometry(.022, .025, .03, 16), body, s * .036, .004, .033);cup.rotation.x = Math.PI / 2;
+      const ring = add(new T.CylinderGeometry(.033, .033, .012, 20), metal, s * .042, 0, -.112);ring.rotation.x = Math.PI / 2;
+      const obj = add(new T.CylinderGeometry(.027, .027, .004, 20), glass, s * .042, 0, -.119);obj.rotation.x = Math.PI / 2;
+      const h = add(new T.BoxGeometry(.04, .085, .09), glove, s * .088, -.012, -.04);h.rotation.z = s * .12;
+    }
+    add(new T.BoxGeometry(.04, .02, .07), body, 0, .012, -.03);
+    const wheel = add(new T.CylinderGeometry(.012, .012, .02, 14), metal, 0, .026, .0);wheel.rotation.z = Math.PI / 2;
+    binoBody.position.set(-.07, .01, 0);
     model.visible = false;
     function render() {
-      el.hidden = !cam.active;el.classList.toggle('raised', cam.raised > .5);model.visible = cam.active && cam.raised < .5 && !cam.gallery;
-      $('.vf-info').textContent = `${photos.length} photo${photos.length === 1 ? '' : 's'} · ${cam.zoom.toFixed(1)}×`;
-      $('.cam-help').textContent = cam.gallery ? '' : 'R2 / left mouse: take photo · L2 / right mouse: viewfinder · right stick up/down: zoom · □ / G: gallery · △ / F: put away';
+      const bino = cam.kind === 'binoculars';
+      el.hidden = !cam.active;el.classList.toggle('raised', cam.raised > .5);el.classList.toggle('bino', bino);model.visible = cam.active && cam.raised < .5 && !cam.gallery;
+      camBody.visible = !bino;binoBody.visible = bino;
+      $('.vf-info').textContent = `${photos.length} photo${photos.length === 1 ? '' : 's'} · ${cam.zoom.toFixed(1)}×`;$('.b-info').textContent = `${cam.zoom.toFixed(1)}×`;
+      $('.cam-help').textContent = cam.gallery ? '' : bino ? 'L2 / right mouse: raise to your eyes · zoom: D-pad ↑↓ / mouse wheel / + − · △ / F or ○: put away' : 'R2 / left mouse: take photo · L2 / right mouse: viewfinder · zoom: D-pad ↑↓ / mouse wheel / + − · □ / G: gallery · △ / F: put away';
       $('.g-help').textContent = deleteArm > performance.now() ? 'Press ✕ / Delete again to delete this photo · ○ keep it' : `←/→ browse · ✕ / Delete: delete · ○ close${album ? ' · in your account' : ''}`;
       const g = $('.gallery');g.hidden = !cam.gallery;
       if (cam.gallery) {
@@ -14214,8 +14240,9 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
       }
     }
     cam.model = model;
-    cam.toggle = () => {cam.active = !cam.active;cam.gallery = false;cam.raised = 0;cam.zoom = 1;render();};
-    cam.openGallery = (open = !cam.gallery) => {cam.gallery = open;if (open) cam.index = photos.length - 1;render();};
+    // Takes out the camera (or the binoculars), or puts away whatever is out; the zoom starts at the kind's lowest.
+    cam.toggle = (kind = 'camera') => {cam.active = !cam.active;if (cam.active) cam.kind = ZOOM[kind] ? kind : 'camera';cam.gallery = false;cam.raised = 0;cam.zoom = ZOOM[cam.kind][0];render();};
+    cam.openGallery = (open = !cam.gallery) => {if (open && cam.kind !== 'camera') return;cam.gallery = open;if (open) cam.index = photos.length - 1;render();};
     cam.browse = d => {if (!cam.gallery) return;cam.index += d;deleteArm = 0;render();};
     // ✕ / Delete in the gallery: the first press asks, a second one within 3 s deletes (here or in the account's album).
     cam.deleteShown = () => {
@@ -14229,7 +14256,7 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
     cam.useAlbum = async a => {album = a || null;deleteArm = 0;cam.index = 0;show(album ? await album.list() : await local.all());};
     Object.defineProperty(cam, 'album', {get: () => album});
     cam.setRaised = r => {const before = cam.raised > .5;cam.raised = r;if (before !== r > .5) render();};
-    cam.setZoom = z => {cam.zoom = Math.max(1, Math.min(4, z));render();};
+    cam.setZoom = z => {const [lo, hi] = ZOOM[cam.kind], was = cam.zoom;cam.zoom = Math.max(lo, Math.min(hi, z));if (cam.zoom !== was) render();};
     // Grab the frame that was just rendered (call right after rendering, without the HUD overlays).
     cam.capture = (canvas, place) => {
       const w = 1280, h = Math.round(1280 * canvas.height / canvas.width), c = document.createElement('canvas');c.width = w;c.height = h;c.getContext('2d').drawImage(canvas, 0, 0, w, h);
@@ -14245,7 +14272,7 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
     render();
     return cam;
   }
-  return {create};
+  return {create, ZOOM};
 });
 </script><script>/* Third person in the vehicles (issue #129): one chase camera for the cars, vans, lorries, motorcycles, bicycles, e-scooters,
  * the excavator, the construction-site machines' outside view, the kayak, the FPV drone and passengers. Pure (Node-tested).
@@ -14518,7 +14545,7 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
         award({...good.s, icon: '📷'}, {thumb: thumbOf(canvas)});check();return null;
       }
       const x = near.find(x => !state.got[x.s.id]);if (!x) return null;
-      return `Photo hunt · ${x.s.name}: ${{far: `come closer (within ${x.s.maxDist} m)`, side: 'take it from the front', frame: 'it is not in the picture – aim at it', small: 'it is too small in the picture – go closer or zoom in (L2, right stick)', blocked: 'something is in the way'}[x.j.why]}.`;
+      return `Photo hunt · ${x.s.name}: ${{far: `come closer (within ${x.s.maxDist} m)`, side: 'take it from the front', frame: 'it is not in the picture – aim at it', small: 'it is too small in the picture – go closer or zoom in (L2, then D-pad ↑ or the mouse wheel)', blocked: 'something is in the way'}[x.j.why]}.`;
     }
     function render() {
       const R = records, f = facts(), list = shown(state.got), all = [...SPOTS, ...list], have = all.filter(b => state.got[b.id]).length;
@@ -25758,7 +25785,10 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
 
   // ---------- Input ----------
   const keys = new Set(), keyEdges = new Set();let mouse = {dx: 0, dy: 0, left: false, right: false, leftEdge: false, leftUp: false, wheel: 0};
+  // The keys that type + and − (the camera's and binoculars' zoom, issue #133), learnt from the character so they work on any layout (Norwegian too).
+  const zoomKeys = {};
   document.addEventListener('keydown', e => {if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) {if (e.code === 'Escape') e.target.blur();return;}if (e.repeat) return;
+    if (e.key === '+' || e.key === '=') zoomKeys[e.code] = 'zoomIn';else if (e.key === '-' || e.key === '_') zoomKeys[e.code] = 'zoomOut';
     if ((e.code === 'Enter' || e.code === 'KeyT') && started && !paused) {e.preventDefault();openChat();return;}keys.add(e.code);keyEdges.add(e.code);if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.code)) e.preventDefault();audio.resume();});
   document.addEventListener('keyup', e => {keys.delete(e.code);});
   window.addEventListener('blur', () => keys.clear());
@@ -25766,7 +25796,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
   canvas.addEventListener('mousedown', e => {audio.resume();if (document.pointerLockElement !== canvas) {if (started) lockPointer();return;}if (e.button === 0) {mouse.left = true;mouse.leftEdge = true;}if (e.button === 2) mouse.right = true;if (caseGame?.active) caseGame.mouse(e.button, true);});
   document.addEventListener('mouseup', e => {if (e.button === 0) {if (mouse.left) mouse.leftUp = true;mouse.left = false;}if (e.button === 2) mouse.right = false;if (caseGame?.active) caseGame.mouse(e.button, false);});
   canvas.addEventListener('contextmenu', e => e.preventDefault());
-  canvas.addEventListener('wheel', e => {mouse.wheel += e.deltaY;}, {passive: true});
+  canvas.addEventListener('wheel', e => {mouse.wheel += e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY;}, {passive: true});// in pixels (about 100 a notch)
   let padPrev = null;
   function readInput() {
     const pads = navigator.getGamepads ? navigator.getGamepads() : [], gp = padReader.pickGamepad(pads), st = gp ? padReader.read(gp) : null;
@@ -25780,6 +25810,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     if (kx || ky) {input.move.x = kx;input.move.y = ky;}
     const map = {Space: 'cross', KeyC: 'circle', KeyE: 'square', KeyF: 'triangle', Escape: 'options', KeyM: 'touchpad', KeyG: 'gallery', KeyZ: 'prone', KeyR: 'reload', ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down', ShiftLeft: 'l3', KeyQ: 'l1', KeyV: 'view', KeyY: 'share', KeyP: 'phone', KeyB: 'badges', KeyN: 'friends', Delete: 'delete', KeyX: 'cast', Digit1: 'magic1', Digit2: 'magic2', Digit3: 'magic3', Digit4: 'magic4'};
     for (const [code, name] of Object.entries(map)) {if (ke(code)) input.pressed.add(name);if (k(code)) input.held[name] = true;}
+    for (const code of keys) if (zoomKeys[code]) input.held[zoomKeys[code]] = true;
     // Flying (helicopter, plane, drone): hold Shift or the right mouse button to look around (Battlefield's free look, issue #16).
     const flying = player.mode === 'drone' || (player.mode === 'vehicle' && !!player.vehicle?.aircraft);
     input.freeLook = flying && (k('ShiftLeft') || k('ShiftRight') || mouse.right);
@@ -25884,18 +25915,20 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
       // The map's "up" is north (-s); facing (-sin yaw, -cos yaw) in the world is -(yaw - theta) on the map (issue #21: it was 180° off).
       map.draw({x: player.x, z: player.z, headingLocal: -(player.yaw - theta), others: lobbyArrows()});renderFrame(dt, t);return;
     }
-    // △: a tap takes out the photo camera (or puts it away); holding it opens the gear menu: camera or FPV drone.
+    // △: a tap takes out the photo camera (or puts away the camera or binoculars); holding it opens the gear menu: camera, binoculars or FPV drone.
     if (player.mode === 'foot' && !caseGame?.active && !pbBusy()) {// the paintball lobby and game use △ and the D-pad
-      if (input.pressed.has('triangle')) {if (photo.active) photo.toggle();else gear = {t0: performance.now(), open: false, sel: gearLast, stick: false};}
+      if (input.pressed.has('triangle')) {if (photo.active) photo.toggle();else gear = {t0: performance.now(), open: false, sel: gearLast, stick: false, mx: 0};}
       if (gear) {
         if (input.held.triangle) {
           if (!gear.open && performance.now() - gear.t0 > 280) {gear.open = true;watch.hide();}
           if (gear.open) {
-            const sx = Math.abs(input.move.x) > Math.abs(input.move.y) ? input.move.x : input.move.y;if (input.pressed.has('left') || input.pressed.has('up') || (sx < -.5 && !gear.stick)) gear.sel = 0;if (input.pressed.has('right') || input.pressed.has('down') || (sx > .5 && !gear.stick)) gear.sel = 1;gear.stick = Math.abs(sx) > .5;
-            if (input.mouse.dx < -4) gear.sel = 0;else if (input.mouse.dx > 4) gear.sel = 1;
+            const sx = Math.abs(input.move.x) > Math.abs(input.move.y) ? input.move.x : input.move.y;let step = 0;
+            if (input.pressed.has('left') || input.pressed.has('up') || (sx < -.5 && !gear.stick)) step = -1;if (input.pressed.has('right') || input.pressed.has('down') || (sx > .5 && !gear.stick)) step = 1;gear.stick = Math.abs(sx) > .5;
+            gear.mx += input.mouse.dx;if (Math.abs(gear.mx) > 40) {step = Math.sign(gear.mx);gear.mx = 0;}
+            gear.sel = Math.max(0, Math.min(GEAR.length - 1, gear.sel + step));
             input.move.x = input.move.y = 0;input.look.x = input.look.y = 0;input.mouse.dx = input.mouse.dy = 0;showGear(gear.sel);
           }
-        } else {const g = gear;gear = null;showGear(null);if (g.open) {gearLast = g.sel;if (g.sel === 1) startDrone();else photo.toggle();} else photo.toggle();}
+        } else {const g = gear;gear = null;showGear(null);if (g.open) {gearLast = g.sel;if (GEAR[g.sel] === 'drone') startDrone();else photo.toggle(GEAR[g.sel]);} else photo.toggle();}
       }
       if (input.pressed.has('up') && !photo.active && !gear) watch.toggle();
       if (input.pressed.has('down') && !photo.active && !gear && !bag && !gymMenu) {openBag();input.pressed.delete('down');}
@@ -25906,8 +25939,10 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
       if (input.pressed.has('square') || input.pressed.has('gallery')) photo.openGallery();
       if (photo.gallery) {if (input.pressed.has('left')) photo.browse(-1);if (input.pressed.has('right')) photo.browse(1);if (input.move.x > .6 && !photo.stick) {photo.browse(1);photo.stick = true;} else if (input.move.x < -.6 && !photo.stick) {photo.browse(-1);photo.stick = true;} else if (Math.abs(input.move.x) < .3) photo.stick = false;if (input.pressed.has('cross') || input.pressed.has('delete')) photo.deleteShown();if (input.pressed.has('circle') && !photo.cancelDelete()) photo.openGallery(false);renderFrame(dt, t);return;}
       if (input.pressed.has('circle')) photo.toggle();
-      photo.setRaised(input.l2 > .4 ? 1 : 0);if (photo.raised > .5 && input.look.y) photo.setZoom(photo.zoom * Math.exp(-input.look.y * dt * 1.5));
-      if (input.r2 > .6 && !photo.shutterHeld) {photo.shutterHeld = true;renderFrame(0, t, true);photo.capture(canvas, placeName());huntPhoto();renderFrame(dt, t);return;}
+      photo.setRaised(input.l2 > .4 ? 1 : 0);
+      // Zoom on its own controls (issue #133; the right stick only looks): D-pad ↑↓ or + − held zoom smoothly, the mouse wheel in steps.
+      if (photo.raised > .5 && !quick) {const z = (input.held.up || input.held.zoomIn ? 1 : 0) - (input.held.down || input.held.zoomOut ? 1 : 0);if (z || input.mouse.wheel) photo.setZoom(photo.zoom * Math.exp(z * dt * 1.1 - input.mouse.wheel * .0022));}
+      if (photo.kind === 'camera' && input.r2 > .6 && !photo.shutterHeld) {photo.shutterHeld = true;renderFrame(0, t, true);photo.capture(canvas, placeName());huntPhoto();renderFrame(dt, t);return;}
       if (input.r2 < .3) photo.shutterHeld = false;
     }
     // Drunk effect: decays in real time.
@@ -25984,7 +26019,8 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
 
   function updateFoot(dt, input, dl) {
     // Look.
-    const mouseScale = .0024 * sensitivity.mouse, padScale = sensitivity.pad * (photo.raised > .5 ? 1 / photo.zoom : 1) * (caseGame?.active ? caseGame.lookScale() : 1), curve = v => Math.sign(v) * v * v;
+    // Looking slows down with the camera's or binoculars' zoom (1 / zoom, so the picture moves as fast at any zoom), for the mouse too.
+    const zoomLook = photo.active && photo.raised > .5 ? 1 / photo.zoom : 1, mouseScale = .0024 * sensitivity.mouse * zoomLook, padScale = sensitivity.pad * zoomLook * (caseGame?.active ? caseGame.lookScale() : 1), curve = v => Math.sign(v) * v * v;
     player.yaw -= input.mouse.dx * mouseScale + curve(input.look.x) * 2.8 * padScale * dt;
     player.pitch = Math.max(-1.5, Math.min(1.5, player.pitch - input.mouse.dy * mouseScale - curve(input.look.y) * 1.9 * padScale * dt));
     // Buttons: ✕ jump, ○ tap crouch / hold prone, □ interact, L3 run toggle.
@@ -26003,7 +26039,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     const mag = Math.min(1, Math.hypot(mx, my));
     player.running = false;
     if (canMove && mag > .05) {
-      const running = !propSpeed && player.stance === 'stand' && !(hushed > 0) && (player.run || (!caseGame?.active && !photo.active && !pbArmed() && input.r2 > .3) || input.held.l3);player.running = running;
+      const running = !propSpeed && player.stance === 'stand' && !(hushed > 0) && (player.run || (!caseGame?.active && !(photo.active && photo.kind === 'camera') && !pbArmed() && input.r2 > .3) || input.held.l3);player.running = running;
       // Standing: walk 2.5 m/s, run 6.0 m/s (issue #88, 5 Nov 2026); crouching and prone keep 1.45 x .55 and x .28.
       const base = propSpeed || (player.stance === 'stand' ? WALK_SPEED : 1.45 * stanceSpeed());
       const speed = (running ? RUN_SPEED : base) * (caseGame?.active ? caseGame.moveScale() : 1) * (1 - dl * .25) * (boostIs('speed') ? 3 : 1), fwd = -my, right = mx;
@@ -26389,7 +26425,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     if (ps.green) return `GREEN LIGHT · ${m} m · ✕ / Space: JUMP`;
     return `The game's pilot · ${ps.ph === 'run' ? 'jump run, door open' : ps.ph === 'orbit' ? 'circling' : ps.ph === 'away' ? 'flying home' : 'climbing (sped up)'} · ${m} m · ${jumpHint}`;
   }
-  let gear = null, gearLast = 0;
+  let gear = null, gearLast = 0;const GEAR = ['camera', 'binoculars', 'drone'];// the gear menu's items, in #gearMenu's order (data-i)
   function showGear(sel) {const m = $('gearMenu');m.hidden = sel === null;if (sel !== null) m.querySelectorAll('.gm-item').forEach(e => e.classList.toggle('sel', +e.dataset.i === sel));}
   function updatePassenger(dt, input, dl) {
     const v = player.vehicle;
@@ -26757,7 +26793,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     renderer.autoClear = false;renderer.clear();if (!deepNow) renderer.render(farScene, farCamera);renderer.clearDepth();renderer.render(scene, camera);
     if (!forPhoto) {
       if (caseGame?.active) caseGame.renderOverlay(camera);
-      else {const showWatch = watch.update(dt), showPhoto = photo.active && !photo.gallery;photo.model.visible = showPhoto;if (showPhoto || showWatch || paintball?.marker.visible || prophunt?.marker?.visible) {renderer.clearDepth();renderer.render(overlayScene, overlayCamera);}}
+      else {const showWatch = watch.update(dt), showPhoto = photo.active && !photo.gallery && photo.raised < .5;photo.model.visible = showPhoto;if (showPhoto || showWatch || paintball?.marker.visible || prophunt?.marker?.visible) {renderer.clearDepth();renderer.render(overlayScene, overlayCamera);}}
     }
     renderer.autoClear = true;
     // Drunk: blur and a drifting double image.
