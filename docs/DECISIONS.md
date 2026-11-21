@@ -9,7 +9,7 @@ Live game: https://haarklous-online.server-smoke.workers.dev · Source: https://
 ## Features (what the game has now)
 
 In pull requests (not merged yet):
-- Vans you can see out of (issue #131, PR pending): the parked vans have a real glass cab like the cars – windscreen and front side windows, a roof, a painted wall behind the seats and the closed load space behind it.
+- Vans you can see out of (issue #131, PR #132): the parked vans have a real glass cab like the cars – windscreen and front side windows, a roof, a painted wall behind the seats and the closed load space behind it.
 - Prop hunt – hide and seek (issue #124, PR #125): hiders become benches, bins, bushes, bikes, lamps and more at Haarklous plass, Olaf Ryes plass and the backyard of Rathkes gate 1; hunters with a paint marker; rounds, fair turns, points, whistles; alone against the game's players or with friends online.
 
 On `main`:
@@ -75,7 +75,7 @@ Live site: runs `main` (Worker version c4f59555, deployed 15 Nov 2026 after PR #
 - **Where:** `game-fleet.js` (`carBody`, the `s.box` branch; `SHAPES.van.zW`, the wall's place).
 - **Cost:** the same draw calls (the van is still one merged geometry and one material, one instanced mesh per level of detail). One near van went from 680 to 736 triangles, the built van body (shell) from 328 to 384. The far model is unchanged.
 - **Checked:** `node --test` (build check only). Not checked in the browser (the user asked to skip browser tests for this one). From outside, the glass looks dark like the cars' glass (it is not transparent from outside; neither is the cars').
-- **Status:** branch `fix/van-window`, PR pending.
+- **Status:** branch `fix/van-window`, PR #132 (https://github.com/jonatsl/haarklous-online/pull/132), not merged yet.
 
 ### 2026-11-21 · Third person in every vehicle (issue #129)
 - **What:**
