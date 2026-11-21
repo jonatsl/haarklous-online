@@ -9,7 +9,7 @@ Live game: https://haarklous-online.server-smoke.workers.dev · Source: https://
 ## Features (what the game has now)
 
 In pull requests (not merged yet):
-- Third person in every vehicle (issue #129, PR pending): R3 / V changes between first person and a camera behind and above in cars, vans, lorries, motorcycles, bicycles, e-scooters, the excavator, the kayak, the FPV drone and as a passenger; you see yourself in the seat; the camera turns with the right stick / mouse and comes closer instead of going into walls or ceilings; the choice stays for the next vehicle.
+- Third person in every vehicle (issue #129, PR #130): R3 / V changes between first person and a camera behind and above in cars, vans, lorries, motorcycles, bicycles, e-scooters, the excavator, the kayak, the FPV drone and as a passenger; you see yourself in the seat; the camera turns with the right stick / mouse and comes closer instead of going into walls or ceilings; the choice stays for the next vehicle.
 - Prop hunt – hide and seek (issue #124, PR #125): hiders become benches, bins, bushes, bikes, lamps and more at Haarklous plass, Olaf Ryes plass and the backyard of Rathkes gate 1; hunters with a paint marker; rounds, fair turns, points, whistles; alone against the game's players or with friends online.
 
 On `main`:
@@ -83,7 +83,7 @@ Live site: runs `main` (Worker version c4f59555, deployed 15 Nov 2026 after PR #
   - Skydiving keeps its own R3 / V view (it is not a vehicle).
 - **Where:** `game-chase.js` (new: the chase camera's maths), `walk-collision.js` (`roofAt`, `floorAt`), `game-main.js` (the R3 / V choice, the camera in each vehicle, your avatar, hiding the first-person hands, notes), `game-kayak.js` (the game's choice, the paddle's gloves), `game-rentals.js` (notes), `index.html`, `README.md` (one line), `docs/HANDOFF.md`, `tests/chase.test.cjs` (new).
 - **Checked:** Node: 292 tests pass (8 new in `tests/chase.test.cjs`). In headless Chrome on the built file with a simulated DualShock 4, third person in each kind: car, lorry, motorcycle (leaning, the horizon stays level), city bike (pedalling), e-scooter, the excavator near home (the right stick still moves the boom, the camera does not turn), the 30 t site excavator (outside view, avatar in the cab), kayak, FPV drone, helicopter, plane, passenger on the motorcycle and in a car. Getting into the next vehicle keeps the view; getting out leaves nothing behind (no avatar, no drone); back in first person the hands are there again. In the garage P2 with the stick held down the camera stays under the ceiling; turned towards the house wall at 17A it came in from 4.4 m to 1.7 m and was never inside the wall. Cost: your avatar is 24 objects, about 40 draw calls with its shadow (about 12 more than the first-person hands it replaces) and 9.5 k triangles; on the motorcycle at home 1,967 draw calls in first person, 2,027 in third (the view is not the same). Not checked: a real controller, the frame rate on the user's PC, two players online (nothing new is sent).
-- **Status:** branch `feat/third-person-vehicles`, PR pending.
+- **Status:** branch `feat/third-person-vehicles`, PR #130 (https://github.com/jonatsl/haarklous-online/pull/130), not merged yet.
 
 ### 2026-11-15 · Ten more helicopters around the map, marked on the map (issue #126)
 - **What:**
