@@ -9,6 +9,7 @@ Live game: https://haarklous-online.server-smoke.workers.dev · Source: https://
 ## Features (what the game has now)
 
 In pull requests (not merged yet):
+- Third person in every vehicle (issue #129, PR pending): R3 / V changes between first person and a camera behind and above in cars, vans, lorries, motorcycles, bicycles, e-scooters, the excavator, the kayak, the FPV drone and as a passenger; you see yourself in the seat; the camera turns with the right stick / mouse and comes closer instead of going into walls or ceilings; the choice stays for the next vehicle.
 - Prop hunt – hide and seek (issue #124, PR #125): hiders become benches, bins, bushes, bikes, lamps and more at Haarklous plass, Olaf Ryes plass and the backyard of Rathkes gate 1; hunters with a paint marker; rounds, fair turns, points, whistles; alone against the game's players or with friends online.
 
 On `main`:
@@ -62,6 +63,27 @@ On `main`:
 Live site: runs `main` (Worker version c4f59555, deployed 15 Nov 2026 after PR #125; `main` builds byte-for-byte to the live page), so everything above is online. Account emails (issue #55) wait for the user's Brevo key.
 
 ## Log
+
+### 2026-11-21 · Third person in every vehicle (issue #129)
+- **What:**
+  - **R3 / V** now changes between first person and third person in every vehicle you can drive, ride, paddle or fly: cars, vans, SUVs, taxis, lorries, motorcycles, city bikes and e-bikes, e-scooters, the excavator near home, the kayak, the FPV drone, and as a passenger in a car, on a motorcycle or in an aircraft.
+  - In third person the camera is behind and above the vehicle and follows it smoothly. It does not roll when a motorcycle or bike leans, and there is no drunk sway on it.
+  - The right stick or the mouse turns the camera round the vehicle; 0.8 s after you let go it goes back behind. Where the right stick is a tool (the excavator, the site machines) only the mouse turns it; on the drone the mouse flies, so hold Shift or the right mouse button to turn the camera.
+  - The camera never goes under the ground, into a wall or a building, or up through a ceiling: it comes closer at once and goes back out slowly when there is room. Checked in the Construction City garage (P2) and against a house wall at Haarklous plass.
+  - You see yourself in the seat: your own avatar, sitting the way the other players see you (hands on the bars or wheel, pedalling on a bike, standing on an e-scooter, in the kayak's cockpit, in the cab, in the cockpit). The first-person hands are hidden while you are in third person. Behind the drone you see the drone, and your body stands where you launched it.
+  - **The choice is remembered while you play:** get into the next vehicle (or the kayak, the drone, a passenger seat) and you have the same view. The aircraft's chase camera and the site machines' outside view use the same choice now (a site machine entered in third person starts in the outside view; the tower crane, which has none, starts above the hook).
+  - The site machines' outside view uses the new camera (it comes closer instead of going into a wall); its distances are the same as before.
+  - The start screen (a new R3 / V line), the pause screen (car / motorcycle, excavator, drone, passenger, e-scooter, city bike and kayak) and the notes you get when you get in say R3 / V.
+- **Why:** the user's issue #129: "Make it possible to operate every vehicle in third person (the camera behind and above the vehicle, you see yourself in the seat)."
+- **Decisions (Claude's, say if you want them changed):**
+  - The distance comes from the vehicle's size: a car about 6 m behind and 2.7 m up, a lorry 9.6 m and 4.6 m, a motorcycle 4.4 m, a bike 4 m, an e-scooter 3.6 m, the excavator 6.3 m and 4.2 m, the kayak 6.5 m and 3.2 m (as its old outside view), the drone 1.5 m.
+  - Under a ceiling the camera stays 0.85 m below the floor above (the garage's ceiling hangs 0.4 m under it, a road bridge's deck is 0.7 m thick).
+  - The choice lasts while the game is open (not saved between visits).
+  - Mopeds are not in it: they stand locked at the bike racks and cannot be ridden.
+  - Skydiving keeps its own R3 / V view (it is not a vehicle).
+- **Where:** `game-chase.js` (new: the chase camera's maths), `walk-collision.js` (`roofAt`, `floorAt`), `game-main.js` (the R3 / V choice, the camera in each vehicle, your avatar, hiding the first-person hands, notes), `game-kayak.js` (the game's choice, the paddle's gloves), `game-rentals.js` (notes), `index.html`, `README.md` (one line), `docs/HANDOFF.md`, `tests/chase.test.cjs` (new).
+- **Checked:** Node: 292 tests pass (8 new in `tests/chase.test.cjs`). In headless Chrome on the built file with a simulated DualShock 4, third person in each kind: car, lorry, motorcycle (leaning, the horizon stays level), city bike (pedalling), e-scooter, the excavator near home (the right stick still moves the boom, the camera does not turn), the 30 t site excavator (outside view, avatar in the cab), kayak, FPV drone, helicopter, plane, passenger on the motorcycle and in a car. Getting into the next vehicle keeps the view; getting out leaves nothing behind (no avatar, no drone); back in first person the hands are there again. In the garage P2 with the stick held down the camera stays under the ceiling; turned towards the house wall at 17A it came in from 4.4 m to 1.7 m and was never inside the wall. Cost: your avatar is 24 objects, about 40 draw calls with its shadow (about 12 more than the first-person hands it replaces) and 9.5 k triangles; on the motorcycle at home 1,967 draw calls in first person, 2,027 in third (the view is not the same). Not checked: a real controller, the frame rate on the user's PC, two players online (nothing new is sent).
+- **Status:** branch `feat/third-person-vehicles`, PR pending.
 
 ### 2026-11-15 · Ten more helicopters around the map, marked on the map (issue #126)
 - **What:**

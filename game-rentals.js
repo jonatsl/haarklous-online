@@ -229,7 +229,7 @@
           this.cullDistance = 75;this.eye = 1.74;this.eyeZ = -.02;this.camPitch = -.14;this.look = look;
           this.hips = {d: {pos: V3(0, .17, .06), stance: 'scoot'}};
           const m = model('s' + look);this.group.add(m);this.parts = partsOf(m);
-          this.help = 'E-scooter · R2 / W go (20 km/h at most) · L2 / S brake · left stick steer · □ get off: the ride ends and it is paid';
+          this.help = 'E-scooter · R2 / W go (20 km/h at most) · L2 / S brake · left stick steer · R3 / V first / third person · □ get off: the ride ends and it is paid';
           this.lean = this.restLean;this.roll = -this.lean;this.settle(1);this.place();this.rested = true;
         }
         enter() {this.active = true;this.rested = false;this.parts.hands.visible = true;audio.sfx('unlock');this.motor = audio.engine('emotor');}
@@ -254,7 +254,7 @@
           this.name = electric ? 'city e-bike' : 'city bike';this.verb = 'Take the';this.cullDistance = 70;this.eye = 1.72;this.eyeZ = -.06;this.camPitch = -.1;
           this.hips = {d: {pos: V3(0, .98, .2), stance: 'cycle'}};this.crankA = 0;this.restLean = 0;this.docked = true;
           const m = model(electric ? 'ebike' : 'bike');this.group.add(m);this.parts = partsOf(m);
-          this.help = `${electric ? 'City e-bike' : 'City bike'} · R2 / W pedal${electric ? ' (the motor helps up to 25 km/h)' : ''} · L2 / S brake · left stick steer · □ get off: in a dock the trip ends, elsewhere the bike is locked and the trip goes on`;
+          this.help = `${electric ? 'City e-bike' : 'City bike'} · R2 / W pedal${electric ? ' (the motor helps up to 25 km/h)' : ''} · L2 / S brake · left stick steer · R3 / V first / third person · □ get off: in a dock the trip ends, elsewhere the bike is locked and the trip goes on`;
           this.settle(1);this.place();this.rested = true;
         }
         enter() {this.active = true;this.rested = false;this.docked = false;this.restLean = -.07;this.parts.hands.visible = true;audio.sfx('unlock');if (this.electric) this.motor = audio.engine('emotor');}

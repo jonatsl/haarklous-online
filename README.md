@@ -30,6 +30,7 @@ Haarklous online is a first-person open-world game that runs in your web browser
 - Use a PS4 controller (USB or Bluetooth), or a keyboard and mouse.
 - Move with the left stick or WASD. Look with the right stick or the mouse.
 - Press □ or E to use things (doors, vehicles, games, the record player and TV). Tap □ on a chair to carry it, hold □ to sit on it.
+- In a vehicle, press R3 or V to change between first person and third person (the camera behind you).
 - Press Options or Esc to pause. The start screen and the pause screen show all of the controls.
 
 ## For developers

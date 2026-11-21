@@ -12,6 +12,8 @@
  * move(world, point, delta, eyeHeight, y=0) -> {x,z,y} (swept/substepped, with sliding; y follows ramps)
  * findSafeSpawn(world, requested, eyeHeight, {maxDistance=20,step=.08,y=0}={}) -> {x,z,y}|null
  * ceilingAt(world, point, y=0) -> lowest clearance above the feet touched by the person's footprint
+ * roofAt(world, point, y=0) -> the height of the lowest floor or room ceiling above y at the point (Infinity in the open)
+ * floorAt(world, point, y=0) -> the height of the highest floor at or below y at the point (-Infinity where there is none)
  * clampEyeHeight(world, point, requested, minimum=.30, y=0) -> safe height|null
  * setDynamic(world, list): moving solids (doors, vehicles, people); a long list is put in the same CELL m grid as the static ones.
  * parkedLayer(list) -> layer {add(o), remove(o)}; setParked(world, layer): solids that seldom change (thousands of parked
@@ -173,6 +175,27 @@
     }
     return lowest;
   }
+  // The lowest thing overhead at the point p above height y: the next floor up (a storey, a bridge deck) or the ceiling of
+  // the room whose floor is under y; Infinity in the open. Used by the vehicles' third-person camera (issue #129).
+  function roofAt(world,p,y=0) {
+    let lowest=Infinity;
+    for (const f of floorsNear(world,p)) {
+      if (!nearBounds(p,f.bounds,EPS) || !inside(p,f.points)) continue;
+      const height=f.surface(p);
+      if (height>y+EPS) lowest=Math.min(lowest,height);
+      else if (height+f.ceilingHeight>y+EPS) lowest=Math.min(lowest,height+f.ceilingHeight);
+    }
+    return lowest;
+  }
+  // The highest floor at or below height y at the point p (-Infinity where there is none).
+  function floorAt(world,p,y=0) {
+    let highest=-Infinity;
+    for (const f of floorsNear(world,p)) {
+      if (!nearBounds(p,f.bounds,EPS) || !inside(p,f.points)) continue;
+      const height=f.surface(p);if (height<=y+EPS && height>highest) highest=height;
+    }
+    return highest;
+  }
   function closestInside(p,f) {
     if (inside(p,f.points)) return p;
     let best=p,distance=Infinity;
@@ -264,5 +287,5 @@
     }
     return null;
   }
-  return {createWorld,supportAt,canStand,hitsSolid,move,findSafeSpawn,ceilingAt,clampEyeHeight,setDynamic,setMoving,parkedLayer,setParked,STEP};
+  return {createWorld,supportAt,canStand,hitsSolid,move,findSafeSpawn,ceilingAt,roofAt,floorAt,clampEyeHeight,setDynamic,setMoving,parkedLayer,setParked,STEP};
 });
