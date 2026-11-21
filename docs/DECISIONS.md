@@ -9,10 +9,11 @@ Live game: https://haarklous-online.server-smoke.workers.dev · Source: https://
 ## Features (what the game has now)
 
 In pull requests (not merged yet):
-- Third person in every vehicle (issue #129, PR #130): R3 / V changes between first person and a camera behind and above in cars, vans, lorries, motorcycles, bicycles, e-scooters, the excavator, the kayak, the FPV drone and as a passenger; you see yourself in the seat; the camera turns with the right stick / mouse and comes closer instead of going into walls or ceilings; the choice stays for the next vehicle.
+- Vans you can see out of (issue #131, PR pending): the parked vans have a real glass cab like the cars – windscreen and front side windows, a roof, a painted wall behind the seats and the closed load space behind it.
 - Prop hunt – hide and seek (issue #124, PR #125): hiders become benches, bins, bushes, bikes, lamps and more at Haarklous plass, Olaf Ryes plass and the backyard of Rathkes gate 1; hunters with a paint marker; rounds, fair turns, points, whistles; alone against the game's players or with friends online.
 
 On `main`:
+- Third person in every vehicle (issue #129, PR #130, live since 21 Nov 2026): R3 / V changes between first person and a camera behind and above in cars, vans, lorries, motorcycles, bicycles, e-scooters, the excavator, the kayak, the FPV drone and as a passenger; you see yourself in the seat; the camera turns with the right stick / mouse and comes closer instead of going into walls or ceilings; the choice stays for the next vehicle.
 - Minigolf at the real courses (issue #114, PR #122): Torshov and Grünerløkka minigolf parks (18 Eternit lanes each, kiosk, 90 kr), the free course in Jordal park, and Oslo Camping in Møllergata – the minigolf bar, with its bar and bartender (drinks by the Norwegian serving rules), 11 holes upstairs and 7 in the basement; real ball physics, windmill, loop, bridge, volcano; scorecard, best rounds, badges; others online see your ball.
 
 - Metro, bus and tram (issue #111, PR #120): Ruter's real trams, buses and metro lines on a timetable as often as the real ones – the same vehicles for everyone in a lobby; a timetable and a live board at every stop, every line and stop on the map; get on (46 kr, 60 minutes) and ride; the metro stations near home are underground with real entrances, stairs and platforms.
@@ -64,6 +65,18 @@ Live site: runs `main` (Worker version c4f59555, deployed 15 Nov 2026 after PR #
 
 ## Log
 
+### 2026-11-21 · Vans: see-through front window (issue #131)
+- **What:**
+  - The parked vans (every colour) now have a glass cab like the cars: from the driver's seat you see the road through the windscreen and out through the two front side windows.
+  - The cab has a painted roof and A pillars; right behind the front seats is a painted wall, and the load space behind it stays closed and painted.
+  - The sliding door's rail now starts behind the wall (it used to run across the driver's side window).
+  - The pickup and the box lorry were checked in the code: their cabs are already built like the cars' (the driver's eye is inside the glass), so they were not changed.
+- **Why:** the user's issue #131: the van's windscreen was not see-through, so you could not see the road. The cause: the van's upper body was one painted box, with the windscreen and side windows as separate thin glass slabs on the outside of it. From inside you looked at the inner face of those slabs (a front face, so it is drawn). The cars' glass is one closed solid round the driver's eye, so from inside every glass face is a back face and is not drawn – that is why you can see out of the cars. The van now uses the same trick.
+- **Where:** `game-fleet.js` (`carBody`, the `s.box` branch; `SHAPES.van.zW`, the wall's place).
+- **Cost:** the same draw calls (the van is still one merged geometry and one material, one instanced mesh per level of detail). One near van went from 680 to 736 triangles, the built van body (shell) from 328 to 384. The far model is unchanged.
+- **Checked:** `node --test` (build check only). Not checked in the browser (the user asked to skip browser tests for this one). From outside, the glass looks dark like the cars' glass (it is not transparent from outside; neither is the cars').
+- **Status:** branch `fix/van-window`, PR pending.
+
 ### 2026-11-21 · Third person in every vehicle (issue #129)
 - **What:**
   - **R3 / V** now changes between first person and third person in every vehicle you can drive, ride, paddle or fly: cars, vans, SUVs, taxis, lorries, motorcycles, city bikes and e-bikes, e-scooters, the excavator near home, the kayak, the FPV drone, and as a passenger in a car, on a motorcycle or in an aircraft.
@@ -83,7 +96,7 @@ Live site: runs `main` (Worker version c4f59555, deployed 15 Nov 2026 after PR #
   - Skydiving keeps its own R3 / V view (it is not a vehicle).
 - **Where:** `game-chase.js` (new: the chase camera's maths), `walk-collision.js` (`roofAt`, `floorAt`), `game-main.js` (the R3 / V choice, the camera in each vehicle, your avatar, hiding the first-person hands, notes), `game-kayak.js` (the game's choice, the paddle's gloves), `game-rentals.js` (notes), `index.html`, `README.md` (one line), `docs/HANDOFF.md`, `tests/chase.test.cjs` (new).
 - **Checked:** Node: 292 tests pass (8 new in `tests/chase.test.cjs`). In headless Chrome on the built file with a simulated DualShock 4, third person in each kind: car, lorry, motorcycle (leaning, the horizon stays level), city bike (pedalling), e-scooter, the excavator near home (the right stick still moves the boom, the camera does not turn), the 30 t site excavator (outside view, avatar in the cab), kayak, FPV drone, helicopter, plane, passenger on the motorcycle and in a car. Getting into the next vehicle keeps the view; getting out leaves nothing behind (no avatar, no drone); back in first person the hands are there again. In the garage P2 with the stick held down the camera stays under the ceiling; turned towards the house wall at 17A it came in from 4.4 m to 1.7 m and was never inside the wall. Cost: your avatar is 24 objects, about 40 draw calls with its shadow (about 12 more than the first-person hands it replaces) and 9.5 k triangles; on the motorcycle at home 1,967 draw calls in first person, 2,027 in third (the view is not the same). Not checked: a real controller, the frame rate on the user's PC, two players online (nothing new is sent).
-- **Status:** branch `feat/third-person-vehicles`, PR #130 (https://github.com/jonatsl/haarklous-online/pull/130), not merged yet.
+- **Status:** PR #130 (https://github.com/jonatsl/haarklous-online/pull/130), merged into `main` and live (deployed 21 Nov 2026, Worker version a885642e).
 
 ### 2026-11-15 · Ten more helicopters around the map, marked on the map (issue #126)
 - **What:**

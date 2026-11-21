@@ -23,7 +23,7 @@
   const NEAR = 75, FAR = 650, TILE = 100;
   // The shape of each body type (metres; z forward is -z like the game's other vehicles, y up). r wheel radius, c body
   // bottom, belt the window line, nose / tail the bonnet front and boot top, zA / zA2 the windscreen's foot and top, zC2 /
-  // zC the roof's end and the rear window's foot, oF / oR the axles from the ends, cw the glasshouse width.
+  // zC the roof's end and the rear window's foot, oF / oR the axles from the ends, cw the glasshouse width, zW a van's wall behind the front seats.
   const SHAPES = {
     small: {r: .29, c: .2, belt: .9, nose: .72, tail: .96, zA: -.8, zA2: -.2, zC2: 1.25, zC: 1.68, oF: .62, oR: .52, cw: 1.48},
     hatch: {r: .31, c: .22, belt: .92, nose: .74, tail: .98, zA: -.78, zA2: -.12, zC2: 1.5, zC: 1.98, oF: .8, oR: .7, cw: 1.6},
@@ -31,7 +31,7 @@
     estate: {r: .32, c: .2, belt: .9, nose: .72, tail: .98, zA: -.95, zA2: -.25, zC2: 2.02, zC: 2.3, oF: .85, oR: .9, cw: 1.62},
     suv: {r: .37, c: .28, belt: 1.06, nose: .92, tail: 1.1, zA: -.9, zA2: -.25, zC2: 1.78, zC: 2.2, oF: .85, oR: .85, cw: 1.7},
     pickup: {r: .39, c: .32, belt: 1.12, nose: 1.05, tail: 1.12, zA: -1.0, zA2: -.4, zC2: .98, zC: 1.12, oF: .85, oR: 1.15, cw: 1.66, bed: 1.18},
-    van: {r: .34, c: .22, belt: 1.06, nose: .98, tail: 1.06, zA: -1.62, zA2: -.95, zC2: 2.5, zC: 2.52, oF: .85, oR: 1.0, cw: 1.89, box: true},
+    van: {r: .34, c: .22, belt: 1.06, nose: .98, tail: 1.06, zA: -1.62, zA2: -.95, zC2: 2.5, zC: 2.52, oF: .85, oR: 1.0, cw: 1.89, box: true, zW: -.07},
     lorry: {r: .5, c: .5, belt: 1.55, nose: 1.5, tail: 1.5, zA: -3.98, zA2: -3.72, zC2: -2.08, zC: -2.02, oF: 1.1, oR: 1.5, cw: 2.36, lorry: true}
   };
   SHAPES.taxi = {...SHAPES.estate, sign: true};
@@ -99,11 +99,16 @@
       b.box(W - .16, .05, zR - s.zA - .25, 0, s.c + .04, (zR + s.zA + .25) / 2, C.trim, 0);
       // Glasshouse, roof, pillars.
       const top = s.lorry ? 2.95 : H - .05;
-      if (s.box) {// a van: windscreen and front side windows; the load space behind is painted
-        b.prof([[s.zA, s.belt], [s.zA2, top], [hl - .03, top], [hl, s.belt]], s.cw, 0, 1, .03);
-        b.prof([[s.zA - .045, s.belt + .03], [s.zA2 - .045, top - .05], [s.zA2 + .05, top - .05], [s.zA + .05, s.belt + .03]], s.cw - .3, C.glass, 0, 0);// windscreen (just in front)
-        for (const side of [-1, 1]) b.box(.02, top - s.belt - .2, .95, side * (s.cw / 2 + .012), (top + s.belt) / 2 - .02, s.zA2 + .5, C.glass, 0);
-        b.box(.02, .06, hl * 1.2, -(s.cw / 2 + .012), s.belt + .45, hl * .35, C.trim, 0);// the sliding door's rail
+      if (s.box) {// a van (issue #131): a glass cab like the cars' (seen through from the seats), a painted wall right
+        // behind the front seats and the painted load space behind it. The glass is one closed solid round the driver's
+        // eye, so from inside all its faces are back faces and culled; separate glass panels would show their inside face.
+        const zW = s.zW;
+        b.prof([[s.zA, s.belt], [s.zA2, top - .03], [zW, top - .03], [zW, s.belt]], s.cw - .03, C.glass, 0, .02);// windscreen, front side windows (ends inside the load space)
+        b.prof([[s.zA2 - .04, top - .07], [s.zA2 + .08, top], [zW + .02, top], [zW + .02, top - .07]], s.cw + .05, 0, 1, .02);// cab roof
+        b.prof([[zW, s.belt], [zW, top], [hl - .03, top], [hl, s.belt]], s.cw, 0, 1, .03);// load space (its front face is the wall)
+        b.box(W - .2, s.belt - s.c - .06, .04, 0, (s.belt + s.c + .06) / 2, zW - .03, 0, 1);// the wall below the window line
+        for (const side of [-1, 1]) {const a = Math.atan2(s.zA2 - s.zA, top - s.belt), len = Math.hypot(s.zA2 - s.zA, top - s.belt);b.box(.07, len, .07, side * (s.cw / 2 - .015), (top + s.belt) / 2, (s.zA + s.zA2) / 2, 0, 1, a);}// A pillars
+        b.box(.02, .06, hl - zW - .2, -(s.cw / 2 + .012), s.belt + .45, (zW + hl) / 2, C.trim, 0);// the sliding door's rail
       } else {
         b.prof([[s.zA, s.belt], [s.zA2, top - .03], [s.zC2, top - .03], [s.zC, s.belt]], s.cw, C.glass, 0, .02);
         b.prof([[s.zA2 - .04, top - .07], [s.zA2 + .08, top], [s.zC2 - .08, top], [s.zC2 + .04, top - .07]], s.cw + .05, 0, 1, .02);
