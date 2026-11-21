@@ -9,7 +9,7 @@ Live game: https://haarklous-online.server-smoke.workers.dev · Source: https://
 ## Features (what the game has now)
 
 In pull requests (not merged yet):
-- Camera zoom on its own controls, and binoculars (issue #133, PR #PRNUM): with the camera raised, zoom with D-pad ↑↓, the mouse wheel or + −, while the right stick / mouse only looks and you walk; binoculars in the △ gear menu, raised with L2 / right mouse to the classic two-circle view, zoom 4–12×.
+- Camera zoom on its own controls, and binoculars (issue #133, PR #134): with the camera raised, zoom with D-pad ↑↓, the mouse wheel or + −, while the right stick / mouse only looks and you walk; binoculars in the △ gear menu, raised with L2 / right mouse to the classic two-circle view, zoom 4–12×.
 
 On `main`:
 - Vans you can see out of (issue #131, PR #132, live since 21 Nov 2026): the parked vans have a real glass cab like the cars – windscreen and front side windows, a roof, a painted wall behind the seats and the closed load space behind it.
@@ -78,7 +78,7 @@ Live site: runs `main` (Worker version 430a2224, deployed 21 Nov 2026 after PR #
 - **Cost:** no extra render pass (the binocular view is a CSS mask over the canvas); the binocular model is 12 small meshes in the overlay scene, drawn only while held and lowered, like the camera's.
 - **Checked:** `node --test` (292 pass). Not checked in the browser or with a real controller (the user asked to skip browser tests for this run).
 - **Not online:** others do not see the binoculars (no server change).
-- **Status:** branch `feat/camera-zoom-binoculars`, PR #PRNUM, not merged yet.
+- **Status:** branch `feat/camera-zoom-binoculars`, PR #134 (https://github.com/jonatsl/haarklous-online/pull/134), not merged yet.
 
 ### 2026-11-21 · Vans: see-through front window (issue #131)
 - **What:**
