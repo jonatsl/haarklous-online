@@ -9,10 +9,11 @@ Live game: https://haarklous-online.server-smoke.workers.dev · Source: https://
 ## Features (what the game has now)
 
 In pull requests (not merged yet):
-- Vans you can see out of (issue #131, PR #132): the parked vans have a real glass cab like the cars – windscreen and front side windows, a roof, a painted wall behind the seats and the closed load space behind it.
-- Prop hunt – hide and seek (issue #124, PR #125): hiders become benches, bins, bushes, bikes, lamps and more at Haarklous plass, Olaf Ryes plass and the backyard of Rathkes gate 1; hunters with a paint marker; rounds, fair turns, points, whistles; alone against the game's players or with friends online.
+- Camera zoom on its own controls, and binoculars (issue #133, PR #134): with the camera raised, zoom with D-pad ↑↓, the mouse wheel or + −, while the right stick / mouse only looks and you walk; binoculars in the △ gear menu, raised with L2 / right mouse to the classic two-circle view, zoom 4–12×.
 
 On `main`:
+- Vans you can see out of (issue #131, PR #132, live since 21 Nov 2026): the parked vans have a real glass cab like the cars – windscreen and front side windows, a roof, a painted wall behind the seats and the closed load space behind it.
+- Prop hunt – hide and seek (issue #124, PR #125, live since 15 Nov 2026): hiders become benches, bins, bushes, bikes, lamps and more at Haarklous plass, Olaf Ryes plass and the backyard of Rathkes gate 1; hunters with a paint marker; rounds, fair turns, points, whistles; alone against the game's players or with friends online.
 - Third person in every vehicle (issue #129, PR #130, live since 21 Nov 2026): R3 / V changes between first person and a camera behind and above in cars, vans, lorries, motorcycles, bicycles, e-scooters, the excavator, the kayak, the FPV drone and as a passenger; you see yourself in the seat; the camera turns with the right stick / mouse and comes closer instead of going into walls or ceilings; the choice stays for the next vehicle.
 - Minigolf at the real courses (issue #114, PR #122): Torshov and Grünerløkka minigolf parks (18 Eternit lanes each, kiosk, 90 kr), the free course in Jordal park, and Oslo Camping in Møllergata – the minigolf bar, with its bar and bartender (drinks by the Norwegian serving rules), 11 holes upstairs and 7 in the basement; real ball physics, windmill, loop, bridge, volcano; scorecard, best rounds, badges; others online see your ball.
 
@@ -61,9 +62,23 @@ On `main`:
 - Ground with real detail up close (grass, asphalt, paving slabs, gravel, pavements and kerbs) with or without the aerial photo, and buildings that look like their part of town – Torshov brick and Harald Hals' plastered blocks, Grünerløkka's tenements with shop fronts, buff brick, wooden houses, new blocks – chosen from OpenStreetMap and Street View notes (issues #67 and #68, PR #81, not merged yet).
 - Friends (needs an account): add a friend by their player name, they accept or decline; see which friends are online and in which lobby; Join goes straight into a friend's lobby, Invite asks them into yours (a message in their game, Options then ✕ to come); "friends can join my lobby" can be turned off; pause menu → Friends (L1 / N), with a red count of new requests and invites (issue #115, PR #117, not merged yet).
 
-Live site: runs `main` (Worker version c4f59555, deployed 15 Nov 2026 after PR #125; `main` builds byte-for-byte to the live page), so everything above is online. Account emails (issue #55) wait for the user's Brevo key.
+Live site: runs `main` (Worker version 430a2224, deployed 21 Nov 2026 after PR #132; `main` builds byte-for-byte to the live page), so everything above is online. Account emails (issue #55) wait for the user's Brevo key.
 
 ## Log
+
+### 2026-11-21 · Camera zoom on its own controls, and binoculars (issue #133)
+- **What:**
+  - **Camera:** the right stick / mouse only looks now; it no longer zooms. With the camera raised (L2 / right mouse), zoom with **D-pad ↑ / ↓** (hold for a smooth zoom), the **mouse wheel**, or the **+ and − keys** (the keys that type + and −, so it works on a Norwegian keyboard too; the arrow keys ↑ ↓ work as well). Walking, looking and zooming each work alone and together.
+  - Looking slows down the more you zoom (1 / zoom), now with the mouse too (before only the controller), so aiming stays steady.
+  - **Binoculars:** a new third choice in the △ gear menu, between the camera and the FPV drone. You hold them in your hands; L2 / right mouse raises them to your eyes: the classic binocular view, two round fields joined with black round them, zoom 4×–12× with the same zoom controls, the zoom shown under the fields. You can walk and look around with them; no photos (R2 runs as usual). △ / F or ○ puts them away; they are also put away wherever the camera is (getting into a vehicle, sitting down, climbing, the drone, the mission and so on).
+  - The help line under the viewfinder, the start screen (△ / F line), the pause screen's photo-hunt hint and the photo hunt's "too small" message say the new controls.
+  - Small fix found on the way: the camera body was drawn over the viewfinder while the camera was raised; now it is hidden then (and the overlay pass is skipped).
+- **Why:** the user's issue #133: the right stick both looked and zoomed, so you could not look up or down without zooming; and the user wanted binoculars.
+- **Where:** `game-camera.js` (`kind`, `ZOOM`, `toggle(kind)`, the binocular model and the `.bino` mask), `game-main.js` (zoom input, `zoomKeys`, `zoomLook`, `GEAR`, the overlay pass), `index.html` (gear menu item, start screen, pause hint), `style.css` (binocular mask, a wider gear menu), `game-badges.js` (hint text).
+- **Cost:** no extra render pass (the binocular view is a CSS mask over the canvas); the binocular model is 12 small meshes in the overlay scene, drawn only while held and lowered, like the camera's.
+- **Checked:** `node --test` (292 pass). Not checked in the browser or with a real controller (the user asked to skip browser tests for this run).
+- **Not online:** others do not see the binoculars (no server change).
+- **Status:** branch `feat/camera-zoom-binoculars`, PR #134 (https://github.com/jonatsl/haarklous-online/pull/134), not merged yet.
 
 ### 2026-11-21 · Vans: see-through front window (issue #131)
 - **What:**
@@ -75,7 +90,7 @@ Live site: runs `main` (Worker version c4f59555, deployed 15 Nov 2026 after PR #
 - **Where:** `game-fleet.js` (`carBody`, the `s.box` branch; `SHAPES.van.zW`, the wall's place).
 - **Cost:** the same draw calls (the van is still one merged geometry and one material, one instanced mesh per level of detail). One near van went from 680 to 736 triangles, the built van body (shell) from 328 to 384. The far model is unchanged.
 - **Checked:** `node --test` (build check only). Not checked in the browser (the user asked to skip browser tests for this one). From outside, the glass looks dark like the cars' glass (it is not transparent from outside; neither is the cars').
-- **Status:** branch `fix/van-window`, PR #132 (https://github.com/jonatsl/haarklous-online/pull/132), not merged yet.
+- **Status:** PR #132 (https://github.com/jonatsl/haarklous-online/pull/132), merged into `main` and live (deployed 21 Nov 2026, Worker version 430a2224).
 
 ### 2026-11-21 · Third person in every vehicle (issue #129)
 - **What:**

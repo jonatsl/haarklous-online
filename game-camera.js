@@ -2,7 +2,10 @@
  * take a photo (R2 / left mouse), browse the photos (□ / G opens the gallery, ←/→ or the left stick to scroll,
  * ✕ / Delete twice deletes the photo shown, ○ / Esc closes). Without an account the photos are kept in this browser
  * (IndexedDB), so they are still there next time; logged in, they are in the account's album on the server (issue #54).
- * GameCamera.create({T, lib, audio, root, notice}) -> {active, raised, gallery, photos, toggle(), capture(canvas, place), ...,
+ * Binoculars (issue #133) are a second kind of the same hand-held thing: held, raised (L2 / right mouse) to the
+ * classic two-circle view, zoom 4–12×, no photos. Zoom has its own controls (game-main: D-pad ↑↓, wheel, + −).
+ * GameCamera.create({T, lib, audio, root, notice}) -> {active, kind ('camera' | 'binoculars'), raised, zoom, gallery, photos,
+ *   toggle(kind = 'camera') (takes it out, or puts away whatever is out), setZoom(z) (clamped to ZOOM[kind]), capture(canvas, place), ...,
  *   local: {all(), remove(id)} (this browser's photos), useAlbum(album | null) -> Promise (null = this browser's photos)}
  *   album: {remote: true, list() -> [{id, place, src}], add({id, data, place}), remove(id)}, see GameProgress.
  */
@@ -10,6 +13,7 @@
   root.GameCamera = factory();
 })(typeof window === 'undefined' ? globalThis : window, function () {
   'use strict';
+  const ZOOM = {camera: [1, 4], binoculars: [4, 12]};
   function create({T, lib, audio, root, notice = () => {}}) {
     const photos = [];let db = null, album = null, deleteArm = 0;
     // This browser's photos (IndexedDB 'haarklous-photos'): always kept, also while an account's album is shown.
@@ -31,23 +35,39 @@
     local.all().then(list => {if (!album) show(list);}).catch(() => {});
     // Overlay: viewfinder frame and gallery.
     const el = document.createElement('div');el.id = 'photoCam';el.hidden = true;
-    el.innerHTML = '<div class="vf"><i></i><i></i><i></i><i></i><b class="focus"></b><span class="vf-info"></span></div><div class="flash"></div><img class="preview" alt=""><div class="gallery" hidden><img alt=""><div class="g-bar"><span class="g-pos"></span><span class="g-date"></span><span class="g-help"></span></div></div><div class="cam-help"></div>';
+    el.innerHTML = '<div class="vf"><i></i><i></i><i></i><i></i><b class="focus"></b><span class="vf-info"></span></div><div class="flash"></div><img class="preview" alt=""><div class="gallery" hidden><img alt=""><div class="g-bar"><span class="g-pos"></span><span class="g-date"></span><span class="g-help"></span></div></div><div class="bino"><span class="b-info"></span></div><div class="cam-help"></div>';
     root.append(el);
     const $ = s => el.querySelector(s);
-    const cam = {active: false, raised: 0, zoom: 1, gallery: false, index: 0, photos};
-    // A camera body held in the gloved hands (drawn in the weapon overlay scene).
-    const model = new T.Group(), body = lib.polymer(0x1a1b1d), metal = lib.metal(0x3c3f42, .35), glass = new T.MeshStandardMaterial({color: 0x10161c, roughness: .02, metalness: .9});
-    const add = (geo, mat, x, y, z) => {const m = new T.Mesh(geo, mat);m.position.set(x, y, z);model.add(m);return m;};
+    const cam = {active: false, kind: 'camera', raised: 0, zoom: 1, gallery: false, index: 0, photos};
+    // A camera body or binoculars held in the gloved hands (drawn in the weapon overlay scene).
+    const model = new T.Group(), camBody = new T.Group(), binoBody = new T.Group(), body = lib.polymer(0x1a1b1d), metal = lib.metal(0x3c3f42, .35), glass = new T.MeshStandardMaterial({color: 0x10161c, roughness: .02, metalness: .9});
+    model.add(camBody, binoBody);
+    let part = camBody;
+    const add = (geo, mat, x, y, z) => {const m = new T.Mesh(geo, mat);m.position.set(x, y, z);part.add(m);return m;};
     add(new T.BoxGeometry(.14, .095, .07), body, 0, 0, 0);add(new T.BoxGeometry(.05, .08, .045), body, .055, -.005, -.04);
     const lens = add(new T.CylinderGeometry(.034, .036, .09, 24), metal, -.012, 0, -.075);lens.rotation.x = Math.PI / 2;
     const front = add(new T.CylinderGeometry(.028, .028, .004, 24), glass, -.012, 0, -.122);front.rotation.x = Math.PI / 2;
     add(new T.BoxGeometry(.05, .03, .04), body, -.03, .06, .005);add(new T.CylinderGeometry(.009, .009, .01, 12), metal, .05, .053, -.01);
     const glove = lib.glove();for (const s of [-1, 1]) {const h = add(new T.BoxGeometry(.04, .09, .08), glove, s * .085, -.01, .01);h.rotation.z = s * .1;}
+    // Binoculars: two rubber-armoured barrels with eyecups, a hinge bridge with the focus wheel, glass at the front.
+    part = binoBody;const armour = lib.polymer(0x23292a);
+    for (const s of [-1, 1]) {
+      const barrel = add(new T.CylinderGeometry(.031, .029, .13, 20), armour, s * .042, 0, -.045);barrel.rotation.x = Math.PI / 2;
+      const cup = add(new T.CylinderGeometry(.022, .025, .03, 16), body, s * .036, .004, .033);cup.rotation.x = Math.PI / 2;
+      const ring = add(new T.CylinderGeometry(.033, .033, .012, 20), metal, s * .042, 0, -.112);ring.rotation.x = Math.PI / 2;
+      const obj = add(new T.CylinderGeometry(.027, .027, .004, 20), glass, s * .042, 0, -.119);obj.rotation.x = Math.PI / 2;
+      const h = add(new T.BoxGeometry(.04, .085, .09), glove, s * .088, -.012, -.04);h.rotation.z = s * .12;
+    }
+    add(new T.BoxGeometry(.04, .02, .07), body, 0, .012, -.03);
+    const wheel = add(new T.CylinderGeometry(.012, .012, .02, 14), metal, 0, .026, .0);wheel.rotation.z = Math.PI / 2;
+    binoBody.position.set(-.07, .01, 0);
     model.visible = false;
     function render() {
-      el.hidden = !cam.active;el.classList.toggle('raised', cam.raised > .5);model.visible = cam.active && cam.raised < .5 && !cam.gallery;
-      $('.vf-info').textContent = `${photos.length} photo${photos.length === 1 ? '' : 's'} · ${cam.zoom.toFixed(1)}×`;
-      $('.cam-help').textContent = cam.gallery ? '' : 'R2 / left mouse: take photo · L2 / right mouse: viewfinder · right stick up/down: zoom · □ / G: gallery · △ / F: put away';
+      const bino = cam.kind === 'binoculars';
+      el.hidden = !cam.active;el.classList.toggle('raised', cam.raised > .5);el.classList.toggle('bino', bino);model.visible = cam.active && cam.raised < .5 && !cam.gallery;
+      camBody.visible = !bino;binoBody.visible = bino;
+      $('.vf-info').textContent = `${photos.length} photo${photos.length === 1 ? '' : 's'} · ${cam.zoom.toFixed(1)}×`;$('.b-info').textContent = `${cam.zoom.toFixed(1)}×`;
+      $('.cam-help').textContent = cam.gallery ? '' : bino ? 'L2 / right mouse: raise to your eyes · zoom: D-pad ↑↓ / mouse wheel / + − · △ / F or ○: put away' : 'R2 / left mouse: take photo · L2 / right mouse: viewfinder · zoom: D-pad ↑↓ / mouse wheel / + − · □ / G: gallery · △ / F: put away';
       $('.g-help').textContent = deleteArm > performance.now() ? 'Press ✕ / Delete again to delete this photo · ○ keep it' : `←/→ browse · ✕ / Delete: delete · ○ close${album ? ' · in your account' : ''}`;
       const g = $('.gallery');g.hidden = !cam.gallery;
       if (cam.gallery) {
@@ -57,8 +77,9 @@
       }
     }
     cam.model = model;
-    cam.toggle = () => {cam.active = !cam.active;cam.gallery = false;cam.raised = 0;cam.zoom = 1;render();};
-    cam.openGallery = (open = !cam.gallery) => {cam.gallery = open;if (open) cam.index = photos.length - 1;render();};
+    // Takes out the camera (or the binoculars), or puts away whatever is out; the zoom starts at the kind's lowest.
+    cam.toggle = (kind = 'camera') => {cam.active = !cam.active;if (cam.active) cam.kind = ZOOM[kind] ? kind : 'camera';cam.gallery = false;cam.raised = 0;cam.zoom = ZOOM[cam.kind][0];render();};
+    cam.openGallery = (open = !cam.gallery) => {if (open && cam.kind !== 'camera') return;cam.gallery = open;if (open) cam.index = photos.length - 1;render();};
     cam.browse = d => {if (!cam.gallery) return;cam.index += d;deleteArm = 0;render();};
     // ✕ / Delete in the gallery: the first press asks, a second one within 3 s deletes (here or in the account's album).
     cam.deleteShown = () => {
@@ -72,7 +93,7 @@
     cam.useAlbum = async a => {album = a || null;deleteArm = 0;cam.index = 0;show(album ? await album.list() : await local.all());};
     Object.defineProperty(cam, 'album', {get: () => album});
     cam.setRaised = r => {const before = cam.raised > .5;cam.raised = r;if (before !== r > .5) render();};
-    cam.setZoom = z => {cam.zoom = Math.max(1, Math.min(4, z));render();};
+    cam.setZoom = z => {const [lo, hi] = ZOOM[cam.kind], was = cam.zoom;cam.zoom = Math.max(lo, Math.min(hi, z));if (cam.zoom !== was) render();};
     // Grab the frame that was just rendered (call right after rendering, without the HUD overlays).
     cam.capture = (canvas, place) => {
       const w = 1280, h = Math.round(1280 * canvas.height / canvas.width), c = document.createElement('canvas');c.width = w;c.height = h;c.getContext('2d').drawImage(canvas, 0, 0, w, h);
@@ -88,5 +109,5 @@
     render();
     return cam;
   }
-  return {create};
+  return {create, ZOOM};
 });
