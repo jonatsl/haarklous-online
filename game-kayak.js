@@ -486,7 +486,7 @@
     function paddleMesh() {
       const g = new T.Group(), shaft = new T.Mesh(new T.CylinderGeometry(.016, .016, 2.15, 8), black);shaft.rotation.z = Math.PI / 2;g.add(shaft);
       for (const s of [-1, 1]) {const blade = new T.Mesh(new T.BoxGeometry(.44, .012, .17), deckM);blade.position.x = s * 1.0;blade.rotation.x = s * .5;g.add(blade);}
-      const glove = new T.MeshStandardMaterial({color: 0x2b2f36, roughness: .8});for (const s of [-1, 1]) {const h = new T.Mesh(new T.SphereGeometry(.045, 10, 8), glove);h.scale.set(1.2, .9, 1.4);h.position.x = s * .36;g.add(h);}
+      const glove = new T.MeshStandardMaterial({color: 0x2b2f36, roughness: .8});g.userData.gloves = [];for (const s of [-1, 1]) {const h = new T.Mesh(new T.SphereGeometry(.045, 10, 8), glove);h.scale.set(1.2, .9, 1.4);h.position.x = s * .36;g.add(h);g.userData.gloves.push(h);}
       return g;
     }
     const kayak = boatMesh();kayak.visible = false;group.add(kayak);
@@ -560,7 +560,10 @@
           out.notice = `Vaterland! ${run.from} → Vaterland in ${fmt(run.time)}${isBest ? ' – your best' : ` (best ${fmt(best[run.key])})`}. □ get out on the bank.`;
         }
       }
-      if (input.pressed && (input.pressed.has('r3') || input.pressed.has('view'))) view = 1 - view;
+      // look.third (game-main, issue #129): the game's remembered first / third person, its chase camera places the camera.
+      if (look.third !== undefined) view = look.third ? 1 : 0;
+      else if (input.pressed && (input.pressed.has('r3') || input.pressed.has('view'))) view = 1 - view;
+      for (const h of paddle.userData.gloves) h.visible = view === 0;// in third person your avatar's hands are seen instead
       if (input.pressed && input.pressed.has('square')) {if (canExit() || boat.done) out.exit = exitPoint();else out.notice = 'Slow down beside a bank to get out (back-paddle with ↓ / S).';}
       // Pose the kayak on the water.
       const w = toW(boat.x, boat.s), y = yOf(R.level(boat.t)) + .02 + Math.sin(performance.now() / 700) * .02, yaw = worldYaw();
@@ -575,7 +578,7 @@
       if (view === 0) {
         const eye = new T.Vector3(0, .78, .12).applyMatrix4(kayak.matrixWorld);camera.position.copy(eye);camera.rotation.order = 'YXZ';
         camera.rotation.set(-boat.pitch * .6 + look.pitch + sh, yaw + look.yaw, boat.roll * .5 + sh);
-      } else {
+      } else if (look.third === undefined) {
         const back = new T.Vector3(Math.sin(yaw + look.yaw), 0, Math.cos(yaw + look.yaw)), at = new T.Vector3(w.x, y + .6, w.z), cam = at.clone().addScaledVector(back, 6.5);cam.y += 2.6;
         camera.position.copy(cam);camera.lookAt(at);
       }

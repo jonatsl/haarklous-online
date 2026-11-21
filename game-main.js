@@ -681,7 +681,79 @@
     plane: 'Plane (Mode 2) · left stick ↑ to add throttle (it stays), ←→ rudder/nose wheel · right stick pitch/roll · pull back at about 85 km/h · L2 brakes · R3 / V view · Keyboard + mouse: W/S throttle, A/D rudder, mouse pitch/roll (up = nose down), hold Shift to look around',
     jumpplane: 'Caravan jump plane (Mode 2, flies like the plane) · left stick ↑ throttle (it stays), ←→ rudder/nose wheel · right stick pitch/roll · the flaps are automatic: pull back at about 110 km/h · L2 brakes · R3 / V view · others board at the door (□) and can jump above 300 m · △ / F: the game\'s pilot takes over (you go to the back) · ✕ / Space above 300 m: jump yourself (the game\'s pilot takes over) · Keyboard + mouse: W/S throttle, A/D rudder, mouse pitch/roll, hold Shift to look around'};
   function setClip(near, far) {if (camera.near !== near || camera.far !== far) {camera.near = near;camera.far = far;camera.updateProjectionMatrix();applyNearFog();}}
-  function enterVehicle(v) {{const need = licAllowed(v);if (need) {notice(licNeedText(need, v.name), 5);mp.release(vehicles.indexOf(v), 'd');return false;}}if (v === caravan) gp = null;watch.hide();player.mode = 'vehicle';player.vehicle = v;player.siteView = 0;player.lookYaw = 0;player.lookPitch = 0;player.chase = false;player.chaseCam = null;v.enter();updateDynamic();if (v.aircraft) setClip(.12, 1600);notice(v.help ? v.help : v.aircraft ? AIR_HELP[v.kind] : v.kind === 'excavator' ? 'Tracks: L1/L2 left, R1/R2 right · Left stick: swing / stick · Right stick: boom / bucket · □ get out' : 'R2 throttle · L2 brake / reverse · Left stick steer · Right stick look · □ get off', v.aircraft || v.help ? 9 : 6);}
+  // ---------- Third person in the vehicles (issue #129) ----------
+  // R3 / V switches between first and third person in every vehicle you drive, ride, fly or paddle; the choice is kept while
+  // you play (player.third), so the next vehicle has the same view. One chase camera (game-chase.js) follows behind and above
+  // without rolling, turns round the vehicle with the right stick / mouse (mouse only where the right stick is a tool) and
+  // comes closer instead of going under the ground or through walls and ceilings. Your own avatar sits in the seat the way the
+  // other players see you (game-multiplayer.js poses them the same way), and the first-person hands are hidden meanwhile.
+  const CH = window.GameChase, chase = new CH.Chase(), orbit = {yaw: 0, pitch: 0, idle: 0}, chaseAt = {x: 0, y: 0, z: 0, yaw: 0}, camP = {x: 0, z: 0};
+  const KAYAK_RIG = {dist: 6.5, up: 3.2, aim: .6, ahead: .8}, DRONE_RIG = {dist: 1.5, up: .45, aim: 0, ahead: 1.5, turn: 6};
+  player.third = false;
+  // The world as the chase camera sees it: the ground under a point (the garage floor at the vehicle's level, the river bed for the
+  // kayak, the floor under the drone), the lowest floor or ceiling above it, and solids (walls, buildings, trees, vehicles).
+  const camEnv = {ref: 0, mode: 'road',
+    ground(x, z) {if (camEnv.mode === 'kayak') return terrainAt(x, z);if (camEnv.mode === 'drone') {camP.x = x;camP.z = z;return Math.max(-1e4, collision.floorAt(walkWorld, camP, camEnv.ref + .05));}return groundAt(x, z, camEnv.ref);},
+    roof(x, z) {const g = camEnv.ground(x, z);camP.x = x;camP.z = z;return collision.roofAt(walkWorld, camP, Math.max(camEnv.ref, g + .5));},
+    solid(x, y, z) {camP.x = x;camP.z = z;return collision.hitsSolid(walkWorld, camP, y - .2, y + .2);}};
+  const viewPressed = input => input.pressed.has('r3') || input.pressed.has('view');
+  function toggleThird() {
+    player.third = !player.third;orbit.yaw = orbit.pitch = orbit.idle = 0;chase.reset();player.lookYaw = player.lookPitch = 0;player.chaseCam = null;
+    if (player.mode === 'vehicle' && player.vehicle) fpHands(player.vehicle, !player.third);
+    notice(player.third ? 'View: third person · R3 / V back to first person' : 'View: first person · R3 / V third person', 1.5);
+  }
+  // The right stick (unless it is a tool) and the mouse turn the camera round the vehicle; it goes back behind when you let go.
+  function orbitInput(input, dt, stick, mouse = true) {
+    const m = mouse ? .0024 * sensitivity.mouse : 0, s = stick ? sensitivity.pad * dt : 0;
+    CH.steer(orbit, -input.mouse.dx * m - input.look.x * 2.2 * s, -input.mouse.dy * m - input.look.y * 1.6 * s, dt);
+  }
+  function chaseCamera(dt, rig, mode, ref, fov) {
+    camEnv.mode = mode;camEnv.ref = ref;
+    const o = chase.update(dt, chaseAt, rig, orbit, camEnv);
+    camera.position.set(o.x, o.y, o.z);camera.up.set(0, 1, 0);camera.lookAt(o.ax, o.ay, o.az);
+    if (camera.fov !== fov) {camera.fov = fov;camera.updateProjectionMatrix();}
+  }
+  // The first-person hands (and forearms) on the wheel, bars, levers or stick: hidden in third person, where your avatar's are seen.
+  function fpHands(v, on) {
+    if (v.hands && v.hands.isObject3D) v.hands.visible = on;else if (Array.isArray(v.hands)) v.hands.forEach(h => {h.visible = on;});
+    if (v.arms && v.arms.isObject3D) v.arms.visible = on;if (v.armGroup) v.armGroup.visible = on;
+    if (v.parts && v.parts.hands) v.parts.hands.visible = on;
+    if (v.levers) v.levers.forEach(l => {if (l.userData.hand) l.userData.hand.visible = on;});
+  }
+  let ownAv = null, ownDrone = null;
+  const ownQ = new T.Quaternion(), ownE = new T.Euler(0, 0, 0, 'YXZ');
+  function ownAvatar() {
+    const slot = mySeat();
+    if (ownAv && ownAv.slot !== slot) {scene.remove(ownAv.group);ownAv.dispose();ownAv = null;}// online you got a new slot (jacket colour)
+    if (!ownAv) {ownAv = window.GameAvatars.create({T, lib}).avatar(slot, '');ownAv.slot = slot;ownAv.group.visible = false;scene.add(ownAv.group);}
+    return ownAv;
+  }
+  // After the vehicles and the lobby have moved this frame: your avatar in its seat, and the passenger's chase camera.
+  function thirdPersonTick(dt) {
+    const m = player.mode, v = player.vehicle, third = player.third;let g = null, stance = 'sit', speed = 0;
+    if (third && (m === 'vehicle' || m === 'passenger') && v) {
+      const a = v.hipAnchor(m === 'vehicle' ? 'd' : 'p');
+      if (a) {
+        g = ownAvatar().group;a.obj.updateWorldMatrix(true, false);g.position.copy(a.obj.localToWorld(a.pos.clone()));g.quaternion.copy(a.obj.getWorldQuaternion(ownQ));if (a.yaw) g.rotateY(a.yaw);
+        stance = a.stance;speed = stance === 'cycle' ? Math.abs(v.speed || 0) : 0;
+      }
+      if (m === 'passenger') {
+        chaseAt.x = v.x;chaseAt.y = v.y;chaseAt.z = v.z;chaseAt.yaw = v.yaw;
+        const rig = v.aircraft ? v.passRig || (v.passRig = {dist: v.chaseDist, up: v.chaseDist * .3 + v.gearH, aim: 1.2 + v.gearH, ahead: 6}) : v.chaseRig || (v.chaseRig = CH.rigFor(v));
+        chaseCamera(dt, rig, 'road', v.y, 72);
+      }
+    } else if (third && m === 'kayak' && kayak && kayak.pose) {
+      const k = kayak.pose;g = ownAvatar().group;g.position.set(k.x, k.y + .28, k.z);g.rotation.set(0, k.yaw, 0);
+    } else if (third && m === 'drone') {
+      g = ownAvatar().group;g.position.set(player.x, player.feet, player.z);g.rotation.set(0, player.yaw, 0);stance = 'drone';
+      if (!ownDrone) {ownDrone = window.GameAvatars.create({T, lib}).drone();scene.add(ownDrone);}
+      ownDrone.position.copy(drone.pos);ownDrone.quaternion.copy(drone.q);
+    }
+    if (ownDrone) ownDrone.visible = third && m === 'drone';
+    if (!g) {if (ownAv) ownAv.group.visible = false;return;}
+    g.visible = true;ownAv.pose({stance, speed, dt, beer: beerT > 0});ownAv.update(dt, camera, false);
+  }
+  function enterVehicle(v) {{const need = licAllowed(v);if (need) {notice(licNeedText(need, v.name), 5);mp.release(vehicles.indexOf(v), 'd');return false;}}if (v === caravan) gp = null;watch.hide();player.mode = 'vehicle';player.vehicle = v;player.siteView = player.third ? 1 : 0;player.lookYaw = 0;player.lookPitch = 0;player.chaseCam = null;orbit.yaw = orbit.pitch = 0;chase.reset();v.enter();fpHands(v, !player.third);updateDynamic();if (v.aircraft) setClip(.12, 1600);notice(v.help ? v.help : v.aircraft ? AIR_HELP[v.kind] : v.kind === 'excavator' ? 'Tracks: L1/L2 left, R1/R2 right · Left stick: swing / stick · Right stick: boom / bucket · R3 / V first / third person (the mouse turns the camera) · □ get out' : 'R2 throttle · L2 brake / reverse · Left stick steer · Right stick look · R3 / V first / third person · □ get off', v.aircraft || v.help ? 9 : 6);}
   function tryDrive(v) {
     {const need = licAllowed(v);if (need) {notice(licNeedText(need, v.name), 5);return;}}
     const i = vehicles.indexOf(v);if (v !== caravan) leaveGamePilot();
@@ -705,7 +777,8 @@
   function enterPassenger(v) {
     watch.hide();if (photo.active) photo.toggle();player.mode = 'passenger';player.vehicle = v;player.lookYaw = 0;player.lookPitch = 0;if (v.aircraft) setClip(.12, 1600);
     passengerEngine = audio.engine({motorcycle: 'bike', car: 'car', helicopter: 'heli', plane: 'plane'}[v.kind] || 'car');
-    notice(`Riding along with ${driverName(vehicles.indexOf(v))} · look around with the right stick · □ get out when stopped`, 5);
+    chase.reset();orbit.yaw = orbit.pitch = 0;updateDynamic();// your vehicle's own footprint out of the walkers' solids (the chase camera's view)
+    notice(`Riding along with ${driverName(vehicles.indexOf(v))} · look around with the right stick · R3 / V first / third person · □ get out when stopped`, 5);
   }
   function exitPassenger() {
     const v = player.vehicle, i = vehicles.indexOf(v);mp.release(i, 'p');if (passengerEngine) passengerEngine.stop();passengerEngine = null;
@@ -1192,11 +1265,17 @@
   }
   function startKayak(i) {watch.hide();if (photo.active) photo.toggle();bag = null;player.mode = 'kayak';player.lookYaw = 0;player.lookPitch = 0;notice(kayak.start(i), 8);}
   function updateKayak(dt, input, dl) {
+    // R3 / V: first ↔ third person (issue #129: the shared chase camera and your avatar in the cockpit).
+    if (viewPressed(input)) toggleThird();
     // Look around from the cockpit (right stick / mouse); it drifts back to straight ahead.
-    player.lookYaw = Math.max(-2.2, Math.min(2.2, (player.lookYaw || 0) - input.mouse.dx * .0024 * sensitivity.mouse - input.look.x * 2.2 * dt));player.lookPitch = Math.max(-1.1, Math.min(.9, (player.lookPitch || 0) - input.mouse.dy * .0024 * sensitivity.mouse - input.look.y * 1.6 * dt));
-    if (!input.mouse.dx && !input.look.x) player.lookYaw *= Math.max(0, 1 - dt * 1.5);
+    if (player.third) orbitInput(input, dt, true);
+    else {
+      player.lookYaw = Math.max(-2.2, Math.min(2.2, (player.lookYaw || 0) - input.mouse.dx * .0024 * sensitivity.mouse - input.look.x * 2.2 * dt));player.lookPitch = Math.max(-1.1, Math.min(.9, (player.lookPitch || 0) - input.mouse.dy * .0024 * sensitivity.mouse - input.look.y * 1.6 * dt));
+      if (!input.mouse.dx && !input.look.x) player.lookYaw *= Math.max(0, 1 - dt * 1.5);
+    }
     if (dl) input.move.x += Math.sin(performance.now() / 700) * .4 * dl;
-    const r = kayak.update(dt * worldScale(), input, camera, {yaw: player.lookYaw, pitch: player.lookPitch});
+    const r = kayak.update(dt * worldScale(), input, camera, {yaw: player.lookYaw, pitch: player.lookPitch, third: player.third});
+    if (player.third && r.pos) {chaseAt.x = r.pos.x;chaseAt.y = r.pos.y;chaseAt.z = r.pos.z;chaseAt.yaw = r.pos.yaw;chaseCamera(dt, KAYAK_RIG, 'kayak', r.pos.y, 72);}
     if (r.notice) notice(r.notice, r.finish ? 8 : 2.5);
     if (r.finish) earn(r.finish.isBest ? 80 : 40, `Akerselva by kayak: ${r.finish.from} → Vaterland`);
     if (r.pos) {player.x = r.pos.x;player.z = r.pos.z;player.feet = r.pos.y;player.yaw = r.pos.yaw;}
@@ -1416,7 +1495,7 @@
     cullT -= dt;if (cullT <= 0) {cullT = .4;for (const v of vehicles) {const near = Math.hypot(v.x - camera.position.x, v.z - camera.position.z) < (v.cullDistance || 170);v.group.visible = near || v === player.vehicle;}if (vehicles.some((v, i) => mp.remoteDriven(i))) updateDynamic();}
     vehicles.forEach((v, i) => {if (v === player.vehicle && player.mode === 'vehicle') return;if (mp.remoteDriven(i) || (gp && v === caravan)) return;if (!v.group.visible && Math.abs(v.speed || 0) < .01 && !v.aircraft) return;v.update(wdt, {});});
     if (fleet) fleet.tick(dt, camera, i => !!mp.occupant(i, 'd') || !!mp.occupant(i, 'p'), player.vehicle);
-    beerT = Math.max(0, beerT - dt);mp.update(dt);updatePilotAvatar(dt);if (player.mode === 'jumpseat' && skyd.ride) seatCamera();
+    beerT = Math.max(0, beerT - dt);mp.update(dt);updatePilotAvatar(dt);thirdPersonTick(dt);if (player.mode === 'jumpseat' && skyd.ride) seatCamera();
     if (living) living.tick(dt, input, player, camera);// flat 501: chair in your hands, record player, TV, lava lamp, their sound
     if (rentals) rentals.tick(dt, player);jobs.tick(dt, {player, drunk: dl, camera});jobs.remoteTick(mp.remotes, vehicles, dt, camera);renderJobHud(crewTick());licTick(dt);if (jobs.phone.open) jobs.phone.render();
     if (site) site.update(wdt);
@@ -1527,23 +1606,35 @@
     v.update(dt, {throttle: input.r2, brake: input.l2, steer, drunk: dl, l1: input.held.l1, l2: input.l2, r1: input.held.r1, r2: input.r2, cross: input.pressed.has('cross'), lx: input.move.x, ly: input.move.y, rx, ry, sticks: {lx: input.move.x, ly: input.move.y, rx: input.look.x, ry: input.look.y}});
     // Look around from the seat (right stick / mouse); the excavators use the right stick for the boom, so mouse only there.
     const tool = v.kind === 'excavator' || v.rightStickTool, lookX = tool ? 0 : input.look.x, lookY = tool ? 0 : input.look.y;
-    player.lookYaw = (player.lookYaw || 0) - input.mouse.dx * .0024 * sensitivity.mouse - lookX * 2.2 * dt;player.lookPitch = Math.max(-1.2, Math.min(1, (player.lookPitch || 0) - input.mouse.dy * .0024 * sensitivity.mouse - lookY * 1.6 * dt));
-    if (!input.mouse.dx && !lookX) player.lookYaw *= Math.max(0, 1 - dt * 1.2);
-    const seat = v.seat(), sway = dl ? Math.sin(performance.now() / 1300) * .08 * dl : 0;
-    camera.position.set(seat.x + (seat.lateral || 0) * Math.cos(v.yaw), seat.y, seat.z - (seat.lateral || 0) * Math.sin(v.yaw));
-    camera.rotation.order = 'YXZ';camera.rotation.y = seat.yaw + player.lookYaw - (v.kind === 'excavator' ? .22 : 0) + (v.camYaw || 0);camera.rotation.x = seat.pitch + player.lookPitch - (v.kind === 'motorcycle' ? .12 : v.kind === 'excavator' ? .38 : .05) + (v.camPitch || 0);camera.rotation.z = -(seat.roll || 0) + sway;
-    if (camera.fov !== 70) {camera.fov = 70;camera.updateProjectionMatrix();}
-    if (v.site) siteMachineView(v, seat, input);
+    // R3 / V: first ↔ third person (the construction-site machines cycle their own views in siteMachineView).
+    if (!v.site && viewPressed(input)) toggleThird();
+    if (player.third && !v.site) {
+      // Third person: behind and above along the seat's heading (the excavator's cab, which swings), no roll, no drunk sway.
+      const seat = v.seat();orbitInput(input, dt, !tool);fpHands(v, false);
+      chaseAt.x = v.x;chaseAt.y = v.y;chaseAt.z = v.z;chaseAt.yaw = seat.yaw;chaseCamera(dt, v.chaseRig || (v.chaseRig = CH.rigFor(v)), 'road', v.y, 70);
+    } else {
+      player.lookYaw = (player.lookYaw || 0) - input.mouse.dx * .0024 * sensitivity.mouse - lookX * 2.2 * dt;player.lookPitch = Math.max(-1.2, Math.min(1, (player.lookPitch || 0) - input.mouse.dy * .0024 * sensitivity.mouse - lookY * 1.6 * dt));
+      if (!input.mouse.dx && !lookX) player.lookYaw *= Math.max(0, 1 - dt * 1.2);
+      const seat = v.seat(), sway = dl ? Math.sin(performance.now() / 1300) * .08 * dl : 0;
+      camera.position.set(seat.x + (seat.lateral || 0) * Math.cos(v.yaw), seat.y, seat.z - (seat.lateral || 0) * Math.sin(v.yaw));
+      camera.rotation.order = 'YXZ';camera.rotation.y = seat.yaw + player.lookYaw - (v.kind === 'excavator' ? .22 : 0) + (v.camYaw || 0);camera.rotation.x = seat.pitch + player.lookPitch - (v.kind === 'motorcycle' ? .12 : v.kind === 'excavator' ? .38 : .05) + (v.camPitch || 0);camera.rotation.z = -(seat.roll || 0) + sway;
+      if (camera.fov !== 70) {camera.fov = 70;camera.updateProjectionMatrix();}
+      if (v.site) siteMachineView(v, seat, input, dt, !tool);
+    }
     player.x = v.x;player.z = v.z;player.feet = v.y;player.yaw = v.yaw;
     $('speedo').hidden = false;$('speedo').textContent = v.rental ? rentals.hud(v) : v.hud ? v.hud() : v.kind === 'excavator' ? `${(Math.abs(v.speed) * 3.6).toFixed(1)} km/h · bucket ${Math.round(v.load * 100)} %` : `${Math.round(Math.abs(v.speed) * 3.6)} km/h${v.kind === 'motorcycle' ? ` · gear ${v.gear} · ${Math.round(v.rpm / 100) * 100} rpm` : ''}`;
   }
   // Construction-site machines (ported from the Unreal version, where the cabs were hard to see from): R3 / V cycles the
   // view from the cab, from outside (behind and above along the operator's heading; the mouse turns it round the machine)
   // and, for the two cranes, straight down from above the hook (the jib's direction up the screen).
-  function siteMachineView(v, seat, input) {
+  // Since issue #129 the outside view is the shared chase camera (it comes closer instead of going into a wall) and the choice
+  // counts as third person: a machine entered in third person starts outside, and the next vehicle keeps it.
+  function siteMachineView(v, seat, input, dt, stick) {
     const tower = v.kind === 'tower', crane = tower || v.kind === 'crane';
+    if (tower && player.siteView === 1) player.siteView = 2;// the tower crane has no outside view: above the hook instead
     if (input.pressed.has('r3') || input.pressed.has('view')) {
       const modes = tower ? [0, 2] : crane ? [0, 2, 1] : [0, 1];player.siteView = modes[(modes.indexOf(player.siteView || 0) + 1) % modes.length];player.lookYaw = 0;player.lookPitch = 0;
+      player.third = player.siteView !== 0;orbit.yaw = orbit.pitch = orbit.idle = 0;chase.reset();
       notice(player.siteView === 0 ? 'View: from the cab' : player.siteView === 1 ? 'View: from outside' : 'View: from above the hook', 1.5);
     }
     if (player.siteView === 2 && v.hook) {
@@ -1551,10 +1642,10 @@
       camera.position.copy(v.hook.p).add(new T.Vector3(0, up, 0));camera.rotation.set(-Math.PI / 2 + .001, seat.yaw, 0);
       if (camera.fov !== 75) {camera.fov = 75;camera.updateProjectionMatrix();}
     } else if (player.siteView === 1) {
-      const H = seat.yaw + (player.lookYaw || 0), dist = Math.max(10, v.length * .5 + 8), up = v.height + (crane ? 6 : 3.5), fx = -Math.sin(H), fz = -Math.cos(H);
-      const look = new T.Vector3(v.x + fx * v.length * .4, v.y + 1.2, v.z + fz * v.length * .4), cam = new T.Vector3(v.x - fx * dist, v.y + up, v.z - fz * dist);
-      cam.y = Math.max(cam.y, heightAt(cam.x, cam.z) + 1.5);camera.position.copy(cam);
-      camera.rotation.set(Math.atan2(look.y - cam.y, Math.hypot(look.x - cam.x, look.z - cam.z)) + (player.lookPitch || 0) * .5, H, 0);
+      // Behind and above along the operator's heading (the same distances as before); the mouse turns it round the machine.
+      orbitInput(input, dt, stick);
+      chaseAt.x = v.x;chaseAt.y = v.y;chaseAt.z = v.z;chaseAt.yaw = seat.yaw;
+      chaseCamera(dt, v.siteRig || (v.siteRig = {dist: Math.max(10, v.length * .5 + 8), up: v.height + (crane ? 6 : 3.5), aim: 1.2, ahead: v.length * .4}), 'road', v.y, 70);
     }
   }
   // Mode 2 sticks for the aircraft and the drone; the keyboard uses W/S, A/D and the arrow keys.
@@ -1583,11 +1674,11 @@
     // The Caravan: △ hands it to the game's pilot (you go to the back); ✕ above 300 m hands it over and jumps.
     if (v === caravan && input.pressed.has('triangle')) {handOver(false);return;}
     if (v === caravan && input.pressed.has('cross') && !v.grounded) {if (v.y - heightAt(v.x, v.z) > 300) {handOver(true);return;}notice('Climb above 300 m to jump.', 2);}
-    if (input.pressed.has('r3') || input.pressed.has('view')) {player.chase = !player.chase;player.chaseCam = null;}
+    if (viewPressed(input)) toggleThird();// the chase camera (issue #129: the same remembered choice as the other vehicles)
     v.update(dt, flightSticks(input, dl, dt));
-    const pose = v.cameraPose(player.chase, player.chaseCam);if (player.chase) player.chaseCam = pose.position.clone();
+    const pose = v.cameraPose(player.third, player.chaseCam);if (player.third) player.chaseCam = pose.position.clone();
     camera.position.copy(pose.position);camera.quaternion.copy(pose.quaternion);
-    if (!player.chase) flightLook(input, dt);
+    if (!player.third) flightLook(input, dt);else fpHands(v, false);
     if (camera.fov !== 72) {camera.fov = 72;camera.updateProjectionMatrix();}
     player.x = v.x;player.z = v.z;player.feet = v.y;player.yaw = v.yaw;
     const sp = $('speedo');sp.hidden = false;sp.classList.add('air');sp.textContent = v.broken ? 'CRASHED' : v.hud();
@@ -1603,7 +1694,8 @@
     const f = {x: -Math.sin(player.yaw), z: -Math.cos(player.yaw)}, p = {x: player.x + f.x * 1.1, z: player.z + f.z * 1.1}, fl = floorBelow(p, player.feet + .4);
     if (!fl || Math.abs(fl.y - player.feet) > .6 || collision.hitsSolid(walkWorld, p, fl.y, fl.y + .35)) {notice('No room to launch the drone here – face an open space.');return;}
     watch.hide();if (photo.active) photo.toggle();drone.launch(p.x, fl.y, p.z, player.yaw);player.mode = 'drone';setClip(.03, 900);view.dataset.drone = '';
-    notice('FPV drone · left stick ↑↓ thrust, ←→ yaw · right stick tilt · L1 / Q angle ↔ acro · ✕ reset after a crash · ○ / △ pack it away', 8);
+    chase.reset();orbit.yaw = orbit.pitch = 0;
+    notice('FPV drone · left stick ↑↓ thrust, ←→ yaw · right stick tilt · L1 / Q angle ↔ acro · R3 / V FPV ↔ view from behind · ✕ reset after a crash · ○ / △ pack it away', 8);
   }
   function stopDrone() {drone.stop();player.mode = 'foot';setClip(.05, 450);$('osd').hidden = true;delete view.dataset.drone;}
   let osdT = 0;
@@ -1612,8 +1704,15 @@
     if (input.pressed.has('l1')) {drone.setMode(drone.mode === 'angle' ? 'acro' : 'angle');notice(drone.mode === 'acro' ? 'ACRO: the right stick sets rotation rates – nothing self-levels. Flips and rolls!' : 'ANGLE: the drone levels itself and holds altitude with the stick centred – tilted it sinks unless you add thrust.', 4);}
     if (input.pressed.has('cross') && (drone.crashed || !drone.armed)) {if (drone.battery > 0) drone.reset();else notice('Battery empty – ○ to pack the drone away, then launch it again with a fresh pack.', 4);}
     drone.update(dt, flightSticks(input, dl, dt, drone.mode === 'acro' ? .3 : 1), {floor: floorBelow, solid: (p, a, b) => collision.hitsSolid(walkWorld, p, a, b), listener: {x: player.x, y: player.feet + 1.6, z: player.z}});
-    const pose = drone.cameraPose();camera.position.copy(pose.position);camera.quaternion.copy(pose.quaternion);flightLook(input, dt);
-    if (camera.fov !== 100) {camera.fov = 100;camera.updateProjectionMatrix();}
+    if (viewPressed(input)) toggleThird();
+    if (player.third) {
+      // Behind the drone (issue #129): the mouse and sticks fly it, so hold Shift / the right mouse button to turn the camera.
+      orbitInput(input, dt, false, !!input.freeLook);
+      ownE.setFromQuaternion(drone.q, 'YXZ');chaseAt.x = drone.pos.x;chaseAt.y = drone.pos.y;chaseAt.z = drone.pos.z;chaseAt.yaw = ownE.y;chaseCamera(dt, DRONE_RIG, 'drone', drone.pos.y, 85);
+    } else {
+      const pose = drone.cameraPose();camera.position.copy(pose.position);camera.quaternion.copy(pose.quaternion);flightLook(input, dt);
+      if (camera.fov !== 100) {camera.fov = 100;camera.updateProjectionMatrix();}
+    }
     if ((osdT -= dt) > 0) return;osdT = .1;
     const fl = floorBelow(drone.pos, drone.pos.y + .1), o = drone.osd(fl ? fl.y : heightAt(drone.pos.x, drone.pos.z)), mm = Math.floor(o.time / 60), ss = String(Math.floor(o.time % 60)).padStart(2, '0');
     const el = $('osd');el.hidden = false;
@@ -1803,7 +1902,7 @@
   }
   // The player flying the Caravan hands it to the game's pilot and goes back to the jump seats (△), or jumps at once (✕).
   function handOver(jumpNow) {
-    const c = caravan;c.exit();player.mode = 'jumpseat';player.vehicle = null;player.chase = false;player.lookYaw = 0;player.lookPitch = 0;
+    const c = caravan;c.exit();player.mode = 'jumpseat';player.vehicle = null;player.lookYaw = 0;player.lookPitch = 0;
     skyd.ride = {craft: c, auto: false, seat: mySeat()};for (const [, w] of vehicleWorlds) collision.setDynamic(w, []);updateDynamic();
     startGamePilot();
     if (jumpNow) jump();
@@ -1855,11 +1954,15 @@
   function updatePassenger(dt, input, dl) {
     const v = player.vehicle;
     if (input.pressed.has('square') && Math.abs(v.speed) < 3 && (!v.aircraft || v.grounded)) {exitPassenger();return;}
-    player.lookYaw = Math.max(-2.6, Math.min(2.6, (player.lookYaw || 0) - input.mouse.dx * .0024 * sensitivity.mouse - input.look.x * 2.2 * dt));player.lookPitch = Math.max(-1.2, Math.min(1, (player.lookPitch || 0) - input.mouse.dy * .0024 * sensitivity.mouse - input.look.y * 1.6 * dt));
-    v.group.updateMatrixWorld(true);camera.position.copy(v.group.localToWorld(v.passengerEye.clone()));
-    camera.quaternion.copy(v.group.getWorldQuaternion(new T.Quaternion())).multiply(new T.Quaternion().setFromEuler(new T.Euler(player.lookPitch - (v.kind === 'motorcycle' ? .1 : .05), player.lookYaw, 0, 'YXZ')));
-    if (dl) camera.rotateZ(Math.sin(performance.now() / 1300) * .08 * dl);
-    if (camera.fov !== 72) {camera.fov = 72;camera.updateProjectionMatrix();}
+    if (viewPressed(input)) toggleThird();
+    if (player.third) orbitInput(input, dt, true);// the camera is placed in thirdPersonTick, once the lobby has moved the vehicle
+    else {
+      player.lookYaw = Math.max(-2.6, Math.min(2.6, (player.lookYaw || 0) - input.mouse.dx * .0024 * sensitivity.mouse - input.look.x * 2.2 * dt));player.lookPitch = Math.max(-1.2, Math.min(1, (player.lookPitch || 0) - input.mouse.dy * .0024 * sensitivity.mouse - input.look.y * 1.6 * dt));
+      v.group.updateMatrixWorld(true);camera.position.copy(v.group.localToWorld(v.passengerEye.clone()));
+      camera.quaternion.copy(v.group.getWorldQuaternion(new T.Quaternion())).multiply(new T.Quaternion().setFromEuler(new T.Euler(player.lookPitch - (v.kind === 'motorcycle' ? .1 : .05), player.lookYaw, 0, 'YXZ')));
+      if (dl) camera.rotateZ(Math.sin(performance.now() / 1300) * .08 * dl);
+      if (camera.fov !== 72) {camera.fov = 72;camera.updateProjectionMatrix();}
+    }
     player.x = v.x;player.z = v.z;player.feet = v.y;player.yaw = v.yaw + player.lookYaw;
     const kmh = Math.abs(v.speed) * 3.6, drv = mp.occupant(vehicles.indexOf(v), 'd');
     if (passengerEngine) {if (v.kind === 'helicopter') passengerEngine.set(v.rpm, .5);else if (v.kind === 'plane') passengerEngine.set(v.prop || 700, v.throttle || 0);else if (v.kind === 'motorcycle') passengerEngine.set(1300 + (kmh % 50) / 50 * 8500, drv ? .5 : 0);else passengerEngine.set(800 + (kmh * 38) % 3600, drv ? .4 : 0);}
@@ -2495,6 +2598,7 @@
   Object.assign(window.haarklousGame, {licences: lic, licBegin, licVehicle, openLicPlace, openLicPhone, schoolCar, schoolBike, LIC_SIGNS});
   Object.defineProperty(window.haarklousGame, 'licTest', {get: () => licTest});
   Object.assign(window.haarklousGame, {cityCars, fleet, friends});
+  Object.assign(window.haarklousGame, {renderer, chase, orbit, toggleThird});Object.defineProperties(window.haarklousGame, {third: {get: () => player.third}, ownAvatar: {get: () => ownAv}, ownDrone: {get: () => ownDrone}});// third person (issue #129)
   // Minigolf (issue #114): paying, the bar's drinks (the same drunk effect as a beer), records and badges, the shared clock.
   if (mgl) {
     Object.assign(golfHooks, {pay: v => {const ok = wallet.pay(v);if (ok) walletT = 6;return ok;}, money: () => wallet.money, earn, notice, menu: lic.menu, drunk: () => drunk, start: g => startMinigame(g),
