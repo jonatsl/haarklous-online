@@ -293,7 +293,7 @@
       // Reception: the desk with a glass screen and the officer, partitions behind it, the POLITIET sign, chairs, the ticket machine.
       box(ext, 6, 1.1, .7, 7, .55, 6.55, M.desk);box(ext, 6.1, .05, .8, 7, 1.12, 6.55, M.dark);
       {const s = new T.Mesh(new T.PlaneGeometry(5.6, .7), M.glass);s.position.set(7, 1.5, 6.62);ext.add(s);}
-      obstacles.push(fr.rect(4, 10, 6.2, 6.9, -.2, 1.2));
+      obstacles.push({...fr.rect(4, 10, 6.2, 6.9, -.2, 1.2), noJump: true});// the glass screen on the desk: no jumping over (issue #144)
       wallB(fr, ext, 4, 6.9, D - .12, .12, M.wall);wallB(fr, ext, 10, 6.9, D - .12, .12, M.wall);
       box(ext, .4, .25, .05, 6.2, 1.28, 6.75, new T.MeshStandardMaterial({color: 0x0b1a10, emissive: 0x1c3a5a, emissiveIntensity: .9}));
       sign(ext, 3.2, .8, 7, 2.45, D - .125, Math.PI, text('#0b1f3a', [['POLITIET', .42, '#ffffff', .4], ['Oslo politidistrikt · Publikumsmottak', .15, '#c9d3e0', .78]]), {glow: .45});
