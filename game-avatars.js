@@ -1,7 +1,7 @@
 /* Other players: a jointed humanoid (jacket colour per player slot) with walk, crouch, prone, sit, drive and ride poses,
  * a beer bottle when drinking, a name tag and a chat bubble; plus a small FPV quad for players flying their drone.
  * GameAvatars.create({T, lib}) -> {avatar(slot, name) -> Avatar, drone() -> Group, SLOT_COLORS}
- * Avatar: {group, setName(n), say(text), pose({stance, speed, dt, beer, seat}), update(dt, camera, showTag = true), dispose()}
+ * Avatar: {group, setName(n), say(text), pose({stance, speed, dt, beer, seat, jump}), update(dt, camera, showTag = true), dispose()}
  * The group's origin is between the feet and it faces -z (like the camera at yaw 0). For seated poses the origin is the hip.
  */
 (function (root, factory) {
@@ -68,7 +68,7 @@
       }
       const set = (o, x = 0, y = 0, z = 0) => o.rotation.set(x, y, z);
       // stance: stand | crouch | prone | sit | drive | ride | pillion | cycle | scoot | drone | climb | hang | belay ; seat poses put the hip at the group origin.
-      function pose({stance = 'stand', speed = 0, dt = 0, beer = false, marker = false}) {
+      function pose({stance = 'stand', speed = 0, dt = 0, beer = false, marker = false, jump = false}) {
         phase += speed * dt * (stance === 'cycle' ? 1.5 : 3.2);const sw = Math.sin(phase), amp = Math.min(1, speed / 3.6);
         hips.position.set(0, .95, 0);set(hips);set(torso);set(neck);set(head);
         for (const [s, side] of [[1, L], [-1, R]]) {set(side.leg.hip);set(side.leg.kn);set(side.arm.sh, 0, 0, s * .08);set(side.arm.el);}
@@ -110,6 +110,8 @@
           L.arm.sh.rotation.x = -sw * .45 * amp;R.arm.sh.rotation.x = sw * .45 * amp;L.arm.el.rotation.x = R.arm.el.rotation.x = .25 + .3 * amp;
           hips.position.y = .95 + Math.abs(Math.cos(phase)) * .03 * amp;torso.rotation.x = -.06 * amp;
           if (stance === 'drone') for (const side of [L, R]) {side.arm.sh.rotation.x = .8;side.arm.el.rotation.x = .9;}
+          // In the air (issue #144): knees drawn up, arms up and forward.
+          if (jump && stance === 'stand') {set(L.leg.hip, .75);set(R.leg.hip, .45);set(L.leg.kn, -1.2);set(R.leg.kn, -.8);for (const [s, side] of [[1, L], [-1, R]]) {set(side.arm.sh, 1.5, 0, s * .25);set(side.arm.el, .35);}torso.rotation.x = -.12;hips.position.y = .95;}
         }
         // Paintball: the marker shouldered, right hand on the grip, left on the front.
         if (marker && !seated && stance !== 'prone') {set(R.arm.sh, 1.2, 0, -.2);set(R.arm.el, .55);set(L.arm.sh, 1.35, 0, .55);set(L.arm.el, .35);}

@@ -223,6 +223,7 @@
   const RB = world.bridges;if (RB) {walkFloors.unshift(...RB.floors);staticObstacles.push(...RB.obstacles);}
   const walkWorld = collision.createWorld({floors: walkFloors, obstacles: staticObstacles, radius: .18, clearance: .08});
   const vehicleWorlds = new Map();
+  let mp = null;// the lobby (GameMultiplayer, made further down); declared here because updateDynamic() reads it at start-up
   let vehicleBlockers = null, fleet = null;// the other vehicles' footprints from the last updateDynamic(); the parked vehicles (issue #113)
   function worldFor(r) {
     const key = r.toFixed(2);
@@ -442,8 +443,15 @@
   });
 
   // ---------- HUD ----------
+  // The shared disc golf scorecard (issue #148): everyone in your round, throws per hole and the total against par; away = throws next.
+  function discCard(s) {
+    if (!s.card) return '';
+    const rel = v => v === 0 ? 'E' : v > 0 ? `+${v}` : `${v}`, head = s.pars.map((p, i) => `<th>${i + 1}</th>`).join('');
+    const rows = s.card.map(r => `<tr class="${r.me ? 'me' : ''}"><td><i style="background:${r.me ? '#fff' : window.GameAvatars.slotCss(r.slot)}"></i>${esc(r.name)}${r.w === 2 ? ' ✓' : ''}</td>${r.s.map((x, i) => `<td>${x || (i === r.h && r.w === 0 && r.n ? `<em>${r.n}</em>` : '·')}</td>`).join('')}<td><b>${rel(r.rel)}</b></td></tr>`).join('');
+    return `<table class="dgcard"><tr><th></th>${head}<th>±</th></tr>${rows}</table>${s.away ? `<small>${s.away === 'You' ? 'You are' : esc(s.away) + ' is'} away (furthest from the basket) – nobody has to wait.</small>` : ''}`;
+  }
   const hud = {
-    discgolf(s) {const el = $('discHud');if (!s) {el.hidden = true;return;}el.hidden = false;el.innerHTML = `<b>${s.course} · Hull ${s.hole}/${s.holes} · Par ${s.par}</b><span>Throws: ${s.strokes.map((n, i) => `H${i + 1} ${n}`).join(' · ')}</span><span>${s.distance} m to the ${s.walk ? 'tee' : 'basket'}</span><i class="meter"><u style="width:${Math.round(s.charge * 100)}%"></u></i><small>${s.message}</small><small>${s.walk ? 'Walk or run to the tee · □ straight there · ○ quit' : 'Hold R2 / left mouse, release to throw · left stick ←/→ hyzer · ○ quit'}</small>`;},
+    discgolf(s) {const el = $('discHud');el.classList.toggle('wide', !!(s && s.card));if (!s) {el.hidden = true;return;}el.hidden = false;el.innerHTML = `<b>${s.course} · Hull ${s.hole}/${s.holes} · Par ${s.par}</b><span>Throws: ${s.strokes.map((n, i) => `H${i + 1} ${n}`).join(' · ')}</span><span>${s.distance} m to the ${s.walk ? 'tee' : 'basket'}</span><i class="meter"><u style="width:${Math.round(s.charge * 100)}%"></u></i><small>${s.message}</small>${discCard(s)}<small>${s.walk ? 'Walk or run to the tee · □ straight there · ○ quit' : 'Hold R2 / left mouse, release to throw · left stick ←/→ hyzer · ○ quit'}</small>`;},
     petanque(s) {
       const el = $('petanqueHud'), marks = $('markers');if (!s) {el.hidden = true;marks.replaceChildren();return;}el.hidden = false;
       el.innerHTML = `<b>Petanque · You ${s.score.you} – ${s.score.npc} ${s.npcName}</b><span>Mène ${s.mene} · Boules left: you ${s.you}, ${s.npcName} ${s.npc}</span><span>${s.hold ? (s.hold === 'you' ? `You hold the point by ${s.margin.toFixed(2)} m` : `${s.npcName} holds the point by ${s.margin.toFixed(2)} m`) : 'Nobody holds the point'}</span><span>${s.turn === 'you' ? `Your turn: ${s.aim === 'jack' ? 'throw the jack (6–10 m)' : (s.shoot ? 'shoot (L2 held)' : 'point (hold L2 to shoot)')}` : s.turn === 'npc' ? `${s.npcName} is throwing…` : ''}</span><i class="meter"><u style="width:${Math.round(s.charge * 100)}%"></u></i><small>${s.message}</small><small>Hold R2 / left mouse for power, release to throw · ○ quit</small>`;
@@ -460,7 +468,7 @@
   const stanceSpeed = () => player.stance === 'prone' ? .28 : player.stance === 'crouch' ? .55 : 1;
   function place(x, z, yaw, y) {
     const sp = collision.findSafeSpawn(walkWorld, {x, z}, stanceEye('stand'), {y: y ?? heightAt(x, z), maxDistance: 6});
-    player.x = sp ? sp.x : x;player.z = sp ? sp.z : z;player.feet = sp ? sp.y : (y ?? heightAt(x, z));if (yaw !== undefined) player.yaw = yaw;player.pitch = 0;player.stance = 'stand';player.eyeNow = player.eye;player.jumpY = player.jumpV = 0;player.floating = false;
+    player.x = sp ? sp.x : x;player.z = sp ? sp.z : z;player.feet = sp ? sp.y : (y ?? heightAt(x, z));if (yaw !== undefined) player.yaw = yaw;player.pitch = 0;player.stance = 'stand';player.eyeNow = player.eye;player.jumpY = player.jumpV = 0;player.floating = false;player.air = null;
   }
   // The hostage mission starts from its own marker on the grass beside the entrance, so the street door is a normal door.
   const MISSION_MARK = {x: 4.8, z: 14.2};
@@ -480,8 +488,10 @@
     if (stanceEye(next) > stanceEye(player.stance) && !collision.canStand(walkWorld, player, stanceEye(next), player.feet)) {notice('No room to stand up here.');return;}
     player.stance = next;
   }
-  const move = (dx, dz) => {const r0 = walkWorld.radius, pr = prophunt ? prophunt.bodyRadius() : 0;if (pr > r0) {walkWorld.radius = pr;if (!collision.canStand(walkWorld, player, stanceEye(player.stance), player.feet)) walkWorld.radius = r0;}
-    const n = collision.move(walkWorld, player, {x: dx, z: dz}, stanceEye(player.stance), player.feet);walkWorld.radius = r0;player.x = n.x;player.z = n.z;player.feet = n.y;};
+  // walk(): as move(), and on a solid's top (a bench, a car roof) you can walk off its edge and drop (issue #144). dt: this frame.
+  const move = (dx, dz, dt) => {const r0 = walkWorld.radius, pr = prophunt ? prophunt.bodyRadius() : 0;if (pr > r0) {walkWorld.radius = pr;if (!collision.canStand(walkWorld, player, stanceEye(player.stance), player.feet)) walkWorld.radius = r0;}
+    const n = collision.walk(walkWorld, player, {x: dx, z: dz}, stanceEye(player.stance), player.feet);walkWorld.radius = r0;player.x = n.x;player.z = n.z;player.feet = n.y;
+    if (n.fall) startAir({x: dx / dt, z: dz / dt}, false);};
   function inApartment() {return player.feet > -.5 && player.feet < 2.5 && apt.floors.some(f => inside(player, f.points));}
   // Ambience: the whole flat (also doorways and wall gaps) counts as indoors; the balcony is open air.
   const aptBox = (() => {const pts = apt.floors.filter(f => !/balcony/i.test(f.id || f.name || '')).flatMap(f => f.points);return {x0: Math.min(...pts.map(p => p.x)) - .15, x1: Math.max(...pts.map(p => p.x)) + .15, z0: Math.min(...pts.map(p => p.z)) - .15, z1: Math.max(...pts.map(p => p.z)) + .15};})();
@@ -512,16 +522,26 @@
     if (living) list.push(...living.dynamic());// the chairs in flat 501 can be moved
     collision.setDynamic(walkWorld, list);
     // Other vehicles block the one being driven; it must never collide with its own (parked) footprint.
-    const vlist = vehicles.filter(v => v !== player.vehicle && !v.pushed && !(v.lazy && !v.built)).flatMap(v => [].concat(v.footprint()));
+    // The ones other players drive are not here: they move every frame, so transitDynamic() gives them as moving solids (issue #145).
+    const vlist = vehicles.filter((v, i) => v !== player.vehicle && !v.pushed && !(v.lazy && !v.built) && !(mp && mp.remoteDriven(i))).flatMap(v => [].concat(v.footprint()));
     vehicleBlockers = vlist;vehicleWorlds.forEach(w => collision.setDynamic(w, vlist));
     if (fleet) fleet.applyLayer([walkWorld, ...vehicleWorlds.values()]);
   }
-  let transitSolidsOn = false;
+  let transitSolidsOn = false, remoteSolidsOn = false, remoteKey = 0;const remoteSolids = [];
   // The trams, buses and metro trains near you are moving solids for walkers and cars (issue #111): a short list of their own
   // (setMoving), so the hashed dynamic list and the parked fleet's layer are left as they are.
+  // The vehicles other players drive are moving solids for your vehicle too, refreshed every frame (issue #145: they were
+  // in the hashed list, refreshed every 0.4 s, so a car driving at you jumped metres into yours and both were stuck).
   function transitDynamic() {
-    const t = [...(transit ? transit.footprints() : []), ...(prophunt ? prophunt.solids() : [])];if (!t.length && !transitSolidsOn) return;transitSolidsOn = t.length > 0;if (!transit) {collision.setMoving(walkWorld, t);return;}
-    collision.setMoving(walkWorld, t);vehicleWorlds.forEach(w => collision.setMoving(w, t));
+    remoteSolids.length = 0;let key = 0;
+    if (mp) vehicles.forEach((v, i) => {if (v !== player.vehicle && mp.remoteDriven(i)) {key = (key * 31 + i + 1) % 1e9;remoteSolids.push(...[].concat(v.footprint()));}});
+    // Somebody got in or out: the hashed list takes the car out or back (it stands still again).
+    if (key !== remoteKey) {remoteKey = key;updateDynamic();}
+    const t = [...(transit ? transit.footprints() : []), ...(prophunt ? prophunt.solids() : [])];
+    if (!t.length && !transitSolidsOn && !remoteSolids.length && !remoteSolidsOn) return;
+    transitSolidsOn = t.length > 0;remoteSolidsOn = remoteSolids.length > 0;
+    const vt = transit ? (remoteSolids.length ? t.concat(remoteSolids) : t) : remoteSolids;
+    collision.setMoving(walkWorld, t);vehicleWorlds.forEach(w => collision.setMoving(w, vt));if (!transit) return;
     // A tram or bus that comes up against you pushes you aside (it does not stop for you).
     if (player.mode === 'foot') {const p = transit.pushOut(player.x, player.z, player.feet, .3);if (p) {player.x = p.x;player.z = p.z;}}
     if (player.mode === 'vehicle' && player.vehicle && !player.vehicle.aircraft) {const v = player.vehicle, p = transit.pushOut(v.x, v.z, v.y, (v.width || 1.8) / 2 + .2);if (p) {v.x = p.x;v.z = p.z;v.speed *= .5;}}
@@ -549,14 +569,17 @@
 
   // ---------- Minigames, photo camera, map ----------
   const mini = window.GameMinigames.create({T, lib, audio, heightAt, toWorld, toLocal: world.toLocal, data: D, hud, trees: world.trees, reward: (v, why) => earn(v, why), muselunden: window.MUSELUNDEN,
-    onEvent: (kind, data) => badges.record(kind, data)});
+    onEvent: (kind, data) => badges.record(kind, data),
+    // Disc golf together (issue #148): the others in the lobby who send a round (st.dg), and the lobby clock.
+    net: {peers: () => mp && mp.net.online ? [...mp.remotes.values()].filter(r => r.st && r.st.dg).map(r => ({id: r.id, name: r.name, slot: r.slot, dg: r.st.dg})) : [],
+      now: () => mp && mp.net.online ? mp.net.serverNow() : Date.now(), you: () => mp && mp.net.online ? mp.net.you : 0}});
   const discCourses = [mini.discgolf, mini.muselunden].filter(Boolean);
-  scene.add(...discCourses.map(g => g.group), mini.petanque.group);
+  scene.add(...discCourses.map(g => g.group), mini.petanque.group, mini.remoteGroup);
   const photo = window.GameCamera.create({T, lib, audio, root: view, notice});
   const overlayScene = new T.Scene(), overlayCamera = new T.PerspectiveCamera(55, 1, .01, 5);overlayScene.add(new T.HemisphereLight(0xf1f5ff, 0x4a4540, 2.2));
   const ovSun = new T.DirectionalLight(0xffffff, 1.8);ovSun.position.set(.6, 1, .5);overlayScene.add(ovSun);overlayScene.environment = lib.environment();
   overlayScene.add(photo.model);photo.model.position.set(.08, -.13, -.32);photo.model.rotation.set(.1, -.15, 0);
-  const homeLocal = world.toLocal(2.8, 5), caseLocal = D.vehicles.missionStart;let mp = null;
+  const homeLocal = world.toLocal(2.8, 5), caseLocal = D.vehicles.missionStart;
   // The Ensjø -> Rathkes gate run (issue #38): any way you like; best time kept in this browser.
   const routeData = DISTRICTS.map(d => d.route).find(Boolean);
   const route = routeData && window.GameRoute ? window.GameRoute.create({T, lib, route: routeData, toWorld, heightAt, root: view, sound: n => audio.sfx(n),
@@ -1522,7 +1545,7 @@
     // The jump planes move first, so a jumper's seat (and camera) is where the plane is this frame.
     updateJumpFlight(dt);updateGamePilot(dt);
     licExaminer(input);
-    if (transit) transit.tick(dt, {camera, player});if (transit || prophunt) transitDynamic();
+    if (transit) transit.tick(dt, {camera, player});transitDynamic();
     if (player.mode === 'vehicle') updateVehicle(dt, input, dl);
     else if (player.mode === 'transit') transit.updateRide(dt, input, camera, dl);
     else if (player.mode === 'passenger') updatePassenger(dt, input, dl);
@@ -1536,6 +1559,7 @@
     else if (player.mode === 'belay') updateBelay(dt, input, dl);
     else if (player.mode === 'kayak') updateKayak(dt, input, dl);
     else updateFoot(dt, input, dl);
+    if (player.air && player.mode !== 'foot' && player.mode !== 'minigame') {player.air = null;player.jumpY = player.jumpV = 0;}// got into a seat mid-jump
     // Other vehicles: parked ones idle (far ones are hidden and skipped), ones driven by other players are posed by the lobby.
     cullT -= dt;if (cullT <= 0) {cullT = .4;for (const v of vehicles) {const near = Math.hypot(v.x - camera.position.x, v.z - camera.position.z) < (v.cullDistance || 170);v.group.visible = near || v === player.vehicle;}remoteDyn = vehicles.some((v, i) => mp.remoteDriven(i));}
     vehicles.forEach((v, i) => {if (v === player.vehicle && player.mode === 'vehicle') return;if (mp.remoteDriven(i) || (gp && v === caravan)) return;if (!v.group.visible && Math.abs(v.speed || 0) < .01 && !v.aircraft) return;v.update(wdt, {});});
@@ -1566,7 +1590,7 @@
     ambienceTimer -= dt;if (ambienceTimer <= 0) {ambienceTimer = .25;updateAmbience();if (audio.context) music.attach(audio.context, audio.output);music.play(musicTrack());}
     // Adaptive resolution keeps the frame rate in the 20–30+ fps range on slower PCs.
     if (fpsAvg < 22) {if (++lowFrames > 90 && pixelRatio > .6) {pixelRatio = Math.max(.6, pixelRatio - .1);renderer.setPixelRatio(pixelRatio);resize();lowFrames = 0;}} else lowFrames = 0;
-    updateGuide(dt);
+    updateGuide(dt);mini.netTick();// others' discs that left; the bonus for winning a disc golf round together (issue #148)
     magicFx(dt);
     renderFrame(dt, t);
   }
@@ -1588,6 +1612,7 @@
     return 'Torshov, Oslo';}
 
   function updateFoot(dt, input, dl) {
+    let wantJump = false;
     // Look.
     // Looking slows down with the camera's or binoculars' zoom (1 / zoom, so the picture moves as fast at any zoom), for the mouse too.
     const zoomLook = photo.active && photo.raised > .5 ? 1 / photo.zoom : 1, mouseScale = .0024 * sensitivity.mouse * zoomLook, padScale = sensitivity.pad * zoomLook * (caseGame?.active ? caseGame.lookScale() : 1), curve = v => Math.sign(v) * v * v;
@@ -1595,10 +1620,11 @@
     player.pitch = Math.max(-1.5, Math.min(1.5, player.pitch - input.mouse.dy * mouseScale - curve(input.look.y) * 1.9 * padScale * dt));
     // Buttons: ✕ jump, ○ tap crouch / hold prone, □ interact, L3 run toggle.
     if (!caseGame?.active || caseGame.state === 'play') {
-      if (input.pressed.has('cross')) {if (player.stance !== 'stand') setStance('stand');else if (!player.jumpY && !player.jumpV) {player.jumpV = 3.1 * (boostIs('jump') ? Math.sqrt(3) : 1);audio.footstep('grass', false, .4);}}
-      if (input.pressed.has('circle')) {player.circleAt = performance.now();player.circleHeld = false;}
+      // ✕ jumps (issue #144: a real jump; hold for higher), from standing; crouching or prone it stands you up first.
+      if (input.pressed.has('cross')) {if (player.stance !== 'stand') setStance('stand');else if (!player.air && !player.floating && !magic.levitating) wantJump = true;}
+      if (player.air) player.circleAt = null;else if (input.pressed.has('circle')) {player.circleAt = performance.now();player.circleHeld = false;}
       if (player.circleAt) {if (!input.held.circle) {if (!player.circleHeld) setStance(player.stance === 'crouch' ? 'stand' : 'crouch');player.circleAt = null;} else if (!player.circleHeld && performance.now() - player.circleAt > 320) {player.circleHeld = true;setStance(player.stance === 'prone' ? 'stand' : 'prone');}}
-      if (input.pressed.has('prone')) setStance(player.stance === 'prone' ? 'stand' : 'prone');
+      if (input.pressed.has('prone') && !player.air) setStance(player.stance === 'prone' ? 'stand' : 'prone');
       if (input.pressed.has('l3')) player.run = !player.run;
       if (input.pressed.has('square') && !photo.active && !caseGame?.active && !pbArmed() && !(prophunt && prophunt.ownsSquare)) interact();// paintball: □ reloads; prop hunt: □ becomes a thing
     }
@@ -1606,7 +1632,7 @@
     const canMove = (!caseGame?.active || caseGame.canMove()) && !(paintball && paintball.frozen) && !(prophunt && prophunt.frozen), propSpeed = prophunt ? prophunt.speed : 0;
     let mx = input.move.x, my = input.move.y;
     if (dl > 0) {mx += Math.sin(performance.now() / 700) * .55 * dl;my += Math.sin(performance.now() / 1100) * .15 * dl;}
-    const mag = Math.min(1, Math.hypot(mx, my));
+    const mag = Math.min(1, Math.hypot(mx, my)), wish = {x: 0, z: 0};// wish: where the stick takes you, m/s
     player.running = false;
     if (canMove && mag > .05) {
       const running = !propSpeed && player.stance === 'stand' && !(hushed > 0) && (player.run || (!caseGame?.active && !(photo.active && photo.kind === 'camera') && !pbArmed() && input.r2 > .3) || input.held.l3);player.running = running;
@@ -1614,22 +1640,60 @@
       const base = propSpeed || (player.stance === 'stand' ? WALK_SPEED : 1.45 * stanceSpeed());
       const speed = (running ? RUN_SPEED : base) * (caseGame?.active ? caseGame.moveScale() : 1) * (1 - dl * .25) * (boostIs('speed') ? 3 : 1), fwd = -my, right = mx;
       const dx = (-Math.sin(player.yaw) * fwd + Math.cos(player.yaw) * right) * speed * dt, dz = (-Math.cos(player.yaw) * fwd - Math.sin(player.yaw) * right) * speed * dt;
-      const bx = player.x, bz = player.z;move(dx, dz);
-      player.stride += Math.hypot(player.x - bx, player.z - bz);
-      if (player.stride > (running || speed > 2.5 ? 1.05 : .72) * (player.stance === 'stand' ? 1 : .8)) {player.stride = 0;if (!(player.jumpY > .05) && !propSpeed) footstep(running ? 1.2 : player.stance === 'stand' ? .8 : .45);}
+      wish.x = dx / dt;wish.z = dz / dt;
+      if (!player.air) {
+        const bx = player.x, bz = player.z;move(dx, dz, dt);
+        player.stride += Math.hypot(player.x - bx, player.z - bz);
+        if (player.stride > (running || speed > 2.5 ? 1.05 : .72) * (player.stance === 'stand' ? 1 : .8)) {player.stride = 0;if (!(player.jumpY > .05) && !propSpeed) footstep(running ? 1.2 : player.stance === 'stand' ? .8 : .45);}
+      }
     } else if (!mag) player.run = false;
+    if (wantJump && !player.air) startAir(wish, true);
+    else if (!player.air && !magic.levitating && !player.floating && !collision.supportAt(walkWorld, player, player.feet)) {
+      // Nothing under your feet (the car you stood on drove off): you fall.
+      const g = collision.groundBelow(walkWorld, player, player.feet);if (g && player.feet - g.y <= collision.MAX_DROP) startAir(wish, false);
+    }
     // Jump and stance easing.
     player.eyeNow += (stanceEye(player.stance) - player.eyeNow) * Math.min(1, dt * 9);
     // Levitation (Svev, issue #65): rising while R1 / 1 is held, then a slow sink until you land.
     if (magic.levitating || player.floating) {
+      if (player.air) {player.air = null;player.jumpV = 0;}// levitation takes over from the jump
       const head = collision.ceilingAt(walkWorld, player, player.feet) - .1 - player.eyeNow, r = window.GameMagic.levitate({y: player.jumpY, v: player.jumpV}, dt, {hold: magic.levitating, max: 3.2, head});
       player.jumpY = r.y;player.jumpV = r.v;if (player.floating && !r.floating) audio.sfx('land');player.floating = r.floating || magic.levitating;
-    } else if (player.jumpV || player.jumpY) {player.jumpV -= 9.81 * dt;player.jumpY += player.jumpV * dt;const head = collision.ceilingAt(walkWorld, player, player.feet) - .1 - player.eyeNow;if (player.jumpY > head) {player.jumpY = Math.max(0, head);player.jumpV = Math.min(0, player.jumpV);}if (player.jumpY <= 0 && player.jumpV <= 0) {if (player.jumpV < -2) footstep(1.3);player.jumpY = 0;player.jumpV = 0;}}
+    } else if (player.air) airStep(dt, input, canMove ? wish : null);
+    else if (player.jumpY) {player.jumpY = 0;player.jumpV = 0;}
     // Camera.
     const sway = dl ? {r: Math.sin(performance.now() / 1300) * .09 * dl, y: Math.sin(performance.now() / 1700) * .05 * dl, p: Math.sin(performance.now() / 900) * .03 * dl} : {r: 0, y: 0, p: 0};
-    camera.position.set(player.x, player.feet + player.eyeNow + player.jumpY, player.z);
+    let dip = 0;if (player.dipT !== undefined) {player.dipT += dt;const k = player.dipT / .3;if (k >= 1) player.dipT = undefined;else dip = player.dipAmp * Math.sin(Math.PI * k);}// the landing dip
+    camera.position.set(player.x, player.feet + player.eyeNow + player.jumpY - dip, player.z);
     camera.rotation.set(0, 0, 0, 'YXZ');camera.rotation.order = 'YXZ';camera.rotation.y = player.yaw + sway.y;camera.rotation.x = player.pitch + sway.p;camera.rotation.z = sway.r;
     const fov = photo.active && photo.raised > .5 ? 70 / photo.zoom : caseGame?.active ? camera.fov : pbArmed() ? 70 / (1 + .45 * (prophunt && prophunt.armed ? prophunt.aim : paintball.aim)) : boostIs('speed') ? 82 : 70 + magicKick * 16;if (Math.abs(camera.fov - fov) > .01 && !caseGame?.active) {camera.fov = fov;camera.updateProjectionMatrix();}
+  }
+  // ---------- Jumping (issue #144): a real jump with gravity; the maths is in walk-collision.js (stepAir) ----------
+  // player.air = the jump's state {x, z, y (feet), vx, vz, vy, t, hold, takeoff, mantle}; while it lasts player.feet is the ground
+  // under you and player.jumpY your height above it (so everything that adds the two, the camera and the lobby, sees the jump).
+  function startAir(wish, jumping) {
+    const A = {x: player.x, z: player.z, y: player.feet, vx: wish.x, vz: wish.z, vy: 0, t: 9, hold: 0, takeoff: player.feet, mantle: null};
+    if (jumping) {collision.startJump(A, boostIs('jump') ? 3 : 1);audio.sfx('jump');}
+    player.air = A;player.lastGround = {x: player.x, z: player.z, y: player.feet};
+  }
+  function airStep(dt, input, wish) {
+    const A = player.air, eye = stanceEye(player.stance);A.x = player.x;A.z = player.z;// a teleport or the prop hunt bounds may have moved you
+    if (!wish) A.vx = A.vz = 0;// frozen (paintball, prop hunt, the mission): no drifting on
+    const r0 = walkWorld.radius, pr = prophunt ? prophunt.bodyRadius() : 0;if (pr > r0) walkWorld.radius = pr;
+    const e = collision.stepAir(walkWorld, A, dt, {eye, held: !!input.held.cross, wish: wish || {x: 0, z: 0}});
+    walkWorld.radius = r0;
+    player.x = A.x;player.z = A.z;player.jumpV = A.vy;
+    if (e.mantle) audio.sfx('jump', {gain: .6});
+    if (e.landed) {
+      player.air = null;player.feet = A.y;player.jumpY = 0;player.jumpV = 0;
+      if (e.stuck && player.lastGround) {player.x = player.lastGround.x;player.z = player.lastGround.z;player.feet = player.lastGround.y;}
+      const v = e.impact || 0;
+      if (v > 1.5) {footstep(Math.min(1.6, .6 + v * .12));audio.sfx('jumpLand', {gain: Math.min(1.3, .2 + v / 7)});player.dipT = 0;player.dipAmp = Math.min(.26, .03 + v * .025);}
+      else footstep(e.mantled ? .7 : .5);
+      return;
+    }
+    const g = collision.groundBelow(walkWorld, A, A.y + .001);if (g) player.feet = g.y;
+    player.jumpY = A.y - player.feet;
   }
   function footstep(soft = 1) {
     let surface = 'grass', stair = false;
@@ -2035,6 +2099,7 @@
   function localState() {
     const r = v => Math.round(v * 100) / 100, q = v => Math.round(v * 1000) / 1000;
     const s = {p: [r(player.x), r(player.feet + (player.jumpY || 0)), r(player.z)], y: r(player.yaw), st: player.stance, b: beerT > 0 ? 1 : 0};
+    if (player.air && player.mode === 'foot') s.j = 1;// in the air: others see the jump pose (issue #144)
     if (player.mode === 'transit' && transit && transit.ride) {Object.assign(s, transit.localState());s.st = transit.ride.standing ? 'stand' : 'sit';}// standing: walking through the vehicle (issue #142)
     if ((player.mode === 'vehicle' || player.mode === 'passenger') && player.vehicle) {s.v = vehicles.indexOf(player.vehicle);s.s = player.mode === 'vehicle' ? 'd' : 'p';}
     if (player.mode === 'sit' && player.sitSpot) {const sp = player.sitSpot;s.sit = sp.id + 1;s.p = [r(sp.x), r(sp.y), r(sp.z)];s.y = r(sp.yaw);}
@@ -2046,6 +2111,7 @@
     if (magic.orb) s.mg = 1;// the light orb (issue #65): others see it by your shoulder
     // Minigolf (issue #114): which course and hole, and where your ball is, so others see it on the lane.
     if (player.mode === 'minigame' && player.minigame && player.minigame.net) {const g = player.minigame.net();if (g) s.golf = g;}
+    {const dg = mini.dgNet();if (dg) s.dg = dg;}// disc golf (issue #148): your round, hole, lie, card and latest throw
     // Skydiving: a jump seat in the flown Caravan (a vehicle seat 'j0'..'j11'), in the scheduled flight (ja), or in the air.
     if (player.mode === 'jumpseat' && skyd.ride) {if (skyd.ride.auto) s.ja = skyd.ride.seat;else {s.v = vehicles.indexOf(caravan);s.s = 'j' + skyd.ride.seat;}}
     if (player.mode === 'skydive' && skyd.jumper) {const J = skyd.jumper;s.p = [r(J.pos.x), r(J.pos.y), r(J.pos.z)];s.y = r(J.yaw);s.sky = J.state === 'freefall' ? 'f' : 'c';if (J.pose.pitch || J.pose.roll) s.sk = [r(J.pose.pitch), r(J.pose.roll)];}
@@ -2293,7 +2359,7 @@
     // Joining a lobby: alone in a lobby that has nothing stored, what you did offline is sent up; otherwise the lobby's state wins.
     resetObjs: m => {if (!living) return;if (m.players.length <= 1 && !Object.keys(m.objs || {}).length) living.publish();else living.reset();},
     onRemoteWood: r => fire.throwLog({x: r.pos.x, y: r.pos.y + 1.3, z: r.pos.z}), holdsMarker: id => (!!paintball && paintball.rules.memberPlaying(id)) || (!!phRules && phRules.holdsMarker(id)),
-    autoAnchor: seat => autoPlane.hipAnchor('j' + seat), skyPose: (r, st, g) => {skyPose(r, st, g);kayakPose(r, st, g);orbPose(r, st, g);if (transit) transit.pose(r, st, g);golfPose(r, st);if (phRules && phRules.concealed(r.id)) g.visible = false;},
+    autoAnchor: seat => autoPlane.hipAnchor('j' + seat), skyPose: (r, st, g) => {skyPose(r, st, g);kayakPose(r, st, g);orbPose(r, st, g);if (transit) transit.pose(r, st, g);golfPose(r, st);mini.remotePose(r.id, st.dg, window.GameAvatars.slotCss(r.slot), r.pos);if (phRules && phRules.concealed(r.id)) g.visible = false;},
     // In a paintball game you see your team-mates' names, not your opponents' (issue #25).
     showTag: id => !paintball || !paintball.rules.inGame() || !paintball.rules.memberPlaying(id) || paintball.rules.teamOfMember(id) === paintball.rules.myTeam()});
   // Flat 501's living room (issue #116): its record player, TV, lava lamp and chairs are shared through the lobby.

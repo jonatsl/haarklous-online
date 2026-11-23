@@ -69,3 +69,48 @@ test('disc golf: holing out on the last hole ends the round as before', () => {
   g.strokes[1] = 3;g.pending = {next: true, t: 0};
   const r = g.update(.016, idle({at: {x: t2.x, z: t2.z, y: 10}}));assert.match(r.done, /Torshovdalen finished: 3 throws/);assert.equal(g.layout(), null);
 });
+
+// Disc golf online (issue #148): st.dg, joining a round, the shared card, away and the round's winner.
+test('disc golf online: st.dg survives the trip and bad data is dropped', () => {
+  const {dgEncode, dgDecode} = globalThis.GameMinigames;
+  const st = JSON.parse(JSON.stringify(dgEncode({c: 1, r: 1700000000123.4, h: 2, w: 0, n: 2, d: 41.6, l: {x: 1.234, y: 2.5, z: -3.333}, s: [3, 4, 0, 0], th: [7, 1700000005000.2, 1, 2, 3, 10.123, 2, -5, .3, 0]})));
+  const d = dgDecode(st);
+  assert.equal(d.c, 1);assert.equal(d.r, 1700000000123);assert.equal(d.h, 2);assert.equal(d.d, 42);assert.deepEqual(d.l, [1.23, 2.5, -3.33]);assert.deepEqual(d.s, [3, 4, 0, 0]);
+  assert.equal(d.th[0], 7);assert.equal(d.th[1], 1700000005000);assert.equal(d.th[5], 10.12);
+  assert.equal(dgDecode(null), null);assert.equal(dgDecode({s: 'x'}), null);assert.equal(dgDecode({c: 0, h: 9, s: [0, 0]}), null, 'hole outside the card');
+  assert.equal(dgDecode({c: 0, h: 0, s: [0], th: [1, 2]}).th, undefined, 'a short throw is ignored');
+});
+
+test('disc golf online: you join the earliest round still played on that course', () => {
+  const {dgEncode, dgJoinable} = globalThis.GameMinigames;
+  const p = (id, name, c, r, w = 0) => ({id, name, slot: id, dg: dgEncode({c, r, h: 0, w, n: 0, d: 50, s: [0, 0]})});
+  assert.equal(dgJoinable([], 0), null);
+  assert.equal(dgJoinable([p(2, 'Ola', 1, 100)], 0), null, 'another course');
+  assert.equal(dgJoinable([p(2, 'Ola', 0, 100, 2)], 0), null, 'only finished players: a new round');
+  assert.deepEqual(dgJoinable([p(5, 'Kari', 0, 300), p(2, 'Ola', 0, 100), p(3, 'Per', 0, 100, 2)], 0), {r: 100, names: ['Ola', 'Per']});
+});
+
+test('disc golf online: the card has everyone in the round, leader first, and shows who is away', () => {
+  const {dgEncode, dgCard, dgAway} = globalThis.GameMinigames, pars = [3, 3, 4];
+  const dg = (o) => dgEncode({c: 0, r: 100, w: 0, n: 0, d: 0, ...o});
+  const me = {id: 1, name: 'You', slot: -1, dg: dg({h: 1, n: 1, d: 20, s: [4, 0, 0]})};
+  const peers = [{id: 2, name: 'Ola', slot: 2, dg: dg({h: 1, n: 1, d: 35, s: [3, 0, 0]})}, {id: 3, name: 'Kari', slot: 3, dg: dg({h: 1, n: 0, d: 60, s: [0, 0, 0]})},
+    {id: 4, name: 'Other round', slot: 4, dg: dgEncode({c: 0, r: 999, h: 0, w: 0, n: 0, d: 0, s: [2, 0, 0]})}];
+  const card = dgCard(me, peers, pars);
+  assert.deepEqual(card.map(r => r.name), ['Ola', 'Kari', 'You']);// E after a hole, E (nothing played), +1
+  assert.deepEqual(card.map(r => r.rel), [0, 0, 1]);assert.equal(card.find(r => r.me).total, 4);
+  assert.equal(dgAway(card, 1), 3, 'Kari is still on the tee, furthest away');
+  // Kari has left (not sent any more): the card is rebuilt from the others; Ola is away.
+  const card2 = dgCard(me, peers.slice(0, 1), pars);assert.equal(card2.length, 2);assert.equal(dgAway(card2, 1), 2);
+  assert.equal(dgAway(dgCard(me, [], pars), 1), null, 'alone: nobody is marked');
+});
+
+test('disc golf online: the winner is decided when nobody plays the round any more', () => {
+  const {dgEncode, dgCard, dgWinner} = globalThis.GameMinigames, pars = [3, 3];
+  const row = (id, s, w = 2) => ({id, name: 'P' + id, slot: id, dg: dgEncode({c: 0, r: 5, h: 1, w, n: 0, d: 0, s})});
+  const me = row(1, [3, 3]);
+  assert.equal(dgWinner(dgCard(me, [row(2, [3, 4], 0)], pars)), null, 'someone is still playing');
+  assert.equal(dgWinner(dgCard(me, [row(2, [3, 4])], pars)), 1);
+  assert.equal(dgWinner(dgCard(me, [row(2, [3, 3])], pars)), null, 'a tie: no winner');
+  assert.equal(dgWinner(dgCard(me, [row(2, [0, 2])], pars)), null, 'only one full card');
+});

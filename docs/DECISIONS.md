@@ -12,6 +12,12 @@ In pull requests (not merged yet): none.
 
 On `main`:
 - Metro stations you can find and walk into (issue #143, PR #PRNUM; live once merged): every underground station (Jernbanetorget, Grønland, Tøyen, Helsfyr, Løren, Carl Berners plass) has an entrance on the street with a 7 m mast carrying a lit blue T cube and the station's name, seen from far off; the stairs go down to the platforms and back up with no invisible walls; on the map and minimap the T is at the entrance, and a waypoint put on a station leads to its entrance.
+- Politihuset can be entered (issue #158, PR #163; live once merged): the glass doors of Oslo politihus open by themselves as you walk up from the lane behind the low front buildings on Grønlandsleiret; a lit POLITI pylon on the footway at each of the two gaps shows the way, and the POLITI sign over the door is brighter. The way into Oslo fengsel (the two gates, the yard, wing A and its cells) works too.
+- Disc golf together online (issue #148, PR #161; live once merged): players in the same lobby play a round together at Muselunden and in Torshovdalen – □ at a tee joins their round, you see their discs fly and lie in their colour, a shared scorecard shows everyone's throws per hole and the total against par and who is away (throws next, nobody waits); join or leave at any time; 100 kr for winning a round against others; alone it plays as before.
+- Grey Volvo V70s (issue #149, PR #160; live once merged): about 750 of the parked estate cars are now grey, dark grey or silver Volvo V70s (the 2000–2007 model), all over the city like in Oslo, one by Haarklous plass; drive them like the other cars.
+- Cars that crash no longer get stuck in each other (issue #145, PR #159; live once merged): you can always back away or drive off from a car you are in; your car is pushed gently out of another one; a crash still bounces you back with the sound; the same for motorcycles, parked cars and site machines.
+- Jumping (issue #144, PR #157; live once merged): a real jump with gravity – tap ✕ / Space for a small hop, hold it for about 1 m; you keep your speed in the air and steer a little; you land on benches, crates, walls and car roofs (and walk off their edges); fences and railings up to about 1.2 m you jump over; jump at a ledge up to chest height (1.6 m) and you pull yourself up; a landing dip and sounds; other players see you jump.
+- Paddle faster (issue #146, PR #156; live once merged): the kayak cruises about 25 % faster, and holding R2 / Shift while paddling forward sprints at about twice the old top speed (about 15 km/h through the water), with quicker strokes, louder splashes and SPRINT on the HUD; it still turns well at sprint speed.
 - Real bridges where car streets cross over roads, railways and water (issue #139, PR #155; live once merged): a deck of their own with room under it, ramps up to it, parapets and piers; walk and drive on it or under it (Storo, Sinsenkrysset, Trondheimsveien over the railway, Østre Aker vei, Ulven, Kværner, Nylandsveien and the rest).
 - Walk through the tram, the bus and the metro (issue #142, PR #154; live once merged): on board, move the left stick / WASD to stand up and walk the whole length of the tram while it drives – through open gangways with a floor and bellows between the sections, also in curves; the same in the articulated buses and inside each three-car metro set; □ by a free seat sits you down, □ when the doors open gets you off through the nearest door; others online see you standing where you are.
 - The police on Grønland (issue #140, PR #152; live once merged): Oslo politihus at its real place (Grønlandsleiret 44) with a POLITI sign – walk in to the reception (an officer at the desk, a queue-ticket machine) and through the steel door to the arrest with eight glattceller (bare concrete, a thin mattress, a drain, a steel door with a hatch that opens); Oslo fengsel (Botsen) right behind it with its high walls, two sliding gates and the OSLO FENGSEL sign, the yard and cell wing A (a prison officer, cells with bed, table, toilet and a barred window); 13 police cars (white with POLITI and black and yellow fields, a blue light bar) outside the police station and round the city – drive them with class B, L3 / H for blue lights and siren, which other players see and hear; both places on the map.
@@ -95,6 +101,76 @@ Live site: runs `main` (Worker version 3766909d, deployed 23 Nov 2026 after PR #
 - **Checked:** `node --test` (all pass); the new test walks from the street in front of each of the six doors down to the platform (and the other platform), and back up to the street, in a walk world with the game's road-surface ground, the cut holes, the buildings and the trees; it checks the pavilion is at street height, the hole is in a district patch, every door of a stopped train that stands at a platform lets you off onto it, and that a waypoint on a station goes to its entrance. A short headless look: Tøyen's mast seen from 50 m, Carl Berners plass's pavilion and mast from 8 m, the map with Løren's T at its entrance; no page errors. Not played in the browser otherwise (the user's instruction).
 - **Not perfect:** at Tøyen one direction of line 5 (towards Sognsvann) stops 45 m on from the others and bends away from the straight platform, so only its front cars are at the platform (you get off through one of those). Some entrances are in narrow places between buildings (Carl Berners plass); the mast is seen over the roofs nearby but not from every street.
 - **Status:** PR #PRNUM; live once merged.
+
+### 2026-11-23 · Politihuset can be entered (issue #158)
+- **What:**
+  - You can walk into Oslo politihus again. The cause: the short slab from the glass doors down to the street sloped the wrong way – up instead of down – so its outer edge hung about 0.55 m above the street. A floor edge that does not meet the ground is an invisible wall, so you could not reach the door. The same mistake blocked the door of cell wing A in Oslo fengsel. The slab now goes down to the street and meets it.
+  - The steel door to the glattceller now opens into the reception: opened into the cell corridor, it and an open door of cell 1 left only 5 cm to pass.
+  - Easier to find: the entrance is in the lane behind the low front buildings on Grønlandsleiret. A lit POLITI pylon (Oslo politihus · Publikumsmottak ↓) stands on the footway at each of the two gaps that lead down to it, and the POLITI sign and the POLITIHUSET letters over the door glow brighter.
+  - The glass doors already opened by themselves when you walk up (no button).
+- **Why:** the user found in the live game that it was not possible to enter Politihuset at Grønland and asked to make it possible.
+- **Where:** `game-police.js` (`entrance()`: the slope's direction; the arrest door's side; the pylons and brighter signs), `tests/police.test.cjs` (a walk test: from the footway into the reception, past the steel door into glattcelle 1 and out; from the street round the station to the prison gates, across the yard into wing A and cell 1 and back).
+- **Checked:** `node --test tests/*.cjs`; one headless run: walked from the lane through the doors into the reception and back out (screenshots of the front, the reception and a pylon).
+- **Status:** PR #163; live once merged.
+
+### 2026-11-23 · Disc golf together online (issue #148)
+- **What:**
+  - Players in the same lobby can play disc golf together on both courses (Muselunden's 12 holes and the two holes in Torshovdalen).
+  - At a tee where others are playing, the prompt says "□ Join <name>'s round". Alone, or with nobody on the course, it is the same game as before.
+  - You see the others' throws: their disc (in their jacket colour) flies the same way and lands where they threw it; a small pole marks their lie.
+  - The disc golf card shows a shared scorecard: everyone in the round, their throws per hole and the total against par. The one furthest from the basket on your hole is shown as "away" (throws next), but nobody has to wait.
+  - Someone can join or leave in the middle of a round; the card is built from what each player sends, so it does not depend on the one who started.
+  - Money and badges stay per player; winning a round against at least one other player gives 100 kr.
+- **Why:** the user asked: "Gjør Disc golf mulig til multiplayer."
+- **Where:** `game-minigames.js` (pure `dgEncode` / `dgDecode` / `dgJoinable` / `dgCard` / `dgAway` / `dgWinner`; the shared `flight` step; `remotePose`, `netTick`, `dgNet`), `game-main.js` (the `net` hooks, `st.dg`, the other players' discs, `discCard` in the disc golf card), `style.css`, `index.html` (start and pause screens), `tests/minigames.test.cjs`, `docs/HANDOFF.md`.
+- **Status:** PR #161; live once merged. 335 Node tests pass. Not checked in the browser (the user's instruction: build and deploy, he says if something does not work).
+### 2026-11-23 · Grey Volvo V70s (issue #149)
+- **What:**
+  - A new parked car: the Volvo V70 estate (the 2000–2007 "P2", 4.71 × 1.80 × 1.49 m), in mid grey, dark grey metallic or silver only (three in four grey).
+  - Its own model, near and far: a long flat roof, a nearly upright tailgate, the tall rear lights running up the D pillars, the shoulder line along the sides, roof rails, and the grille with its diagonal bar and badge.
+  - About 754 of the 7,609 parked vehicles are V70s (60 % of the estate cars in the city, 50 % in Økern / Ulven / Løren / Ensjø; 547 ordinary estates are left). One grey V70 always stands about 31 m from 17A (on Haarklous plass), another dark grey one about 42 m away.
+  - Drive it like the other cars (class B); its name is "grey Volvo V70" (or dark grey / silver) where a car's name is shown.
+  - No other parked vehicle moved or changed, and the number of vehicles is the same, so the vehicle numbers online stay as they were (a V70 stands up to 2 cm nearer the kerb than the estate it replaced).
+- **Why:** the user asked (Norwegian): "Få inn grå Volvo V70er." (Add grey Volvo V70s.) They should be common, like in Oslo.
+- **Where:** `game-parking.js` (type `v70`, the colour dark grey, the V70 colour weights, `V70` share, the pass at the end of `plan`), `game-fleet.js` (`SHAPES.v70` and the V70's parts in `carBody`), `parking-data.js` (made again), `tests/city-cars.test.cjs`, `docs/HANDOFF.md`.
+- **Status:** PR #160; live once merged. Node tests pass. Not checked in the browser (the user's instruction: build and deploy, he says if something does not work). Nothing new is sent online.
+
+### 2026-11-23 · Cars that crash no longer get stuck in each other (issue #145)
+- **What:**
+  - When your car is inside another car (after a crash, or because the other player's car is drawn a little late), you can always back away or drive off: any move that does not take you deeper is allowed.
+  - If you are inside another vehicle, your own vehicle is gently pushed out (up to 3 m/s), never through a wall. Each player's game moves only their own car, so both cars come apart.
+  - A crash into another car still feels like one: the crash sound, most of the speed is lost and the car bounces back a little. Walls, buildings, trees, bridge piers and parapets stop you as before; you cannot drive through a car at speed.
+  - The cars other players drive are now solids that follow them every frame (before: every 0.4 s, so their car jumped metres into yours).
+  - The same for motorcycles, parked cars, police cars, e-scooters and bikes, the excavator and the construction-site machines.
+- **Why:** the user reported: "Når man krasjer med en annen bil, så noen andre kjører, så setter de seg fast i hverandre. Og da er det ikke mulig å kjøre og komme seg løs." **Cause:** a vehicle could only move to a place free of every solid (a yes/no test), so once two cars overlapped, every move in every direction was blocked and both froze; and another player's car was a solid only refreshed every 0.4 s, so it jumped into yours while driving.
+- **Where:** `game-vehicles.js` (`Vehicle.clear(x, z, staticOnly)`, `overlap`, `blockedAt`, `unstick`, `crash`, `move`; footprints carry `owner`), `walk-collision.js` (`overlapDepth`, `hitsSolid(..., staticOnly)`), `game-main.js` (remote-driven vehicles as moving solids every frame in `transitDynamic`), `game-site.js` (wheel loader and dump trucks), `tests/vehicle-crash.test.cjs`.
+- **Status:** PR #159; live once merged. 331 Node tests pass. Not checked in the browser (the user's instruction: build and deploy, he says if something does not work).
+### 2026-11-23 · Jumping: higher, onto ledges and over fences (issue #144)
+- **What:**
+  - The jump is real now: before, it only lifted the camera, so you could not land on anything. Now your feet go up with gravity (9.81 m/s²). A tap of ✕ / Space lifts you about 0.5 m, holding it (up to 0.2 s) about 1.0 m. The stash's 3× jump boost still works (about 3 m).
+  - In the air you keep the speed you had (a running jump goes about 5 m) and can steer a little.
+  - You land on whatever is under you: floors, and the tops of solid things – benches, crates, low walls, car roofs, tables. You can walk on them, and walking off the edge drops you down. Walking into a low thing still stops you as before; you jump onto it.
+  - Fences, railings and hedges up to about 1.2 m: you jump over them (a short vault when the jump alone is not high enough).
+  - A ledge up to chest height (1.6 m over your feet when you jumped) that you cannot jump onto: jump at it and you pull yourself up in half a second, if there is room to stand on top and no low ceiling over you.
+  - Over a railing you can drop to the ground below, but only when there is ground within 6 m: high balconies and roofs stay closed, and walking (not jumping) still never takes you over an edge.
+  - Clearer: a soft whoosh when you jump, a thud and a small dip of the view when you land (bigger after a bigger fall). Other players see you rise and fall, with a jump pose (knees up, arms up).
+  - Places that stay closed: the till and the hot-food counter in the shops, the police reception desk, the minigolf bar's counter, the water (they are marked `noJump`); walls higher than your reach (the prison, the paintball net, buildings, locked doors).
+- **Why:** the user asked (Norwegian): make jumping clearer, jump higher and better, and be able to jump up onto edges and over fences.
+- **Where:** `walk-collision.js` (solid tops as support, `groundBelow`, `headroom`, `canPass`, `airMove`, `climbAt`, `startJump`, `stepAir`, `walk`), `game-main.js` (`startAir`, `airStep`, falling when nothing is under you, the landing dip, `st.j`), `game-avatars.js` (jump pose), `game-multiplayer.js`, `game-audio.js` (`jump`, `jumpLand`), `game-shops.js`, `game-police.js`, `game-minigolf.js` (`noJump` counters), `index.html` (start and pause screens), `tests/jumping.test.cjs` (new).
+- **Online:** your height was already sent; a new flag `j: 1` while you are in the air gives the jump pose (older clients ignore it). No Worker change.
+- **Checked:** `node --test` (all pass; new tests: tap and full height, the boost, landing on a 0.5 m ledge and walking off it, clearing a 1.1 m fence, stopped by a 2 m wall, climbing a 1.5 m ledge, no climb under a low ceiling or onto 1.9 m, vaulting a 1.2 m railing, a `noJump` counter, dropping over a railing but not off a 10 m deck). A short headless run of the built game: no page errors, a full jump rises about 1 m, walking and running jumps work. Not checked: how it looks and feels, landing on real benches and cars, climbing, the sounds by ear, two players.
+- **Status:** branch `feat/jumping`, PR #157 (https://github.com/jonatsl/haarklous-online/pull/157); live once merged.
+
+### 2026-11-23 · Kayak: paddle faster and sprint (issue #146)
+- **What:**
+  - Normal paddling is about 25 % faster: about 2.5 m/s through the water (9 km/h; before about 2 m/s, 7 km/h), plus the current.
+  - Hold R2 (keyboard: Shift) while paddling forward to sprint: about 4.2 m/s through the water (15 km/h, about twice the old top speed). Let go and the boat slows back to cruising speed by itself.
+  - Sprinting looks and sounds like it: quicker and longer paddle strokes, splashes more often and louder, and SPRINT on the HUD (otherwise the HUD says "R2 / Shift sprint").
+  - The boat turns a little more and answers the stick a little faster above cruising speed, so a sprinting boat does not run wide into the banks.
+  - Falls, weirs, bank bumps, the boom at Vaterland and getting out (slow beside a bank) work as before; old best times are kept (they are easier to beat now).
+- **Why:** the user asked (Norwegian): "Gjør det mulig å padle fortere i kajakk." (Make it possible to paddle faster in the kayak.)
+- **Where:** `game-kayak.js` (`Boat.step` takes `sprint`; thrust, turn, stroke rate; `update` reads R2 / Shift, paddle animation, splash sound; `hud`; the start notice), `index.html` (the Kayak line in the pause screen), `tests/grunerlokka.test.cjs` (one new test), `docs/HANDOFF.md`.
+- **Status:** PR #156; live once merged. Node tests pass. Not checked in the browser (the user's instruction: build and deploy, he says if something does not work). Nothing new is sent online.
 
 ### 2026-11-23 · Walk between the tram's sections (issue #142)
 - **What:**
