@@ -52,7 +52,7 @@
     {id: 'bed3', name: 'Bedroom (single bed)', rect: [3.22, .45, 5.7, 4.9], lamps: [[4.46, 2.7]]},
     {id: 'bed4', name: 'Bedroom (navy curtains)', rect: [6.87, 6.49, 10.18, 10.85], lamps: [[8.5, 8.5]]},
     {id: 'living', name: 'Kitchen and living room', rect: [5.82, .45, 13.4, 4.9], lamps: [[7.3, 2.6, 'none'], [11.4, 2.7, 'none']]},  // lit by wall and shelf lamps
-    {id: 'bath', name: 'Bathroom', rect: [10.54, 5.02, 13.4, 7.08], floor: 'tile', lamps: [[11.9, 6.05]]}
+    {id: 'bath', name: 'Bathroom', rect: [10.54, 5.02, 13.4, 7.08], floor: 'tile', lamps: [[11.9, 6.05, 'egg']]}
   ],
   // Inner walls of the flat (the stair tower's walls and the two facades are built from `stair` and `windows`).
   walls: [
@@ -126,8 +126,11 @@
     // Kitchen and living room
     {kind: 'kitchen', rect: [12.8, .75, 13.4, 4.35], rot: 3},
     {kind: 'pipe', at: [13.32, 4.82], h: 2.95},
-    {kind: 'sideboard', at: [11.85, 4.67], w: 1.1, d: .45, h: .72, rot: 2},
-    {kind: 'records', at: [11.85, 4.9], w: 1.25, y: 1.25, rot: 2},
+    // The record wall (issue #166, the owner's photo of the kitchen side): ten LP covers in a loose grid (one, one higher up, four,
+    // four; [local x, centre height], the atlas order) over the small black cabinet with the tambour door, the espresso machine
+    // and the grinder on top. The covers are cut from that photo (assets/rathkes/record-covers.jpg).
+    {kind: 'coffeeCabinet', at: [11.92, 4.69], w: .8, d: .4, h: .75, rot: 2},
+    {kind: 'records', at: [11.55, 4.9], rot: 2, covers: [[-.6, 2.4], [.2, 2.55], [-.62, 2.0], [-.2, 2.01], [.21, 2.03], [.63, 2.04], [-.63, 1.6], [-.21, 1.59], [.21, 1.6], [.63, 1.61]]},
     {kind: 'diningTable', at: [10.9, 2.7], w: .9, d: 2.0},
     // The chairs (issue #116) are pieces of their own: □ picks one up (game-rathkes-living.js), hold □ sits on it.
     {kind: 'diningChair', at: [10.33, 2.08], rot: 1, movable: true}, {kind: 'diningChair', at: [10.33, 2.7], rot: 1, movable: true}, {kind: 'diningChair', at: [10.33, 3.32], rot: 1, movable: true},
@@ -135,19 +138,32 @@
     // The sofa stands clear of the wall unit (its arm used to reach 27 cm into the shelf's cabinet) and of the radiator.
     {kind: 'sofa', at: [7.3, .95], w: 2.0, d: .9, rot: 0, color: 0x3b4249},
     {kind: 'coffeeTable', at: [6.95, 2.25], w: 1.2, d: .6, h: .45},
-    {kind: 'rug', at: [7.15, 2.7], w: 2.4, d: 2.5, colors: [0x8a2a22, 0x2a6f6c, 0xcfa868]},
+    {kind: 'rug', at: [7.15, 2.7], w: 2.4, d: 2.5, colors: [0x2f7880, 0x9a2a22, 0xe6d6ae]},
     {kind: 'slingChair', at: [8.05, 3.65], rot: 2, movable: true},
-    // Teak wall shelving; record = the record player on the low cabinet, lava = the lava lamp on the shelf above (local x, z).
-    {kind: 'wallUnit', at: [6.0, 2.6], w: 3.2, rot: 1, record: [1.1, .025], lava: [1.1, -.025]},
-    {kind: 'tv', at: [6.75, 4.3], rot: 1.9},
-    {kind: 'guitar', at: [6.4, 4.38]},
-    {kind: 'plant', at: [9.0, 4.55], h: 1.0}, {kind: 'plant', at: [6.35, 4.05], h: .6},
+    // The teak wall system (issue #166, the owner's photos): rails, five uprights, four bays of shelves, drawers and cabinets;
+    // its layout (with the record player and the lava lamp) is wallUnitLayout() in game-rathkes-501.js.
+    {kind: 'wallUnit', at: [6.0, 2.6], w: 3.2, rot: 1},
+    // The TV corner (issue #166): the tiled bench, the TV on its foot, a speaker at each end (a plant on the left one), the
+    // brass floor lamp with a bare globe bulb, the guitar in the corner by the wall system.
+    {kind: 'tvBench', at: [7.15, 4.68], w: 1.75, d: .4, h: .45, rot: 2},
+    {kind: 'tv', at: [7.15, 4.72], y: .45, rot: 2},
+    {kind: 'speaker', at: [8.45, 4.66], w: .28, d: .26, h: .65, rot: 2, plant: true}, {kind: 'speaker', at: [6.05, 4.36], w: .26, d: .26, h: .62, rot: 2},
+    {kind: 'globeLamp', at: [8.17, 4.76]},
+    {kind: 'guitar', at: [6.48, 4.12]},
+    {kind: 'plant', at: [9.0, 4.55], h: 1.0},
+    // The canvas print above the living-room table (the owner's photo, assets/rathkes/canvas-print.jpg): on the street wall over
+    // the sofa, centred on the table (the table stands free in the room); w x h from the print's own proportions.
+    {kind: 'canvasPrint', at: [6.95, .45], w: .9, y: 1.5, rot: 0},
     {kind: 'picture', at: [9.85, .45], w: .5, h: .7, y: 1.5, rot: 0, art: 1}, {kind: 'picture', at: [11.78, .45], w: .45, h: .36, y: 1.75, rot: 0, art: 0},
     {kind: 'radiator', at: [8.8, .45], w: 1.0, rot: 0}, {kind: 'radiator', at: [10.9, .45], w: 1.0, rot: 0},
     // Landing outside the door: the shoe rack against the panelled wall
     {kind: 'shoeRack', at: [4.66, 7.25], rot: 1}
   ],
-  // The bathroom (not in the video): white 15 cm wall tiles, grey floor tiles, wall-hung toilet, basin on a vanity with a mirror
-  // cabinet, shower corner with a glass screen, washing machine, towel radiator, extractor fan.
-  bathroom: {vanity: [11.3, 5.02], toilet: [12.0, 5.02], shower: [12.5, 5.02, 13.4, 5.95], washer: [13.05, 7.08], towels: [11.25, 7.08]}
+  // The bathroom (issue #167, the owner's two photos): white wall boards with an oak trim under the ceiling, blue-grey vinyl floor,
+  // oak vanity with a white basin and an oak mirror cabinet with a lit edge on the hall side, the towel ladder against the far
+  // wall, a rounded glass corner shower cabin, the toilet (black seat) and the washing machine by the door on the yard side with
+  // the dehumidifier and two woven baskets on it, a dark green mat, an egg-shaped ceiling lamp, the extractor fan.
+  // vanity/toilet/washer: [a, wall b]; shower: its corner and radius; dehumidifier and baskets: [a, b] on the washer (0.85 m).
+  bathroom: {vanity: [11.6, 5.02], toilet: [11.75, 7.08], washer: [10.87, 7.08], shower: {corner: [13.4, 7.08], r: .88}, ladder: [13.4, 5.65],
+    mat: [11.55, 5.98, .8, .5], roll: [12.15, 6.85], dehumidifier: [10.74, 6.92], baskets: [11.03, 6.93], washerTop: .85}
 });

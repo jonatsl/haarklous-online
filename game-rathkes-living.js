@@ -7,16 +7,20 @@
  *   (game-music.js records lp1–lp4) plays from the player's place in the room; □ again: the next record, after the last: stop.
  * - Sofa: □ sits you down facing the TV (three seats); there □ is the TV's button and ✕ stands you up.
  * - TV: □ on – four channels – off; a moving picture (canvas texture), a quiet sound to match and a glow on the room.
+ *   Hold □ (at the TV or on the sofa) mutes it and turns the sound back on (issue #166); the picture keeps playing.
  * - Chairs (the six dining chairs, the leather sling chair, the folding chair in the navy bedroom): tap □ picks one up and you
  *   carry it in front of you, □ puts it down there, turned the way you face (not through walls, furniture, other chairs or a
  *   doorway); hold □ sits on it.
- * - Lava lamp (on the shelf above the record player): □ on / off; it warms up, wax blobs rise and sink, a warm light.
+ * - Lava lamp (on the two-drawer unit of the wall system, beside the records on show): □ on / off; it warms up, wax blobs rise
+ *   and sink, a pink-red light.
+ * - Dehumidifier (on the washing machine in the bathroom, issue #167): □ on / off; a small light and a steady low hum heard in
+ *   the whole flat (clear in the bathroom, about a third of that elsewhere, muffled), nothing outside the flat.
  * Everything is shared online through the lobby's small object store ('obj' messages: id -> value, kept for players who join
  * later while the lobby lives; not saved between sessions).
  *
  * Pure (Node-tested): RECORDS, CHANNELS, cycle, nextRecord, recordPos, armAt, nextChannel, lavaWarm, CHAIRS, chairParts(kind),
  *   chairBoxes(kind), boxesToWing(boxes, a, b, yaw), overlap(p, q), chairsOf(data), doorZones(data), canPlace(...), putPose(...),
- *   seatsOf(data), hearing(at, dist), duckFor(lp, tv), snapYaw(yaw), items(data).
+ *   seatsOf(data), hearing(at, dist), humHearing(at, dist), duckFor(lp, tv), snapYaw(yaw), items(data).
  * Browser: create({T, lib, flat, data}) -> {hitboxes, attach(game), prompt(look, player), tick(dt, input), dynamic(), apply(id, v),
  *   reset(), state, chairs, carrying}
  */
@@ -161,14 +165,22 @@
     if (at.room === 'living') return {gain: Math.min(1, 1.6 / (1 + dist)), muffle: 0};
     return {gain: .3 * Math.min(1, 2.5 / (1 + dist)), muffle: .85};
   }
+  // The dehumidifier's hum (issue #167): clear in the bathroom, at least about a third of that anywhere else in the flat (muffled
+  // a little through the walls), nothing on the stair or outside.
+  function humHearing(at, dist) {
+    if (!at || at.place !== 'flat') return {gain: 0, muffle: 1};
+    if (at.room === 'bath') return {gain: Math.min(1, 1.5 / (1 + dist * .5)), muffle: 0};
+    return {gain: Math.max(.33, .5 * Math.min(1, 3 / (1 + dist))), muffle: .6};
+  }
   // The soundtrack steps back while a record (much) or the TV (a little) is heard.
   const duckFor = (lp, tv) => Math.max(.1, 1 - .9 * Math.min(1, lp * 1.5)) * (1 - .4 * Math.min(1, tv * 1.5));
   // Every thing you can use in the room, with its place (wing coordinates, height from the floor) for the tests and hit boxes.
   function items(data) {
     const F = F501(), wu = data.furniture.find(f => f.kind === 'wallUnit'), tv = data.furniture.find(f => f.kind === 'tv'), sofa = data.furniture.find(f => f.kind === 'sofa');
-    const at = (f, x, z, y, name, size) => {const [a, b] = F.pieceToWing(f, x, z);return {name, a, b, y, size};};
-    return [at(wu, wu.record[0], wu.record[1], .95, 'record player', [.5, .3, .45]), at(wu, wu.lava[0], wu.lava[1], 1.37, 'lava lamp', [.24, .44, .24]),
-      at(tv, 0, 0, .87, 'TV', [1.3, .8, .3]), at(sofa, 0, 0, .45, 'sofa', [sofa.w, .9, sofa.d]),
+    const L = F.wallUnitLayout(wu), B = data.bathroom, at = (f, x, z, y, name, size) => {const [a, b] = F.pieceToWing(f, x, z);return {name, a, b, y, size};};
+    return [at(wu, L.record.x, L.record.z, L.record.y + .15, 'record player', [.5, .3, .45]), at(wu, L.lava.x, L.lava.z, L.lava.y + .2, 'lava lamp', [.2, .4, .2]),
+      at(tv, 0, 0, (tv.y || 0) + .49, 'TV', [1.45, .84, .3]), at(sofa, 0, 0, .45, 'sofa', [sofa.w, .9, sofa.d]),
+      {name: 'dehumidifier', a: B.dehumidifier[0], b: B.dehumidifier[1], y: B.washerTop + .23, size: [.3, .48, .24]},
       ...chairsOf(data).map(c => ({name: CHAIRS[c.kind].name, a: c.home.a, b: c.home.b, y: .45, size: [.6, .9, .6], chair: c}))];
   }
 
@@ -178,7 +190,7 @@
     const hitbox = (parent, w, h, d, x, y, z, ud) => {const m = new T.Mesh(new T.BoxGeometry(w, h, d), K.hidden);m.position.set(x, y, z);m.userData = {...ud, keep: true, noMerge: true};parent.add(m);hitboxes.push(m);return m;};
     const piece = f => {const g = new T.Group(), [a, b] = F.pieceToWing(f, 0, 0);g.position.set(a, FL, b);g.rotation.y = (f.rot || 0) * Math.PI / 2;g.userData.noMerge = true;K.wing.add(g);return g;};
     const noShadow = g => g.traverse(o => {if (o.isMesh) o.castShadow = false;});
-    const state = {lp: null, tv: null, lava: null, chairs: {}};
+    const state = {lp: null, tv: null, lava: null, chairs: {}, mute: false, hum: null};
     let game = null;// set by attach(): the game's hooks
     const now = () => game ? game.now() : Date.now();
 
@@ -194,8 +206,8 @@
     chairs.forEach(ch => poseChair(ch, ch.pose.a, ch.pose.b, ch.pose.y));
 
     // ---- The record player: platter with the record, spindle, tonearm (on the wall unit's record player plinth).
-    const wu = data.furniture.find(f => f.kind === 'wallUnit'), lpG = piece(wu);
-    const lpTop = new T.Group();lpTop.position.set(wu.record[0], .95, wu.record[1]);lpG.add(lpTop);
+    const wu = data.furniture.find(f => f.kind === 'wallUnit'), lpG = piece(wu), WL = F.wallUnitLayout(wu), REC = WL.record, LAVA = WL.lava;
+    const lpTop = new T.Group();lpTop.position.set(REC.x, REC.y + .1, REC.z);lpG.add(lpTop);
     const platter = new T.Group();platter.position.set(-.03, 0, 0);lpTop.add(platter);
     const matM = new T.MeshStandardMaterial({color: 0x2a2a2e, roughness: .9}), metal = new T.MeshStandardMaterial({color: 0xc9ccd0, roughness: .3, metalness: .8});
     {const m = new T.Mesh(new T.CylinderGeometry(.145, .145, .012, 40), matM);m.position.y = .006;platter.add(m);}
@@ -222,11 +234,11 @@
     noShadow(lpG);
     hitbox(lpTop, .5, .3, .45, 0, .05, 0, {r501: 'lp', partName: 'Record player'});
 
-    // ---- The lava lamp on the shelf above.
-    const lavaG = new T.Group();lavaG.position.set(wu.lava[0], 1.205, wu.lava[1]);lpG.add(lavaG);
-    const lavaBase = new T.MeshStandardMaterial({color: 0x7a5a2e, roughness: .3, metalness: .75});
-    const liquid = new T.MeshStandardMaterial({color: 0xff9440, emissive: 0xff7a20, emissiveIntensity: 0, transparent: true, opacity: .42, roughness: .08, depthWrite: false});
-    const wax = new T.MeshStandardMaterial({color: 0xc8143c, emissive: 0xff1e46, emissiveIntensity: 0, roughness: .45});
+    // ---- The lava lamp, standing free on the two-drawer unit beside the records on show (about 40 cm: the model is 47 cm, scaled).
+    const lavaG = new T.Group();lavaG.position.set(LAVA.x, LAVA.y, LAVA.z);lavaG.scale.setScalar(LAVA.h / .47);lpG.add(lavaG);
+    const lavaBase = new T.MeshStandardMaterial({color: 0xc9ccd0, roughness: .28, metalness: .8});
+    const liquid = new T.MeshStandardMaterial({color: 0xff5a8c, emissive: 0xff2a64, emissiveIntensity: 0, transparent: true, opacity: .45, roughness: .08, depthWrite: false});
+    const wax = new T.MeshStandardMaterial({color: 0xd0143c, emissive: 0xff1e4a, emissiveIntensity: 0, roughness: .45});
     {
       const base = new T.Mesh(new T.CylinderGeometry(.04, .068, .13, 24), lavaBase);base.position.y = .065;lavaG.add(base);
       const cap = new T.Mesh(new T.CylinderGeometry(.016, .033, .07, 20), lavaBase);cap.position.y = .13 + .27 + .035;lavaG.add(cap);
@@ -255,16 +267,22 @@
     const tvCanvas = document.createElement('canvas');tvCanvas.width = CW;tvCanvas.height = CH;const tvc = tvCanvas.getContext('2d');
     const tvTex = new T.CanvasTexture(tvCanvas);tvTex.colorSpace = T.SRGBColorSpace;disposables.push(tvTex);
     const screenM = new T.MeshStandardMaterial({color: 0x07080a, roughness: .2, metalness: .15, emissive: 0xffffff, emissiveMap: tvTex, emissiveIntensity: 0});
-    const screen = new T.Mesh(new T.PlaneGeometry(1.2, .68), screenM);screen.position.set(0, .87, .027);screen.castShadow = false;tvG.add(screen);
-    hitbox(tvG, 1.3, .8, .3, 0, .87, 0, {r501: 'tv', partName: 'TV'});
+    const tvY = (tvF.y || 0) + .49, screen = new T.Mesh(new T.PlaneGeometry(1.4, .79), screenM);screen.position.set(0, tvY, .027);screen.castShadow = false;tvG.add(screen);
+    hitbox(tvG, 1.45, .84, .3, 0, tvY, 0, {r501: 'tv', partName: 'TV'});
     const sofaF = data.furniture.find(f => f.kind === 'sofa'), sofaG = piece(sofaF);
     hitbox(sofaG, sofaF.w, .75, sofaF.d, 0, .42, 0, {r501: 'sofa', partName: 'Sofa'});
     const seats = seatsOf(data);
 
     // ---- Lights: present from the start (no shaders recompile), intensity 0 while off. In the wing group, which is always shown.
-    const lavaLight = new T.PointLight(0xff6a3a, 0, 3.4, 1.6), tvLight = new T.PointLight(0x9fb4ff, 0, 5, 1.6);
-    {const [a, b] = F.pieceToWing(wu, wu.lava[0] + 0, wu.lava[1] + .12);lavaLight.position.set(a, FL + 1.42, b);const [ta, tb] = F.pieceToWing(tvF, 0, .7);tvLight.position.set(ta, FL + .95, tb);}
+    const lavaLight = new T.PointLight(0xff3a6a, 0, 3.4, 1.6), tvLight = new T.PointLight(0x9fb4ff, 0, 5, 1.6);
+    {const [a, b] = F.pieceToWing(wu, LAVA.x, LAVA.z + .12);lavaLight.position.set(a, FL + LAVA.y + .22, b);const [ta, tb] = F.pieceToWing(tvF, 0, .7);tvLight.position.set(ta, FL + tvY, tb);}
     K.always.add(lavaLight, tvLight);
+
+    // ---- The dehumidifier on the washing machine (issue #167; its body is game-rathkes-501.js's): the light on its top, □ there.
+    const B = data.bathroom, humG = new T.Group();humG.position.set(B.dehumidifier[0], FL + B.washerTop, B.dehumidifier[1]);humG.rotation.y = Math.PI;humG.userData.noMerge = true;K.wing.add(humG);
+    const humLed = new T.MeshStandardMaterial({color: 0x30363a, emissive: 0x4ad0ff, emissiveIntensity: 0, roughness: .4});
+    {const m = new T.Mesh(new T.BoxGeometry(.05, .008, .02), humLed);m.position.set(.06, .458, .03);m.castShadow = false;humG.add(m);}
+    hitbox(humG, .3, .48, .24, 0, .23, 0, {r501: 'hum', partName: 'Dehumidifier'});
 
     // ---------- State changes (local or from the lobby) ----------
     const send = (id, v) => {if (game) game.send(id, v);};
@@ -278,7 +296,10 @@
       else if (state.lp && state.lp.was >= 0) vinylTop.map = labels[state.lp.was];
       if (!fromNet && game && state.lp) {const r = RECORDS[state.lp.r];game.notice(r ? `♪ ${r.title} – ${r.artist} (${r.style})` : 'The record player stops.', 3);}
     }
-    function setTv(v, quiet) {state.tv = v && v.c >= 0 ? v : null;tvDrawT = 0;audioState.tvChannel = null;if (!quiet && game) game.notice(state.tv ? `📺 ${CHANNELS[state.tv.c].name}` : 'The TV is off.', 2.5);}
+    function setTv(v, quiet) {state.tv = v && v.c >= 0 ? v : null;tvDrawT = 0;audioState.tvChannel = null;if (!quiet && game) game.notice(state.tv ? `📺 ${CHANNELS[state.tv.c].name}${state.mute ? ' (muted)' : ''}` : 'The TV is off.', 2.5);}
+    // The TV's sound off and on again (issue #166): the picture keeps playing; kept (and shared) while the lobby lives.
+    function setMute(v, quiet) {state.mute = !!(v && v.m);if (!quiet && game) game.notice(state.mute ? '🔇 TV muted' : '🔊 TV sound on', 2);}
+    function setHum(v, quiet) {state.hum = v && v.on ? v : null;if (!quiet && game) game.notice(state.hum ? 'The dehumidifier hums away.' : 'The dehumidifier is off.', 2.5);}
     function setLava(v, quiet) {const w = lavaWarm(state.lava, now());state.lava = v ? {...v, from: v.on ? 0 : (v.from ?? w)} : null;if (!quiet && game) game.notice(v && v.on ? 'The lava lamp is warming up…' : 'The lava lamp cools down.', 2.5);}
     function setChair(i, v, fromNet) {
       const ch = chairs[i];if (!ch) return;
@@ -291,19 +312,21 @@
       if (id === 'r501-lp') setLp(v, fromNet);
       else if (id === 'r501-tv') setTv(v, fromNet);
       else if (id === 'r501-lava') setLava(v, fromNet);
+      else if (id === 'r501-tvmute') setMute(v, fromNet);
+      else if (id === 'r501-hum') setHum(v, fromNet);
       else {const m = /^r501-chair-(\d+)$/.exec(id);if (m) setChair(+m[1], v, fromNet);}
     }
     // A new lobby: everything back as in the video, then the lobby's own state.
-    function reset() {if (carrying) carrying = null;setLp(null, true);setTv(null, true);setLava(null, true);chairs.forEach(ch => setChair(ch.i, null, false));}
+    function reset() {if (carrying) carrying = null;setLp(null, true);setTv(null, true);setLava(null, true);setMute(null, true);setHum(null, true);chairs.forEach(ch => setChair(ch.i, null, false));}
     // Alone in a new, empty lobby: send up what you changed while offline (a carried chair goes back first).
     function publish() {
       if (carrying) dropBack();
-      if (state.lp) send('r501-lp', state.lp);if (state.tv) send('r501-tv', state.tv);if (state.lava) send('r501-lava', state.lava);
+      if (state.lp) send('r501-lp', state.lp);if (state.tv) send('r501-tv', state.tv);if (state.lava) send('r501-lava', state.lava);if (state.mute) send('r501-tvmute', {m: 1});if (state.hum) send('r501-hum', state.hum);
       for (const ch of chairs) if (Math.hypot(ch.pose.a - ch.home.a, ch.pose.b - ch.home.b) > .01 || Math.abs(ch.pose.y - ch.home.y) > .01) send(ch.id, roundPose(ch.pose));
     }
 
     // ---------- Using things ----------
-    let carrying = null, pending = null;
+    let carrying = null, pending = null;// pending: □ held down on something with a tap and a hold action ({t, tap, hold})
     const HOLD_S = .4, CARRY_LIFT = .45;// hold □ this long to sit; a carried chair is held this high (you see it in front of you)
     const playerWing = p => K.toWing(p.x, p.z);
     const faceWing = yaw => yaw + Math.PI - K.yaw;// the player's view yaw -> a wing yaw whose +z is where they look
@@ -343,10 +366,15 @@
       if (!free) {game.notice('The sofa is full.', 2);return;}
       const w = W(free.a, free.b), st = W(...free.stand), look = W(free.a + Math.sin(free.yaw), free.b + Math.cos(free.yaw));
       game.sit({x: w.x, y: FL + free.seat, z: w.z, yaw: Math.atan2(-(look.x - w.x), -(look.z - w.z)), id: free.id, stand: {x: st.x, z: st.z, y: FL}, pitch: -.12,
-        note: 'On the sofa · □ / E the TV (on, next channel, off) · ✕ / Space stand up', prompt: () => ({text: `□ ${tvText()} · ✕ stand up`}), square: () => useTv()});
+        note: 'On the sofa · □ / E the TV (on, next channel, off) · hold □ mute · ✕ / Space stand up', prompt: () => ({text: `□ ${tvText()} · hold □ ${muteText()} · ✕ stand up`}), square: () => tvPress()});
     }
     function useLp() {const v = nextRecord(state.lp, now());setLp(v, false);send('r501-lp', state.lp);game.audio('click');}
     function useTv() {const v = nextChannel(state.tv, now());setTv(v.c >= 0 ? v : null, false);send('r501-tv', state.tv);game.audio('click');}
+    function useMute() {const v = state.mute ? null : {m: 1};setMute(v, false);send('r501-tvmute', v);game.audio('click');}
+    function useHum() {const v = state.hum ? null : {on: true, t: now()};setHum(v, false);send('r501-hum', v);game.audio('click');}
+    // □ on the TV: a tap is its button (on, next channel, off), a hold mutes it or turns the sound back on.
+    function tvPress() {pending = {t: performance.now(), tap: useTv, hold: useMute};}
+    const muteText = () => state.mute ? 'sound on' : 'mute';
     function useLava() {const on = !(state.lava && state.lava.on);setLava({on, t: now()}, false);send('r501-lava', state.lava);game.audio('click');}
     const lpText = () => {const n = cycle(state.lp && state.lp.r, RECORDS.length);return n < 0 ? 'Stop the record' : `${state.lp && state.lp.r >= 0 ? 'Next record' : 'Put on a record'}: «${RECORDS[n].title}» – ${RECORDS[n].artist}`;};
     const tvText = () => {const n = cycle(state.tv && state.tv.c, CHANNELS.length);return n < 0 ? 'Turn off the TV' : `${state.tv ? 'TV: next channel' : 'Turn on the TV'} (${CHANNELS[n].name})`;};
@@ -356,21 +384,25 @@
       if (carrying) {const c = placeCheck(p);return {text: c.ok ? `□ Put the ${CHAIRS[carrying.ch.kind].name} down` : `Carrying the ${CHAIRS[carrying.ch.kind].name} · not here: ${WHY[c.why]}`, act: () => putDown(p)};}
       const u = look && look.userData;if (!u || !u.r501) return null;
       if (u.r501 === 'lp') return {text: `□ ${lpText()}`, act: useLp};
-      if (u.r501 === 'tv') return {text: `□ ${tvText()}`, act: useTv};
+      if (u.r501 === 'tv') return {text: `□ ${tvText()} · hold □ ${muteText()}`, act: tvPress};
+      if (u.r501 === 'hum') return {text: `□ Dehumidifier ${state.hum ? 'off' : 'on'}`, act: useHum};
       if (u.r501 === 'lava') return {text: `□ ${state.lava && state.lava.on ? 'Turn off' : 'Turn on'} the lava lamp`, act: useLava};
       if (u.r501 === 'sofa') return {text: `□ Sit on the sofa${state.tv ? '' : ' (□ there turns on the TV)'}`, act: () => sitOnSofa(p)};
-      if (u.r501 === 'chair') {const ch = chairs[u.chair];if (ch.by && game.remoteHas(ch.by)) return {text: `${game.nameOf(ch.by)} is carrying the ${CHAIRS[ch.kind].name}`, act: () => {}};return {text: `□ Pick up the ${CHAIRS[ch.kind].name} · hold □ sit on it`, act: () => {pending = {i: u.chair, t: performance.now()};}};}
+      if (u.r501 === 'chair') {const ch = chairs[u.chair];if (ch.by && game.remoteHas(ch.by)) return {text: `${game.nameOf(ch.by)} is carrying the ${CHAIRS[ch.kind].name}`, act: () => {}};return {text: `□ Pick up the ${CHAIRS[ch.kind].name} · hold □ sit on it`, act: () => {const i = u.chair;pending = {t: performance.now(), tap: () => pickUp(i), hold: () => sitOnChair(i)};}};}
       return null;
     }
 
     // ---------- Sound: the record and the TV come from their places in the room ----------
-    const audioState = {chain: null, tv: null, lpKey: null, tvChannel: null};
-    const lpWorld = W(...F.pieceToWing(wu, wu.record[0], wu.record[1])), tvWorld = W(...F.pieceToWing(tvF, 0, .1));
+    const audioState = {chain: null, tv: null, lpKey: null, tvChannel: null, humChain: null, hum: null};
+    const lpWorld = W(...F.pieceToWing(wu, REC.x, REC.z)), tvWorld = W(...F.pieceToWing(tvF, 0, .1)), humWorld = W(...B.dehumidifier);
+    // Glide a parameter (as game-audio.js does): skipped when the value is not finite or (nearly) the one it already glides to,
+    // so a sound set every frame does not pile up automation events.
+    function glide(param, v, t, tau) {if (!Number.isFinite(v)) return;const last = param._to;if (last !== undefined && Math.abs(v - last) <= 1e-4 + Math.abs(last) * 2e-3) return;param._to = v;param.setTargetAtTime(v, t, tau);}
     function spatial(ctx) {
       const input = ctx.createGain(), lp = ctx.createBiquadFilter(), pan = ctx.createStereoPanner(), gain = ctx.createGain(), comp = ctx.createDynamicsCompressor();
       lp.type = 'lowpass';lp.frequency.value = 18000;gain.gain.value = 0;comp.threshold.value = -14;comp.ratio.value = 4;
       input.connect(lp).connect(pan).connect(gain).connect(comp).connect((game.audioOutput && game.audioOutput()) || ctx.destination);
-      return {input, lp, pan, gain, set(g, p, muffle, t) {gain.gain.setTargetAtTime(g, t, .15);pan.pan.setTargetAtTime(p, t, .15);lp.frequency.setTargetAtTime(muffle > .5 ? 700 : 18000, t, .2);}};
+      return {input, lp, pan, gain, set(g, p, muffle, t) {glide(gain.gain, g, t, .15);glide(pan.pan, p, t, .15);glide(lp.frequency, muffle > .5 ? 700 : 18000, t, .2);}};
     }
     // The TV's sound: a quiet bed made from noise and a few oscillators, shaped per channel.
     function tvSound(ctx, out) {
@@ -400,6 +432,16 @@
         },
         stop() {try {src.stop();pad.forEach(o => o.stop());} catch {}}
       };
+    }
+    // The dehumidifier (issue #167): a steady low hum – 50 Hz mains with its harmonics and a soft band of fan noise – with a very
+    // slow, slight wobble of the fan's speed, not a pulse. Long-lived sources, switched by one gain.
+    function humSound(ctx, out) {
+      const sw = ctx.createGain(), wob = ctx.createGain();sw.gain.value = 0;wob.gain.value = 1;wob.connect(sw).connect(out);
+      const src = [[50, 'sine', .05], [100, 'sine', .04], [150, 'triangle', .012], [200, 'sine', .006]].map(([f, type, level]) => {const o = ctx.createOscillator(), g = ctx.createGain();o.type = type;o.frequency.value = f;g.gain.value = level;o.connect(g).connect(wob);o.start();return o;});
+      const nb = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate), d = nb.getChannelData(0);for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      const n = ctx.createBufferSource(), bp = ctx.createBiquadFilter(), ng = ctx.createGain();n.buffer = nb;n.loop = true;bp.type = 'bandpass';bp.frequency.value = 420;bp.Q.value = .7;ng.gain.value = .035;n.connect(bp).connect(ng).connect(wob);n.start();
+      const lfo = ctx.createOscillator(), lg = ctx.createGain();lfo.frequency.value = .13;lg.gain.value = .04;lfo.connect(lg).connect(wob.gain);lfo.start();
+      return {set(on, t) {glide(sw.gain, on ? 1 : 0, t, on ? .5 : .2);}, stop() {try {[...src, n, lfo].forEach(o => o.stop());} catch {}}};
     }
     // The football: a goal now and then, the same for everyone (from the lobby's clock).
     const tvGoal = tSec => (Math.floor(tSec / 47) % 3 === 1) && tSec % 47 < 4;
@@ -471,11 +513,11 @@
     function tick(dt, input, p, camera) {
       if (!game) return;
       const nowMs = now(), tSec = nowMs / 1000;
-      // Tap or hold □ on a chair.
+      // Tap or hold □ on a chair or the TV.
       if (pending) {
-        const held = performance.now() - pending.t;
-        if (!(input && input.held && input.held.square)) {const i = pending.i;pending = null;if (held < HOLD_S * 1000) pickUp(i);else sitOnChair(i);}
-        else if (held >= HOLD_S * 1000) {const i = pending.i;pending = null;sitOnChair(i);}
+        const held = performance.now() - pending.t, pd = pending;
+        if (!(input && input.held && input.held.square)) {pending = null;if (held < HOLD_S * 1000) pd.tap();else pd.hold();}
+        else if (held >= HOLD_S * 1000) {pending = null;pd.hold();}
       }
       // The chair in your hands, and chairs others carry.
       if (carrying) {
@@ -503,12 +545,13 @@
       screenM.emissiveIntensity = tvOn ? 1.25 : 0;screenM.roughness = tvOn ? .95 : .2;// glossy black when off; no glare from its own glow when on
       if (tvOn && camNear && (tvDrawT -= dt) <= 0) {tvDrawT = 1 / 12;drawTv(tSec);}
       if (tvOn) {tvLight.color.setHex(CHANNELS[state.tv.c].light);tvLight.intensity = K.wing.visible ? 1.1 + .25 * Math.sin(tSec * 7.3) * Math.sin(tSec * 2.1) : 0;} else tvLight.intensity = 0;
+      humLed.emissiveIntensity = state.hum ? 1.6 : 0;
       sound(p, camera, tSec, nowMs);
     }
     function sound(p, camera, tSec, nowMs) {
       const ctx = game.audioContext();if (!ctx || ctx.state !== 'running') return;
       const music = game.music;if (!music || !music.recordOutput) return;
-      if (!audioState.chain) {audioState.chain = spatial(ctx);music.recordOutput.connect(audioState.chain.input);audioState.tvChain = spatial(ctx);}
+      if (!audioState.chain) {audioState.chain = spatial(ctx);music.recordOutput.connect(audioState.chain.input);audioState.tvChain = spatial(ctx);audioState.humChain = spatial(ctx);}
       const at = flat.inside(p.x, p.z, p.feet), t = ctx.currentTime, yaw = camera.rotation.y, rx = Math.cos(yaw), rz = -Math.sin(yaw);// the camera's right
       const heard = (wx, wz) => {const dx = wx - p.x, dz = wz - p.z, d = Math.hypot(dx, dz), h = hearing(at, d), side = d > .01 ? (dx * rx + dz * rz) / d : 0;return {...h, pan: Math.max(-.8, Math.min(.8, side * (h.muffle ? .3 : .75)))};};
       // The record: playing in the music engine only while you can hear it (back in step from the lobby's clock).
@@ -521,9 +564,17 @@
       if (c >= 0 && !audioState.tv) audioState.tv = tvSound(ctx, audioState.tvChain.input);
       if (audioState.tv && audioState.tvChannel !== c) {audioState.tv.channel(c);audioState.tvChannel = c;}
       if (audioState.tv) audioState.tv.update(tSec);
-      audioState.tvChain.set(c >= 0 ? ht.gain * .8 : 0, ht.pan, ht.muffle, t);
-      music.duck(duckFor(want ? hl.gain : 0, c >= 0 ? ht.gain : 0));
+      const tvGain = c >= 0 && !state.mute ? ht.gain : 0;
+      audioState.tvChain.set(tvGain * .8, ht.pan, ht.muffle, t);
+      // The dehumidifier: heard in the whole flat (issue #167).
+      const dx = humWorld.x - p.x, dz = humWorld.z - p.z, dh = Math.hypot(dx, dz), hh = humHearing(at, dh), hp = dh > .01 ? Math.max(-.6, Math.min(.6, (dx * rx + dz * rz) / dh * (hh.muffle ? .25 : .6))) : 0;
+      if (state.hum && hh.gain > 0 && !audioState.hum) audioState.hum = humSound(ctx, audioState.humChain.input);
+      if (audioState.hum) audioState.hum.set(!!state.hum, t);
+      audioState.humChain.set(state.hum ? hh.gain * .9 : 0, hp, hh.muffle, t);
+      music.duck(duckFor(want ? hl.gain : 0, tvGain));
     }
+    // The pause menu: everything in the flat goes quiet (the next frame of play sets it back).
+    function mute() {const ctx = game && game.audioContext();if (!ctx || !audioState.chain) return;const t = ctx.currentTime;for (const ch of [audioState.chain, audioState.tvChain, audioState.humChain]) if (ch) glide(ch.gain.gain, 0, t, .08);}
 
     // Collision of the chairs that stand (the carried one is in your hands, not in the way): world polygons.
     function dynamic() {
@@ -534,11 +585,11 @@
     // game: {now(), you(), send(id, v), notice(text, s), audio(name), sit(spot), sitTaken(id), solidsChanged(), remote(id),
     //   remoteHas(id), nameOf(id), audioContext(), music, weather()}
     function attach(g) {game = g;}
-    return {hitboxes, attach, prompt, tick, dynamic, apply, reset, publish, state, chairs, seats, records: RECORDS, channels: CHANNELS,
+    return {hitboxes, attach, prompt, tick, dynamic, apply, reset, publish, mute, state, chairs, seats, records: RECORDS, channels: CHANNELS,
       get carrying() {return carrying ? carrying.i : null;}, get busy() {return !!carrying || !!pending;},
-      debug: {placeCheck: p => carrying ? placeCheck(p) : null, pickUp, putDown, sitOnChair, sitOnSofa, useLp, useTv, useLava, drawTv, lavaLight, tvLight, screen, disc, arm, blobs, blobMesh}};
+      debug: {placeCheck: p => carrying ? placeCheck(p) : null, pickUp, putDown, sitOnChair, sitOnSofa, useLp, useTv, useMute, useHum, useLava, drawTv, humLed, lavaLight, tvLight, screen, disc, arm, blobs, blobMesh}};
   }
 
   return {RECORDS, CHANNELS, ARM_S, LEAD_S, cycle, nextRecord, recordPos, armAt, nextChannel, lavaWarm, CHAIRS, chairParts, chairBoxes, partBounds, boxesToWing, overlap,
-    chairsOf, doorZones, canPlace, putPose, snapYaw, seatsOf, hearing, duckFor, items, create};
+    chairsOf, doorZones, canPlace, putPose, snapYaw, seatsOf, hearing, humHearing, duckFor, items, create};
 });
