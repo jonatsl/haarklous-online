@@ -1,6 +1,8 @@
 /* Multiplayer glue between the game and the lobby (game-net.js): remote players as avatars (on foot, on the firepit
  * benches, in vehicle seats, flying a drone), vehicles driven by other players (smoothed between their updates), seat
  * claims (one driver and one passenger per vehicle), chat, doors and the shared firepit level.
+ * Remote-driven vehicles (issue #135): the driver appends its clock (performance.now() ms) to each 'vs' state; here every such
+ * vehicle has a GameNetSmooth.Track and is posed only from it, once a frame (game-main skips its own physics for it).
  * GameMultiplayer.create(ctx) -> {net, voice, update(dt), claim(i, seat) -> Promise<{ok, by}>, release(i, seat, final),
  *   occupant(i, seat), remoteDriven(i), sendChat(text), sendDoor(id, open), sendObj(id, v), addWood(), fireLevel(), remotes, nameOf(id),
  *   sitTaken(spotId), setMic(on)}
@@ -16,7 +18,10 @@
     const remotes = new Map();// id -> {id, slot, name, st, av, pos, yaw, speed, drone}
     let occ = {}, fire = {level: 2, t: Date.now()}, sendT = 0, vehT = 0, lastLocal = null;
     const pending = new Map();// vehicle index -> resolve
-    const vehTargets = new Map();// index -> {a, prev, at, prevAt}
+    const NS = window.GameNetSmooth, tracks = new Map();// index -> {track, by (the driver's id), len (the state's own length)}
+    // A state with one number more than this vehicle's own netGet() carries the driver's clock (ms) at the end.
+    const netLen = v => v.netLen || (v.netLen = v.netGet().length);
+    const stamped = s => [...s, Math.round(performance.now())];
     const net = window.GameNet.create({onMessage, onStatus: () => ctx.onStatus()});
     const voice = window.GameVoice.create({send: (to, d) => net.send({t: 'rtc', to, d}), you: () => net.you});
     function remote(id) {
@@ -31,7 +36,7 @@
           for (const id of [...remotes.keys()]) drop(id);
           for (const p of m.players) if (p.id !== m.you) {remote(p.id);voice.peerJoined(p.id);}
           for (const [id, s] of Object.entries(m.states || {})) {const r = remote(+id);r.st = s;}
-          occ = m.occ || {};fire = m.fire || fire;vehTargets.clear();
+          occ = m.occ || {};fire = m.fire || fire;tracks.clear();
           for (const [i, s] of Object.entries(m.vehicles || {})) {const v = vehicles[+i];if (v && s) v.netSet(s);}
           for (const [id, open] of Object.entries(m.doors || {})) ctx.applyDoor(id, open, true);
           // Small shared things (flat 501's record player, TV, lava lamp, chairs): back to normal, then the lobby's state.
@@ -44,10 +49,18 @@
         case 'leave': {const r = remotes.get(m.id);if (r) ctx.onChat({name: r.name, text: 'left', slot: r.slot, sys: true}, false);drop(m.id);break;}
         case 'name': {const r = remotes.get(m.id);if (r) {r.name = m.name;r.av.setName(m.name);}break;}
         case 'st': {const r = remote(m.id);r.st = m.s;break;}
-        case 'vs': {const i = +m.v, v = vehicles[i];if (!v) break;const o = occ[i];if (o && o.d && o.d !== net.you) {const prev = vehTargets.get(i);vehTargets.set(i, {a: m.s, prev: prev ? prev.a : m.s, at: performance.now(), prevAt: prev ? prev.at : performance.now() - 100});} else if (ctx.drivingIndex() !== i) v.netSet(m.s);break;}
+        case 'vs': {
+          const i = +m.v, v = vehicles[i], s = m.s;if (!v || !Array.isArray(s)) break;const o = occ[i];
+          if (o && o.d && o.d !== net.you) {
+            let t = tracks.get(i);const len = netLen(v);
+            if (!t || t.by !== o.d) {t = {track: new NS.Track(NS.layout(len, !!v.aircraft)), by: o.d, len};tracks.set(i, t);}
+            t.track.push(s, s.length === len + 1 ? s[len] / 1000 : null, performance.now() / 1000);
+          } else if (ctx.drivingIndex() !== i) v.netSet(s);
+          break;
+        }
         case 'occ': {
           const before = occ;occ = m.occ || {};
-          // A driver got off: the vehicle stays where their last update put it (it used to stay where the smoothing had got to).
+          // A driver got off: the vehicle stays where their last update put it (not where the smoothing had got to).
           for (const [i, o] of Object.entries(before)) if (o.d && o.d !== net.you && !(occ[i] && occ[i].d === o.d)) settle(+i);
           break;
         }
@@ -58,16 +71,16 @@
         case 'fire': fire = m.fire;if (m.by && m.by !== net.you) {const r = remotes.get(m.by);if (r && ctx.onRemoteWood) ctx.onRemoteWood(r);}break;
         case 'rtc': voice.onSignal(m.from, m.d);break;
         case 'full': ctx.notice(`Lobby ${m.code || ''} is full (${net.max} players). Back in your own lobby.`, 5);break;
-        case 'reset': for (const id of [...remotes.keys()]) drop(id);occ = {};vehTargets.clear();for (const [, res] of pending) res({ok: true, offline: true});pending.clear();break;
+        case 'reset': for (const id of [...remotes.keys()]) drop(id);occ = {};tracks.clear();for (const [, res] of pending) res({ok: true, offline: true});pending.clear();break;
       }
     }
-    function settle(i) {const t = vehTargets.get(i), v = vehicles[i];if (t && v) {v.netSet(t.a);v.netCur = null;}vehTargets.delete(i);}
+    function settle(i) {const t = tracks.get(i), v = vehicles[i];if (t && v && t.track.count) v.netSet(t.track.newest);tracks.delete(i);}
     // Seats: online the lobby decides who gets a seat; offline every seat is yours.
     function claim(i, seat) {
       if (!net.online) return Promise.resolve({ok: true});
       return new Promise(res => {pending.set(i, res);net.send({t: 'claim', v: i, seat});setTimeout(() => {if (pending.get(i) === res) {pending.delete(i);res({ok: false, timeout: true});}}, 4000);});
     }
-    function release(i, seat, final) {if (net.online) net.send({t: 'release', v: i, seat, s: final});const o = occ[i];if (o && o[seat] === net.you) delete o[seat];}
+    function release(i, seat, final) {if (net.online) net.send({t: 'release', v: i, seat, s: final ? stamped(final) : final});const o = occ[i];if (o && o[seat] === net.you) delete o[seat];}
     const occupant = (i, seat) => {const o = occ[i];return o ? o[seat] || null : null;};
     const remoteDriven = i => {const d = occupant(i, 'd');return !!d && d !== net.you && remotes.has(d);};
     const nameOf = id => id === net.you ? net.name : (remotes.get(id) || {}).name || 'someone';
@@ -78,30 +91,18 @@
       if (net.online) net.send({t: 'fire'});
     }
     const angLerp = (a, b, k) => a + Math.atan2(Math.sin(b - a), Math.cos(b - a)) * k;
-    // Remote-driven vehicle: extrapolate the latest update a little and ease toward it.
-    function smoothVehicle(i, v, tgt, dt) {
-      const age = Math.min(.25, (performance.now() - tgt.at) / 1000), span = Math.max(.03, (tgt.at - tgt.prevAt) / 1000), a = tgt.a.slice(), k = 1 - Math.exp(-dt * 14);
-      for (let j = 0; j < 3; j++) a[j] += (tgt.a[j] - tgt.prev[j]) / span * age;
-      const cur = v.netCur || (v.netCur = tgt.a.slice()), out = cur;
-      if (v.aircraft) {
-        for (let j = 0; j < 3; j++) out[j] += (a[j] - out[j]) * k;
-        const q = new T.Quaternion(out[3], out[4], out[5], out[6]).slerp(new T.Quaternion(a[3], a[4], a[5], a[6]), k);out[3] = q.x;out[4] = q.y;out[5] = q.z;out[6] = q.w;
-        for (let j = 7; j < a.length; j++) out[j] = j >= 10 ? tgt.a[j] : out[j] + (a[j] - out[j]) * k;// 10: on the ground (a yes / no, never eased)
-      } else {
-        for (let j = 0; j < a.length; j++) out[j] = j >= 3 && j <= 5 ? angLerp(out[j], a[j], k) : out[j] + (a[j] - out[j]) * k;
-      }
-      v.netSet(out);v.netAnimate(dt);
-    }
+    // Remote-driven vehicle: the one pose it gets this frame, from its snapshot buffer (game-netsmooth.js).
+    function smoothVehicle(v, t, now, dt) {const a = t.track.sample(now);if (!a) return;v.netSet(a);v.netAnimate(dt);}
     function update(dt) {
       const now = performance.now(), cam = ctx.camera;
       // Send our own state ~10 Hz (only when somebody else is in the lobby).
       sendT -= dt;vehT -= dt;
       if (net.online && net.others > 0) {
         if (sendT <= 0) {sendT = .1;const s = ctx.localState();lastLocal = s;net.send({t: 'st', s});}
-        const di = ctx.drivingIndex();if (di >= 0 && vehT <= 0) {vehT = 1 / 12;net.send({t: 'vs', v: di, s: vehicles[di].netGet()});}
+        const di = ctx.drivingIndex();if (di >= 0 && vehT <= 0) {vehT = 1 / 12;net.send({t: 'vs', v: di, s: stamped(vehicles[di].netGet())});}
       }
       // Vehicles driven by others.
-      for (const [i, tgt] of vehTargets) {const v = vehicles[i];if (!v || !remoteDriven(i)) {settle(i);continue;}smoothVehicle(i, v, tgt, dt);}
+      const ns = now / 1000;for (const [i, t] of tracks) {const v = vehicles[i];if (!v || !remoteDriven(i)) {settle(i);continue;}smoothVehicle(v, t, ns, dt);}
       // Avatars.
       for (const r of remotes.values()) {
         const st = r.st;if (!st) {r.av.group.visible = false;continue;}

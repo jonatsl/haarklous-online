@@ -9,9 +9,10 @@ Live game: https://haarklous-online.server-smoke.workers.dev · Source: https://
 ## Features (what the game has now)
 
 In pull requests (not merged yet):
-- Camera zoom on its own controls, and binoculars (issue #133, PR #134): with the camera raised, zoom with D-pad ↑↓, the mouse wheel or + −, while the right stick / mouse only looks and you walk; binoculars in the △ gear menu, raised with L2 / right mouse to the classic two-circle view, zoom 4–12×.
+- Smooth rides with other players (issue #135, PR pending): as a passenger (car, motorcycle back seat, aircraft) the ride and the view are smooth, and other players' vehicles move smoothly when you watch them, also when an update is lost on the way.
 
 On `main`:
+- Camera zoom on its own controls, and binoculars (issue #133, PR #134, live since 21 Nov 2026): with the camera raised, zoom with D-pad ↑↓, the mouse wheel or + −, while the right stick / mouse only looks and you walk; binoculars in the △ gear menu, raised with L2 / right mouse to the classic two-circle view, zoom 4–12×.
 - Vans you can see out of (issue #131, PR #132, live since 21 Nov 2026): the parked vans have a real glass cab like the cars – windscreen and front side windows, a roof, a painted wall behind the seats and the closed load space behind it.
 - Prop hunt – hide and seek (issue #124, PR #125, live since 15 Nov 2026): hiders become benches, bins, bushes, bikes, lamps and more at Haarklous plass, Olaf Ryes plass and the backyard of Rathkes gate 1; hunters with a paint marker; rounds, fair turns, points, whistles; alone against the game's players or with friends online.
 - Third person in every vehicle (issue #129, PR #130, live since 21 Nov 2026): R3 / V changes between first person and a camera behind and above in cars, vans, lorries, motorcycles, bicycles, e-scooters, the excavator, the kayak, the FPV drone and as a passenger; you see yourself in the seat; the camera turns with the right stick / mouse and comes closer instead of going into walls or ceilings; the choice stays for the next vehicle.
@@ -62,9 +63,24 @@ On `main`:
 - Ground with real detail up close (grass, asphalt, paving slabs, gravel, pavements and kerbs) with or without the aerial photo, and buildings that look like their part of town – Torshov brick and Harald Hals' plastered blocks, Grünerløkka's tenements with shop fronts, buff brick, wooden houses, new blocks – chosen from OpenStreetMap and Street View notes (issues #67 and #68, PR #81, not merged yet).
 - Friends (needs an account): add a friend by their player name, they accept or decline; see which friends are online and in which lobby; Join goes straight into a friend's lobby, Invite asks them into yours (a message in their game, Options then ✕ to come); "friends can join my lobby" can be turned off; pause menu → Friends (L1 / N), with a red count of new requests and invites (issue #115, PR #117, not merged yet).
 
-Live site: runs `main` (Worker version 430a2224, deployed 21 Nov 2026 after PR #132; `main` builds byte-for-byte to the live page), so everything above is online. Account emails (issue #55) wait for the user's Brevo key.
+Live site: runs `main` (Worker version 5400ee4c, deployed 21 Nov 2026 after PR #134; `main` builds byte-for-byte to the live page), so everything above is online. Account emails (issue #55) wait for the user's Brevo key.
 
 ## Log
+
+### 2026-11-23 · Passenger in a car: a smooth ride (issue #135)
+- **What:**
+  - Riding with another player (car, van, lorry, motorcycle back seat, helicopter, plane) is smooth now: the car and the view no longer jerk back and forth, at any speed, in turns, on hills and when the driver brakes.
+  - Other players' vehicles also move smoothly when you watch them from outside (on foot or from another vehicle).
+  - The car you see is at most about 0.2 s behind where the driver has it (the network trip plus a short buffer of 0.08–0.18 s).
+  - One or two lost updates do not make the car stop and jump: it keeps going on its last speed for up to 0.2 s, then waits; when updates come back it glides to the right place instead of jumping.
+- **Why:** the user's issue #135 ("hakkete" passenger ride). The causes, found in the code:
+  1. **The receiver's smoothing followed the network's timing, not the driver's.** Each update was placed at the time it *arrived*, its speed was worked out from the time between two arrivals, and the car was extrapolated from that and chased with an easing. Updates leave the driver evenly but arrive unevenly (Wi-Fi, the internet, Cloudflare): two that come close together made the car look twice as fast for a moment, a late one made it fall back. In a simple model of a car doing 20 m/s with 30–60 ms of jitter, its speed on screen was off by up to 9–20 m/s from frame to frame (the new code: about 1 m/s) – the back-and-forth jerk.
+  2. **The passenger's first-person camera was one frame behind the car.** It was placed before the game moved the car for that frame (issue #129 had fixed this only for the third-person camera), so the inside of the car shifted by one frame's travel (about 0.5 m at 50 km/h) every frame, by a different amount each frame.
+  The Worker relays every update at once (no batching), so the server was not a cause and is not changed.
+- **How it works now:** the driver adds its own clock time (one number) to each vehicle update it sends, still about 12 a second, so the traffic is about the same. The receiver keeps the last few updates for each vehicle and shows the car a short moment in the past, in between the two updates around that moment (position, heading, pitch, roll; aircraft turn smoothly by quaternion). That moment runs at the game's own frame time and is only gently nudged, so uneven arrivals do not show. The car is moved by this one place only, once a frame, before the passenger's camera, the seat avatars and the car's collision shape read it. A game from before this change (no time in its updates) still works: arrival times stand in.
+- **Where:** `game-netsmooth.js` (new, pure: the update buffer and its maths), `game-multiplayer.js` (time on each sent update, one buffer per remote-driven vehicle, the old smoothing removed), `game-main.js` (`passengerView` places the first-person eye after `mp.update`; the remote vehicles' collision shapes are refreshed after `mp.update`), `index.html` (the new script), `tests/netsmooth.test.cjs` (new).
+- **Checked:** `node --test`: see the PR. The new tests drive a car at 72 km/h with up to 60 ms of jitter and check that it moves the same distance every frame, is never more than about a quarter of a second behind, takes the short way round through ±180°, follows a turn, keeps going over one or two lost updates and glides back after a long gap, slerps an aircraft, snaps a respawn, and works without time stamps. Not checked in the browser or online with two players (the user asked to skip browser tests for this run).
+- **Status:** branch `fix/passenger-smooth`, PR pending.
 
 ### 2026-11-21 · Camera zoom on its own controls, and binoculars (issue #133)
 - **What:**
@@ -78,7 +94,7 @@ Live site: runs `main` (Worker version 430a2224, deployed 21 Nov 2026 after PR #
 - **Cost:** no extra render pass (the binocular view is a CSS mask over the canvas); the binocular model is 12 small meshes in the overlay scene, drawn only while held and lowered, like the camera's.
 - **Checked:** `node --test` (292 pass). Not checked in the browser or with a real controller (the user asked to skip browser tests for this run).
 - **Not online:** others do not see the binoculars (no server change).
-- **Status:** branch `feat/camera-zoom-binoculars`, PR #134 (https://github.com/jonatsl/haarklous-online/pull/134), not merged yet.
+- **Status:** PR #134 (https://github.com/jonatsl/haarklous-online/pull/134), merged into `main` and live (deployed 21 Nov 2026, Worker version 5400ee4c).
 
 ### 2026-11-21 · Vans: see-through front window (issue #131)
 - **What:**
