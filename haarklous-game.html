@@ -21714,7 +21714,10 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
         const rg = new T.BufferGeometry();rg.setAttribute('position', new T.BufferAttribute(pos, 3));rg.setIndex([0, 2, 1, 0, 3, 2, 0, 4, 3, 1, 2, 5]);rg.computeVertexNormals();
         const ramp = new T.Mesh(rg, lib.concrete(0x9c9a94));ramp.material.side = T.DoubleSide;ramp.receiveShadow = true;g.add(ramp);
       }
-      const o = fr.toW(aDoor, 0), q = fr.toW(aDoor, -1), grad = rise / rl;
+      // The slab falls by `rise` from the door (b = 0) to the street (b = -rl), so its far edge meets the ground (walk floors only
+      // join within 5 cm). Issue #158: the slope pointed out of the building, so the far edge was 2 × rise above the street, an
+      // invisible wall in front of the door.
+      const o = fr.toW(aDoor, 0), q = fr.toW(aDoor, 1), grad = rise / rl;
       floors.push({name: `${name} entrance`, points: [fr.toW(aDoor - half, 0), fr.toW(aDoor + half, 0), fr.toW(aDoor + half, -rl), fr.toW(aDoor - half, -rl)], y: floorY, slope: {x: (q.x - o.x) * grad, z: (q.z - o.z) * grad, origin: o}, surfaceKind: 'stone', ceilingHeight: Infinity});
     }
     // The wall above the notch in the building's own look, and its roof.
@@ -21741,17 +21744,30 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
       wallB(fr, ext, .07, .06, D - .12, .1, M.wall);wallB(fr, ext, W - .07, .1, D - .12, .1, M.concrete);
       wallA(fr, ext, D - .07, .02, aC - .06, .1, M.wall);wallA(fr, ext, D - .07, aC + .06, W - .02, .1, M.concrete);
       wallDoors(fr, ext, 'b', aC, .12, D - .02, [[4.95, .94]], .12, M.wall);
-      door(fr, ext, {id: 'politi-arrest', name: 'Steel door to the cells', a: aC, b: 4.95, along: 'b', face: 1, kind: 'plain', mat: M.steel});
+      // It opens into the reception (issue #158): open into the corridor, it and an open door of cell 1 left 5 cm to pass.
+      door(fr, ext, {id: 'politi-arrest', name: 'Steel door to the cells', a: aC, b: 4.95, along: 'b', face: -1, kind: 'plain', mat: M.steel});
       sign(ext, .9, .22, aC - .075, 2.42, 4.95, -Math.PI / 2, text('#1b2a49', [['ARRESTEN', .62, '#ffffff', .55]]), {glow: .5});
       // The front: glass with sliding doors for the reception, a concrete wall for the cells; the POLITI sign over the door.
       glassFront(fr, ext, 0, aC, aD, storeTop);
       box(ext, W - aC, storeTop + .4, .24, (aC + W) / 2, (storeTop - .4) / 2, 0, M.panel);obstacles.push(fr.rect(aC, W, -.12, .12, -.5, storeTop));
       {
         const t = texture(1024, 160, text('#0b1f3a', [['POLITI', .72, '#ffffff', .55]])), dm = M.dark;
-        const s = new T.Mesh(new T.BoxGeometry(aC, .62, .12), [dm, dm, dm, dm, dm, new T.MeshStandardMaterial({map: t, emissive: 0xffffff, emissiveMap: t, emissiveIntensity: .45, roughness: .5})]);
+        const s = new T.Mesh(new T.BoxGeometry(aC, .62, .12), [dm, dm, dm, dm, dm, new T.MeshStandardMaterial({map: t, emissive: 0xffffff, emissiveMap: t, emissiveIntensity: 1.1, roughness: .5})]);
         s.position.set(aC / 2, 3.3, -.06);s.castShadow = true;ext.add(s);// the -z face (index 5) faces the street, as the shops' signs
       }
-      sign(ext, 10, 1.1, aD, 6.6, -.09, Math.PI, text(null, [['POLITIHUSET', .8, '#e9edf2', .55]]), {glow: .15, alpha: true});
+      sign(ext, 10, 1.1, aD, 6.6, -.09, Math.PI, text(null, [['POLITIHUSET', .8, '#e9edf2', .55]]), {glow: .5, alpha: true});
+      // The door is in the lane behind the low front buildings: a lit POLITI pylon on the footway at each of the two gaps that lead
+      // down to it (issue #158).
+      {
+        const t = texture(512, 820, text('#0b1f3a', [['POLITI', .13, '#ffffff', .2], ['Oslo politihus', .06, '#c9d3e0', .42], ['Publikumsmottak', .06, '#c9d3e0', .52], ['↓', .3, '#ffffff', .78]]));
+        const face = new T.MeshStandardMaterial({map: t, emissive: 0xffffff, emissiveMap: t, emissiveIntensity: .9, roughness: .5}), dm = M.dark;
+        for (const [a, b] of [[-9.3, -44], [34.3, -45]]) {
+          const y = gAt(...DATA.station.at(a, b)) - fr.floorY;
+          box(ext, .16, 1.6, .16, a, y + .55, b, M.alu);
+          const s = new T.Mesh(new T.BoxGeometry(1.0, 1.6, .1), [dm, dm, dm, dm, face, face]);s.position.set(a, y + 2.1, b);s.castShadow = true;ext.add(s);
+          obstacles.push(fr.rect(a - .5, a + .5, b - .1, b + .1, y - .4, y + 2.9));
+        }
+      }
       sign(ext, .9, .5, aD - 2.2, 1.55, -.012, Math.PI, text('rgba(255,255,255,.92)', [['Oslo politihus', .2, '#111', .22], ['Grønlandsleiret 44', .14, '#111', .45], ['Publikumsmottak', .14, '#111', .66], ['Åpent 08–15', .14, '#111', .85]]), {glow: .2});
       // Reception: the desk with a glass screen and the officer, partitions behind it, the POLITIET sign, chairs, the ticket machine.
       box(ext, 6, 1.1, .7, 7, .55, 6.55, M.desk);box(ext, 6.1, .05, .8, 7, 1.12, 6.55, M.dark);
