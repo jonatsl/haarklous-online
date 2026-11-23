@@ -170,7 +170,7 @@
   const pbRules = PB_DATA && window.GamePaintball ? new window.GamePaintball.Rules(PB_DATA, pbCtx) : null;
   function groundAt(x, z, y) {
     if (cc && y !== undefined) {const g = cc.groundAt(x, z, y);if (g !== null) return g;}// Construction City's garage floors and ramps (vehicles give their height)
-    if (kayak) {const y = kayak.groundAt(x, z);if (y !== null) return y;}// bridge decks over Akerselva
+    if (kayak) {const g = kayak.groundAt(x, z, y);if (g !== null) return g;}// bridge decks over Akerselva (a vehicle well under one rides on under it, issue #147)
     if (world.bridges && y !== undefined) {const g = world.bridges.groundAt(x, z, y);if (g !== null) return g;}// road bridges (issue #139): on the deck or under it, by the height given
     return terrainAt(x, z);
   }
@@ -184,7 +184,9 @@
   // Inside a catacomb mausoleum the ground is not walked on: its door threshold, landing and stair take over (far below = no floor).
   // Under Construction City, its entrance aprons and the top of its garage ramp the building's own floors take over too.
   const floorsOver = ground => world.terrainFloors().map(f => ({...f, height: p => (catacomb && catacomb.cutsGround(p.x, p.z)) || (cc && cc.cutsGround(p.x, p.z)) || (transit && transit.cutsGround(p.x, p.z)) || (mgl && mgl.cutsGround(p.x, p.z)) ? -1e4 : ground(p.x, p.z)}));
-  const groundFloors = floorsOver(groundAt), walkGroundFloors = floorsOver(terrainAt);// vehicles drive on the decks as ground
+  // Vehicles have Akerselva's bridge decks as floors of their own over the ground (issue #147: a bike rides on under a bridge
+  // along the turvei), as walking has since issue #64.
+  const walkGroundFloors = floorsOver(terrainAt), groundFloors = [...(kayak ? kayak.bridges.map(b => b.floor) : []), ...walkGroundFloors];
   // Oslo city bike docks (issue #57) at their real places, from the operator's open data: posts and a totem with the name.
   const rides = window.GameRentals && window.RIDES ? window.GameRentals.create({T, lib, audio, data: window.RIDES, toWorld: world.toWorld, heightAt: groundAt}) : null;
   if (rides) scene.add(rides.group);
@@ -591,7 +593,7 @@
   const mapKind = {cemetery: 'grass', rail: 'yard', sand: 'playground', rock: 'yard', paved: 'parking'};
   const mapData = !DISTRICTS.length ? D : {...D,
     areas: [...D.areas, ...DISTRICTS.flatMap(d => [...d.areas.map(a => ({k: mapKind[a.k] || a.k, o: a.o})), ...d.sea.map(o => ({k: 'water', o}))])],
-    roads: [...D.roads, ...DISTRICTS.flatMap(d => d.roads.map(r => ({...r, k: r.k === 'rail' ? 'tram' : r.k})))],
+    roads: [...D.roads, ...DISTRICTS.flatMap(d => d.roads.map(r => ({...r, k: r.k === 'rail' ? 'tram' : r.k})))], turvei: window.RIVER_PATH || null,
     buildings: [...D.buildings, ...DISTRICTS.flatMap(d => [...d.buildings.map(b => ({r: {o: b.ring.flat()}, s: b.style})), ...d.landmarks.map(l => ({r: {o: l.ring}, s: 'brick'}))]), ...(window.GameRathkes ? window.GameRathkes.mapBuildings() : []), ...(CC_DATA ? window.GameConstructionCity.mapBuildings(CC_DATA) : [])]};
   let rentals = null, jobs = null;// the e-scooter / city bike trips and the jobs (made below, once the wallet exists)
   const map = window.GameMap.create({data: mapData, toLocal: world.toLocal, toWorld, root: view, poi: () => [
