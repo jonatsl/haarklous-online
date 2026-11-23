@@ -2031,7 +2031,7 @@
   function localState() {
     const r = v => Math.round(v * 100) / 100, q = v => Math.round(v * 1000) / 1000;
     const s = {p: [r(player.x), r(player.feet + (player.jumpY || 0)), r(player.z)], y: r(player.yaw), st: player.stance, b: beerT > 0 ? 1 : 0};
-    if (player.mode === 'transit' && transit && transit.ride) {Object.assign(s, transit.localState());s.st = 'sit';}
+    if (player.mode === 'transit' && transit && transit.ride) {Object.assign(s, transit.localState());s.st = transit.ride.standing ? 'stand' : 'sit';}// standing: walking through the vehicle (issue #142)
     if ((player.mode === 'vehicle' || player.mode === 'passenger') && player.vehicle) {s.v = vehicles.indexOf(player.vehicle);s.s = player.mode === 'vehicle' ? 'd' : 'p';}
     if (player.mode === 'sit' && player.sitSpot) {const sp = player.sitSpot;s.sit = sp.id + 1;s.p = [r(sp.x), r(sp.y), r(sp.z)];s.y = r(sp.yaw);}
     if (player.mode === 'drone') {s.st = 'drone';s.dr = [...drone.pos.toArray().map(r), ...drone.q.toArray().map(q)];}

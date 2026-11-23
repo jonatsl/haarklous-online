@@ -11,6 +11,7 @@ Live game: https://haarklous-online.server-smoke.workers.dev · Source: https://
 In pull requests (not merged yet):
 
 On `main`:
+- Walk through the tram, the bus and the metro (issue #142, PR-PENDING; live once merged): on board, move the left stick / WASD to stand up and walk the whole length of the tram while it drives – through open gangways with a floor and bellows between the sections, also in curves; the same in the articulated buses and inside each three-car metro set; □ by a free seat sits you down, □ when the doors open gets you off through the nearest door; others online see you standing where you are.
 - The police on Grønland (issue #140, PR #152; live once merged): Oslo politihus at its real place (Grønlandsleiret 44) with a POLITI sign – walk in to the reception (an officer at the desk, a queue-ticket machine) and through the steel door to the arrest with eight glattceller (bare concrete, a thin mattress, a drain, a steel door with a hatch that opens); Oslo fengsel (Botsen) right behind it with its high walls, two sliding gates and the OSLO FENGSEL sign, the yard and cell wing A (a prison officer, cells with bed, table, toilet and a barred window); 13 police cars (white with POLITI and black and yellow fields, a blue light bar) outside the police station and round the city – drive them with class B, L3 / H for blue lights and siren, which other players see and hear; both places on the map.
 - Oslo S and Jernbanetorget (issue #141, PR #153; live once merged): Tigeren, the 4.5 m bronze tiger, at its real place on a paved Jernbanetorget; Østbanehallen as a plastered 14 m station with OSLO S over the doors and clocks on the Trafikanten tower; eleven people who hang around there (stone seats, the station wall, the tiger), and one who asks for a few kroner (□ gives him 10 kr).
 - Steadier sound (issue #150, PR #151; live once merged): the sound no longer crackles or drops out when the game runs slowly, comes back by itself after the browser or a new sound device (a PS4 controller on USB, a headset) paused it, and has one limiter for everything.
@@ -70,6 +71,18 @@ On `main`:
 Live site: runs `main` (Worker version d2c8f0f7, deployed 23 Nov 2026 after PR #136; `main` builds byte-for-byte to the live page), so everything above is online. Account emails (issue #55) wait for the user's Brevo key.
 
 ## Log
+
+### 2026-11-23 · Walk between the tram's sections (issue #142)
+- **What:**
+  - On a tram, bus or metro train you can now stand up and walk. Move the left stick / WASD (after letting go of the stick you walked in with) and you stand in the aisle beside your seat; walk with the left stick, look with the right stick / mouse. You move with the vehicle, so you can walk from the front of the tram to the back while it drives, also in curves.
+  - The joints between the sections are open gangways: the end walls have a 1.4–1.6 m wide opening, and between two sections there is a floor and bellows (dark grey, inside and outside) that bend with the vehicle in a curve.
+  - The same for the articulated buses (the joint between the two parts) and the metro: inside each three-car MX3000 set you walk through all three cars; between the two coupled sets there is no way through (as in real life). A 12 m bus has no joint; you can walk in it too.
+  - You cannot walk through seats, out through the walls, into the driver's cab or through the wall beside a gangway opening; a little off the middle you are steered into the opening.
+  - □ / E by a free seat sits you down; □ / E when the doors open at a stop gets you off through the door nearest to where you are (at an open door that wins over a seat). The HUD says what □ does.
+  - Other players see you standing where you are in the vehicle, in the right section, facing where you look.
+- **Why:** the user asked: "Make it possible to walk between wagons on the tram". **Cause:** a rider was always fixed to a seat (mode `transit` put the camera at the seat, the left stick did nothing), and every section's end was a closed dark wall with an empty gap and no floor to the next section. So there was nothing to walk on, and nothing open to walk through.
+- **Where:** `transit-models.js` (pure walk plan: `walkPlan`, `locate`, `walkable`, `walkMove`, `pointAt`, `secPoint`, `seatU`; `KINDS` get `pass`, `cab` and the metro's `closed: [2]`; open end walls with a gangway opening; the per-vehicle gangway mesh `setJoints(secs)`), `game-transit.js` (standing and walking in `updateRide`, sit down / get off from where you stand, the HUD hint, `localState` / `pose` for standing riders, `setJoints` every frame), `game-main.js` (others see you standing, not sitting), `index.html` (controls), `tests/transit.test.cjs` (two new tests).
+- **Status:** PR-PENDING; live once merged. 312 Node tests pass. Not checked in the browser (the user's instruction: build and deploy, he says if something does not work).
 
 ### 2026-11-23 · Oslo politihus, the glattceller, Oslo fengsel and police cars (issue #140)
 - **What:**
