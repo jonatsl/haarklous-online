@@ -11,7 +11,7 @@ Live game: https://haarklous-online.server-smoke.workers.dev · Source: https://
 In pull requests (not merged yet):
 
 On `main`:
-- Steadier sound (issue #150, PR #PRNUM; live once merged): the sound no longer crackles or drops out when the game runs slowly, comes back by itself after the browser or a new sound device (a PS4 controller on USB, a headset) paused it, and has one limiter for everything.
+- Steadier sound (issue #150, PR #151; live once merged): the sound no longer crackles or drops out when the game runs slowly, comes back by itself after the browser or a new sound device (a PS4 controller on USB, a headset) paused it, and has one limiter for everything.
 - Walk up to every floor of Klatreverket Torshov (issue #137, PR #138): the stairs from the ground floor to Discorommet, the inner bouldering room and the training room, and sloped mat edges onto the crash mats, so every wall upstairs can be climbed.
 - Smooth rides with other players (issue #135, PR #136, live since 23 Nov 2026): as a passenger (car, motorcycle back seat, aircraft) the ride and the view are smooth, and other players' vehicles move smoothly when you watch them, also when an update is lost on the way.
 - Camera zoom on its own controls, and binoculars (issue #133, PR #134, live since 21 Nov 2026): with the camera raised, zoom with D-pad ↑↓, the mouse wheel or + −, while the right stick / mouse only looks and you walk; binoculars in the △ gear menu, raised with L2 / right mouse to the classic two-circle view, zoom 4–12×.
@@ -86,7 +86,7 @@ Live site: runs `main` (Worker version d2c8f0f7, deployed 23 Nov 2026 after PR #
   The guesses in the issue that did not hold: the music is already scheduled ahead on the audio clock (a 60 ms timer, 1.2 s ahead; after a stall the next bar starts late, there is no burst); the ambience runs from a timer, not the frame loop; no value can become NaN silently (the browser refuses it and throws), the new guards just keep that from ever happening.
 - **Where:** `game-audio.js` (context, output and limiter, `wake`/`restart`/`watch`, `glide`, voices, engines), `game-music.js` (`attach(context, output)`), `game-main.js` (passes `audio.output` to the music, the flat, the mission and the multiplayer; the device and microphone notices), `game-voice.js` (meters on the game's context, let go when a player leaves), `game-multiplayer.js`, `case-game.js`, `game-catacomb.js`, `game-rathkes-living.js`, `game-aircraft.js` (a new drone flight stops the old motors).
 - **Checked:** `node --test` (303 pass); every effect, footstep, engine, the ambience, the music and a device change run against a fake Web Audio API in Node that throws on non-finite values like the browser (engines send no events when nothing changes). Not checked in the browser or by ear (the user asked to skip browser tests for this run).
-- **Status:** branch `fix/sound`, PR #PRNUM; live once merged.
+- **Status:** branch `fix/sound`, PR #151 (https://github.com/jonatsl/haarklous-online/pull/151); live once merged.
 
 ### 2026-11-23 · Klatreverket Torshov: walk up to every floor (issue #137)
 - **What:**
