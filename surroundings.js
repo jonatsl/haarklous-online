@@ -9,7 +9,8 @@
  *   surfaceAt(x, z) -> 'grass'|'asphalt'|'gravel'|'sand'|'none', trafficDistance(x, z), greenery(x, z) -> 0..1,
  *   terrainFloors() (the old square, one floor per district patch and the seams between patches), update(cameraWorldPosition),
  *   yLocal(x, s) (the ground everything stands on), yNatural(x, s) (the real ground, no streets), streets (RoadSurface: flat streets
- *   with kerbs, issue #112: height, classAt, chains), geoNear, geoFar }   A wooden fence stands on the edge of the walkable world (issue #64).
+ *   with kerbs, issue #112: height, classAt, chains, decks), bridges (road-bridges.js, issue #139: the road bridges' meshes, floors,
+ *   obstacles, groundAt(x, z, y), alongAt, over), geoNear, geoFar }   A wooden fence stands on the edge of the walkable world (issue #64).
  * Pure (Node-tested): Surroundings.walkRects(half, playHalf, districts), Surroundings.openEdges(rects).
  * districts: decoded district patches (District.decode of window.DISTRICTS, issue #38: Gamle Oslo, Ensjø and the way there),
  *   each with its own 8 m ground grid, buildings, streets, areas, trees and sea, drawn and walkable like the old square.
@@ -100,10 +101,15 @@
     // The ground everything stands on (issue #112): the same, but with flat car streets, pavements a kerb above them and the ground
     // beside them eased in (RoadSurface: the drawn terrain near you is cut from the same pieces, so it is exactly this surface).
     const RSW = W.RoadSurface.world({square: {h: grid, n: N, half, step, roads: data.roads}, districts, DZ, playHalf: PLAY_HALF});
-    const streets = W.RoadSurface.create({...RSW, slabsAt: (x, s) => ['lokka', 'toyen', 'gronland', 'kampen', 'bjorvika'].includes(CT.zoneAt(x, s))});
+    // Bridges (issue #139): the car streets' bridges of bridges-data.js are decks of their own (road-bridges.js), not ground.
+    const bridgeWays = W.BRIDGES ? W.RoadSurface.bridgesOf(W.BRIDGES, {kayak: W.AKERSELVA}) : [];
+    const streets = W.RoadSurface.create({...RSW, bridges: bridgeWays, slabsAt: (x, s) => ['lokka', 'toyen', 'gronland', 'kampen', 'bjorvika'].includes(CT.zoneAt(x, s))});
     const naturalLocal = RSW.natural, relLocal = streets.height;
     const yLocal = (x, s) => ground + relLocal(x, s), yNatural = (x, s) => ground + naturalLocal(x, s);
     const heightWorld = (x, z) => {const l = toLocal(x, z);return yLocal(l.x, l.s);};
+    // The road bridges' decks, floors and solids (road-bridges.js); heightWorld stays the ground (under the decks).
+    const bridges = W.RoadBridges && streets.decks.length ? W.RoadBridges.create({T, streets, ground, toWorld, toLocal}) : null;
+    if (bridges) for (const m of bridges.meshes) geoNear.add(m);
     // A building's walls reach 0.6 m below the lowest real ground at its corners, and another STREET_DROP further (out of sight
     // under the ground), because a street eased below the real ground may lower the ground at a facade by up to ~1.6 m.
     const STREET_DROP = 1.6, lowestAlong = ring => {let m = Infinity;for (const p of ring) m = Math.min(m, naturalLocal(p[0], p[1]));return m - STREET_DROP;};
@@ -950,7 +956,7 @@
 
     streets.release();
     return {near, far, setImagery, setSun, setOvercast, get imageryState() {return imageryState;}, attribution: data.attribution, ground, heightWorld, toLocal, toWorld, terrainFloor, terrainFloors, obstacles, surfaceAt, trafficDistance, greenery, data, playHalf: PLAY_HALF, trees: allTrees, propKit: {bushGeo, bushMat, crownGeo, leafMats, trunkGeo, barkMat, poleMat},
-      districts: patches.map(P => P.d), get districtImagery() {return patches.map(P => P.nearImagery);}, update, buildGround, yLocal, yNatural, streets, geoNear, geoFar, looks: lookCount, city, facadeFill};
+      districts: patches.map(P => P.d), get districtImagery() {return patches.map(P => P.nearImagery);}, update, buildGround, yLocal, yNatural, streets, bridges, geoNear, geoFar, looks: lookCount, city, facadeFill};
   }
   return {create, walkRects, openEdges, PLAY_HALF};
 });

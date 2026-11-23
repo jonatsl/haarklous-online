@@ -12,6 +12,9 @@ In pull requests (not merged yet):
 
 On `main`:
 - Jumping (issue #144, PR #PRNUM; live once merged): a real jump with gravity – tap ✕ / Space for a small hop, hold it for about 1 m; you keep your speed in the air and steer a little; you land on benches, crates, walls and car roofs (and walk off their edges); fences and railings up to about 1.2 m you jump over; jump at a ledge up to chest height (1.6 m) and you pull yourself up; a landing dip and sounds; other players see you jump.
+- Paddle faster (issue #146, PR #156; live once merged): the kayak cruises about 25 % faster, and holding R2 / Shift while paddling forward sprints at about twice the old top speed (about 15 km/h through the water), with quicker strokes, louder splashes and SPRINT on the HUD; it still turns well at sprint speed.
+- Real bridges where car streets cross over roads, railways and water (issue #139, PR #155): a deck of their own with room under it, ramps up to it, parapets and piers; walk and drive on it or under it (Storo, Sinsenkrysset, Trondheimsveien over the railway, Østre Aker vei, Ulven, Kværner, Nylandsveien and the rest).
+- Walk through the tram, the bus and the metro (issue #142, PR #154; live once merged): on board, move the left stick / WASD to stand up and walk the whole length of the tram while it drives – through open gangways with a floor and bellows between the sections, also in curves; the same in the articulated buses and inside each three-car metro set; □ by a free seat sits you down, □ when the doors open gets you off through the nearest door; others online see you standing where you are.
 - The police on Grønland (issue #140, PR #152; live once merged): Oslo politihus at its real place (Grønlandsleiret 44) with a POLITI sign – walk in to the reception (an officer at the desk, a queue-ticket machine) and through the steel door to the arrest with eight glattceller (bare concrete, a thin mattress, a drain, a steel door with a hatch that opens); Oslo fengsel (Botsen) right behind it with its high walls, two sliding gates and the OSLO FENGSEL sign, the yard and cell wing A (a prison officer, cells with bed, table, toilet and a barred window); 13 police cars (white with POLITI and black and yellow fields, a blue light bar) outside the police station and round the city – drive them with class B, L3 / H for blue lights and siren, which other players see and hear; both places on the map.
 - Oslo S and Jernbanetorget (issue #141, PR #153; live once merged): Tigeren, the 4.5 m bronze tiger, at its real place on a paved Jernbanetorget; Østbanehallen as a plastered 14 m station with OSLO S over the doors and clocks on the Trafikanten tower; eleven people who hang around there (stone seats, the station wall, the tiger), and one who asks for a few kroner (□ gives him 10 kr).
 - Steadier sound (issue #150, PR #151; live once merged): the sound no longer crackles or drops out when the game runs slowly, comes back by itself after the browser or a new sound device (a PS4 controller on USB, a headset) paused it, and has one limiter for everything.
@@ -68,7 +71,7 @@ On `main`:
 - Ground with real detail up close (grass, asphalt, paving slabs, gravel, pavements and kerbs) with or without the aerial photo, and buildings that look like their part of town – Torshov brick and Harald Hals' plastered blocks, Grünerløkka's tenements with shop fronts, buff brick, wooden houses, new blocks – chosen from OpenStreetMap and Street View notes (issues #67 and #68, PR #81, not merged yet).
 - Friends (needs an account): add a friend by their player name, they accept or decline; see which friends are online and in which lobby; Join goes straight into a friend's lobby, Invite asks them into yours (a message in their game, Options then ✕ to come); "friends can join my lobby" can be turned off; pause menu → Friends (L1 / N), with a red count of new requests and invites (issue #115, PR #117, not merged yet).
 
-Live site: runs `main` (Worker version d2c8f0f7, deployed 23 Nov 2026 after PR #136; `main` builds byte-for-byte to the live page), so everything above is online. Account emails (issue #55) wait for the user's Brevo key.
+Live site: runs `main` (Worker version 3766909d, deployed 23 Nov 2026 after PR #138; `main` builds byte-for-byte to the live page), so everything above is online. Account emails (issue #55) wait for the user's Brevo key.
 
 ## Log
 
@@ -87,6 +90,42 @@ Live site: runs `main` (Worker version d2c8f0f7, deployed 23 Nov 2026 after PR #
 - **Online:** your height was already sent; a new flag `j: 1` while you are in the air gives the jump pose (older clients ignore it). No Worker change.
 - **Checked:** `node --test` (all pass; new tests: tap and full height, the boost, landing on a 0.5 m ledge and walking off it, clearing a 1.1 m fence, stopped by a 2 m wall, climbing a 1.5 m ledge, no climb under a low ceiling or onto 1.9 m, vaulting a 1.2 m railing, a `noJump` counter, dropping over a railing but not off a 10 m deck). A short headless run of the built game: no page errors, a full jump rises about 1 m, walking and running jumps work. Not checked: how it looks and feels, landing on real benches and cars, climbing, the sounds by ear, two players.
 - **Status:** branch `feat/jumping`, PR #PRNUM (https://github.com/jonatsl/haarklous-online/pull/PRNUM); live once merged.
+
+### 2026-11-23 · Kayak: paddle faster and sprint (issue #146)
+- **What:**
+  - Normal paddling is about 25 % faster: about 2.5 m/s through the water (9 km/h; before about 2 m/s, 7 km/h), plus the current.
+  - Hold R2 (keyboard: Shift) while paddling forward to sprint: about 4.2 m/s through the water (15 km/h, about twice the old top speed). Let go and the boat slows back to cruising speed by itself.
+  - Sprinting looks and sounds like it: quicker and longer paddle strokes, splashes more often and louder, and SPRINT on the HUD (otherwise the HUD says "R2 / Shift sprint").
+  - The boat turns a little more and answers the stick a little faster above cruising speed, so a sprinting boat does not run wide into the banks.
+  - Falls, weirs, bank bumps, the boom at Vaterland and getting out (slow beside a bank) work as before; old best times are kept (they are easier to beat now).
+- **Why:** the user asked (Norwegian): "Gjør det mulig å padle fortere i kajakk." (Make it possible to paddle faster in the kayak.)
+- **Where:** `game-kayak.js` (`Boat.step` takes `sprint`; thrust, turn, stroke rate; `update` reads R2 / Shift, paddle animation, splash sound; `hud`; the start notice), `index.html` (the Kayak line in the pause screen), `tests/grunerlokka.test.cjs` (one new test), `docs/HANDOFF.md`.
+- **Status:** PR #156; live once merged. Node tests pass. Not checked in the browser (the user's instruction: build and deploy, he says if something does not work). Nothing new is sent online.
+
+### 2026-11-23 · Walk between the tram's sections (issue #142)
+- **What:**
+  - On a tram, bus or metro train you can now stand up and walk. Move the left stick / WASD (after letting go of the stick you walked in with) and you stand in the aisle beside your seat; walk with the left stick, look with the right stick / mouse. You move with the vehicle, so you can walk from the front of the tram to the back while it drives, also in curves.
+  - The joints between the sections are open gangways: the end walls have a 1.4–1.6 m wide opening, and between two sections there is a floor and bellows (dark grey, inside and outside) that bend with the vehicle in a curve.
+  - The same for the articulated buses (the joint between the two parts) and the metro: inside each three-car MX3000 set you walk through all three cars; between the two coupled sets there is no way through (as in real life). A 12 m bus has no joint; you can walk in it too.
+  - You cannot walk through seats, out through the walls, into the driver's cab or through the wall beside a gangway opening; a little off the middle you are steered into the opening.
+  - □ / E by a free seat sits you down; □ / E when the doors open at a stop gets you off through the door nearest to where you are (at an open door that wins over a seat). The HUD says what □ does.
+  - Other players see you standing where you are in the vehicle, in the right section, facing where you look.
+- **Why:** the user asked: "Make it possible to walk between wagons on the tram". **Cause:** a rider was always fixed to a seat (mode `transit` put the camera at the seat, the left stick did nothing), and every section's end was a closed dark wall with an empty gap and no floor to the next section. So there was nothing to walk on, and nothing open to walk through.
+- **Where:** `transit-models.js` (pure walk plan: `walkPlan`, `locate`, `walkable`, `walkMove`, `pointAt`, `secPoint`, `seatU`; `KINDS` get `pass`, `cab` and the metro's `closed: [2]`; open end walls with a gangway opening; the per-vehicle gangway mesh `setJoints(secs)`), `game-transit.js` (standing and walking in `updateRide`, sit down / get off from where you stand, the HUD hint, `localState` / `pose` for standing riders, `setJoints` every frame), `game-main.js` (others see you standing, not sitting), `index.html` (controls), `tests/transit.test.cjs` (two new tests).
+- **Status:** PR #154; live once merged. 312 Node tests pass. Not checked in the browser (the user's instruction: build and deploy, he says if something does not work).
+### 2026-11-23 · Bridges over roads, railways and water (issue #139)
+- **What was wrong:** only Akerselva had bridge decks. Every other bridge was laid on the ground, and the height data (Kartverket) has no bridges, only the ground under them. So a road that goes over another road or a railway went down to it and met it at the same height (Storo, Sinsenkrysset, Østre Aker vei, Ulven, Kværner, Nylandsveien and more), the junction smoothing even bent the two into each other, and where the height data had filled the gap the railway under a bridge ran over a hump through it (Trondheimsveien at Sinsen).
+- **What:**
+  - Every bridge in the map is now listed with what passes under it (`bridges-data.js`, 415 bridge ways from OpenStreetMap).
+  - Car streets on a bridge (122 ways in the old square and every district patch) are a deck of their own: at least 4.7 m over a road or railway, 2.6 m over a path, 1.8 m over a river; the street rises to it smoothly (at most 5 %, up to 12 % where there is no room), the streets it meets at its ends rise with it, and it joins the street at both ends.
+  - The deck has asphalt, pavements a kerb higher, concrete parapets, a solid underside and piers where it is high. The road, railway or stream under it keeps its own level, in a cutting where the height data had a hump.
+  - You walk and drive on it and under it; vehicles pick the level by their own height (as in Construction City's garage); trams and buses heading along a bridge run on its deck; parked cars are not put on or under a deck.
+  - Akerselva's bridges keep their kayak decks. Short street bridges over Hovinbekken (the brook is not drawn) stay on the ground. Foot and cycle bridges and railway bridges are not changed yet.
+- **Why:** the user's issue #139 ("Fix bridges over rivers and crossing other roads"): every bridge should be a real bridge.
+- **Where:** `tools/make-bridges.py` → `bridges-data.js` (new), `road-surface.js` (bridges marked on the streets, the rise to each deck, trenches under it, streets split into ground and decks, the ground held under the decks), `road-bridges.js` (new: the decks' meshes, floors and solids, `groundAt`, `alongAt`, `over`), `surroundings.js` (`world.bridges`), `game-main.js` (ground by height, walk and vehicle worlds, transit, parked cars), `game-transit.js` (heading to the ground query), `index.html` (two scripts), `tools/road-roughness.cjs` (loads like the game), `tests/bridges.test.cjs` (new), `docs/HANDOFF.md`.
+- **Checked:** `node --test`; a few screenshots in the browser (Storo, Sinsenkrysset, Trondheimsveien over the railway, Østre Aker vei) and a scripted car driven onto and over two decks (it follows the deck within 3 cm); draw calls and triangles at home are the same as before (3547 / 2.50 M vs 3596 / 2.51 M). Not played online.
+- **Not perfect (listed in the test):** a few short bridges whose crossing is next to an end where the street is at ground level have less room (Hasleveien, St. Halvards gate, Peter Møllers vei, Turbinveien, Fagerlia, Dronning Eufemias gate); in the big interchanges (Storo, Sinsenkrysset, Kværner, Bjørvika, Bryn, Ulven) some deck ends have a corner that does not join or a steep last metres.
+- **Status:** branch `fix/bridges`, PR #155 (https://github.com/jonatsl/haarklous-online/pull/155), not merged yet.
 
 ### 2026-11-23 · Oslo politihus, the glattceller, Oslo fengsel and police cars (issue #140)
 - **What:**
@@ -147,7 +186,7 @@ Live site: runs `main` (Worker version d2c8f0f7, deployed 23 Nov 2026 after PR #
 - **Other players:** are already drawn at the height they send (their feet), so they show on the right floor; nothing changed there.
 - **Galleriet:** in the game it is a 10 m top-rope wall in the hall on the ground floor, reached as before.
 - **Checked:** `node --test` (303 pass). The flood fill reached a standing spot in front of every lane of all 25 walls (hall and all four floors), and walking back from the training room reaches the street. Not checked in the browser (the user asked to skip browser tests for this run).
-- **Status:** branch `fix/gym-floors`, PR #138 (https://github.com/jonatsl/haarklous-online/pull/138), merged.
+- **Status:** PR #138 (https://github.com/jonatsl/haarklous-online/pull/138), merged and deployed 23 Nov 2026 (Worker version 3766909d), live.
 
 ### 2026-11-23 · Passenger in a car: a smooth ride (issue #135)
 - **What:**

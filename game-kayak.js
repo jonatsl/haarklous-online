@@ -5,7 +5,7 @@
  * bridges, put-ins and the take-out.
  * Pure (Node-tested):
  *   GameKayak.river(data) -> {length, n, at(t), locate(x, s, hint), flow(t), level(t), fallAt(t)}  (t = metres downstream)
- *   new GameKayak.Boat(river) -> place(t, side), step(dt, {fwd, turn}) -> events [{kind: 'bump' | 'fall' | 'finish', …}]
+ *   new GameKayak.Boat(river) -> place(t, side), step(dt, {fwd, turn, sprint}) -> events [{kind: 'bump' | 'fall' | 'finish', …}]
  * Browser:
  *   GameKayak.prepare(districts, D) lowers the ground along the river bed (before Surroundings.create builds it), then sinks
  *     the grid corners that still hold the drawn ground above the water (sinkGrid, issue #63), in the old 4 m grid and the 8 m
@@ -14,7 +14,8 @@
  *   GameKayak.create({T, lib, data, world, audio, districts}) -> {group, obstacles, groundAt(x, z), racks, prompt(player),
  *     farWater (the ribbon in the far pass, over its own sunk ground),
  *     start(i), update(dt, input, camera) -> {exit?, notice?}, exitPoint(), hud(), remoteBoat(), riverModel, boat, active}
- * Controls (the user's wish): left stick ↑ / W paddle forward, ↓ / S back-paddle, ←→ / A D turn. R3 / V outside view.
+ * Controls (the user's wish): left stick ↑ / W paddle forward, ↓ / S back-paddle, ←→ / A D turn, hold R2 / Shift to sprint
+ * (issue #146). R3 / V outside view.
  * □ / E gets out on the nearer bank when slow.
  */
 (function (root, factory) {
@@ -61,7 +62,7 @@
 
   // ---------- The boat: paddling on the moving water (local frame, heading h: direction (sin h, cos h)) ----------
   class Boat {
-    constructor(R) {this.R = R;this.x = 0;this.s = 0;this.h = 0;this.u = 0;this.v = 0;this.r = 0;this.k = null;this.t = 0;this.n = 0;this.stroke = 0;this.inFall = null;this.done = false;}
+    constructor(R) {this.R = R;this.x = 0;this.s = 0;this.h = 0;this.u = 0;this.v = 0;this.r = 0;this.k = null;this.t = 0;this.n = 0;this.stroke = 0;this.inFall = null;this.done = false;this.sprint = false;}
     place(t, side = 0) {
       const c = this.R.at(t), off = clamp(side, -c.wl + HULL + .2, c.wr - HULL - .2);
       this.x = c.x - c.ds * off;this.s = c.s + c.dx * off;this.h = Math.atan2(c.dx, c.ds);this.u = this.v = this.r = 0;this.k = c.k;this.t = t;this.n = off;this.inFall = null;this.done = false;
@@ -69,17 +70,22 @@
     }
     // Speed over the ground (m/s), the boat's own speed through the water, and the current there.
     get ground() {const c = this.R.at(this.t), w = this.R.flow(this.t), fx = Math.sin(this.h), fs = Math.cos(this.h);return {x: c.dx * w + fx * this.u - fs * this.v, s: c.ds * w + fs * this.u + fx * this.v};}
-    step(dt, {fwd = 0, turn = 0} = {}) {
+    step(dt, {fwd = 0, turn = 0, sprint = false} = {}) {
       const ev = [], R = this.R;
-      // Paddling: forward up to about 3 m/s through the water (a sprinting touring kayak), backward up to 1.2 m/s.
-      if (fwd > .05) this.u += 1.8 * fwd * dt * clamp(1 - this.u / 3.1, 0, 1.4);
+      // Paddling (issue #146): cruising about 2.5 m/s through the water (9 km/h, 25 % faster than before), sprinting (R2 /
+      // Shift while paddling forward) about 4.2 m/s (15 km/h, twice the old top speed); backward up to 1.2 m/s.
+      // Thrust A·fwd·(1 − u/M) against the drag below: cruise A 2.2, M 4.3; sprint A 3.6, M 11.4.
+      this.sprint = !!sprint && fwd > .05;
+      if (fwd > .05) this.u += (this.sprint ? 3.6 : 2.2) * fwd * dt * clamp(1 - this.u / (this.sprint ? 11.4 : 4.3), 0, 1.4);
       else if (fwd < -.05) this.u += 1.3 * fwd * dt * clamp(1 + this.u / 1.2, 0, 1.6);
       this.u -= (.12 * this.u + .1 * this.u * Math.abs(this.u)) * dt;
       this.v *= Math.exp(-2.6 * dt);
       // Turning: stick right = turn right (clockwise seen from above, so h falls); a sweep stroke turns faster when moving slowly.
-      const want = -turn * (1.25 + .25 * clamp(1 - Math.abs(this.u) / 2, 0, 1));
-      this.r += (want - this.r) * Math.min(1, dt * 4);
-      if (Math.abs(fwd) > .05 || Math.abs(turn) > .05) this.stroke += dt * (2.2 + Math.abs(fwd) * 1.4);
+      // Above cruising speed a little more turn, and a quicker answer, so a sprinting boat does not run wide into the banks.
+      const fast = clamp((Math.abs(this.u) - 2.5) / 1.7, 0, 1);
+      const want = -turn * (1.25 + .25 * clamp(1 - Math.abs(this.u) / 2, 0, 1) + .25 * fast);
+      this.r += (want - this.r) * Math.min(1, dt * (4 + 2 * fast));
+      if (Math.abs(fwd) > .05 || Math.abs(turn) > .05) this.stroke += dt * (2.2 + Math.abs(fwd) * 1.4 + (this.sprint ? 1.8 : 0));
       // The current pushes, and in fast water it slowly swings the bow downstream.
       let c = R.at(this.t);const w = R.flow(this.t), flowH = Math.atan2(c.dx, c.ds);
       let dh = flowH - this.h;dh = Math.atan2(Math.sin(dh), Math.cos(dh));
@@ -536,7 +542,7 @@
     function start(i) {
       const r = racks[i];boat.place(r.t + 3, r.side * 1.2);active = true;view = 0;run = {from: r.name.replace(/ \(.*\)/, ''), key: String(i), t0: 0, time: 0};kayak.visible = true;
       if (audio && audio.sfx) audio.sfx('splash', {gain: .5});
-      return `Kayak: left stick ↑ / W paddle · ↓ / S back-paddle · ←→ / A D turn · R3 / V view · □ get out on a bank when slow. ${r.km.toFixed(1)} km to Vaterland.`;
+      return `Kayak: left stick ↑ / W paddle · R2 / Shift: sprint · ↓ / S back-paddle · ←→ / A D turn · R3 / V view · □ get out on a bank when slow. ${r.km.toFixed(1)} km to Vaterland.`;
     }
     function stop() {active = false;kayak.visible = false;run = null;pose = null;if (audio && audio.water) audio.water(0);}
     // Where to stand after getting out: on the nearer bank, 2.5 m beyond the water.
@@ -551,7 +557,8 @@
       const out = {};
       run.time += dt;
       const fwd = clamp(-(input.move.y || 0), -1, 1), turn = clamp(input.move.x || 0, -1, 1);
-      for (const e of boat.step(dt, {fwd, turn})) {
+      const sprint = (input.r2 || 0) > .3 || !!(input.held && input.held.l3);// R2, or Shift (mapped to L3 like running on foot)
+      for (const e of boat.step(dt, {fwd, turn, sprint})) {
         if (e.kind === 'bump' && audio && audio.sfx) audio.sfx('thud', {gain: Math.min(1, e.speed / 2)});
         if (e.kind === 'fall') {shake = Math.min(1.2, .3 + e.drop / 8);if (audio && audio.sfx) audio.sfx('splash', {gain: Math.min(1, .4 + e.drop / 10)});out.notice = e.drop > 4 ? `Waterfall! ${e.drop.toFixed(0)} m down` : 'White water!';}
         if (e.kind === 'finish') {
@@ -569,8 +576,8 @@
       const w = toW(boat.x, boat.s), y = yOf(R.level(boat.t)) + .02 + Math.sin(performance.now() / 700) * .02, yaw = worldYaw();
       kayak.position.set(w.x, y, w.z);kayak.rotation.order = 'YXZ';kayak.rotation.set(-boat.pitch, yaw, boat.roll);
       // Paddle: alternate strokes while paddling, held across the deck when resting.
-      const ph = boat.stroke * Math.PI, k = Math.abs(fwd) > .05 || Math.abs(turn) > .05 ? 1 : 0;
-      paddle.rotation.set(0, Math.sin(ph) * .55 * k * Math.sign(fwd || 1), Math.cos(ph) * .5 * k + (1 - k) * .05);
+      const ph = boat.stroke * Math.PI, k = Math.abs(fwd) > .05 || Math.abs(turn) > .05 ? 1 : 0, big = boat.sprint ? 1.2 : 1;// sprint: longer, faster strokes
+      paddle.rotation.set(0, Math.sin(ph) * .55 * big * k * Math.sign(fwd || 1), Math.cos(ph) * .5 * big * k + (1 - k) * .05);
       paddle.position.set(Math.sin(ph) * .05 * k, .52 - Math.abs(Math.cos(ph)) * .08 * k, -.3);
       kayak.updateMatrixWorld(true);
       // Camera: in the cockpit (first person), or behind and above (R3 / V).
@@ -585,14 +592,14 @@
       if (camera.fov !== 72) {camera.fov = 72;camera.updateProjectionMatrix();}
       // Rushing water: louder in falls and fast water.
       if (audio && audio.water) audio.water(clamp((R.flow(boat.t) - .6) / 3, .08, 1));
-      splashT -= dt;if (k && splashT <= 0 && audio && audio.sfx) {splashT = .55 / (1 + Math.abs(fwd));audio.sfx('paddle', {gain: .35 + Math.abs(fwd) * .3});}
+      splashT -= dt;if (k && splashT <= 0 && audio && audio.sfx) {splashT = .55 / (1 + Math.abs(fwd)) / (boat.sprint ? 1.5 : 1);audio.sfx('paddle', {gain: Math.min(1, .35 + Math.abs(fwd) * .3 + (boat.sprint ? .25 : 0))});}
       out.pos = pose = {x: w.x, y, z: w.z, yaw};
       return out;
     }
     function hud() {
       if (!active) return '';
       const g = boat.ground, left = Math.max(0, (data.finish ? data.finish.t : R.length) - boat.t);
-      return `Kayak · ${(Math.hypot(g.x, g.s) * 3.6).toFixed(1)} km/h · ${left > 950 ? (left / 1000).toFixed(1) + ' km' : Math.round(left) + ' m'} to Vaterland · ${fmt(run ? run.time : 0)}${best[run && run.key] ? ` · best ${fmt(best[run.key])}` : ''}${canExit() ? ' · □ get out' : ''}`;
+      return `Kayak${boat.sprint ? ' · SPRINT' : ''} · ${(Math.hypot(g.x, g.s) * 3.6).toFixed(1)} km/h · ${left > 950 ? (left / 1000).toFixed(1) + ' km' : Math.round(left) + ' m'} to Vaterland · ${fmt(run ? run.time : 0)}${best[run && run.key] ? ` · best ${fmt(best[run.key])}` : ''}${canExit() ? ' · □ get out' : boat.sprint ? '' : ' · R2 / Shift sprint'}`;
     }
     // A tick for the water's flow animation (always, so the river moves when you walk past).
     function tick(dt) {tex.offset.y -= dt * .1;ripples.offset.y -= dt * .12;foamTex.offset.y -= dt * .6;}

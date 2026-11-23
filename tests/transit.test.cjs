@@ -140,3 +140,51 @@ test('vehicle models: seats and doors in every kind', () => {
     assert.ok(Math.abs(TM.KINDS[k].length - {tram: 35.4, bus: 12, artic: 18.1, metro: 108.45}[k]) < .2, k + ' length ' + TM.KINDS[k].length);
   }
 });
+
+// Walking through the vehicles (issue #142): the sections posed like game-transit's sectionsAt, on a straight line or a curve.
+function fakeSections(kind, R) {
+  const K = TM.KINDS[kind], P = d => R ? {x: R - R * Math.cos(d / R), z: R * Math.sin(d / R)} : {x: 0, z: d}, out = [];
+  let head = K.length / 2;
+  for (const S of K.sections) {
+    const c = head - S.len / 2, F = P(c + S.len / 2 - .9), B = P(c - S.len / 2 + .9), dx = F.x - B.x, dz = F.z - B.z, L = Math.hypot(dx, dz);
+    out.push({x: (F.x + B.x) / 2, y: 0, z: (F.z + B.z) / 2, yaw: Math.atan2(dx, dz), pitch: 0, len: S.len, fx: dx / L, fz: dz / L});
+    head -= S.len + K.gap;
+  }
+  return out;
+}
+test('walking inside: the whole tram, the articulated bus and each metro set from end to end, not between the metro sets', () => {
+  const walk = (kind, from, to) => {const pos = {u: from, x: 0};for (let i = 0; i < 4000 && Math.abs(pos.u - to) > .01; i++) TM.walkMove(kind, pos, Math.sign(to - pos.u) * Math.min(.04, Math.abs(to - pos.u)), 0);return pos.u;};
+  for (const kind of ['tram', 'artic', 'bus']) {
+    const P = TM.walkPlan(kind);
+    assert.ok(Math.abs(walk(kind, P.u0, P.u1) - P.u1) < .02, kind + ' front to back');
+    assert.ok(Math.abs(walk(kind, P.u1, P.u0) - P.u0) < .02, kind + ' back to front');
+  }
+  const M = TM.walkPlan('metro'), setEnd = M.starts[3] - TM.KINDS.metro.gap;// the back of car 3 of 6
+  const got = walk('metro', M.u0, M.u1);assert.ok(got < setEnd && got > setEnd - .5, 'metro: stops at the end of the first set ' + got);
+  assert.ok(Math.abs(walk('metro', M.u0, setEnd - .4) - (setEnd - .4)) < .02, 'metro: through the first set');
+  assert.ok(Math.abs(walk('metro', M.starts[3] + 1, M.u1) - M.u1) < .02, 'metro: through the second set');
+  assert.ok(walk('metro', M.starts[3] + 1, M.u0) > M.starts[3], 'metro: not back into the first set');
+  // not through the seats, the side walls or a gangway's portal beside the opening
+  for (const kind of ['tram', 'metro']) {
+    for (const s of TM.seats(kind)) assert.ok(!TM.walkable(kind, TM.seatU(kind, s), s.x), kind + ' seat');
+    assert.ok(!TM.walkable(kind, 10, TM.KINDS[kind].width / 2), kind + ' wall');
+  }
+  const T = TM.walkPlan('tram'), j0 = T.starts[1] - TM.KINDS.tram.gap / 2;
+  assert.ok(TM.walkable('tram', j0, 0) && !TM.walkable('tram', j0, 1.0), 'tram joint: the opening only');
+  // a little off the middle you are steered into the opening instead of stuck at the portal
+  const pos = {u: j0 - .5, x: .7};for (let i = 0; i < 200; i++) TM.walkMove('tram', pos, .03, 0);
+  assert.ok(pos.u > j0 + 1, 'steered through the gangway ' + JSON.stringify(pos));
+});
+test('walking inside: the floor follows the bent tram in a curve, with no jump at the joints', () => {
+  for (const R of [0, 25, -18]) {
+    const secs = fakeSections('tram', R), P = TM.walkPlan('tram');let last = null;
+    for (let u = P.u0; u <= P.u1; u += .05) {
+      for (const x of [-.5, 0, .5]) {
+        const p = TM.pointAt('tram', secs, u, x, .35, {});
+        assert.ok(Number.isFinite(p.x) && Math.abs(p.y - .35) < 1e-9, 'finite, on the floor');
+        if (R) {const r = Math.hypot(p.x - R, p.z);assert.ok(Math.abs(r - Math.abs(R)) < 1.2, `R ${R} u ${u.toFixed(2)}: ${r.toFixed(2)} from the curve's centre`);}
+        if (x === 0) {if (last) assert.ok(Math.hypot(p.x - last.x, p.z - last.z) < .08, `R ${R} u ${u.toFixed(2)}: a step of ${Math.hypot(p.x - last.x, p.z - last.z).toFixed(3)}`);last = p;}
+      }
+    }
+  }
+});

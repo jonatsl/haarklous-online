@@ -29,14 +29,16 @@ function load() {
   if (cached) return cached;
   global.window = globalThis;
   require(path.join(ROOT, 'surroundings-data.js'));
-  for (const f of ['gamle-oslo-data.js', 'myrens-data.js', 'loren-data.js', 'okern-data.js']) require(path.join(ROOT, f));
+  for (const f of ['gamle-oslo-data.js', 'myrens-data.js', 'loren-data.js', 'okern-data.js', 'mollergata-data.js', 'bridges-data.js', 'akerselva-data.js']) require(path.join(ROOT, f));
   const District = require(path.join(ROOT, 'district.js')), RS = require(path.join(ROOT, 'road-surface.js')), CT = require(path.join(ROOT, 'city-textures.js'));
   const D = window.SURROUNDINGS, districts = window.DISTRICTS.map(d => District.decode(d));
   const b = Buffer.from(D.terrain.dm, 'base64'), raw = new Int16Array(b.buffer, b.byteOffset, b.length / 2), h = new Float32Array(raw.length);for (let i = 0; i < raw.length; i++) h[i] = raw[i] / 10;
   const W = RS.world({square: {h, n: D.terrain.n, half: D.terrain.half, step: D.terrain.step, roads: D.roads}, districts, DZ: District});
   const t0 = Date.now();
-  const surface = RS.create({...W, slabsAt: (x, s) => ['lokka', 'toyen', 'gronland', 'kampen', 'bjorvika'].includes(CT.zoneAt(x, s))});
-  cached = {D, districts, District, RS, W, surface, natural: W.natural, ms: Date.now() - t0};
+  // (the same as surroundings.js: every patch, and the bridges as decks, issue #139)
+  const bridges = RS.bridgesOf(window.BRIDGES, {kayak: window.AKERSELVA});
+  const surface = RS.create({...W, bridges, slabsAt: (x, s) => ['lokka', 'toyen', 'gronland', 'kampen', 'bjorvika'].includes(CT.zoneAt(x, s))});
+  cached = {D, districts, District, RS, W, surface, bridges, natural: W.natural, ms: Date.now() - t0};
   return cached;
 }
 const patchOf = (L, x, s) => {if (Math.abs(x) <= 800 && Math.abs(s) <= 800) return 'square';const d = L.districts.find(q => L.District.covers(q, x, s));return d ? d.name : null;};
