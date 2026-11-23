@@ -627,7 +627,7 @@
     ...(rentals ? rentals.poi() : []),
     ...(prophunt ? prophunt.poi() : []),
   ]});
-  if (transit) {map.overlay = transit.overlay;transit.legend(view);}// the lines, stops and metro stations (issue #111)
+  if (transit) {map.overlay = transit.overlay;map.snap = transit.snap;transit.legend(view);}// the lines, stops and metro stations (issue #111); a waypoint on a station goes to its entrance (issue #143)
   // Wristwatch (D-pad ↑) shares the first-person overlay with the photo camera.
   const watch = window.GameWatch.create({T, lib});overlayScene.add(watch.model);
   // Paintball course, lobby and games (the rules' view of the game; online the others' states come from the lobby).

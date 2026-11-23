@@ -13,8 +13,10 @@
  *   group, floors, obstacles, poi(), cutsGround(x, z), tick(dt, {camera, player}), prompt(player) -> {text, act} | null,
  *   ride (null or the ride), updateRide(dt, input, camera, dl), leave(), localState(), pose(r, st, g) (other players aboard),
  *   footprints() (the vehicles near you, for the walk and vehicle worlds), panel {open, input(input), close()},
- *   overlay(g, {P, k, d, big}) (map), deep (camera underground in a station or tunnel), keepClear(x, z, halfWidth) -> {x, z} | null,
- *   timetable: the decoded lines (test handle) }
+ *   overlay(g, {P, k, d, big}) (map), snap(x, s, r) (map waypoint -> a station's entrance), deep (camera underground in a station or
+ *   tunnel), keepClear(x, z, halfWidth) -> {x, z} | null, timetable: the decoded lines (test handle) }
+ * Pure (Node-tested, issue #143): settle(planned, ground), walkParts({sp, L}, {W, dirW, terrain}), oldSquare(x, s),
+ *   snapStation(stations, x, s, r), stationMark(S).
  */
 (function (root, factory) {
   const api = factory();
@@ -25,6 +27,7 @@
   const TICKET = 46, TICKET_MIN = 60;// Ruter's single ticket for zone 1 (adult, 2026), valid 60 minutes
   const KR = v => `${v} kr`;
   const esc = t => String(t).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'})[c]);
+  const T_BLUE = '#1d56a5';// the T-bane sign's blue (issue #143)
   const kindOf = line => line.mode === 'bus' ? (line.artic ? 'artic' : 'bus') : line.mode;
   const MODE_NAME = {tram: 'Tram', bus: 'Bus', metro: 'Metro'};
   const hhmm = (ms, TT) => {const d = new Date(ms + TT.osloOffset(ms));return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;};
@@ -51,14 +54,61 @@
     const inRing = (x, s, r) => {let o = false;for (let i = 0, j = r.length - 1; i < r.length; j = i++) {const a = r[i], b = r[j];if ((a[1] > s) !== (b[1] > s) && x < (b[0] - a[0]) * (s - a[1]) / (b[1] - a[1]) + a[0]) o = !o;}return o;};
     return (x, s) => (grid.get(Math.floor(x / C) + ',' + Math.floor(s / C)) || []).some(q => x >= q.bb[0] && x <= q.bb[2] && s >= q.bb[1] && s <= q.bb[3] && inRing(x, s, q.ring));
   }
+  // The old square's terrain (surroundings.js squareTerrain) cannot have a stair cut into it, only the district patches can:
+  // an entrance the game places itself keeps out of it (Løren, issue #143).
+  const oldSquare = (x, s) => {const h = (window.Surroundings && window.Surroundings.PLAY_HALF || 760) + 2;return Math.abs(x) < h && Math.abs(s) < h;};
   function plan(data, ground, built) {
     const TT = window.TransitTimetable, TS = window.TransitStations, N = TT.decode(data);
     return stationStops(TT, N).filter(q => q.stops.length).map(({st, stops}) => {
       const layer = Math.min(0, ...st.platforms.map(p => p.layer || 0));
-      const sp = TS.spec(st, stops, {ground, layer});
-      return {sp, L: TS.layout(sp, ground, built)};
+      const sp = TS.spec(st, stops, {ground, layer, built});
+      return {sp, L: TS.layout(sp, ground, built, {avoid: oldSquare})};
     });
   }
+  // prepare() plans with the patches' raw terrain; the street you walk on is the road surface (issue #112), up to 4 m higher (Carl
+  // Berners plass). An underground station is laid out again on the game's ground with the same entrance and stair direction, so the
+  // hole cut in prepare() stays right and the pavilion stands on the street, not under it (issue #143).
+  function settle(item, ground) {
+    const TS = window.TransitStations, {sp, L} = item;
+    if (!sp.underground || !L.kiosk) return item;
+    return {sp, L: TS.layout(sp, ground, () => false, {fix: {E: L.kiosk.E, d: L.kiosk.dir}})};
+  }
+  // The walk geometry of a laid-out station in the game's frame: W(x, s) -> {x, z} and dirW(hx, hs) map local to world, terrain(x, z) is
+  // the walked ground (pure: the Node walk test builds the same world).
+  function walkParts({sp, L}, {W, dirW, terrain}) {
+    const floors = [], obstacles = [], cuts = [];
+    const wPts = pts => pts.map(([x, s]) => W(x, s));
+    for (const f of L.floors) {
+      const points = wPts(f.points), out = {points, name: f.name, surfaceKind: 'stone'};
+      if (f.slope) {const o = W(...f.slope.o), d = dirW(...f.slope.dir), g = f.slope.g;out.y = f.slope.y;out.slope = {x: -d.x * g, z: -d.z * g, origin: o};}
+      else if (f.height === 'threshold') {const o = W(...f.o), d = dirW(...f.dir), y = f.y;out.height = p => {const t = Math.max(0, Math.min(1, ((p.x - o.x) * d.x + (p.z - o.z) * d.z) / .8));return terrain(p.x, p.z) * (1 - t) + y * t;};}
+      else if (f.ramp) {const r = f.ramp, c = W(...sp.c), a = dirW(...sp.a);out.height = p => {const u = (p.x - c.x) * a.x + (p.z - c.z) * a.z, t = Math.max(0, Math.min(1, (u - r.u0) / (r.u1 - r.u0)));return Math.max(r.y0 + (r.y1 - r.y0) * t, terrain(p.x, p.z));};}
+      else if (f.raised) {const y = f.y;out.height = p => Math.max(y, terrain(p.x, p.z));}
+      else out.y = f.y;
+      floors.push(out);
+    }
+    for (const o of L.obstacles) obstacles.push({points: wPts(o.points), minY: o.minY, maxY: o.maxY, kind: o.kind});
+    for (const c of L.cuts) cuts.push(wPts(c));
+    // the pavilion's walls and roof posts stop cars too
+    if (L.kiosk) {
+      const k = L.kiosk, at = (t, w) => W(k.E[0] + k.dir[0] * t - k.dir[1] * w, k.E[1] + k.dir[1] * t + k.dir[0] * w);
+      for (const w of [-k.hw - .45, k.hw + .45]) obstacles.push({points: thinW(at(.2, w), at(k.K, w), .12), minY: k.top - 1, maxY: k.top + 3.2, kind: 'station'});
+    }
+    return {floors, obstacles, cuts};
+  }
+  // Where a station's T goes on the map: an underground one's entrance on the street (local [x, s]); an open one's platforms.
+  const stationMark = S => S.L.kiosk ? S.L.kiosk.E : S.sp.c;
+  // map.snap (issue #143): a waypoint put on a station's T (within r m, at least 6) or over its hall goes to the T (local metres).
+  function snapStation(stations, x, s, r) {
+    let best = null, bd = Infinity;
+    for (const S of stations) {
+      const m = stationMark(S), sp = S.sp, h = S.L.hall, u = (x - sp.c[0]) * sp.a[0] + (s - sp.c[1]) * sp.a[1], v = (x - sp.c[0]) * sp.n[0] + (s - sp.c[1]) * sp.n[1];
+      const dm = Math.hypot(x - m[0], s - m[1]), over = h && Math.abs(u) < window.TransitStations.HALL / 2 && v > h.hv0 - 2 && v < h.hv1 + 2;
+      if ((dm < Math.max(r, 6) || over) && dm < bd) {bd = dm;best = {x: m[0], s: m[1]};}
+    }
+    return best;
+  }
+  function thinW(a, b, t) {const dx = b.x - a.x, dz = b.z - a.z, L = Math.hypot(dx, dz) || 1, nx = -dz / L * t, nz = dx / L * t;return [{x: a.x - nx, z: a.z - nz}, {x: b.x - nx, z: b.z - nz}, {x: b.x + nx, z: b.z + nz}, {x: a.x + nx, z: a.z + nz}];}
   function prepare(districts, data, heightOf, groundY) {
     if (!data || !window.TransitStations) return null;
     const patchOf = (x, s) => districts.find(d => x >= d.x0 && x <= d.x1 && s >= d.s0 && s <= d.s1);
@@ -88,33 +138,18 @@
     // Sinsen is in the old square); they cut no ground, so this changes nothing that was built before.
     const groundL = (x, s) => {const p = W(x, s);return terrain(p.x, p.z);};
     const SS = stationStops(TT, N);
-    const stations = PLAN.map(({sp, L}) => {
+    const stations = PLAN.map(item => {
+      let {sp, L} = settle(item, groundL);
       if (!sp.underground) {const q = SS.find(o => o.st.name === sp.name);if (q) {sp = TS.spec(q.st, q.stops, {ground: groundL, layer: 0});L = TS.layout(sp, groundL);}}
       return {sp, L, place: N.places.find(p => p.name === sp.name && p.metro), built: null};
     });
     const floors = [], obstacles = [], cutPolys = [];
-    const wPts = pts => pts.map(([x, s]) => W(x, s));
     for (const S of stations) {
-      const {sp, L} = S;
-      for (const f of L.floors) {
-        const points = wPts(f.points), out = {points, name: f.name, surfaceKind: 'stone'};
-        if (f.slope) {const o = W(...f.slope.o), d = dirW(...f.slope.dir), g = f.slope.g;out.y = f.slope.y;out.slope = {x: -d.x * g, z: -d.z * g, origin: o};}
-        else if (f.height === 'threshold') {const o = W(...f.o), d = dirW(...f.dir), y = f.y;out.height = p => {const t = Math.max(0, Math.min(1, ((p.x - o.x) * d.x + (p.z - o.z) * d.z) / .8));return terrain(p.x, p.z) * (1 - t) + y * t;};}
-        else if (f.ramp) {const r = f.ramp, c = W(...sp.c), a = dirW(...sp.a);out.height = p => {const u = (p.x - c.x) * a.x + (p.z - c.z) * a.z, t = Math.max(0, Math.min(1, (u - r.u0) / (r.u1 - r.u0)));return Math.max(r.y0 + (r.y1 - r.y0) * t, terrain(p.x, p.z));};}
-        else if (f.raised) {const y = f.y;out.height = p => Math.max(y, terrain(p.x, p.z));}
-        else out.y = f.y;
-        floors.push(out);
-      }
-      for (const o of L.obstacles) obstacles.push({points: wPts(o.points), minY: o.minY, maxY: o.maxY, kind: o.kind});
-      for (const c of L.cuts) cutPolys.push({pts: wPts(c), b: bounds(wPts(c))});
-      // the pavilion's walls and roof posts stop cars too
-      if (L.kiosk) {
-        const k = L.kiosk, at = (t, w) => W(k.E[0] + k.dir[0] * t - k.dir[1] * w, k.E[1] + k.dir[1] * t + k.dir[0] * w);
-        for (const w of [-k.hw - .45, k.hw + .45]) obstacles.push({points: thinW(at(.2, w), at(k.K, w), .12), minY: k.top - 1, maxY: k.top + 3.2, kind: 'station'});
-      }
+      const parts = walkParts(S, {W, dirW, terrain});
+      floors.push(...parts.floors);obstacles.push(...parts.obstacles);
+      for (const c of parts.cuts) cutPolys.push({pts: c, b: bounds(c)});
     }
     function bounds(p) {return {x0: Math.min(...p.map(q => q.x)), x1: Math.max(...p.map(q => q.x)), z0: Math.min(...p.map(q => q.z)), z1: Math.max(...p.map(q => q.z))};}
-    function thinW(a, b, t) {const dx = b.x - a.x, dz = b.z - a.z, L = Math.hypot(dx, dz) || 1, nx = -dz / L * t, nz = dx / L * t;return [{x: a.x - nx, z: a.z - nz}, {x: b.x - nx, z: b.z - nz}, {x: b.x + nx, z: b.z + nz}, {x: a.x + nx, z: a.z + nz}];}
     const inPoly = (x, z, pts) => {let r = false;for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {const a = pts[i], b = pts[j];if ((a.z > z) !== (b.z > z) && x < (b.x - a.x) * (z - a.z) / (b.z - a.z) + a.x) r = !r;}return r;};
     const cutsGround = (x, z) => cutPolys.some(c => x >= c.b.x0 && x <= c.b.x1 && z >= c.b.z0 && z <= c.b.z1 && inPoly(x, z, c.pts));
     // ---------- Metro heights along the track (rail level) ----------
@@ -444,7 +479,7 @@
           }
           quad(Pw(u0, v0, y1), Pw(u1, v0, y1), Pw(u1, v1, y1), Pw(u0, v1, y1), 0x4a4f55, 1);
           for (const v of [v0 + 2, (v0 + v1) / 2, v1 - 2]) boxUV(u0 + 2, u1 - 2, v - .15, v + .15, y1 - .1, y1 - .05, 0xfff8e6, 'b');
-          const open = sp.tracks.map(t => [t - 2.4, t + 2.4]).sort((p, q) => p[0] - q[0]).reduce((a, iv) => {const l = a[a.length - 1];if (l && iv[0] <= l[1]) l[1] = Math.max(l[1], iv[1]);else a.push([...iv]);return a;}, []);
+          const open = TS.trackList(sp).map(t => [t - 2.4, t + 2.4]).sort((p, q) => p[0] - q[0]).reduce((a, iv) => {const l = a[a.length - 1];if (l && iv[0] <= l[1]) l[1] = Math.max(l[1], iv[1]);else a.push([...iv]);return a;}, []);
           const top = sp.rail + 4.9;
           for (const u of [u0, u1]) {
             quad(Pw(u, v0, top), Pw(u, v1, top), Pw(u, v1, y1), Pw(u, v0, y1), 0x8d969e, .8);
@@ -466,16 +501,21 @@
           quad(at(0, -b.hw, b.top), at(b.land, -b.hw, b.top), at(b.land, b.hw, b.top), at(0, b.hw, b.top), 0x9a9ea2);
           // side walls and the ceiling of the stairwell (from the pavilion's back wall down to the foot)
           const end = b.tB + 3.6;
-          for (const w of [-b.hw - .1, b.hw + .1]) for (let i = 0; i < 12; i++) {const t0 = end * i / 12, t1 = end * (i + 1) / 12, f = t => Math.max(b.my, b.top - Math.max(0, t - b.land) * (b.top - b.my) / b.len);quad(at(t0, w, f(t0) - .1), at(t1, w, f(t1) - .1), at(t1, w, f(t1) + 2.9), at(t0, w, f(t0) + 2.9), 0xd2d5d8, .9);}
+          for (const w of [-b.hw - .1, b.hw + .1]) for (let i = 0; i < 12; i++) {const t0 = b.tB * i / 12, t1 = b.tB * (i + 1) / 12, f = t => Math.max(b.my, b.top - Math.max(0, t - b.land) * (b.top - b.my) / b.len);quad(at(t0, w, f(t0) - .1), at(t1, w, f(t1) - .1), at(t1, w, f(t1) + 2.9), at(t0, w, f(t0) + 2.9), 0xd2d5d8, .9);}
+          // the stair foot: walls round it except where the corridor leaves (issue #143: no wall across the way on)
+          const ex = b.exit || b.dir, ahead = ex[0] * b.dir[0] + ex[1] * b.dir[1] > .7, lat = ex[0] * -b.dir[1] + ex[1] * b.dir[0];
+          for (const sg of [-1, 1]) if (ahead || Math.abs(lat) < .5 || Math.sign(lat) !== sg) {const w = sg * (b.hw + .4);quad(at(b.tB, w, b.my - .1), at(end, w, b.my - .1), at(end, w, b.my + 2.9), at(b.tB, w, b.my + 2.9), 0xd2d5d8, .9);}
+          for (const sg of [-1, 1]) quad(at(b.tB, sg * (b.hw + .1), b.my + 2.75), at(end, sg * (b.hw + .1), b.my + 2.75), at(end, sg * (b.hw + .4), b.my + 2.75), at(b.tB, sg * (b.hw + .4), b.my + 2.75), 0x5a5f65);
+          for (const sg of [-1, 1]) quad(at(b.tB, sg * (b.hw + .1), b.my + 2.75), at(b.tB, sg * (b.hw + .4), b.my + 2.75), at(b.tB, sg * (b.hw + .4), b.my - .1), at(b.tB, sg * (b.hw + .1), b.my - .1), 0xd2d5d8, .85);
           for (let i = 0; i < 12; i++) {const t0 = Math.max(b.K, end * i / 12), t1 = Math.max(b.K, end * (i + 1) / 12);if (t1 <= t0) continue;const f = t => Math.max(b.my, b.top - Math.max(0, t - b.land) * (b.top - b.my) / b.len) + 2.75;quad(at(t0, -b.hw - .1, f(t0)), at(t1, -b.hw - .1, f(t1)), at(t1, b.hw + .1, f(t1)), at(t0, b.hw + .1, f(t0)), 0x5a5f65);}
-          quad(at(end, -b.hw - .1, b.my - .1), at(end, b.hw + .1, b.my - .1), at(end, b.hw + .1, b.my + 2.9), at(end, -b.hw - .1, b.my + 2.9), 0xd2d5d8, .9);
+          if (!ahead) quad(at(end, -b.hw - .4, b.my - .1), at(end, b.hw + .4, b.my - .1), at(end, b.hw + .4, b.my + 2.9), at(end, -b.hw - .4, b.my + 2.9), 0xd2d5d8, .9);
           quad(at(b.tB, -b.hw - .4, b.my), at(end, -b.hw - .4, b.my), at(end, b.hw + .4, b.my), at(b.tB, b.hw + .4, b.my), 0x9a9ea2);
         } else if (b.kind === 'corridor') {
           const [p0, p1, p2, p3] = b.pts.map(([x, s]) => W(x, s)), Y = b.y, H = b.h;
           const v = (p, y) => [p.x, y, p.z];
           quad(v(p0, Y), v(p1, Y), v(p2, Y), v(p3, Y), 0x9a9ea2);quad(v(p0, Y + H), v(p1, Y + H), v(p2, Y + H), v(p3, Y + H), 0x5a5f65);
           quad(v(p0, Y), v(p1, Y), v(p1, Y + H), v(p0, Y + H), 0xd2d5d8, .9);quad(v(p3, Y), v(p2, Y), v(p2, Y + H), v(p3, Y + H), 0xd2d5d8, .9);
-          quad(v(p0, Y), v(p3, Y), v(p3, Y + H), v(p0, Y + H), 0xd2d5d8, .8);
+          if (!b.open) quad(v(p0, Y), v(p3, Y), v(p3, Y + H), v(p0, Y + H), 0xd2d5d8, .8);// (the first leg starts open, in the stair foot)
           const m0 = {x: (p0.x + p3.x) / 2, z: (p0.z + p3.z) / 2}, m1 = {x: (p1.x + p2.x) / 2, z: (p1.z + p2.z) / 2}, dx = m1.x - m0.x, dz = m1.z - m0.z, Lc = Math.hypot(dx, dz) || 1;
           for (const w of [0]) {const a = {x: m0.x - dz / Lc * .2, z: m0.z + dx / Lc * .2}, bb = {x: m0.x + dz / Lc * .2, z: m0.z - dx / Lc * .2};quad(v(a, Y + H - .03), v({x: a.x + dx, z: a.z + dz}, Y + H - .03), v({x: bb.x + dx, z: bb.z + dz}, Y + H - .03), v(bb, Y + H - .03), 0xfff8e6);}
         } else if (b.kind === 'canopy') {
@@ -519,10 +559,9 @@
         part(bx, models.stopMat.roof, w + .4, .22, k.K + .4, 0, 3.2, 0);
         for (const s of [-1, 1]) {part(bx, models.stopMat.glass, .03, 3.05, k.K, s * w / 2, 1.55, 0);part(bx, models.stopMat.metal, .1, 3.1, .1, s * w / 2, 1.55, k.K / 2);part(bx, models.stopMat.metal, .1, 3.1, .1, s * w / 2, 1.55, -k.K / 2);}
         part(bx, models.stopMat.glass, w, 3.05, .03, 0, 1.55, k.K / 2 - .05);
-        // the sign: a white T on Ruter's metro orange, on a post by the door
-        part(new T.CylinderGeometry(.05, .05, 1, 8), models.stopMat.metal, 1, 3.6, 1, w / 2 + .5, 1.8, -k.K / 2);
-        const tm = tSign();for (const r of [0, Math.PI]) {const s = new T.Mesh(new T.CircleGeometry(.42, 32), tm);s.position.set(w / 2 + .5, 3.55, -k.K / 2 + (r ? -.03 : .03));s.rotation.y = r;pv.add(s);}
+        // over the door: the name; on the roof's front edge a T on each side (the tall mast by the door is built from afar, below)
         const nm = new T.Mesh(new T.PlaneGeometry(w, .5), nameMat(sp.name, true));nm.position.set(0, 2.78, -k.K / 2 - .02);nm.rotation.y = Math.PI;pv.add(nm);
+        const tm = tSign();for (const s of [-1, 1]) {const t = new T.Mesh(new T.CircleGeometry(.36, 32), tm);t.position.set(s * (w / 2 + .2 + .01), 3.2, -k.K / 2 + .6);t.rotation.y = s * Math.PI / 2;pv.add(t);}
         grp.add(pv);S.pavilion = pv;
       }
       return grp;
@@ -532,15 +571,40 @@
       const key = name + (dark ? '|d' : '');if (nameMats.has(key)) return nameMats.get(key);
       const c = document.createElement('canvas');c.width = 1024;c.height = 154;const g = c.getContext('2d');
       g.fillStyle = dark ? '#1b1f24' : '#f4f4f2';g.fillRect(0, 0, 1024, 154);
-      g.fillStyle = '#ec700c';g.beginPath();g.arc(80, 77, 56, 0, 7);g.fill();g.fillStyle = '#fff';g.font = 'bold 80px Arial, sans-serif';g.textAlign = 'center';g.textBaseline = 'middle';g.fillText('T', 80, 82);
+      g.fillStyle = T_BLUE;g.beginPath();g.arc(80, 77, 56, 0, 7);g.fill();g.fillStyle = '#fff';g.font = 'bold 80px Arial, sans-serif';g.textAlign = 'center';g.textBaseline = 'middle';g.fillText('T', 80, 82);
       g.fillStyle = dark ? '#fff' : '#16181a';g.textAlign = 'left';let size = 84;g.font = `bold ${size}px Arial, sans-serif`;while (g.measureText(name).width > 840 && size > 30) {size -= 4;g.font = `bold ${size}px Arial, sans-serif`;}g.fillText(name, 160, 82);
       const tex = new T.CanvasTexture(c);tex.colorSpace = T.SRGBColorSpace;tex.anisotropy = 4;const m = new T.MeshBasicMaterial({map: tex, side: T.DoubleSide, toneMapped: false});nameMats.set(key, m);return m;
     }
     let tMat = null;
     function tSign() {
       if (tMat) return tMat;const c = document.createElement('canvas');c.width = c.height = 128;const g = c.getContext('2d');
-      g.fillStyle = '#ec700c';g.beginPath();g.arc(64, 64, 62, 0, 7);g.fill();g.fillStyle = '#fff';g.font = 'bold 96px Arial, sans-serif';g.textAlign = 'center';g.textBaseline = 'middle';g.fillText('T', 64, 70);
-      const tex = new T.CanvasTexture(c);tex.colorSpace = T.SRGBColorSpace;return tMat = new T.MeshBasicMaterial({map: tex, toneMapped: false});
+      g.fillStyle = T_BLUE;g.beginPath();g.arc(64, 64, 62, 0, 7);g.fill();g.strokeStyle = '#fff';g.lineWidth = 5;g.beginPath();g.arc(64, 64, 52, 0, 7);g.stroke();
+      g.fillStyle = '#fff';g.font = 'bold 84px Arial, sans-serif';g.textAlign = 'center';g.textBaseline = 'middle';g.fillText('T', 64, 70);
+      const tex = new T.CanvasTexture(c);tex.colorSpace = T.SRGBColorSpace;return tMat = new T.MeshBasicMaterial({map: tex, toneMapped: false, transparent: true, alphaTest: .5});
+    }
+    // ---------- The entrances' sign masts (issue #143) ----------
+    // Built at the start for every underground station, so an entrance is seen from far off: a 6.4 m pole by the door with a lit
+    // cube at the top (the T on all four sides, Oslo's blue T-bane sign) and the station's name under it, facing the street.
+    // One merged mesh for the poles and cubes, one per name board; nothing per frame.
+    const beacons = new T.Group();beacons.name = 'Metro entrance masts';
+    {
+      let cubeMat = null;
+      for (const S of stations) {
+        const k = S.L.kiosk;if (!k || !k.mast) continue;
+        const p = W(...k.mast.p), d = dirW(...k.dir), yaw = Math.atan2(d.x, d.z), y0 = k.top, h = k.mast.h;
+        const pole = new T.Mesh(new T.CylinderGeometry(.09, .11, h + 1, 10), models.stopMat.metal);pole.position.set(p.x, y0 - 1 + (h + 1) / 2, p.z);beacons.add(pole);
+        if (!cubeMat) {
+          const c = document.createElement('canvas');c.width = c.height = 256;const g = c.getContext('2d');g.fillStyle = '#f4f6f8';g.fillRect(0, 0, 256, 256);
+          g.fillStyle = T_BLUE;g.beginPath();g.arc(128, 128, 112, 0, 7);g.fill();g.fillStyle = '#fff';g.font = 'bold 170px Arial, sans-serif';g.textAlign = 'center';g.textBaseline = 'middle';g.fillText('T', 128, 140);
+          const tex = new T.CanvasTexture(c);tex.colorSpace = T.SRGBColorSpace;tex.anisotropy = 4;
+          const side = new T.MeshBasicMaterial({map: tex, toneMapped: false}), cap = new T.MeshBasicMaterial({color: 0xf4f6f8, toneMapped: false});
+          cubeMat = [side, side, cap, cap, side, side];
+        }
+        const cube = new T.Mesh(new T.BoxGeometry(1.6, 1.6, 1.6), cubeMat);cube.position.set(p.x, y0 + h - .8, p.z);cube.rotation.y = yaw;beacons.add(cube);
+        const dark = models.stopMat.dark, nm = nameMat(S.sp.name, true);
+        const board = new T.Mesh(new T.BoxGeometry(3.0, .46, .08), [dark, dark, dark, dark, nm, nm]);board.position.set(p.x, y0 + h - 1.95, p.z);board.rotation.y = yaw;beacons.add(board);
+      }
+      if (beacons.children.length) {ctx.lib.mergeStatic(beacons);group.add(beacons);}
     }
     let stationT = 0;
     function updateStations(dt, camera) {
@@ -580,7 +644,7 @@
       for (let q = 0; q < a.length; q += 2) {
         const d = a[q], k = a[q + 1];
         // skip the part inside a station hall
-        if (stations.some(S => S.sp.underground && Math.abs((d.X[k] - S.sp.c[0]) * S.sp.a[0] + (d.S[k] - S.sp.c[1]) * S.sp.a[1]) < TS.HALL / 2 - .5 && Math.abs((d.X[k] - S.sp.c[0]) * S.sp.n[0] + (d.S[k] - S.sp.c[1]) * S.sp.n[1]) < 12)) continue;
+        if (stations.some(S => S.sp.underground && Math.abs((d.X[k] - S.sp.c[0]) * S.sp.a[0] + (d.S[k] - S.sp.c[1]) * S.sp.a[1]) < TS.HALL / 2 - .5 && (v => S.L.hall ? v > S.L.hall.hv0 - 1 && v < S.L.hall.hv1 + 1 : Math.abs(v) < 12)((d.X[k] - S.sp.c[0]) * S.sp.n[0] + (d.S[k] - S.sp.c[1]) * S.sp.n[1]))) continue;// (Tøyen's hall is 41 m wide)
         const p0 = W(d.X[k], d.S[k]), p1 = W(d.X[k + 1], d.S[k + 1]), y0 = metroY(d)[k], y1 = metroY(d)[k + 1];
         const dx = p1.x - p0.x, dz = p1.z - p0.z, L = Math.hypot(dx, dz) || 1, rx = dz / L, rz = -dx / L;
         for (let i = 0; i + 1 < shape.length; i++) {
@@ -805,7 +869,7 @@
         return `<div class="row${i === panel.sel ? ' sel' : ''}"><span class="tl" style="background:${d.line.colour}">${d.line.ref}</span><span><span class="to">${esc(d.to)}</span><span class="side"> · ${d.line.night ? 'night bus' : MODE_NAME[d.line.mode].toLowerCase()}</span>${side}</span><span class="times">${tt}</span></div>${stops}`;
       }).join('');
       const mode = panel.station ? 'T-bane' : (panel.pole && panel.pole.tram ? 'Trikk' : 'Buss');
-      panelEl.innerHTML = `<h2><i style="background:${panel.station ? '#ec700c' : panel.pole && panel.pole.tram ? '#1f5fb4' : '#e60000'}">${panel.station ? 'T' : mode === 'Trikk' ? 'TR' : 'B'}</i>${esc(place.name)}</h2><div class="sub">${mode} · departures from ${hhmm(ms, TT)} (Oslo time) · ticket ${KR(TICKET)}, valid ${TICKET_MIN} min${ms < ticketUntil ? ` – yours until ${hhmm(ticketUntil, TT)}` : ''}</div>${rows || '<div class="row">No lines stop here.</div>'}<div class="hint">↑ ↓ / stick: pick a line to see its stops · ○ / C or □ / E: close · the map (touchpad / M) shows every line and stop</div>`;
+      panelEl.innerHTML = `<h2><i style="background:${panel.station ? T_BLUE : panel.pole && panel.pole.tram ? '#1f5fb4' : '#e60000'}">${panel.station ? 'T' : mode === 'Trikk' ? 'TR' : 'B'}</i>${esc(place.name)}</h2><div class="sub">${mode} · departures from ${hhmm(ms, TT)} (Oslo time) · ticket ${KR(TICKET)}, valid ${TICKET_MIN} min${ms < ticketUntil ? ` – yours until ${hhmm(ticketUntil, TT)}` : ''}</div>${rows || '<div class="row">No lines stop here.</div>'}<div class="hint">↑ ↓ / stick: pick a line to see its stops · ○ / C or □ / E: close · the map (touchpad / M) shows every line and stop</div>`;
       panelEl.hidden = false;
     }
     panel.input = input => {
@@ -868,14 +932,17 @@
         g.fillStyle = '#fff';g.strokeStyle = tram ? '#1f5fb4' : '#d5121b';g.lineWidth = 1.6 * d;g.beginPath();g.arc(u, v, r, 0, 7);g.fill();g.stroke();
         if (showNames) {g.font = `600 ${10.5 * d}px system-ui`;g.lineWidth = 3 * d;g.strokeStyle = '#fff';g.strokeText(pl.name, u, v - 10 * d);g.fillStyle = '#123';g.fillText(pl.name, u, v - 10 * d);}
       }
+      // A station under the ground: its hall as a faint outline, the T where you go down (the entrance, issue #143).
       for (const S of stations) {
-        const [u, v] = P(...S.sp.c), r = (big ? 8 : 5.5) * d;g.fillStyle = '#ec700c';g.beginPath();g.arc(u, v, r, 0, 7);g.fill();g.strokeStyle = '#fff';g.lineWidth = 1.5 * d;g.stroke();
+        const sp = S.sp, h = S.L.hall;
+        if (h && big) {g.strokeStyle = T_BLUE;g.globalAlpha = .45;g.lineWidth = 1.2 * d;g.setLineDash([4 * d, 3 * d]);g.beginPath();TS.rect(sp, -TS.HALL / 2, TS.HALL / 2, h.hv0, h.hv1).forEach((q, i) => {const [u, v] = P(q[0], q[1]);i ? g.lineTo(u, v) : g.moveTo(u, v);});g.closePath();g.stroke();g.setLineDash([]);g.globalAlpha = 1;}
+        const at = stationMark(S), [u, v] = P(at[0], at[1]), r = (big ? 8 : 5.5) * d;g.fillStyle = T_BLUE;g.beginPath();g.arc(u, v, r, 0, 7);g.fill();g.strokeStyle = '#fff';g.lineWidth = 1.5 * d;g.stroke();
         g.fillStyle = '#fff';g.font = `bold ${(big ? 10 : 7.5) * d}px system-ui`;g.fillText('T', u, v + .5 * d);
-        if (big) {g.font = `bold ${11 * d}px system-ui`;g.lineWidth = 3 * d;g.strokeStyle = '#fff';g.strokeText(S.sp.name, u, v - r - 7 * d);g.fillStyle = '#7a3a00';g.fillText(S.sp.name, u, v - r - 7 * d);}
-        if (S.L.kiosk && big && k / d > 1.6) {const [eu, ev] = P(...S.L.kiosk.E);g.fillStyle = '#ec700c';g.fillRect(eu - 3 * d, ev - 3 * d, 6 * d, 6 * d);}
+        if (big) {g.font = `bold ${11 * d}px system-ui`;g.lineWidth = 3 * d;g.strokeStyle = '#fff';g.strokeText(sp.name, u, v - r - 7 * d);g.fillStyle = '#0d2f63';g.fillText(sp.name, u, v - r - 7 * d);}
       }
       g.restore();
     }
+    const snap = (x, s, r) => snapStation(stations, x, s, r);
     // A line in the big map's legend.
     function legend(root) {
       const box = root.querySelector('.map-legend');if (!box || box.querySelector('.transit-legend')) return;
@@ -886,10 +953,18 @@
     // ---------- Parked vehicles out of the lanes ----------
     // A parked vehicle (by its world spot and half width) that stands in a bus or tram lane is moved sideways out of it, or
     // null if it is clear. The caller checks the new spot (and keeps the vehicle's number).
+    const doorZones = stations.filter(S => S.L.kiosk).map(S => {const k = S.L.kiosk;return {x: k.E[0] - k.dir[0] * 2.2, s: k.E[1] - k.dir[1] * 2.2, r: 2.8, d: k.dir};});
     function keepClear(x, z, half, margin = .35) {
       // -> null (clear) or the spots to try, best first: out to its own side of the lane, then to the other side, then further.
       // Clear = the vehicle's half width + margin away from the bus's (1.28 m) or tram's (1.33 m) swept half width.
-      const l = toLocal(x, z), n = nearestLane(l.x, l.s, 8);if (!n) return null;
+      const l = toLocal(x, z);
+      // In front of a metro entrance's door (issue #143): out of the way, straight away from it.
+      for (const e of doorZones) {
+        const dx = l.x - e.x, ds = l.s - e.s, D = Math.hypot(dx, ds), need = e.r + half;if (D >= need) continue;
+        const ux = D > .01 ? dx / D : -e.d[0], us = D > .01 ? ds / D : -e.d[1];
+        return [W(e.x + ux * (need + .3), e.s + us * (need + .3)), W(e.x + ux * (need + 1.5), e.s + us * (need + 1.5))];
+      }
+      const n = nearestLane(l.x, l.s, 8);if (!n) return null;
       const need = (n.tram ? 1.33 : 1.28) + half + margin;
       if (Math.abs(n.off) >= need) return null;
       const sg = n.off >= 0 ? 1 : -1, out = [];
@@ -946,10 +1021,10 @@
     }
     const poi = () => [];
     const api = {showTunnels: false,// test handle: draw the tunnels round the camera wherever it is
-      group, floors, obstacles, cutsGround, poi, tick, prompt, panel, updateRide, overlay, legend, keepClear, pushOut, localState, pose, footprints: () => solids,
+      group, floors, obstacles, cutsGround, poi, tick, prompt, panel, updateRide, overlay, snap, legend, keepClear, pushOut, localState, pose, footprints: () => solids,
       get ride() {return ride;}, get deep() {return deep;}, get ticketUntil() {return ticketUntil;}, set ticketUntil(v) {ticketUntil = v;},
       leave: () => exitRide(), timetable: N, stations, portals, poles, active, sectionsAt, metroY, hud, inWorld, TICKET};
     return api;
   }
-  return {create, prepare, TICKET, TICKET_MIN, kindOf};
+  return {create, prepare, settle, walkParts, oldSquare, snapStation, stationMark, TICKET, TICKET_MIN, kindOf};
 });
