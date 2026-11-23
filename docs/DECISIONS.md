@@ -11,6 +11,7 @@ Live game: https://haarklous-online.server-smoke.workers.dev · Source: https://
 In pull requests (not merged yet):
 
 On `main`:
+- Grey Volvo V70s (issue #149, PR #PRNUM; live once merged): about 750 of the parked estate cars are now grey, dark grey or silver Volvo V70s (the 2000–2007 model), all over the city like in Oslo, one by Haarklous plass; drive them like the other cars.
 - Paddle faster (issue #146, PR #156; live once merged): the kayak cruises about 25 % faster, and holding R2 / Shift while paddling forward sprints at about twice the old top speed (about 15 km/h through the water), with quicker strokes, louder splashes and SPRINT on the HUD; it still turns well at sprint speed.
 - Real bridges where car streets cross over roads, railways and water (issue #139, PR #155): a deck of their own with room under it, ramps up to it, parapets and piers; walk and drive on it or under it (Storo, Sinsenkrysset, Trondheimsveien over the railway, Østre Aker vei, Ulven, Kværner, Nylandsveien and the rest).
 - Walk through the tram, the bus and the metro (issue #142, PR #154; live once merged): on board, move the left stick / WASD to stand up and walk the whole length of the tram while it drives – through open gangways with a floor and bellows between the sections, also in curves; the same in the articulated buses and inside each three-car metro set; □ by a free seat sits you down, □ when the doors open gets you off through the nearest door; others online see you standing where you are.
@@ -73,6 +74,17 @@ On `main`:
 Live site: runs `main` (Worker version 3766909d, deployed 23 Nov 2026 after PR #138; `main` builds byte-for-byte to the live page), so everything above is online. Account emails (issue #55) wait for the user's Brevo key.
 
 ## Log
+
+### 2026-11-23 · Grey Volvo V70s (issue #149)
+- **What:**
+  - A new parked car: the Volvo V70 estate (the 2000–2007 "P2", 4.71 × 1.80 × 1.49 m), in mid grey, dark grey metallic or silver only (three in four grey).
+  - Its own model, near and far: a long flat roof, a nearly upright tailgate, the tall rear lights running up the D pillars, the shoulder line along the sides, roof rails, and the grille with its diagonal bar and badge.
+  - About 754 of the 7,609 parked vehicles are V70s (60 % of the estate cars in the city, 50 % in Økern / Ulven / Løren / Ensjø; 547 ordinary estates are left). One grey V70 always stands about 31 m from 17A (on Haarklous plass), another dark grey one about 42 m away.
+  - Drive it like the other cars (class B); its name is "grey Volvo V70" (or dark grey / silver) where a car's name is shown.
+  - No other parked vehicle moved or changed, and the number of vehicles is the same, so the vehicle numbers online stay as they were (a V70 stands up to 2 cm nearer the kerb than the estate it replaced).
+- **Why:** the user asked (Norwegian): "Få inn grå Volvo V70er." (Add grey Volvo V70s.) They should be common, like in Oslo.
+- **Where:** `game-parking.js` (type `v70`, the colour dark grey, the V70 colour weights, `V70` share, the pass at the end of `plan`), `game-fleet.js` (`SHAPES.v70` and the V70's parts in `carBody`), `parking-data.js` (made again), `tests/city-cars.test.cjs`, `docs/HANDOFF.md`.
+- **Status:** PR #PRNUM; live once merged. Node tests pass. Not checked in the browser (the user's instruction: build and deploy, he says if something does not work). Nothing new is sent online.
 
 ### 2026-11-23 · Kayak: paddle faster and sprint (issue #146)
 - **What:**

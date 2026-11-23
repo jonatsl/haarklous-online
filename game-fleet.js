@@ -32,6 +32,9 @@
     suv: {r: .37, c: .28, belt: 1.06, nose: .92, tail: 1.1, zA: -.9, zA2: -.25, zC2: 1.78, zC: 2.2, oF: .85, oR: .85, cw: 1.7},
     pickup: {r: .39, c: .32, belt: 1.12, nose: 1.05, tail: 1.12, zA: -1.0, zA2: -.4, zC2: .98, zC: 1.12, oF: .85, oR: 1.15, cw: 1.66, bed: 1.18},
     van: {r: .34, c: .22, belt: 1.06, nose: .98, tail: 1.06, zA: -1.62, zA2: -.95, zC2: 2.5, zC: 2.52, oF: .85, oR: 1.0, cw: 1.89, box: true, zW: -.07},
+    // The grey Volvo V70 (issue #149, the 2000–2007 "P2"): a long flat roof, a nearly upright tailgate, a high shoulder line;
+    // carBody adds what makes it one (the tall rear lights up the D pillars, the grille's diagonal bar, the roof rails).
+    v70: {r: .32, c: .19, belt: .92, nose: .74, tail: .95, zA: -1.0, zA2: -.3, zC2: 2.08, zC: 2.22, oF: .88, oR: 1.07, cw: 1.6, v70: true},
     lorry: {r: .5, c: .5, belt: 1.55, nose: 1.5, tail: 1.5, zA: -3.98, zA2: -3.72, zC2: -2.08, zC: -2.02, oF: 1.1, oR: 1.5, cw: 2.36, lorry: true}
   };
   SHAPES.taxi = {...SHAPES.estate, sign: true};
@@ -88,6 +91,7 @@
         b.box(L, s.belt - .12, W, 0, (s.belt + .12) / 2, 0, 0, 1);
         if (s.box) {b.box(hl - s.zA, H - s.belt, s.cw, 0, (H + s.belt) / 2, (s.zA + hl) / 2, 0, 1);b.box(s.cw * .9, (H - s.belt) * .7, .05, 0, s.belt + (H - s.belt) * .45, s.zA - .02, C.glass, 0);}
         else b.box(s.zC - s.zA, H - s.belt, s.cw, 0, (H + s.belt) / 2, (s.zA + s.zC) / 2, C.glass, 0);
+        if (s.v70) for (const side of [-1, 1]) b.box(.16, s.belt - .52, .05, side * (W / 2 - .1), (s.belt + .4) / 2, L / 2 + .015, C.red, 0);// the tall rear lights
         return;
       }
       const zR = s.lorry ? s.zC : s.bed ? s.zC : Math.max(s.zA + .9, 1.45 + s.zA + .75);// where the boot starts (behind the rear seat)
@@ -136,10 +140,22 @@
       else b.box(W - .2, .12, .12, 0, .75, hl + .05, C.trim, 0);// the lorry's rear underrun bar
       for (const side of [-1, 1]) {
         b.box(.34, .1, .06, side * (W / 2 - .3), s.lorry ? 1.05 : s.nose - .1, -hl - .03, C.light, 0);
-        b.box(.3, .12, .06, side * (W / 2 - .26), s.lorry ? .95 : (s.bed ? s.belt - .4 : s.tail) - .14, s.lorry ? hl + .1 : hl + .03, C.red, 0);
+        if (!s.v70) b.box(.3, .12, .06, side * (W / 2 - .26), s.lorry ? .95 : (s.bed ? s.belt - .4 : s.tail) - .14, s.lorry ? hl + .1 : hl + .03, C.red, 0);
         b.box(.12, .1, .18, side * (W / 2 + .07), s.belt + .1, s.zA + .12, 0, 1);
       }
       b.box(.52, .12, .02, 0, bf, -hl - .075, C.plate, 0);b.box(.52, .12, .02, 0, s.lorry ? .75 : s.c + .2, hl + (s.lorry ? .13 : .075), C.plate, 0);
+      if (s.v70) {// the Volvo V70's own parts (issue #149)
+        const c = Math.atan2(s.zC2 - s.zC, top - s.belt), cl = Math.hypot(s.zC - s.zC2, top - s.belt), n = .12;// the D pillar's tilt and length; n: off its rear face
+        for (const side of [-1, 1]) {
+          b.box(.16, s.belt - .54, .06, side * (W / 2 - .1), (s.belt + .54) / 2, hl + .035, C.red, 0);// the tall rear light beside the tailgate …
+          b.box(.12, cl * .78, .05, side * (s.cw / 2 - .015), (top + s.belt) / 2 - cl * .1 * Math.cos(c) - n * Math.sin(c), (s.zC + s.zC2) / 2 - cl * .1 * Math.sin(c) + n * Math.cos(c), C.red, 0, c);// … running up the D pillar
+          b.box(.03, .05, hl * 2 - .55, side * (W / 2 + .005), s.belt - .1, .05, 0, 1);// the shoulder line
+          b.box(.04, .04, s.zC2 - s.zA2 - .1, side * (s.cw / 2 - .12), top + .03, (s.zA2 + s.zC2) / 2, C.trim, 0);// roof rails
+        }
+        b.box(.62, .14, .04, 0, s.nose - .14, -hl - .035, C.trim, 0);// the grille …
+        b.add(new T.BoxGeometry(.64, .018, .02), C.chrome, 0, b.at(0, s.nose - .14, -hl - .062, 0, 0, Math.atan2(.12, .6)));// … its diagonal bar
+        b.box(.07, .07, .02, 0, s.nose - .14, -hl - .07, C.chrome, 0);// and the badge on it
+      }
     }
     function twoWheeler(type, b, far) {
       const t = TYPES[type], hl = t.L / 2;

@@ -44,18 +44,23 @@
     lorry: {L: 8.20, W: 2.50, H: 3.40, kind: 'lorry', name: 'lorry', drive: true},
     motorcycle: {L: 2.10, W: .80, H: 1.25, kind: 'motorcycle', name: 'motorcycle', drive: true},
     moped: {L: 1.85, W: .70, H: 1.15, kind: 'moped', name: 'moped', drive: false},
-    bicycle: {L: 1.75, W: .60, H: 1.00, kind: 'bicycle', name: 'bicycle', drive: false}
+    bicycle: {L: 1.75, W: .60, H: 1.00, kind: 'bicycle', name: 'bicycle', drive: false},
+    // (new types go last: the stored plan keeps a type as its place in this list)
+    v70: {L: 4.71, W: 1.80, H: 1.49, kind: 'car', name: 'Volvo V70', drive: true}// the 2000–2007 estate, grey, all over Oslo (issue #149)
   };
   const COLOURS = [['white', 0xe6e8e6], ['black', 0x17191c], ['grey', 0x585d63], ['silver', 0xaab0b6], ['blue', 0x1f3f6e], ['dark blue', 0x1a2536], ['red', 0x9a1d20],
-    ['green', 0x2f5a3d], ['beige', 0xb8aa8c], ['brown', 0x4e3b2d], ['light blue', 0x86abc8], ['yellow', 0xd8ae2c], ['orange', 0xc9661f]];
+    ['green', 0x2f5a3d], ['beige', 0xb8aa8c], ['brown', 0x4e3b2d], ['light blue', 0x86abc8], ['yellow', 0xd8ae2c], ['orange', 0xc9661f], ['dark grey', 0x3d4146]];
   const CW = {// colour weights (Norwegian new cars and what stands in Oslo's streets: mostly white, black and greys)
     car: [24, 18, 17, 12, 9, 5, 6, 3, 2, 2, 1.5, .5, .5], taxi: [25, 50, 25], van: [55, 6, 12, 15, 6, 0, 3, 0, 0, 0, 0, 3],
     lorry: [70, 0, 12, 0, 10, 0, 8], motorcycle: [15, 30, 10, 0, 15, 0, 20, 5, 0, 0, 0, 0, 5], moped: [25, 20, 5, 0, 0, 0, 15, 10, 0, 0, 15, 10],
-    bicycle: [10, 30, 20, 5, 12, 0, 10, 8, 0, 5]
+    bicycle: [10, 30, 20, 5, 12, 0, 10, 8, 0, 5],
+    v70: [0, 0, 45, 25, 0, 0, 0, 0, 0, 0, 0, 0, 0, 30]// greys and silver only: mid grey, silver, dark grey metallic
   };
   // How often each body type parks: the city, and the industrial parts (Økern, Ulven, Løren, Ensjø) with more vans and lorries.
   const MIX = {city: {small: 15, hatch: 21, sedan: 11, estate: 17, suv: 22, van: 8, pickup: 1.4, lorry: .6, taxi: 2},
     industry: {small: 9, hatch: 14, sedan: 8, estate: 15, suv: 18, van: 22, pickup: 6, lorry: 6, taxi: 1}};
+  // Grey Volvo V70s (issue #149): this share of the estate cars becomes one, after the plan is made (so no other vehicle moves).
+  const V70 = {city: .6, industry: .5};
   const industrial = (x, s) => (x > 980 && s < 1700) || (x > 700 && s > 1700 && s < 2700);
   const STREET = {residential: 2, tertiary: 2, unclassified: 1, living_street: 0, secondary: 0, secondary_link: 0, tertiary_link: 0, primary: 0, primary_link: 0};// sides by default
   const DRIVE = ['residential', 'tertiary', 'tertiary_link', 'secondary', 'secondary_link', 'unclassified', 'primary', 'primary_link', 'trunk', 'trunk_link', 'motorway_link', 'living_street', 'service', 'pedestrian'];
@@ -197,7 +202,7 @@
       return L > 0;
     }
 
-    const cars = [], small = [];
+    const cars = [], small = [], kerbShift = new Map();
     const put = (list, c) => {list.push({x: Math.round(c.x * 1000) / 1000, s: Math.round(c.s * 1000) / 1000, heading: Math.round(c.heading * 10000) / 10000, type: c.type, colour: c.colour, where: c.where});addPlaced(c.box);};
     const colourOf = (rnd, type) => pick(rnd, CW[type] || CW.car);
     const mixes = {};for (const [k, m] of Object.entries(MIX)) mixes[k] = {names: Object.keys(m), w: Object.values(m)};
@@ -255,8 +260,9 @@
           const face = oneway ? oneway : side, ang = orient === 2 ? Math.PI / 4 : orient === 3 ? Math.PI / 2 : angled ? Math.PI / 3 : 0;
           const along = ang ? T.W / Math.sin(ang) + (angled ? .25 : .5) : T.L * sc, depth = ang ? T.L * Math.sin(ang) + T.W * Math.cos(ang) : T.W;
           const c = at(t + along / 2), nx = -c.us * side, ns = c.ux * side;// (nx, ns) points from the middle of the road to this kerb
-          const edge = place === 8 ? r.w / 2 + depth : place === 4 ? r.w / 2 + depth / 2 : r.w / 2 - KERB_GAP;// where the vehicle's outer side is
-          let off = edge - depth / 2;if (ang && !angled && place === 0 && r.w / 2 - depth < 2.6) off = r.w / 2 + depth / 2 - .4;// angled bays narrower than the road: in a lay-by
+          const layby = ang && !angled && place === 0 && r.w / 2 - depth < 2.6;// angled bays narrower than the road: in a lay-by
+          const offOf = d => layby ? r.w / 2 + d / 2 - .4 : (place === 8 ? r.w / 2 + d : place === 4 ? r.w / 2 + d / 2 : r.w / 2 - KERB_GAP) - d / 2;// (edge: where the vehicle's outer side is)
+          const off = offOf(depth);
           const x = c.x + nx * off, s = c.s + ns * off;
           // Parallel: nose along the traffic. Angled cars nose in towards the kerb; motorcycles nose out, leaning toward the traffic.
           let fx = c.ux * face, fs = c.us * face;
@@ -266,7 +272,11 @@
           const cand = {x, s, heading, type, colour: colourOf(() => col0, type), where: 'kerb', ri, n: r.n || '', ux: c.ux, us: c.us, inner: off - depth / 2 - .35, box: b};
           // On a bend the car must still be by the kerb: no part of it in the other half of the road.
           let onRoad = true;for (let i = 0; i + 3 < P.length; i += 2) if (Math.abs(i / 2 - c.k) <= 2 && segBox([P[i], P[i + 1], P[i + 2], P[i + 3]], b) < off - depth / 2 - .35) onRoad = false;
-          if (onRoad && free(cand)) {put(type === 'moped' ? small : cars, cand);t += along + gap;}
+          if (onRoad && free(cand)) {
+            put(type === 'moped' ? small : cars, cand);t += along + gap;
+            // An estate that becomes a V70 (below) stands as close to the kerb as its own width gives.
+            if (type === 'estate') {const V = TYPES.v70, d = ang ? V.L * Math.sin(ang) + V.W * Math.cos(ang) : V.W, m = offOf(d) - off;kerbShift.set(cars.length - 1, [x + nx * m, s + ns * m]);}
+          }
           else t += 1.5;
         }
       }
@@ -316,6 +326,20 @@
         const x = x0 + ux * t * (type === 'moped' ? 1.4 : 1), s = s0 + us * t * (type === 'moped' ? 1.4 : 1), c = {x, s, heading, type, colour: colourOf(() => col, type), where: 'rack', box: box(x, s, heading, T.L, T.W)};
         if (free(c)) put(small, c);
       }
+    }
+    // ---------- Grey Volvo V70s (issue #149) ----------
+    // Chosen from the estates once every place is set, with their own random numbers: the V70 is a little shorter and
+    // narrower than the estate whose place it takes (it moves 2 cm to the kerb), so no other vehicle changes. The estate nearest to
+    // Haarklous plass 17A is always one (grey).
+    {
+      const rnd = rng(seed * 149 + 70);let home = -1, hd = Infinity;
+      const toV70 = (i, colour) => {const c = cars[i];if (c.type === 'estate') {const m = kerbShift.get(i);if (m) {c.x = Math.round(m[0] * 1000) / 1000;c.s = Math.round(m[1] * 1000) / 1000;}}c.type = 'v70';c.colour = colour;};
+      cars.forEach((c, i) => {
+        if (c.type !== 'estate') return;
+        const v = rnd() < V70[industrial(c.x, c.s) ? 'industry' : 'city'], col = rnd();if (v) toV70(i, colourOf(() => col, 'v70'));
+        const d = Math.hypot(c.x, c.s);if (d < hd) {hd = d;home = i;}
+      });
+      if (home >= 0) toV70(home, 2);
     }
     return {cars, small};
   }
