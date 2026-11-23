@@ -11,6 +11,7 @@ Live game: https://haarklous-online.server-smoke.workers.dev · Source: https://
 In pull requests (not merged yet): none.
 
 On `main`:
+- Kerbs are a small bump, not a jump (issue #169, PR #PRN; live once merged): driving up or down a kerb, onto a pavement or over a road edge gives one short bump with a thump you hear, the nose tips up first and then the rear, and the view dips a little; the car stays on the ground at any speed; motorcycles, bicycles and e-scooters feel it a bit more but never fly; real jumps over crests and ramps stay.
 - Metro stations you can find and walk into (issue #143, PR #164 (https://github.com/jonatsl/haarklous-online/pull/164); live once merged): every underground station (Jernbanetorget, Grønland, Tøyen, Helsfyr, Løren, Carl Berners plass) has an entrance on the street with a 7 m mast carrying a lit blue T cube and the station's name, seen from far off; the stairs go down to the platforms and back up with no invisible walls; on the map and minimap the T is at the entrance, and a waypoint put on a station leads to its entrance.
 - Politihuset can be entered (issue #158, PR #163; live once merged): the glass doors of Oslo politihus open by themselves as you walk up from the lane behind the low front buildings on Grønlandsleiret; a lit POLITI pylon on the footway at each of the two gaps shows the way, and the POLITI sign over the door is brighter. The way into Oslo fengsel (the two gates, the yard, wing A and its cells) works too.
 - Disc golf together online (issue #148, PR #161; live once merged): players in the same lobby play a round together at Muselunden and in Torshovdalen – □ at a tee joins their round, you see their discs fly and lie in their colour, a shared scorecard shows everyone's throws per hole and the total against par and who is away (throws next, nobody waits); join or leave at any time; 100 kr for winning a round against others; alone it plays as before.
@@ -80,6 +81,15 @@ Live site: runs `main` (Worker version 3766909d, deployed 23 Nov 2026 after PR #
 
 ## Log
 
+### 2026-11-23 · Kerbs are a small bump, not a jump (issue #169)
+- **What:**
+  - A kerb (12 cm), the 4 cm road edge or any other small step up to 35 cm is taken by the car's suspension: the body rises over about a tenth of a second, front first and then the rear, with a short thump (louder at speed) and a small dip of the view in first person.
+  - The car never leaves the ground on a kerb: at most about 1 cm of hop at 90 km/h, and it rests on the pavement half a second after the rear wheels are up. Going down a kerb is a small dip.
+  - The same for vans, lorries, police cars, taxis and parked cars you drive; motorcycles, bicycles and e-scooters feel it about a third more, still without flying.
+  - Crests and ramps taken fast still lift the car off the ground as before; flat streets drive exactly as before.
+- **Why:** the user: "fix this when I drive and hit the curb. The car bounces and jumps very much. It shouldn't be super smooth, but it shouldn't jump. It should be just a small, like a small bump." **Cause:** the car's height came from the ground under its front and rear. When the front point crossed the 12 cm kerb face, the ground under the car rose 6 cm in one frame, and the code took that as the ground moving up at 6 cm per frame (3.6 m/s at 60 fps) and gave the car that upward speed: it flew about 60 cm up at 60 fps (16 cm at 30 fps) at any speed, landed, and did it again for the rear.
+- **Where:** `game-vehicles.js` (`Vehicle.settle`, `stepBetween`, `STEP_MAX`, `BUMP`, `bumpFeel` on the motorcycle), `game-rentals.js` (`bumpFeel` on bicycles and e-scooters), `tests/kerb-bump.test.cjs`.
+- **Status:** PR #PRN; live once merged. Not checked by playing (the user's instruction: build and deploy); the built game starts with no errors.
 ### 2026-11-23 · Metro: the underground stations can be found and entered (issue #143)
 - **What was wrong** (found with a Node walk through a world built like the game's, from the street down to each platform; six underground stations have trains: Jernbanetorget, Grønland, Tøyen, Helsfyr, Løren, Carl Berners plass):
   - **Carl Berners plass:** the entrance pavilion stood 4.2 m under the street. The stations were planned on the raw terrain model, but the street you walk on is the road surface, which there is 4–6 m higher (Ring 2's cutting is in the terrain model). You could not see it, and the way in was a 4 m drop.
