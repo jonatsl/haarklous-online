@@ -576,7 +576,7 @@
     function sounds(dt, depth, torchNear) {
       const ctx = audio && audio.context;if (!ctx) return;
       if (!snd) {
-        const out = ctx.createGain();out.gain.value = 0;out.connect(ctx.destination);
+        const out = ctx.createGain();out.gain.value = 0;out.connect(audio.output || ctx.destination);
         const len = ctx.sampleRate * 2, buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);let b = 0;for (let i = 0; i < len; i++) {b = b * .985 + (Math.random() * 2 - 1) * .1;d[i] = b;}
         const hum = ctx.createBufferSource();hum.buffer = buf;hum.loop = true;const lp = ctx.createBiquadFilter();lp.type = 'lowpass';lp.frequency.value = 160;const hg = ctx.createGain();hg.gain.value = .5;hum.connect(lp).connect(hg).connect(out);hum.start();
         const wbuf = ctx.createBuffer(1, len, ctx.sampleRate), w = wbuf.getChannelData(0);for (let i = 0; i < len; i++) w[i] = (Math.random() * 2 - 1) * (Math.random() < .004 ? 1 : .08);
