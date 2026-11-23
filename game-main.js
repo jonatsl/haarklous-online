@@ -60,6 +60,9 @@
   if (CC_DATA) window.GameConstructionCity.prepare(DISTRICTS, CC_DATA);
   // Metro, bus and tram (issue #111): the metro stations' entrances go down through the ground, so their holes are cut first.
   if (window.GameTransit && window.TRANSIT && DISTRICTS.length) window.GameTransit.prepare(DISTRICTS, window.TRANSIT, window.District.height, D.ground);
+  // Oslo politihus and Oslo fengsel (issue #140): the reception and the glattceller, and a cell wing of the prison, are cut into
+  // their real buildings on Grønland; the ground under them goes just below the floor.
+  if (window.GamePolice && DISTRICTS.length) window.GamePolice.prepare(DISTRICTS, window.District);
   const world = window.Surroundings.create({T, lib, data: D, renderer, holes, districts: DISTRICTS, onStatus: t => {const el = $('imageryStatus');if (el) el.textContent = t;}});
   scene.add(world.near);farScene.add(world.far);world.setSun(sunDir);
   const landmarks = window.GameLandmarks ? window.GameLandmarks.create({T, lib, world}) : {obstacles: [], vehicleObstacles: [], floors: [], poi: []};
@@ -83,7 +86,9 @@
     onLeave: (spot, yaw) => {player.mode = 'foot';if (spot) place(spot.x, spot.z, yaw, spot.y);else place(player.x, player.z, player.yaw, player.feet);updateDynamic();}}) : null;
   const golfHooks = {};// filled in below, once the wallet, the menu and the lobby exist
   const mgl = MG_DATA ? window.GameMinigolf.create({T, lib, world, audio, avatars: window.GameAvatars.create({T, lib}), root: view, data: MG_DATA, now: () => golfHooks.now ? golfHooks.now() : Date.now() / 1000, hooks: golfHooks}) : null;
-  const grl = [library, pingpong, rathkes, kayak, cc, transit, mgl].filter(Boolean);grl.forEach(m => {scene.add(m.group);m.group.updateMatrixWorld(true);});
+  // Oslo politihus (reception, officer, glattceller), Oslo fengsel (walls, gates, cell wing A) and the police cars (issue #140).
+  const police = window.GamePolice && DISTRICTS.length ? window.GamePolice.create({T, lib, world, audio, avatars: window.GameAvatars.create({T, lib})}) : null;
+  const grl = [library, pingpong, rathkes, kayak, cc, transit, mgl, police].filter(Boolean);grl.forEach(m => {scene.add(m.group);m.group.updateMatrixWorld(true);});
   let hushed = 0;// seconds the librarian's shush keeps you walking
   const apt = window.GameApartment.build({T, lib, data: window.APARTMENT});scene.add(apt.group);
   // Stair towers: ours (model coordinates) and one in each enterable neighbouring building.
@@ -220,7 +225,7 @@
     }
     return vehicleWorlds.get(key);
   }
-  const doors = [...apt.doors, ...towers.flatMap(t => t.stair.doors), ...(rathkes ? rathkes.doors : [])];
+  const doors = [...apt.doors, ...towers.flatMap(t => t.stair.doors), ...(rathkes ? rathkes.doors : []), ...(police ? police.doors : [])];
   const shootTargets = [];[apt.group, ownStair.group].forEach(g => g.traverse(o => {if (o.isMesh && !(o.material.transparent) && o.visible) shootTargets.push(o);}));
   const interactables = [];[apt.group, ...towers.map(t => t.stair.group)].forEach(g => g.traverse(o => {if (o.isMesh && (o.userData.doorId || o.userData.lockedDoor)) interactables.push(o);}));
   apt.drinks.forEach(d => d.object.traverse(o => {if (o.isMesh) {o.userData.drink = d;interactables.push(o);}}));
@@ -403,6 +408,23 @@
   // The helicopters on the new pads (issue #126), nose a different way on each, after every older vehicle so their numbers stay.
   const helis = HELIPADS.map((p, i) => {const h = new AC.Helicopter(p.x, p.z, (i * 2.4) % (2 * Math.PI));h.pad = p;h.onCrash = heli.onCrash;return h;});
   vehicles.push(...helis);
+  // Police cars (issue #140): six outside Oslo politihus and one near each of seven places round the city, by the kerb, after
+  // every older vehicle so their numbers stay; the same places on every computer (nearest kerb spot that passes the checks).
+  const policeCars = [];
+  if (police) {
+    const st = police.stationAnchor(), anchors = [...(st ? [st] : []), ...police.data.anchors], w = worldFor(1.25);
+    const nearV = vehicles.filter(v => anchors.some(a => {const p = toWorld(a.x, a.s);return Math.hypot(v.x - p.x, v.z - p.z) < a.reach + 12;}));
+    const places = window.GamePolice.spots({roads: [...D.roads, ...PLAN_DISTRICTS.flatMap(d => d.roads)], anchors, keep: st ? [st.door] : [], ok: c => {
+      const p = toWorld(c.x, c.s), h = heightAt(p.x, p.z), yaw = localHeadingToYaw(c.heading), f = {x: -Math.sin(yaw), z: -Math.cos(yaw)};c.at = p;c.yaw = yaw;
+      if (cc && cc.cutsGround(p.x, p.z)) return false;
+      if (transit && transit.keepClear(p.x, p.z, .95, .15)) return false;
+      if (nearV.some(v => Math.hypot(v.x - p.x, v.z - p.z) < 5.6)) return false;
+      if (Math.abs(heightAt(p.x + f.x * 2, p.z + f.z * 2) - heightAt(p.x - f.x * 2, p.z - f.z * 2)) > .6) return false;
+      return [0, 1.6, -1.6].every(k => collision.canStand(w, {x: p.x + f.x * k, z: p.z + f.z * k}, 1.4, h));
+    }});
+    policeCars.push(...police.makeCars(VH, places.map(c => ({x: c.at.x, z: c.at.z, yaw: c.yaw})), {notice: (t, s) => notice(t, s)}));
+    vehicles.push(...policeCars);
+  }
   vehicles.forEach(v => {v.spawn = v.netGet();});
   vehicles.forEach(v => {if (!v.lazy) scene.add(v.group);});// a parked fleet vehicle adds its own when it is built
   vehicles.filter(v => v.kind === 'excavator').forEach(ex => {
@@ -1260,7 +1282,7 @@
     if (player.mode !== 'foot') return null;
     const o = lookTarget();
     {const lp = living && living.prompt(o, player);if (lp) return lp;}
-    for (const m of [library, rathkes]) {const p = m && m.prompt(o);if (p) return {text: p.text, act: () => {const r = p.act();if (r && r.notice) notice(r.notice, 5);if (r && r.sound) audio.sfx(r.sound);if (r && r.doors) r.doors.forEach(id => {const d = doors.find(x => x.id === id);if (d) toggleDoor(d);});}};}
+    for (const m of [library, rathkes, police]) {const p = m && m.prompt(o);if (p) return {text: p.text, act: () => {const r = p.act();if (r && r.notice) notice(r.notice, 5);if (r && r.sound) audio.sfx(r.sound);if (r && r.doors) r.doors.forEach(id => {const d = doors.find(x => x.id === id);if (d) toggleDoor(d);});}};}
     const k = kayak && kayak.prompt(player);if (k) return {text: k.text, act: () => startKayak(k.rack.i)};
     return null;
   }
@@ -1297,6 +1319,7 @@
     if (kayak) kayak.tick(dt);
     if (rathkes) rathkes.tick(camera);
     if (mgl) mgl.tick(dt, camera, player);
+    if (police) police.tick(dt, camera, player);// doors, hatches, the officers, the police cars' blue lights and siren
     for (const r of remoteKayaks) if (!mp.remotes.has(r.id)) {scene.remove(r.kayak);remoteKayaks.delete(r);}
     hushed = Math.max(0, hushed - dt);
     if (!library) return;
@@ -1342,7 +1365,7 @@
       held: Object.assign({}, st?.buttons || {}), pressed: new Set(edges), released: new Set(released), r2: st ? st.run : 0, l2: st ? st.aim : 0, gamepad: Boolean(gp), mouse: {...mouse}
     };
     if (kx || ky) {input.move.x = kx;input.move.y = ky;}
-    const map = {Space: 'cross', KeyC: 'circle', KeyE: 'square', KeyF: 'triangle', Escape: 'options', KeyM: 'touchpad', KeyG: 'gallery', KeyZ: 'prone', KeyR: 'reload', ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down', ShiftLeft: 'l3', KeyQ: 'l1', KeyV: 'view', KeyY: 'share', KeyP: 'phone', KeyB: 'badges', KeyN: 'friends', Delete: 'delete', KeyX: 'cast', Digit1: 'magic1', Digit2: 'magic2', Digit3: 'magic3', Digit4: 'magic4'};
+    const map = {Space: 'cross', KeyC: 'circle', KeyE: 'square', KeyF: 'triangle', Escape: 'options', KeyM: 'touchpad', KeyG: 'gallery', KeyZ: 'prone', KeyR: 'reload', ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down', ShiftLeft: 'l3', KeyQ: 'l1', KeyV: 'view', KeyY: 'share', KeyP: 'phone', KeyB: 'badges', KeyN: 'friends', Delete: 'delete', KeyX: 'cast', Digit1: 'magic1', Digit2: 'magic2', Digit3: 'magic3', Digit4: 'magic4', KeyH: 'siren'};
     for (const [code, name] of Object.entries(map)) {if (ke(code)) input.pressed.add(name);if (k(code)) input.held[name] = true;}
     for (const code of keys) if (zoomKeys[code]) input.held[zoomKeys[code]] = true;
     // Flying (helicopter, plane, drone): hold Shift or the right mouse button to look around (Battlefield's free look, issue #16).
@@ -1404,6 +1427,7 @@
     if (input.pressed.has('options') && friends.isOpen) {friends.close();input.pressed.delete('options');}
     if (input.pressed.has('options') && !caseGame?.active) {if (map.open) map.toggle();else if (photo.gallery) photo.openGallery(false);else if (library && library.reading) {library.closeBook();input.pressed.delete('options');}else setPaused(!paused);}
     if (paused) {
+      if (police) police.mute();// no siren in the pause menu (issue #140)
       if (badges.isOpen) {
         if (input.pressed.has('circle') || input.pressed.has('r1') || input.pressed.has('badges')) badges.close();
         badges.scroll((input.pressed.has('down') ? 120 : 0) - (input.pressed.has('up') ? 120 : 0) + (input.move.y + input.look.y) * 900 * dt);
@@ -1610,6 +1634,8 @@
     const v = player.vehicle;
     if (v.aircraft) {updateAircraft(dt, input, dl);return;}
     if (input.pressed.has('square') && Math.abs(v.speed) < 3) {exitVehicle();return;}
+    // Police cars (issue #140): L3 / H cycles blue lights → lights and siren → off (Shift, which is also L3 on the keyboard, does not).
+    if (v.police && (input.pressed.has('siren') || (input.pressed.has('l3') && !keys.has('ShiftLeft')))) notice(v.cycleBlue(), 2.5);
     const steer = Math.abs(input.move.x) > .08 ? input.move.x : 0;
     // Construction machines: the arrow keys work as the right stick on a keyboard.
     const kb = (a, b) => (input.held[a] ? 1 : 0) - (input.held[b] ? 1 : 0), rx = Math.max(-1, Math.min(1, input.look.x + (v.site ? kb('right', 'left') : 0))), ry = Math.max(-1, Math.min(1, input.look.y + (v.site ? kb('down', 'up') : 0)));
@@ -2305,14 +2331,14 @@
   }
   let weatherIndoor = false;
   function updateAmbience() {
-    const golfIn = mgl && mgl.inside(player.x, player.z, player.feet);
-    const inApt = inFlat(), tw = towerAt(player.x, player.z, player.feet), under = catacomb?.state.depth > .3, r501 = rathkes && rathkes.inside(player.x, player.z, player.feet), homeAt = homes && homes.inside(player.x, player.z, player.feet), indoor = inApt || tw || under || r501 || homeAt || golfIn || shops.shopAt(player, player.feet) || (library && library.inside(player.x, player.z, player.feet)) || gym.zoneAt(player, player.feet) || (cc && cc.indoor(player.x, player.z, player.feet)) ? 1 : player.mode === 'jumpseat' ? .6 : player.mode === 'transit' || (transit && transit.deep) ? .8 : player.vehicle && player.vehicle.kind === 'car' ? .7 : player.vehicle && player.vehicle.aircraft ? .4 : 0;
+    const golfIn = mgl && mgl.inside(player.x, player.z, player.feet), policeIn = police && police.inside(player.x, player.z, player.feet);
+    const inApt = inFlat(), tw = towerAt(player.x, player.z, player.feet), under = catacomb?.state.depth > .3, r501 = rathkes && rathkes.inside(player.x, player.z, player.feet), homeAt = homes && homes.inside(player.x, player.z, player.feet), indoor = inApt || tw || under || r501 || homeAt || golfIn || policeIn || shops.shopAt(player, player.feet) || (library && library.inside(player.x, player.z, player.feet)) || gym.zoneAt(player, player.feet) || (cc && cc.indoor(player.x, player.z, player.feet)) ? 1 : player.mode === 'jumpseat' ? .6 : player.mode === 'transit' || (transit && transit.deep) ? .8 : player.vehicle && player.vehicle.kind === 'car' ? .7 : player.vehicle && player.vehicle.aircraft ? .4 : 0;
     weatherIndoor = indoor >= 1 && player.mode !== 'drone';
     const skyAir = player.mode === 'skydive' && skyd.jumper ? Math.hypot(skyd.jumper.vel.x, skyd.jumper.vel.y, skyd.jumper.vel.z) : 0;const ws = weather.state, wet = ws && ['rain', 'sleet', 'snow'].includes(ws.kind) ? ws.intensity : 0;
     audio.ambience({indoor, rain: ws && ws.kind === 'rain' ? wet : ws && ws.kind === 'sleet' ? wet * .6 : 0, windSpeed: Math.max(ws ? ws.wind : 4, skyAir), green: world.greenery(player.x, player.z), traffic: world.trafficDistance(player.x, player.z), height: Math.max(0, player.feet - heightAt(player.x, player.z)) + (inApt ? 10 : 0), stair: Boolean(tw) || under || (r501 && r501.place === 'stair'), kitchen: inApt && roomAt() === 'kitchen'});
     // Stair-tower light follows the player into whichever stairwell they are in.
     // Rathkes gate 1C (issue #72): the same lamp lights the room or stair landing of flat 501 you are in.
-    const rl = !tw && r501 ? rathkes.lampAt(player.x, player.z, player.feet) : !tw && homeAt ? (l => l && {...l, reach: l.distance})(homes.lampAt(player.x, player.z, player.feet)) : !tw && golfIn ? mgl.lampAt(player.x, player.z, player.feet) : null;
+    const rl = !tw && r501 ? rathkes.lampAt(player.x, player.z, player.feet) : !tw && homeAt ? (l => l && {...l, reach: l.distance})(homes.lampAt(player.x, player.z, player.feet)) : !tw && golfIn ? mgl.lampAt(player.x, player.z, player.feet) : !tw && policeIn ? police.lampAt(player.x, player.z, player.feet) : null;
     if (tw) {const l = tw.t.stair.lampAt({x: tw.l.x, z: tw.l.z}, player.feet - tw.t.matrix.elements[13]);if (l) {const p = new T.Vector3(l.x, l.y, l.z).applyMatrix4(tw.t.matrix);towerLamp.position.copy(p);towerLamp.intensity = 5.5;towerLamp.distance = 7;}} else if (rl) {towerLamp.position.set(rl.x, rl.y, rl.z);towerLamp.intensity = rl.power;towerLamp.distance = rl.reach;} else towerLamp.intensity = 0;
     if (!['vehicle', 'passenger', 'jumpseat', 'skydive', 'kayak'].includes(player.mode)) $('speedo').hidden = true;
     const dl = drunkLevel();$('drunk').hidden = !dl;if (dl) $('drunk').textContent = `Drunk · ${Math.ceil(drunk)} s`;
@@ -2322,7 +2348,7 @@
   const ghost = $('ghost'), gctx = ghost.getContext('2d');
   function renderFrame(dt, t, forPhoto = false) {
     // Sun shadow frustum follows the player (wide outdoors, tight indoors for crisp shadows).
-    const flying = player.mode === 'drone' || player.vehicle?.aircraft, indoor = !flying && (inApartment() || towerAt(player.x, player.z, player.feet) || !!(mgl && mgl.inside(player.x, player.z, player.feet)) || !!(homes && homes.inside(player.x, player.z, player.feet)) || !!gym.zoneAt(player, player.feet) || catacomb?.state.inside || !!(rathkes && rathkes.inside(player.x, player.z, player.feet))), reach = indoor ? 16 : 42;
+    const flying = player.mode === 'drone' || player.vehicle?.aircraft, indoor = !flying && (inApartment() || towerAt(player.x, player.z, player.feet) || !!(mgl && mgl.inside(player.x, player.z, player.feet)) || !!(homes && homes.inside(player.x, player.z, player.feet)) || !!gym.zoneAt(player, player.feet) || catacomb?.state.inside || !!(rathkes && rathkes.inside(player.x, player.z, player.feet)) || !!(police && police.inside(player.x, player.z, player.feet))), reach = indoor ? 16 : 42;
     if (flying) {const c = camera.position;sun.target.position.set(c.x, Math.max(heightAt(c.x, c.z), c.y - 25), c.z);} else sun.target.position.set(player.x, player.feet, player.z);sun.position.copy(sun.target.position).addScaledVector(sunDir, indoor ? 45 : 110);sun.target.updateMatrixWorld();
     if (sun.shadow.camera.right !== reach) {Object.assign(sun.shadow.camera, {left: -reach, right: reach, top: reach, bottom: -reach, near: 1, far: indoor ? 100 : 240});sun.shadow.camera.updateProjectionMatrix();}
     camera.updateMatrixWorld();
@@ -2609,6 +2635,7 @@
   Object.assign(window.haarklousGame, {rides, get rentals() {return rentals;}, jobs, openPhone, rentDrive, JOB_SIGNS});
   // Licences (issue #59). Browser tests that need to drive: haarklousGame.licences.grant('B') (or every id in GameLicences.IDS).
   Object.assign(window.haarklousGame, {licences: lic, licBegin, licVehicle, openLicPlace, openLicPhone, schoolCar, schoolBike, LIC_SIGNS});
+  Object.assign(window.haarklousGame, {police, policeCars});// issue #140
   Object.defineProperty(window.haarklousGame, 'licTest', {get: () => licTest});
   Object.assign(window.haarklousGame, {cityCars, fleet, friends});
   Object.assign(window.haarklousGame, {renderer, chase, orbit, toggleThird});Object.defineProperties(window.haarklousGame, {third: {get: () => player.third}, ownAvatar: {get: () => ownAv}, ownDrone: {get: () => ownDrone}});// third person (issue #129)
