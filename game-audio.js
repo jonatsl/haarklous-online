@@ -4,7 +4,7 @@
  * Interaction sounds: footsteps per surface, doors, drinks, camera shutter, disc golf chains, boules, excavator.
  * Engines: inline-four motorcycle (CBF600), four-cylinder car, diesel excavator with hydraulics, helicopter (rotor slap
  * and turbine), light-aircraft piston engine and propeller, FPV drone motors.
- * GameAudio.create() -> {resume(), ambience(state), footstep(surface, inStair), sfx(name, opts), engine(kind), hydraulics(), water(level)}
+ * GameAudio.create() -> {resume(), ambience(state), footstep(surface, inStair), sfx(name, opts), engine(kind), hydraulics(), water(level), siren(level, pan)}
  *   sfx opts: gain, reverb, pan (-1 left … 1 right: a sound from somewhere, e.g. a prop hunt whistle)
  *   output: the node every other sound in the game connects to (music, the catacomb, the flat's record and TV, the mission)
  *   ondevicechange: set by the game; called when a sound device was connected or removed (for a notice)
@@ -171,6 +171,23 @@
       if (!ctx || ctx.state !== 'running') return;
       if (!waterNode) {const n = noise(), bp = ctx.createBiquadFilter(), lp = ctx.createBiquadFilter(), g = ctx.createGain();bp.type = 'highpass';bp.frequency.value = 300;lp.type = 'lowpass';lp.frequency.value = 1200;g.gain.value = 0;n.connect(bp).connect(lp).connect(g);out(g);n.start();waterNode = {g, lp};}
       level = fin(level);const t = now();glide(waterNode.g.gain, .07 * level, t, .3);glide(waterNode.lp.frequency, 900 + level * 2600, t, .3);
+    }
+
+    // Police siren (issue #140): the two-tone of Norwegian emergency vehicles (about B♭4 / E♭5, 0.6 s each), one voice for the
+    // loudest police car with the siren on; siren(level 0..1 by distance, pan -1..1). Farther away it is quieter and duller.
+    let sirenNode = null;
+    function siren(level, pan = 0) {
+      if (!ctx || ctx.state !== 'running') return;
+      if (!sirenNode) {
+        if (!(level > 0)) return;
+        const o = ctx.createOscillator(), o2 = ctx.createOscillator(), m2 = ctx.createGain(), lp = ctx.createBiquadFilter(), g = ctx.createGain(), P = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+        o.type = 'sawtooth';o2.type = 'square';m2.gain.value = .3;lp.type = 'lowpass';lp.frequency.value = 2400;g.gain.value = 0;
+        o.connect(lp);o2.connect(m2).connect(lp);lp.connect(g);if (P) {g.connect(P);out(P);} else out(g);o.start();o2.start();sirenNode = {o, o2, lp, g, P};
+      }
+      const t = now(), l = Math.max(0, Math.min(1, fin(level))), f = Math.floor(t / .6) % 2 ? 622 : 466;
+      glide(sirenNode.o.frequency, f, t, .012);glide(sirenNode.o2.frequency, f * 1.004, t, .012);
+      glide(sirenNode.g.gain, .075 * l, t, .08);glide(sirenNode.lp.frequency, 900 + 2300 * l, t, .1);
+      if (sirenNode.P) glide(sirenNode.P.pan, Math.max(-1, Math.min(1, fin(pan))), t, .05);
     }
 
     // ---------- Footsteps ----------
@@ -361,7 +378,7 @@
       if (!init()) return;if (!muffleF) {muffleF = ctx.createBiquadFilter();muffleF.type = 'lowpass';muffleF.frequency.value = 20000;master.disconnect();master.connect(muffleF).connect(bus);}
       muffleF.frequency.setTargetAtTime(on ? 700 : 20000, now(), .25);
     }
-    const api = {resume, ambience, footstep, sfx, engine, fire, water, muffle, ondevicechange: null, get context() {return ctx;}, get output() {return bus || null;}};
+    const api = {resume, ambience, footstep, sfx, engine, fire, water, siren, muffle, ondevicechange: null, get context() {return ctx;}, get output() {return bus || null;}};
     return api;
   }
   return {create};
