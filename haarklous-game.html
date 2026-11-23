@@ -6327,6 +6327,20 @@ if (typeof module !== 'undefined' && module.exports) module.exports = window.RIV
 
     // ---------- Base: terrain following and collision ----------
     const G = 9.81;// gravity, m/s²
+    // Kerbs (issue #169): steps up to STEP_MAX (m) are taken by the suspension; BUMP (m/s) is the largest upward kick one gives.
+    const STEP_MAX = .35, BUMP = .6;
+    // The part of the ground's change from (x0, z0, h0) to (x1, z1, h1) that is a step (a kerb face), found by halving the
+    // segment toward the half that holds most of the change until it is 3 cm long. A slope, crest or ramp edge gives 0.
+    function stepBetween(x0, z0, h0, x1, z1, h1, y) {
+      let len = Math.hypot(x1 - x0, z1 - z0);
+      for (let i = 0; i < 8 && len > .03; i++) {
+        const mx = (x0 + x1) / 2, mz = (z0 + z1) / 2, hm = heightAt(mx, mz, y), a = hm - h0, b = h1 - hm;
+        if (Math.max(Math.abs(a), Math.abs(b)) < .7 * Math.abs(h1 - h0)) return 0;// spread over the segment: a slope
+        if (Math.abs(a) > Math.abs(b)) {x1 = mx;z1 = mz;h1 = hm;} else {x0 = mx;z0 = mz;h0 = hm;}
+        len /= 2;
+      }
+      return len <= .03 && Math.abs(h1 - h0) > .015 ? h1 - h0 : 0;
+    }
     class Vehicle {
       constructor(x, z, yaw, radius, length) {
         this.group = new T.Group();this.x = x;this.z = z;this.yaw = yaw;this.speed = 0;this.radius = radius;this.length = length;this.pitch = 0;this.roll = 0;this.y = heightAt(x, z);this.active = false;
@@ -6388,17 +6402,40 @@ if (typeof module !== 'undefined' && module.exports) module.exports = window.RIV
           if (len > 1e-6) {this.knockX = n.x / len * k;this.knockZ = n.z / len * k;}
         } else {this.speed = 0;this.knockX = this.knockZ = 0;}
       }
+      // Four ground samples: front and rear (y and pitch), left and right of the middle (roll). Kerbs (issue #169): a sample
+      // that crosses a step (a kerb face: up to STEP_MAX in a few millimetres) does not pass the step straight to the body.
+      // The step goes into the sample's suspension offset `off` (felt ground = ground − off), which the suspension takes
+      // out over about 0.1–0.15 s; the body is carried with it (no vertical speed from it, so no launch), plus a small hop
+      // that grows with speed (BUMP m/s at 90 km/h, at most .72: under 3 cm), a short thump and a dip of the seat (squash).
+      // Slopes, crests and ramps are followed directly as before, so they still launch a fast car.
       settle(dt) {
-        const f = this.forward(), r = {x: -f.z, z: f.x}, L = this.length * .4, W = .6;
-        const y = this.y, hf = heightAt(this.x + f.x * L, this.z + f.z * L, y), hb = heightAt(this.x - f.x * L, this.z - f.z * L, y), hl = heightAt(this.x - r.x * W, this.z - r.z * W, y), hr = heightAt(this.x + r.x * W, this.z + r.z * W, y);
+        const f = this.forward(), r = {x: -f.z, z: f.x}, L = this.length * .4, W = .6, y = this.y, S = this.susp || (this.susp = {x: new Float64Array(4), z: new Float64Array(4), h: new Float64Array(4), off: new Float64Array(4), d: new Float64Array(4), hf: new Float64Array(4)});
+        const reset = dt >= .5 || this.groundPrev === undefined, speed = Math.abs(this.speed), fast = Math.min(1, speed / 25), feel = this.bumpFeel || 1;
+        const keep = reset ? 0 : Math.exp(-dt / (.045 + .08 / (1 + speed)));// the suspension's time constant: ~0.05 s at speed, slower at a crawl
+        let thump = 0;
+        for (let i = 0; i < 4; i++) {
+          const a = i === 0 ? L : i === 1 ? -L : 0, b = i === 2 ? -W : i === 3 ? W : 0, x = this.x + f.x * a + r.x * b, z = this.z + f.z * a + r.z * b, h = heightAt(x, z, y);
+          let off = S.off[i];
+          if (!reset && !this.airborne) {
+            const dh = h - S.h[i], moved = Math.hypot(x - S.x[i], z - S.z[i]);
+            if (Math.abs(dh) > .02 && Math.abs(dh) < STEP_MAX && moved > .001 && moved < 3) {
+              const s = stepBetween(S.x[i], S.z[i], S.h[i], x, z, h, y);
+              if (s) {off += s;if (i < 2) thump = Math.max(thump, Math.abs(s));}
+            }
+          }
+          const o2 = off * keep;S.d[i] = off - o2;S.off[i] = o2;S.hf[i] = h - o2;S.x[i] = x;S.z[i] = z;S.h[i] = h;
+        }
+        const hf = S.hf[0], hb = S.hf[1], hl = S.hf[2], hr = S.hf[3], D = (S.d[0] + S.d[1]) / 2;
         const g0 = (hf + hb) / 2, k = Math.min(1, dt * 8), slope = Math.atan2(hf - hb, 2 * L);this.terrainRoll = Math.atan2(hl - hr, 2 * W);
-        if (!this.flies) {this.y = g0;this.pitch += (slope - this.pitch) * k;return;}
+        this.squash *= Math.exp(-dt * 7);
+        if (thump > .03) {this.squash = Math.max(this.squash, Math.min(.06, thump * (.15 + .25 * fast) * feel));if (this.active) audio.sfx('thud', {gain: Math.min(.6, thump / .12 * (.12 + .4 * fast))});}
+        if (!this.flies) {this.y = g0;this.pitch += (slope - this.pitch) * k;this.groundPrev = g0;return;}
         // Cars and motorcycles: the wheels follow the ground as long as gravity (9.81 m/s²) can keep them on it. Where the
         // ground falls away faster than a free fall from the current vertical speed (a crest or bump taken fast), the
         // vehicle leaves the ground and flies on a ballistic path until the ground comes back up to meet it.
-        this.squash *= Math.exp(-dt * 7);
-        if (dt >= .5 || this.groundPrev === undefined || Math.abs(g0 - this.groundPrev) > 2.5) {this.y = g0;this.vy = 0;this.airT = 0;this.airborne = false;this.pitch = slope;this.groundPrev = g0;return;}
-        const groundVy = Math.max(-25, Math.min(25, (g0 - this.groundPrev) / dt)), free = this.y + this.vy * dt - .5 * G * dt * dt;
+        if (reset || Math.abs(g0 - this.groundPrev) > 2.5) {S.off.fill(0);this.y = (S.h[0] + S.h[1]) / 2;this.vy = 0;this.airT = 0;this.airborne = false;this.pitch = Math.atan2(S.h[0] - S.h[1], 2 * L);this.terrainRoll = Math.atan2(S.h[2] - S.h[3], 2 * W);this.groundPrev = this.y;return;}
+        // The ground's own vertical speed (the slope under the wheels), without what the suspension took out this frame.
+        const groundVy = Math.max(-25, Math.min(25, (g0 - this.groundPrev - D) / dt)), lift = this.airborne ? 0 : D, free = this.y + lift + this.vy * dt - .5 * G * dt * dt;
         if (free > g0) {
           this.y = free;this.vy -= G * dt;this.airT += dt;
           // Millimetre hops over the 4 m terrain grid don't count as flying (steering and throttle keep working).
@@ -6407,7 +6444,8 @@ if (typeof module !== 'undefined' && module.exports) module.exports = window.RIV
           else this.pitch += (slope - this.pitch) * k;
         } else {
           if (this.airborne) this.land(Math.max(0, groundVy - this.vy));
-          this.y = g0;this.vy = groundVy;this.airT = 0;this.airborne = false;this.pitch += (slope - this.pitch) * k;
+          // A wheel pushed up a kerb gives the body a small upward kick, capped so the hop stays a few centimetres.
+          this.y = g0;this.vy = groundVy + Math.min(BUMP * fast * feel, .72, Math.max(0, D / dt));this.airT = 0;this.airborne = false;this.pitch += (slope - this.pitch) * k;
         }
         this.groundPrev = g0;
       }
@@ -6446,7 +6484,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = window.RIV
       // opt.lazy: the model is made later with buildBody(color) (the parked motorcycles of game-fleet.js, issue #113).
       constructor(x, z, yaw, color = 0x56657c, opt = {}) {
         super(x, z, yaw, .45, 2.1);this.width = .8;this.height = 1.3;this.kind = 'motorcycle';this.name = 'Honda CBF600S';this.lean = 0;this.bar = 0;this.gear = 1;this.rpm = 1300;this.engine = null;this.wheelSpin = 0;
-        this.hips = {d: {pos: V3(0, 1.0, .28), stance: 'ride'}, p: {pos: V3(0, 1.06, .66), stance: 'pillion'}};this.passengerEye = V3(0, 1.74, .76);this.flies = true;
+        this.hips = {d: {pos: V3(0, 1.0, .28), stance: 'ride'}, p: {pos: V3(0, 1.06, .66), stance: 'pillion'}};this.passengerEye = V3(0, 1.74, .76);this.flies = true;this.bumpFeel = 1.3;// a kerb is felt more on two wheels
         if (opt.lazy) return;
         this.buildBody(color);this.settle(1);this.place();
       }
@@ -25014,7 +25052,7 @@ window.RIDES={"source":"Oslo Bysykkel open data (GBFS 2.3, https://gbfs.urbansha
 
       // ---------- Light two-wheelers: shared riding physics ----------
       class Light extends VH.Vehicle {
-        constructor(x, z, yaw, radius, length) {super(x, z, yaw, radius, length);this.flies = true;this.lean = 0;this.bar = 0;this.wheelSpin = 0;this.restLean = -.1;this.rested = false;this.motor = null;}
+        constructor(x, z, yaw, radius, length) {super(x, z, yaw, radius, length);this.flies = true;this.bumpFeel = 1.3;this.lean = 0;this.bar = 0;this.wheelSpin = 0;this.restLean = -.1;this.rested = false;this.motor = null;}
         // Kinematic steering (bicycle model) with the rider leaning into the turn; a little drunk wobble.
         steerRide(dt, input, wb, maxLean) {
           const wob = input.drunk ? Math.sin(performance.now() / 360) * .35 * input.drunk : 0, steer = clamp(input.steer + wob, -1, 1);

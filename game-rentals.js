@@ -200,7 +200,7 @@
 
       // ---------- Light two-wheelers: shared riding physics ----------
       class Light extends VH.Vehicle {
-        constructor(x, z, yaw, radius, length) {super(x, z, yaw, radius, length);this.flies = true;this.lean = 0;this.bar = 0;this.wheelSpin = 0;this.restLean = -.1;this.rested = false;this.motor = null;}
+        constructor(x, z, yaw, radius, length) {super(x, z, yaw, radius, length);this.flies = true;this.bumpFeel = 1.3;this.lean = 0;this.bar = 0;this.wheelSpin = 0;this.restLean = -.1;this.rested = false;this.motor = null;}
         // Kinematic steering (bicycle model) with the rider leaning into the turn; a little drunk wobble.
         steerRide(dt, input, wb, maxLean) {
           const wob = input.drunk ? Math.sin(performance.now() / 360) * .35 * input.drunk : 0, steer = clamp(input.steer + wob, -1, 1);
