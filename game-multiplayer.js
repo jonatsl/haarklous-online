@@ -23,7 +23,7 @@
     const netLen = v => v.netLen || (v.netLen = v.netGet().length);
     const stamped = s => [...s, Math.round(performance.now())];
     const net = window.GameNet.create({onMessage, onStatus: () => ctx.onStatus()});
-    const voice = window.GameVoice.create({send: (to, d) => net.send({t: 'rtc', to, d}), you: () => net.you});
+    const voice = window.GameVoice.create({send: (to, d) => net.send({t: 'rtc', to, d}), you: () => net.you, context: () => ctx.audioContext && ctx.audioContext()});
     function remote(id) {
       let r = remotes.get(id);if (r) return r;const p = net.players.get(id) || {slot: 0, name: 'Player'};
       const av = avatars.avatar(p.slot, p.name);av.group.visible = false;scene.add(av.group);

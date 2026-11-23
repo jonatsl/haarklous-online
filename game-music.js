@@ -13,7 +13,7 @@
  *                                  E minor, 112 bpm, 32 bars = 68.6 s (issue #124, during a prop hunt match)
  * Records for the LP player in Rathkes gate 1C (issue #116; GameMusic.records): lp1 "Søndagsjazz" (jazz trio, 73.8 s),
  * lp2 "Bossa på Løkka" (bossa nova, 72.7 s), lp3 "Lavalampe" (soul and disco, 68.6 s), lp4 "Fjellvise" (folk waltz, 80 s).
- * GameMusic.create() -> {attach(audioContext), play(name|null), setVolume(0..1), volume, current, position(),
+ * GameMusic.create() -> {attach(audioContext, output), play(name|null), setVolume(0..1), volume, current, position(),
  *   recordPlay(name, pos, needle), recordStop(fade), recordOutput (GainNode to route), record, duck(0..1), context}
  * GameMusic.tracks -> {name: {title, artist, style, record, bpm, beats, bars, seconds}}
  * GameMusic.renderOffline(name, seconds) -> Promise<AudioBuffer> (tests and previews)
@@ -409,10 +409,10 @@
   const barSeed = (name, bar) => mulberry32(bar * 977 + name.length * 31 + 13);
 
   // Shared output chain: master volume -> gentle compressor -> speakers; one generated hall reverb.
-  function chain(ctx, volume) {
+  function chain(ctx, volume, dest = ctx.destination) {
     const master = ctx.createGain();master.gain.value = volume;
     const comp = ctx.createDynamicsCompressor();comp.threshold.value = -18;comp.ratio.value = 3;comp.attack.value = .01;comp.release.value = .25;
-    master.connect(comp).connect(ctx.destination);
+    master.connect(comp).connect(dest);
     const reverb = ctx.createConvolver(), len = Math.floor(ctx.sampleRate * 3.2), ir = ctx.createBuffer(2, len, ctx.sampleRate);
     for (let c = 0; c < 2; c++) {const ch = ir.getChannelData(c);let lp = 0;for (let i = 0; i < len; i++) {lp += ((Math.random() * 2 - 1) - lp) * .35;ch[i] = lp * Math.pow(1 - i / len, 2.6) * (i < 600 ? i / 600 : 1);}}
     reverb.buffer = ir;const wet = ctx.createGain();wet.gain.value = .55;reverb.connect(wet).connect(master);
@@ -428,8 +428,9 @@
     // The record player (issue #116): its own lane into `recOut` (not the soundtrack's master), which the game routes through
     // the room (volume by distance, pan, walls); a small room reverb of its own.
     let rec = null, recOut = null, recVerb = null;
-    function attach(c) {
-      if (ctx || !c) return;ctx = c;kit = makeKit(ctx);out = chain(ctx, level());
+    // dest: the game's one output (game-audio.js `output`, through its limiter); the speakers when not given.
+    function attach(c, dest) {
+      if (ctx || !c) return;ctx = c;kit = makeKit(ctx);out = chain(ctx, level(), dest || ctx.destination);
       recOut = ctx.createGain();recVerb = ctx.createConvolver();
       {const len = Math.floor(ctx.sampleRate * 1.1), ir = ctx.createBuffer(2, len, ctx.sampleRate);for (let ch = 0; ch < 2; ch++) {const d = ir.getChannelData(ch);for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3) * (i < 300 ? i / 300 : 1);}recVerb.buffer = ir;const wet = ctx.createGain();wet.gain.value = .35;recVerb.connect(wet).connect(recOut);}
       setInterval(tick, 60);const want = current;current = undefined;play(want);

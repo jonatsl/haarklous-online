@@ -3,17 +3,18 @@
  * Each pair of players has one two-way audio channel. Only the player with the lower id makes the offer (no offer
  * collisions); switching the microphone on or off just swaps the track on that channel, so it never needs renegotiation.
  * Signalling (offer/answer/ICE) goes through the lobby server; Cloudflare's public STUN server finds a direct route.
- * GameVoice.create({send(to, data), you()}) -> {setMic(on) -> Promise<bool>, mic, onSignal(from, data), peerJoined(id),
+ * GameVoice.create({send(to, data), you(), context()}) -> {setMic(on) -> Promise<bool>, mic, onSignal(from, data), peerJoined(id),
  *   peerLeft(id), setVolume(id, v), reset(), peers, levels() -> {me, [id]: dBFS}}
  * levels(): how loud each voice is right now (RMS in dB full scale, -100 when silent or unknown) – the librarian in Deichman
- * Grünerløkka shushes players who talk loudly there (issue #47).
+ * Grünerløkka shushes players who talk loudly there (issue #47). The meters use the game's sound context (`context()`); a
+ * second AudioContext only when there is none (each context is one more output stream for Windows to mix; issue #150).
  */
 (function (root, factory) {
   root.GameVoice = factory();
 })(typeof window === 'undefined' ? globalThis : window, function () {
   'use strict';
   const ICE = [{urls: 'stun:stun.cloudflare.com:3478'}, {urls: 'stun:stun.l.google.com:19302'}];
-  function create({send, you}) {
+  function create({send, you, context}) {
     let stream = null;
     const peers = new Map();// id -> {pc, audio, offerer, queue}
     const micTrack = () => (stream ? stream.getAudioTracks()[0] : null) || null;
@@ -56,15 +57,18 @@
       } catch {}
     }
     function peerJoined(id) {peer(id);}
-    function peerLeft(id) {meters.delete(id);const p = peers.get(id);if (!p) return;try {p.pc.close();} catch {}p.audio.srcObject = null;peers.delete(id);}
+    function peerLeft(id) {unmeter(id);const p = peers.get(id);if (!p) return;try {p.pc.close();} catch {}p.audio.srcObject = null;peers.delete(id);}
     function setVolume(id, v) {const p = peers.get(id);if (p) p.audio.volume = Math.max(0, Math.min(1, v));}
     function reset() {for (const id of [...peers.keys()]) peerLeft(id);}
     // Voice levels: an analyser per stream (not connected to the speakers; the <audio> element plays the voice).
     let actx = null;const meters = new Map();
+    // A meter that is not needed any more lets go of its stream (it used to stay connected after a player left).
+    function unmeter(key) {const m = meters.get(key);if (!m) return;meters.delete(key);try {m.node.disconnect();} catch {}}
     function meter(key, src) {
-      if (!src) {meters.delete(key);return null;}
+      if (!src) {unmeter(key);return null;}
       let m = meters.get(key);if (m && m.src === src) return m;
-      try {actx = actx || new (window.AudioContext || window.webkitAudioContext)();const node = actx.createMediaStreamSource(src), an = actx.createAnalyser();an.fftSize = 1024;node.connect(an);m = {src, node, an, buf: new Float32Array(an.fftSize)};meters.set(key, m);return m;} catch {return null;}
+      if (m) unmeter(key);
+      try {actx = (context && context()) || actx || new (window.AudioContext || window.webkitAudioContext)();const node = actx.createMediaStreamSource(src), an = actx.createAnalyser();an.fftSize = 1024;node.connect(an);m = {src, node, an, buf: new Float32Array(an.fftSize)};meters.set(key, m);return m;} catch {return null;}
     }
     function level(m) {if (!m) return -100;m.an.getFloatTimeDomainData(m.buf);let s = 0;for (let i = 0; i < m.buf.length; i++) s += m.buf[i] * m.buf[i];return 10 * Math.log10(s / m.buf.length + 1e-12);}
     function levels() {

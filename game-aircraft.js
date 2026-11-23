@@ -396,7 +396,7 @@
 
     class Drone {
       constructor() {this.pos = V3();this.vel = V3();this.q = new T.Quaternion();this.mode = 'angle';this.battery = 1;this.armed = false;this.crashed = false;this.yawA = 0;this.pitchA = 0;this.rollA = 0;this.time = 0;this.thrust = 0;this.home = V3();this.engine = null;}
-      launch(x, y, z, yaw) {this.pos.set(x, y + .06, z);this.home.copy(this.pos);this.vel.set(0, 0, 0);this.yawA = yaw;this.pitchA = this.rollA = 0;this.q.setFromEuler(new T.Euler(0, yaw, 0, 'YXZ'));this.battery = 1;this.armed = true;this.crashed = false;this.time = 0;this.landed = true;audio.sfx('arm');this.engine = audio.engine('drone');}
+      launch(x, y, z, yaw) {this.pos.set(x, y + .06, z);this.home.copy(this.pos);this.vel.set(0, 0, 0);this.yawA = yaw;this.pitchA = this.rollA = 0;this.q.setFromEuler(new T.Euler(0, yaw, 0, 'YXZ'));this.battery = 1;this.armed = true;this.crashed = false;this.time = 0;this.landed = true;audio.sfx('arm');if (this.engine) this.engine.stop();this.engine = audio.engine('drone');}
       stop() {if (this.engine) this.engine.stop();this.engine = null;this.armed = false;}
       setMode(m) {this.mode = m;const e = new T.Euler().setFromQuaternion(this.q, 'YXZ');this.yawA = e.y;this.pitchA = clamp(e.x, -.8, .8);this.rollA = clamp(-e.z, -.8, .8);}
       reset() {this.crashed = false;this.vel.set(0, 0, 0);this.pitchA = this.rollA = 0;this.q.setFromEuler(new T.Euler(0, this.yawA, 0, 'YXZ'));this.armed = this.battery > 0;this.landed = true;audio.sfx('arm');}
