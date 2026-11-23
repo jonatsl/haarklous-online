@@ -9,9 +9,10 @@ Live game: https://haarklous-online.server-smoke.workers.dev · Source: https://
 ## Features (what the game has now)
 
 In pull requests (not merged yet):
-- Real bridges where car streets cross over roads, railways and water (issue #139, PR #155): a deck of their own with room under it, ramps up to it, parapets and piers; walk and drive on it or under it (Storo, Sinsenkrysset, Trondheimsveien over the railway, Østre Aker vei, Ulven, Kværner, Nylandsveien and the rest).
 
 On `main`:
+- Paddle faster (issue #146, PR #PRNUM; live once merged): the kayak cruises about 25 % faster, and holding R2 / Shift while paddling forward sprints at about twice the old top speed (about 15 km/h through the water), with quicker strokes, louder splashes and SPRINT on the HUD; it still turns well at sprint speed.
+- Real bridges where car streets cross over roads, railways and water (issue #139, PR #155): a deck of their own with room under it, ramps up to it, parapets and piers; walk and drive on it or under it (Storo, Sinsenkrysset, Trondheimsveien over the railway, Østre Aker vei, Ulven, Kværner, Nylandsveien and the rest).
 - Walk through the tram, the bus and the metro (issue #142, PR #154; live once merged): on board, move the left stick / WASD to stand up and walk the whole length of the tram while it drives – through open gangways with a floor and bellows between the sections, also in curves; the same in the articulated buses and inside each three-car metro set; □ by a free seat sits you down, □ when the doors open gets you off through the nearest door; others online see you standing where you are.
 - The police on Grønland (issue #140, PR #152; live once merged): Oslo politihus at its real place (Grønlandsleiret 44) with a POLITI sign – walk in to the reception (an officer at the desk, a queue-ticket machine) and through the steel door to the arrest with eight glattceller (bare concrete, a thin mattress, a drain, a steel door with a hatch that opens); Oslo fengsel (Botsen) right behind it with its high walls, two sliding gates and the OSLO FENGSEL sign, the yard and cell wing A (a prison officer, cells with bed, table, toilet and a barred window); 13 police cars (white with POLITI and black and yellow fields, a blue light bar) outside the police station and round the city – drive them with class B, L3 / H for blue lights and siren, which other players see and hear; both places on the map.
 - Oslo S and Jernbanetorget (issue #141, PR #153; live once merged): Tigeren, the 4.5 m bronze tiger, at its real place on a paved Jernbanetorget; Østbanehallen as a plastered 14 m station with OSLO S over the doors and clocks on the Trafikanten tower; eleven people who hang around there (stone seats, the station wall, the tiger), and one who asks for a few kroner (□ gives him 10 kr).
@@ -72,6 +73,17 @@ On `main`:
 Live site: runs `main` (Worker version 3766909d, deployed 23 Nov 2026 after PR #138; `main` builds byte-for-byte to the live page), so everything above is online. Account emails (issue #55) wait for the user's Brevo key.
 
 ## Log
+
+### 2026-11-23 · Kayak: paddle faster and sprint (issue #146)
+- **What:**
+  - Normal paddling is about 25 % faster: about 2.5 m/s through the water (9 km/h; before about 2 m/s, 7 km/h), plus the current.
+  - Hold R2 (keyboard: Shift) while paddling forward to sprint: about 4.2 m/s through the water (15 km/h, about twice the old top speed). Let go and the boat slows back to cruising speed by itself.
+  - Sprinting looks and sounds like it: quicker and longer paddle strokes, splashes more often and louder, and SPRINT on the HUD (otherwise the HUD says "R2 / Shift sprint").
+  - The boat turns a little more and answers the stick a little faster above cruising speed, so a sprinting boat does not run wide into the banks.
+  - Falls, weirs, bank bumps, the boom at Vaterland and getting out (slow beside a bank) work as before; old best times are kept (they are easier to beat now).
+- **Why:** the user asked (Norwegian): "Gjør det mulig å padle fortere i kajakk." (Make it possible to paddle faster in the kayak.)
+- **Where:** `game-kayak.js` (`Boat.step` takes `sprint`; thrust, turn, stroke rate; `update` reads R2 / Shift, paddle animation, splash sound; `hud`; the start notice), `index.html` (the Kayak line in the pause screen), `tests/grunerlokka.test.cjs` (one new test), `docs/HANDOFF.md`.
+- **Status:** PR #PRNUM; live once merged. Node tests pass. Not checked in the browser (the user's instruction: build and deploy, he says if something does not work). Nothing new is sent online.
 
 ### 2026-11-23 · Walk between the tram's sections (issue #142)
 - **What:**
