@@ -54,7 +54,7 @@
     {id: 'paintball', icon: '🎨', name: 'Paintball winner', how: 'Win a paintball game against other players.', kr: 150, test: f => n(f.records.paintball?.won) > 0},
     {id: 'skydive', icon: '🪂', name: 'On target', how: `Land within ${TARGET_R} m of the landing target at the airstrip after a skydive.`, kr: 150,
       test: f => f.records.skydive?.best != null && f.records.skydive.best <= TARGET_R},
-    {id: 'climb', icon: '🧗', name: 'Top out', how: 'Climb a route or a boulder problem at Klatreverket Torshov.', kr: 100, test: f => keys(f.gym.ticks).length > 0},
+    {id: 'climb', icon: '🧗', name: 'Top out', how: 'Climb a route or a boulder problem at a climbing gym (Klatreverket Torshov, Løkka or Løren, Vulkan or Brak).', kr: 100, test: f => keys(f.gym.ticks).length > 0 || Object.values(f.gym.gyms || {}).some(g => keys((g && g.ticks) || {}).length > 0)},
     {id: 'brattkort', icon: '🪢', name: 'Brattkort', how: 'Pass the belay test at Klatreverket.', kr: 100, test: f => !!f.gym.brattkort},
     {id: 'kayak', icon: '🛶', name: 'Down Akerselva', how: 'Paddle a kayak down Akerselva to Vaterland.', kr: 150, test: f => keys(f.kayak).length > 0},
     // Minigolf at the real courses (issue #114).

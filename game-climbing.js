@@ -95,10 +95,10 @@
   const hash = s => {let h = 2166136261;for (const c of s) h = Math.imul(h ^ c.charCodeAt(0), 16777619);return h >>> 0;};
 
   // ---------- Faces: a point on a wall in the hall frame (x across from p0, s along the surface from the base) ----------
-  function faceInfo(w) {
+  function faceInfo(w, levels = LEVELS) {
     const dx = w.p1[0] - w.p0[0], db = w.p1[1] - w.p0[1], W = Math.hypot(dx, db), dir = {a: dx / W, b: db / W}, n = {a: -dir.b, b: dir.a};
     let L = 0, H = 0, out = 0;for (const [l, deg] of w.segs) {const r = deg * Math.PI / 180;L += l;H += l * Math.cos(r);out += l * Math.sin(r);}
-    return {...w, W, dir, n, L, H, out, y0: LEVELS[w.lvl]};
+    return {...w, W, dir, n, L, H, out, y0: levels[w.lvl]};
   }
   // -> {p: {a, y, b}, up (unit, along the surface), nrm (unit, out of the wall), deg}
   function faceAt(f, x, s) {
@@ -120,17 +120,19 @@
     const w = {jug: Math.max(.06, 1 - 1.35 * d), edge: .32 + .1 * d, crimp: 1.3 * d * d, sloper: (.12 + .45 * d) * (deg > 25 ? .6 : 1), pinch: .1 + .35 * d, pocket: .05 + .22 * d};
     let t = r() * Object.values(w).reduce((a, b) => a + b, 0);for (const [k, v] of Object.entries(w)) {if ((t -= v) <= 0) return k;}return 'jug';
   }
-  function makeRoutes(seed = 40) {
-    const faces = WALLS.map(faceInfo), routes = [], holds = [];let ci = 0;
+  // walls, opt {levels, grade(kind, d), moonName}: the other gyms (issue #168) have their own walls, floors and names; the
+  // defaults are Klatreverket Torshov's.
+  function makeRoutes(seed = 40, walls = WALLS, opt = {}) {
+    const faces = walls.map(w => faceInfo(w, opt.levels || LEVELS)), routes = [], holds = [], grade = opt.grade || gradeName;let ci = 0;
     const put = (route, f, x, s, type, extra = {}) => {const h = {id: holds.length, route: route ? route.id : -1, face: f.id, x, s, type, q: HOLDS[type].q, rot: 0, ...extra};holds.push(h);if (route) route.holds.push(h.id);return h;};
     for (const f of faces) {
       const r = rng(seed * 7919 + hash(f.id)), lanes = f.lanes, per = f.perLane || 1, wLane = f.W / lanes;
-      if (f.kind === 'moon') {moonBoard(f, r, routes, holds, put);continue;}
+      if (f.kind === 'moon') {moonBoard(f, r, routes, holds, put, opt.moonName || 'Torshov', grade);continue;}
       if (f.kind === 'campus') {campusBoard(f, routes, put);continue;}
       for (let li = 0; li < lanes; li++) for (let k = 0; k < per; k++) {
         const idx = li * per + k, n = lanes * per, d = clamp(lerp(f.d[0], f.d[1], n > 1 ? ((idx * 7) % n) / (n - 1) : .5) + (r() - .5) * .08, 0, 1);
         const colour = COLOURS[ci++ % COLOURS.length], kind = f.kind === 'rope' && Array.isArray(f.tr) && !f.tr[li] ? 'lead' : f.kind;
-        const route = {id: routes.length, face: f.id, zone: f.zone, kind, d, grade: gradeName(kind, d), colour: colour[0], hex: colour[1], holds: [], bolts: [], toprope: f.kind === 'rope' && (f.tr === 'all' || (Array.isArray(f.tr) && !!f.tr[li])), lane: [li * wLane, (li + 1) * wLane]};
+        const route = {id: routes.length, face: f.id, zone: f.zone, kind, d, grade: grade(kind, d), colour: colour[0], hex: colour[1], holds: [], bolts: [], toprope: f.kind === 'rope' && (f.tr === 'all' || (Array.isArray(f.tr) && !!f.tr[li])), lane: [li * wLane, (li + 1) * wLane]};
         route.name = `${route.colour} ${route.grade}`;routes.push(route);
         const x0 = li * wLane + .14, x1 = (li + 1) * wLane - .14, mid = (x0 + x1) / 2 + (per > 1 ? (k ? .2 : -.2) : 0), top = f.L - (kind === 'boulder' ? .32 : .55);
         let s = kind === 'boulder' ? 1.15 + r() * .3 : 1.3 + r() * .3, side = r() < .5 ? -1 : 1;
@@ -156,14 +158,14 @@
   }
   // The Moonwall: 11 columns (A–K) × 18 rows of holds on a 40° board above a kicker, and problems lit by LEDs (green start, blue
   // moves, red finish). The problems here are the gym's own set, not the MoonBoard app's.
-  function moonBoard(f, r, routes, holds, put) {
+  function moonBoard(f, r, routes, holds, put, name = 'Torshov', grade = gradeName) {
     const grid = [];
     for (let row = 0; row < 18; row++) for (let col = 0; col < 11; col++) {
       if (r() < .34) continue;const x = .2 + col * .204, s = .5 + row * .165;
       grid.push(put(null, f, x, s, ['crimp', 'edge', 'pinch', 'pocket', 'sloper', 'jug'][Math.floor(r() * (row < 3 ? 6 : 5.3))], {grid: [col, row], hex: [0xf1efe8, 0x26272a, 0xf2c418][Math.floor(r() * 3)], rot: (r() - .5) * 1.6}));
     }
     for (let i = 0; i < 8; i++) {
-      const d = lerp(f.d[0], f.d[1], i / 7), route = {id: routes.length, face: f.id, zone: f.zone, kind: 'moon', d, grade: gradeName('moon', d), colour: 'LED', hex: 0x42a5f5, holds: [], bolts: [], name: `Torshov ${i + 1} · ${gradeName('moon', d)}`, moon: true};
+      const d = lerp(f.d[0], f.d[1], i / 7), route = {id: routes.length, face: f.id, zone: f.zone, kind: 'moon', d, grade: grade('moon', d), colour: 'LED', hex: 0x42a5f5, holds: [], bolts: [], name: `${name} ${i + 1} · ${grade('moon', d)}`, moon: true};
       routes.push(route);let col = 2 + Math.floor(r() * 7), row = 1, last = null;const pick = (c, rw) => grid.filter(h => Math.abs(h.grid[0] - c) <= 2 && Math.abs(h.grid[1] - rw) <= 1).sort((a, b) => Math.abs(a.grid[0] - c) + Math.abs(a.grid[1] - rw) - Math.abs(b.grid[0] - c) - Math.abs(b.grid[1] - rw))[0];
       const seq = [];while (row < 17) {const h = pick(col, row);if (h && h !== last) {seq.push(h);last = h;}row += 2 + Math.round(d * 2 + r());col = clamp(col + Math.round((r() - .5) * 5), 0, 10);}
       const topH = pick(col, 17);if (topH && topH !== last) seq.push(topH);
@@ -406,30 +408,38 @@
     }
   }
 
-  // ---------- The building, the interior and everything in it (browser only) ----------
-  // Before the world is built: this module draws OSM way 1031709261 itself, and the patch's ground under the hall is lowered
-  // to just below the hall floor (Kartverket's DTM rises up to 0.9 m through the building toward the slope behind it).
-  function hallPolygon(data) {const F = data.frame;return [[0, 0], [F.length, 0], [F.length, F.wing], [0, F.wing]].map(([a, b]) => [F.origin[0] + F.u[0] * a + F.v[0] * b, F.origin[1] + F.u[1] * a + F.v[1] * b]);}
-  function prepare(districts, data, groundY, flatten) {
-    for (const d of districts || []) {
-      if (d && Array.isArray(d.buildings)) d.buildings = d.buildings.filter(b => b.id !== 'w1031709261');
-      if (d && flatten && data) flatten(d, hallPolygon(data), data.floorY - groundY - .05);
-    }
-  }
-  function create({T, lib, data, toWorld, avatars, audio, heightAt}) {
-    const F = data.frame, origin = toWorld(F.origin[0], F.origin[1]), ua = toWorld(F.origin[0] + F.u[0], F.origin[1] + F.u[1]), ux = ua.x - origin.x, uz = ua.z - origin.z;
-    const vx = -uz, vz = ux, Y0 = data.floorY;
-    const W = (a, b) => ({x: origin.x + ux * a + vx * b, z: origin.z + uz * a + vz * b});// hall frame -> world x, z
-    const toFrame = (x, z) => {const dx = x - origin.x, dz = z - origin.z;return {a: dx * ux + dz * uz, b: dx * vx + dz * vz};};
-    const wv = (p, y = 0) => ({...W(p.a, p.b), y: Y0 + p.y + y});
-    const wdir = d => ({x: ux * d.a + vx * d.b, y: d.y, z: uz * d.a + vz * d.b});
-    const group = new T.Group();group.name = 'Klatreverket Torshov';group.position.set(origin.x, Y0, origin.z);group.rotation.y = Math.atan2(-uz, ux);
-    const inner = new T.Group();group.add(inner);
-    const floors = [], obstacles = [], hitboxes = [];
-    const LEN = F.length, WING = F.wing, IN = .3, A1 = LEN - IN, B1 = WING - .3, BLOCK = 12;
-    const rectW = (a0, a1, b0, b1) => [W(a0, b0), W(a1, b0), W(a1, b1), W(a0, b1)];
-    const polyW = pts => pts.map(([a, b]) => W(a, b));
-    const solid = (a0, a1, b0, b1, y0, y1, kind = 'gym') => obstacles.push({points: rectW(a0, a1, b0, b1), minY: Y0 + y0, maxY: Y0 + y1, kind});
+  // ---------- Shared by every gym (browser only; issue #168): materials, walls, holds, rope gear, mats, climbing ----------
+  // One store for the visit state of every gym (localStorage 'haarklous-klatreverket-v1'): Klatreverket Torshov's ticket, ticks
+  // and tries stay at the top level as before; the other gyms keep theirs under gyms[id]. The brattkort is one for all gyms.
+  const STORE_KEY = 'haarklous-klatreverket-v1';
+  const Store = (() => {
+    let root = null, hooked = false;
+    const load = () => {
+      try {root = JSON.parse(localStorage.getItem(STORE_KEY) || '{}') || {};} catch {root = {};}
+      root.ticks = root.ticks || {};root.tries = root.tries || {};
+    };
+    const api = {
+      get root() {
+        if (!root) {load();if (!hooked && typeof window !== 'undefined' && window.addEventListener) {hooked = true;window.addEventListener('haarklous-progress', load);}}// an account's progress was loaded (issue #54)
+        return root;
+      },
+      gym(id) {
+        const r = api.root;if (id === 'torshov') return r;
+        r.gyms = r.gyms || {};const g = r.gyms[id] = r.gyms[id] || {};g.ticks = g.ticks || {};g.tries = g.tries || {};
+        if (!Object.getOwnPropertyDescriptor(g, 'brattkort')) Object.defineProperty(g, 'brattkort', {get: () => api.root.brattkort, set: v => {api.root.brattkort = v;}, enumerable: false, configurable: true});
+        return g;
+      },
+      save() {try {localStorage.setItem(STORE_KEY, JSON.stringify(api.root));} catch {}},
+      reset() {root = null;}
+    };
+    return api;
+  })();
+  const today = () => {const d = new Date();return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;};
+  // A day ticket is for one gym and one day (issue #168): a new day, or another gym, needs its own.
+  const visitOf = st => {if (st.day !== today()) {st.day = today();st.paid = false;st.shoes = st.harness = st.chalk = false;}if (st.paid) payEntry(st);return st;};
+  let KIT = null;
+  function kit(T, lib) {
+    if (KIT && KIT.T === T && KIT.lib === lib) return KIT;
     // Materials.
     const wallTex = (() => {
       const c = document.createElement('canvas');c.width = c.height = 512;const x = c.getContext('2d');x.fillStyle = '#c8c8c4';x.fillRect(0, 0, 512, 512);
@@ -454,6 +464,251 @@
       const m = new T.Mesh(new T.PlaneGeometry(w, h), new T.MeshStandardMaterial({map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: emissive, roughness: .6}));m.position.set(a, y, b);m.rotation.y = rotY;m.userData.noMerge = true;parent.add(m);return m;
     }
 
+    KIT = {T, lib, M, box, blk, textTexture, sign};return KIT;
+  }
+  // The climbing faces with their cheeks and walk solids. C = {T, M, inner, obstacles, W, Y0, ...} of the gym.
+  function buildFaces(C, set, faceMat) {
+    const {T, M, inner, obstacles, W, Y0} = C;
+    for (const f of set.faces) {
+      // The climbing surface as one strip per segment, UVs in metres; side cheeks and a back fill close it toward the wall.
+      const pos = [], uv = [], idx = [];let s0 = 0;
+      for (const [l] of f.segs) {const k = pos.length / 3;for (const [x, s] of [[0, s0], [f.W, s0], [f.W, s0 + l], [0, s0 + l]]) {const p = faceAt(f, x, s).p;pos.push(p.a, p.y, p.b);uv.push(x, s);}idx.push(k, k + 1, k + 2, k, k + 2, k + 3);s0 += l;}
+      const g = new T.BufferGeometry();g.setAttribute('position', new T.Float32BufferAttribute(pos, 3));g.setAttribute('uv', new T.Float32BufferAttribute(uv, 2));g.setIndex(idx);g.computeVertexNormals();
+      const m = new T.Mesh(g, faceMat(f));m.castShadow = m.receiveShadow = true;inner.add(m);
+      for (const x of [0, f.W]) {
+        const prof = [];let s = 0;prof.push(faceAt(f, x, 0).p);for (const [l] of f.segs) {s += l;prof.push(faceAt(f, x, s).p);}
+        const top = prof[prof.length - 1], back = Math.min(0, ...prof.map(p => (p.a - f.p0[0] - f.dir.a * x) * f.n.a + (p.b - f.p0[1] - f.dir.b * x) * f.n.b)) - .05;
+        const ba = f.p0[0] + f.dir.a * x + f.n.a * back, bb = f.p0[1] + f.dir.b * x + f.n.b * back, poly = [...prof, {a: ba, b: bb, y: top.y}, {a: ba, b: bb, y: f.y0}];
+        const flat = poly.map(p => new T.Vector2((p.a - f.p0[0]) * f.n.a + (p.b - f.p0[1]) * f.n.b, p.y)), tris = T.ShapeUtils.triangulateShape(flat, []);
+        const cp = [];poly.forEach(p => cp.push(p.a, p.y, p.b));const cg = new T.BufferGeometry();cg.setAttribute('position', new T.Float32BufferAttribute(cp, 3));cg.setIndex(tris.flat());cg.computeVertexNormals();inner.add(new T.Mesh(cg, M.cheek));
+      }
+      // Walk obstacles: the face where it is below head height, and everything behind it.
+      const fr = faceAt(f, 0, Math.min(f.L, 2.0)), off = (fr.p.a - f.p0[0]) * f.n.a + (fr.p.b - f.p0[1]) * f.n.b, front = Math.max(0, off) + .05;
+      const back = -(f.back ?? 1.2), corners = [[0, front], [f.W, front], [f.W, back], [0, back]].map(([x, o]) => W(f.p0[0] + f.dir.a * x + f.n.a * o, f.p0[1] + f.dir.b * x + f.n.b * o));
+      obstacles.push({points: corners, minY: Y0 + f.y0 - .2, maxY: Y0 + f.y0 + Math.min(f.H, 3.2), kind: 'wall'});
+      // Orange stripes between the autobelay lanes (as on the real tower) and yellow safety gates in front of every line.
+      if (f.zone === 'Autobelay') for (let li = 0; li <= f.lanes; li++) {
+        const x = li * f.W / f.lanes, at = faceAt(f, x, f.L / 2), st = new T.Mesh(new T.BoxGeometry(.09, f.L, .02), M.orange);
+        st.quaternion.setFromRotationMatrix(new T.Matrix4().makeBasis(new T.Vector3(f.dir.a, 0, f.dir.b), new T.Vector3(at.up.a, at.up.y, at.up.b), new T.Vector3(at.nrm.a, at.nrm.y, at.nrm.b)));
+        st.position.set(at.p.a + at.nrm.a * .012, at.p.y + at.nrm.y * .012, at.p.b + at.nrm.b * .012);inner.add(st);
+      }
+    }
+  }
+  // Holds, start tape, route cards and the rope gear (quickdraws, anchors, top-ropes, autobelays) -> their world data.
+  function buildHolds(C, set, faces) {
+    const {T, M, box, textTexture, sign, inner, W, Y0, wv, wdir} = C, routes = set.routes;
+    // Holds (one instanced mesh of shaped domes, one of volumes) and their world data for the climber.
+    const dome = new T.SphereGeometry(1, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2);dome.rotateX(Math.PI / 2);
+    const tet = new T.ConeGeometry(1, 1, 3);tet.rotateX(Math.PI / 2);tet.translate(0, 0, .5);
+    const holdsWorld = worldHolds(set, W, Y0), byId = new Map(holdsWorld.map(h => [h.id, h]));
+    const domeList = [], volList = [], taps = [];
+    for (const h of set.holds) {
+      const f = faces.get(h.face), at = faceAt(f, h.x, h.s), route = h.route >= 0 ? routes[h.route] : null;
+      (h.type === 'volume' ? volList : domeList).push({h, at, info: HOLDS[h.type], hex: h.hex ?? (route ? route.hex : 0xdddddd)});
+      if (h.start && route && !route.moon) taps.push({at, f, hex: route.hex});
+    }
+    const placeInst = (mesh, list) => {
+      const mtx = new T.Matrix4(), basis = new T.Matrix4(), col = new T.Color(), q = new T.Quaternion();
+      list.forEach((e, i) => {
+        const f = faces.get(e.h.face), ax = new T.Vector3(f.dir.a, 0, f.dir.b), up = new T.Vector3(e.at.up.a, e.at.up.y, e.at.up.b), n = new T.Vector3(e.at.nrm.a, e.at.nrm.y, e.at.nrm.b);
+        basis.makeBasis(ax, up, n);q.setFromRotationMatrix(basis).multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(0, 0, 1), e.h.rot || 0));
+        const s = e.info.s;mtx.compose(new T.Vector3(e.at.p.a, e.at.p.y, e.at.p.b), q, new T.Vector3(s[0], s[1], s[2]));mesh.setMatrixAt(i, mtx);col.setHex(e.hex);mesh.setColorAt(i, col);
+      });
+      mesh.instanceMatrix.needsUpdate = true;if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;mesh.castShadow = true;mesh.receiveShadow = true;inner.add(mesh);return mesh;
+    };
+    const holdMat = new T.MeshStandardMaterial({roughness: .82, metalness: 0});
+    const domeMesh = placeInst(new T.InstancedMesh(dome, holdMat, domeList.length), domeList), volMesh = placeInst(new T.InstancedMesh(tet, holdMat, Math.max(1, volList.length)), volList);
+    // Start tape under every start hold, and the route's card (colour, grade, style) at the bottom of its line.
+    const tapeMesh = new T.InstancedMesh(new T.BoxGeometry(.05, .14, .004), new T.MeshStandardMaterial({roughness: .7}), taps.length);
+    {const mtx = new T.Matrix4(), col = new T.Color(), basis = new T.Matrix4(), q = new T.Quaternion();taps.forEach((t, i) => {basis.makeBasis(new T.Vector3(t.f.dir.a, 0, t.f.dir.b), new T.Vector3(t.at.up.a, t.at.up.y, t.at.up.b), new T.Vector3(t.at.nrm.a, t.at.nrm.y, t.at.nrm.b));q.setFromRotationMatrix(basis);mtx.compose(new T.Vector3(t.at.p.a + t.at.nrm.a * .01 - t.at.up.a * .17, t.at.p.y - t.at.up.y * .17 - .01, t.at.p.b + t.at.nrm.b * .01 - t.at.up.b * .17), q, new T.Vector3(1, 1, 1));tapeMesh.setMatrixAt(i, mtx);tapeMesh.setColorAt(i, col.setHex(t.hex));});}
+    inner.add(tapeMesh);
+    {
+      const cards = routes.filter(r => !r.moon && r.kind !== 'campus'), cols = 8, rows = Math.ceil(cards.length / cols), cw = 256, ch = 128;
+      const atlas = textTexture(cols * cw, rows * ch, (c) => {
+        cards.forEach((r, i) => {const x = (i % cols) * cw, y = Math.floor(i / cols) * ch;c.fillStyle = '#fbfbf8';c.fillRect(x + 2, y + 2, cw - 4, ch - 4);c.fillStyle = '#' + r.hex.toString(16).padStart(6, '0');c.fillRect(x + 2, y + 2, 34, ch - 4);
+          c.fillStyle = '#16191d';c.font = 'bold 46px Arial, sans-serif';c.fillText(r.grade, x + 48, y + 52);c.font = '24px Arial, sans-serif';c.fillText(r.colour, x + 48, y + 84);c.fillText(STYLE[r.kind] + (r.toprope && r.kind === 'rope' ? '' : ''), x + 48, y + 112);});
+      });
+      const pos = [], uv = [], idx = [];
+      cards.forEach((r, i) => {
+        const f = faces.get(r.face), x = (r.lane[0] + r.lane[1]) / 2, at = faceAt(f, x, .45), u0 = (i % cols) / cols, v0 = 1 - Math.floor(i / cols) / rows, du = 1 / cols, dv = 1 / rows, k = pos.length / 3;
+        for (const [ox, oy, uu, vv] of [[-.13, -.065, u0, v0 - dv], [.13, -.065, u0 + du, v0 - dv], [.13, .065, u0 + du, v0], [-.13, .065, u0, v0]]) {pos.push(at.p.a + f.dir.a * ox + at.nrm.a * .012 + at.up.a * oy, at.p.y + at.up.y * oy + at.nrm.y * .012, at.p.b + f.dir.b * ox + at.nrm.b * .012 + at.up.b * oy);uv.push(uu, vv);}
+        idx.push(k, k + 1, k + 2, k, k + 2, k + 3);
+      });
+      const g = new T.BufferGeometry();g.setAttribute('position', new T.Float32BufferAttribute(pos, 3));g.setAttribute('uv', new T.Float32BufferAttribute(uv, 2));g.setIndex(idx);g.computeVertexNormals();
+      const m = new T.Mesh(g, new T.MeshStandardMaterial({map: atlas, roughness: .7, side: T.DoubleSide}));m.userData.noMerge = true;inner.add(m);
+    }
+    // Rope gear: quickdraws on every bolt, anchors, top-ropes hanging from their anchors, autobelay devices and their gates.
+    const routeGear = new Map();
+    {
+      const qd = [], anchors = [], tops = [];
+      for (const r of routes) {
+        const f = faces.get(r.face);if (!r.bolts.length && !r.anchor) continue;
+        const bolts = r.bolts.map(b => {const at = faceAt(f, b.x, b.s);qd.push(at);return add(wv(at.p), norm(wdir(at.nrm)), .05);});
+        let anchor = null;if (r.anchor) {const at = faceAt(f, r.anchor.x, r.anchor.s);anchors.push(at);anchor = add(wv(at.p), norm(wdir(at.nrm)), .08);if (r.toprope) tops.push({at, f});}
+        routeGear.set(r.id, {bolts, anchor});
+      }
+      const qm = new T.InstancedMesh(new T.BoxGeometry(.025, .16, .025), new T.MeshStandardMaterial({color: 0x2b2d31, roughness: .5, metalness: .4}), qd.length + anchors.length * 2), mtx = new T.Matrix4();
+      qd.forEach((at, i) => {mtx.makeTranslation(at.p.a + at.nrm.a * .04, at.p.y - .08, at.p.b + at.nrm.b * .04);qm.setMatrixAt(i, mtx);});
+      anchors.forEach((at, i) => {for (const k of [0, 1]) {mtx.makeTranslation(at.p.a + at.nrm.a * .05 + (k ? .12 : -.12) * 0, at.p.y - .05 - k * .06, at.p.b + at.nrm.b * .05);qm.setMatrixAt(qd.length + i * 2 + k, mtx);}});
+      qm.instanceMatrix.needsUpdate = true;inner.add(qm);
+      for (const {at, f} of tops) {
+        // The top-rope: both strands from the anchor down to a coiled end on the floor beside the line.
+        for (const k of [-.06, .06]) {const top = {a: at.p.a + at.nrm.a * .12 + f.dir.a * k, y: at.p.y, b: at.p.b + at.nrm.b * .12 + f.dir.b * k}, foot = {a: top.a + f.n.a * .45, y: f.y0 + .05, b: top.b + f.n.b * .45}, l = Math.hypot(top.a - foot.a, top.y - foot.y, top.b - foot.b);
+          const c = new T.Mesh(new T.CylinderGeometry(.006, .006, l, 5), M.rope);c.position.set((top.a + foot.a) / 2, (top.y + foot.y) / 2, (top.b + foot.b) / 2);c.lookAt(top.a, top.y, top.b);c.rotateX(Math.PI / 2);inner.add(c);}
+      }
+      for (const r of routes) if (r.kind === 'auto') {
+        const f = faces.get(r.face), x = (r.lane[0] + r.lane[1]) / 2, top = faceAt(f, x, f.L - .2);
+        const dev = box(inner, .32, .32, .2, top.p.a + top.nrm.a * .12, top.p.y + .1, top.p.b + top.nrm.b * .12, M.red, false);dev.rotation.y = Math.atan2(f.n.a, f.n.b);
+        const foot = faceAt(f, x, .2), gate = new T.Mesh(new T.PlaneGeometry(1.3, 1.4), M.yellow), gp = {a: foot.p.a + f.n.a * .9, b: foot.p.b + f.n.b * .9};
+        gate.position.set(gp.a, .75, gp.b);gate.rotation.y = Math.atan2(f.n.a, f.n.b);inner.add(gate);
+        sign(inner, .5, .45, gp.a + f.n.a * .01, .9, gp.b + f.n.b * .01, Math.atan2(f.n.a, f.n.b), (c, w, h) => {c.fillStyle = '#f4c20d';c.fillRect(0, 0, w, h);c.fillStyle = '#16191d';c.beginPath();c.moveTo(w / 2, h * .08);c.lineTo(w * .9, h * .62);c.lineTo(w * .1, h * .62);c.closePath();c.lineWidth = 14;c.stroke();c.font = `bold ${h * .26}px Arial`;c.textAlign = 'center';c.fillText('!', w / 2, h * .55);c.font = `bold ${h * .12}px Arial`;c.fillText('KLIPP INN', w / 2, h * .85);});
+        const step = box(inner, .5, .3, .4, foot.p.a + f.n.a * .45, .15, foot.p.b + f.n.b * .45, M.red, false);step.rotation.y = Math.atan2(f.n.a, f.n.b);
+        const strap = new T.Mesh(new T.CylinderGeometry(.012, .012, top.p.y - 1.2, 4), new T.MeshStandardMaterial({color: 0x1d4fa0}));strap.position.set(top.p.a + top.nrm.a * .2, (top.p.y + 1.2) / 2, top.p.b + top.nrm.b * .2);inner.add(strap);
+        const gear = routeGear.get(r.id) || {bolts: []};gear.anchor = add(wv(top.p), norm(wdir(top.nrm)), .2);routeGear.set(r.id, gear);
+      }
+    }
+    return {holdsWorld, byId, routeGear};
+  }
+  // Crash mats ([level, a0, a1, b0, b1], walkable 0.3 m up) and the ramps onto them (issue #137: [level, a0, a1, b0, b1, the side
+  // it slopes down to]); levelY(lvl) = the level's floor, ceil(lvl) = its ceiling (metres above the ground floor).
+  function buildMats(C, mats, ramps, {y: levelY, ceil, name, MAT = .3}) {
+    const {T, M, blk, inner, floors, W, Y0, wdir, rectW} = C;
+    for (const [lvl, a0, a1, b0, b1] of mats) {
+      const y = levelY(lvl);blk(inner, a0, a1, y, y + MAT - .02, b0, b1, M.matSide);blk(inner, a0 + .02, a1 - .02, y + MAT - .02, y + MAT, b0 + .02, b1 - .02, M.mat);
+      floors.push({name: `${name} mats ${lvl + 1}`, points: rectW(a0, a1, b0, b1), y: Y0 + y + MAT, ceilingHeight: ceil(lvl) - y - MAT, surfaceKind: 'mat'});
+    }
+    for (const [lvl, a0, a1, b0, b1, side] of ramps) {
+      const y = levelY(lvl), alongA = side[0] === 'a', down = side[1] === '+' ? 1 : -1, k = MAT / (alongA ? a1 - a0 : b1 - b0);
+      const hi = alongA ? (down > 0 ? a0 : a1) : (down > 0 ? b0 : b1), lo = alongA ? (down > 0 ? a1 : a0) : (down > 0 ? b1 : b0);// the high edge meets the mat
+      const gr = wdir(alongA ? {a: -down * k, b: 0, y: 0} : {a: 0, b: -down * k, y: 0});
+      floors.push({name: `${name} mat ramp ${lvl + 1}`, points: rectW(a0, a1, b0, b1), y: Y0 + y + MAT, slope: {x: gr.x, z: gr.z, origin: alongA ? W(hi, b0) : W(a0, hi)}, ceilingHeight: ceil(lvl) - y - MAT, surfaceKind: 'mat'});
+      // Drawn: the sloped top and two cheeks (no back or bottom face: those would lie on the mat's side and on the floor).
+      const v = (s, t, h) => alongA ? [s, h, t] : [t, h, s], s0 = alongA ? b0 : a0, s1 = alongA ? b1 : a1;// s across the ramp, t down it
+      const tri = (out, uv, p, want) => {const [A, B, C] = p, n = [(B[1] - A[1]) * (C[2] - A[2]) - (B[2] - A[2]) * (C[1] - A[1]), (B[2] - A[2]) * (C[0] - A[0]) - (B[0] - A[0]) * (C[2] - A[2]), (B[0] - A[0]) * (C[1] - A[1]) - (B[1] - A[1]) * (C[0] - A[0])];
+        const q = n[0] * want[0] + n[1] * want[1] + n[2] * want[2] < 0 ? [A, C, B] : p;for (const P of q) {out.push(...P);uv.push(want[1] ? P[0] : P[0] + P[2], want[1] ? P[2] : P[1]);}};
+      const mesh = (tris, mat) => {const pos = [], uv = [];for (const [p, w] of tris) tri(pos, uv, p, w);const geo = new T.BufferGeometry();geo.setAttribute('position', new T.Float32BufferAttribute(pos, 3));geo.setAttribute('uv', new T.Float32BufferAttribute(uv, 2));geo.computeVertexNormals();const m = new T.Mesh(geo, mat);m.castShadow = m.receiveShadow = true;inner.add(m);};
+      const up = [0, 1, 0], H = y + MAT, Lo = y + .002, side0 = alongA ? [0, 0, -1] : [-1, 0, 0], side1 = alongA ? [0, 0, 1] : [1, 0, 0];
+      mesh([[[v(s0, hi, H), v(s1, hi, H), v(s1, lo, Lo)], up], [[v(s0, hi, H), v(s1, lo, Lo), v(s0, lo, Lo)], up]], M.mat);
+      mesh([[[v(s0, hi, H), v(s0, lo, Lo), v(s0, hi, y)], side0], [[v(s1, hi, H), v(s1, lo, Lo), v(s1, hi, y)], side1]], M.matSide);
+    }
+  }
+  // Climbing, belaying and the Moonwall's LEDs for one gym.
+  function runtime(C, P) {
+    const {T, M, W, wdir} = C, {set, faces, routes, holdsWorld, byId, routeGear, floorUnder, siri, siriHome, stOf, save, visit, leds, moonHolds} = P;
+    // ---------- Climbing: which hold the player looks at, starting a route, the rope and the hands ----------
+    const climber = new Climber(holdsWorld, floorUnder);
+    const near = (p, r) => holdsWorld.filter(h => Math.abs(h.p.y - p.y) < r && dist(h.p, p) < r);
+    // The hold closest to the line of sight (within a few centimetres of it, out to 3.2 m).
+    function aimAt(cam, dir, onlyHand = true) {
+      let best = null, bd = 1e9;
+      for (const h of near(cam, 3.4)) {
+        if (onlyHand && !h.hand) continue;const d = sub(h.p, cam), t = dot(d, dir);if (t < .15 || t > 3.3) continue;
+        const off = len(add(d, dir, -t)), tol = .09 + t * .035;if (off < tol && off + t * .01 < bd) {bd = off + t * .01;best = h;}
+      }
+      return best;
+    }
+    // Where the line of sight meets the wall (for the free hand).
+    function aimPoint(cam, dir) {const h = aimAt(cam, dir, false) || near(cam, 2.5).sort((a, b) => dist(a.p, cam) - dist(b.p, cam))[0];if (!h) return null;const t = dot(sub(h.p, cam), h.n) / (dot(dir, h.n) || -1e-6);return t > 0 && t < 4 ? add(cam, dir, t) : h.p;}
+    function routeAt(cam, dir, player) {
+      const h = aimAt(cam, dir, false);if (!h || h.route < 0) return null;const r = routes[h.route];
+      // Only from the floor in front of the line (not from a stair or another storey).
+      return Math.abs(player.feet - floorUnder({x: h.p.x, y: h.p.y - 1, z: h.p.z})) < .9 ? r : null;
+    }
+    function startHoldsOf(r) {const hs = r.moon ? [byId.get(r.startHolds[0])] : r.holds.map(i => byId.get(i)).filter(h => h.start);return hs;}
+    // Hands seen in first person: a simple palm and fingers each.
+    const handMat = new T.MeshStandardMaterial({color: 0xd9a988, roughness: .7});
+    const hands = ['L', 'R'].map(() => {const g = new T.Group();const palm = new T.Mesh(new T.BoxGeometry(.085, .1, .03), handMat);g.add(palm);for (let i = 0; i < 4; i++) {const f = new T.Mesh(new T.BoxGeometry(.017, .075, .022), handMat);f.position.set(-.03 + i * .02, .08, -.012);f.rotation.x = .9;g.add(f);}const th = new T.Mesh(new T.BoxGeometry(.02, .055, .022), handMat);th.position.set(.05, .02, -.01);th.rotation.z = -.8;g.add(th);g.visible = false;g.userData.noMerge = true;return g;});
+    const aimRing = new T.Mesh(new T.TorusGeometry(.13, .012, 6, 24), new T.MeshBasicMaterial({color: 0x66ff88, depthTest: false, transparent: true, opacity: .9}));aimRing.renderOrder = 20;aimRing.visible = false;
+    // The rope from the belayer through the clipped bolts (or the anchor) to the harness: up to 24 short cylinders.
+    const ropeSegs = [];for (let i = 0; i < 24; i++) {const c = new T.Mesh(new T.CylinderGeometry(.007, .007, 1, 5), M.rope);c.visible = false;ropeSegs.push(c);}
+    const extras = new T.Group();extras.add(...hands, aimRing, ...ropeSegs);
+    function drawRope(points) {
+      let k = 0;for (let i = 0; i < points.length - 1 && k < ropeSegs.length; i++) {const a = points[i], b = points[i + 1], l = dist(a, b);if (l < .01) continue;const c = ropeSegs[k++];c.visible = true;c.scale.set(1, l, 1);c.position.set((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);c.lookAt(b.x, b.y, b.z);c.rotateX(Math.PI / 2);}
+      for (; k < ropeSegs.length; k++) ropeSegs[k].visible = false;
+    }
+    let session = null;// {route, style, belayer}
+    function begin(route, opts = {}) {
+      const gear = routeGear.get(route.id) || {bolts: []}, style = opts.style || (route.kind === 'rope' ? (route.toprope ? 'rope' : 'lead') : route.kind);
+      climber.start(route, startHoldsOf(route).length ? startHoldsOf(route) : route.holds.map(i => byId.get(i)), {style, anchor: gear.anchor, bolts: gear.bolts, chalk: visit().chalk});
+      stOf().tries[route.id] = (stOf().tries[route.id] || 0) + 1;save();
+      session = {route, style, belay: style === 'rope' || style === 'lead'};
+      if (session.belay && siri) {const f = faces.get(route.face), x = (route.lane[0] + route.lane[1]) / 2;siri.group.position.set(f.p0[0] + f.dir.a * x + f.n.a * 1.5, f.y0, f.p0[1] + f.dir.b * x + f.n.b * 1.5);siri.group.rotation.y = Math.atan2(f.n.a, f.n.b);session.siriAt = {...siri.group.position};}
+      return climber;
+    }
+    function end() {
+      if (session && siri) {siri.group.position.set(siriHome.a, 0, siriHome.b);siri.group.rotation.y = siriHome.yaw;}
+      session = null;climber.state = 'off';hands.forEach(h => {h.visible = false;});aimRing.visible = false;drawRope([]);
+    }
+    function tick(route, style) {const prev = stOf().ticks[route.id];const how = style === 'lead' ? (stOf().tries[route.id] <= 1 ? 'flash (lead)' : 'redpoint') : style === 'rope' ? 'top rope' : style === 'auto' ? 'autobelay' : stOf().tries[route.id] <= 1 ? 'flash' : 'sent';if (!prev || prev === 'top rope' || prev === 'autobelay') stOf().ticks[route.id] = how;save();return how;}
+    // Per frame while climbing: hands, the target aimRing, the rope.
+    function showClimb(cam, dir, aim, cls) {
+      for (const [i, s] of [[0, 'L'], [1, 'R']]) {
+        const hd = climber.hands[s], g = hands[i];g.visible = climber.state !== 'off';if (!g.visible) continue;
+        const p = hd.pos, n = hd.hold ? hd.hold.n : climber.n, up = hd.hold ? hd.hold.up : climber.up, ax = hd.hold ? hd.hold.ax : climber.ax, match = hd.hold && climber.hands.L.hold === climber.hands.R.hold ? (s === 'L' ? -.06 : .06) : 0;
+        g.position.set(p.x + n.x * .1 + up.x * .05 + ax.x * match, p.y + n.y * .1 + up.y * .05 + ax.y * match, p.z + n.z * .1 + up.z * .05 + ax.z * match);
+        g.lookAt(p.x - n.x, p.y - n.y, p.z - n.z);g.rotateY(Math.PI);g.rotateZ(s === 'L' ? .25 : -.25);g.scale.x = s === 'L' ? -1 : 1;
+      }
+      aimRing.visible = !!aim && climber.state === 'climb';
+      if (aimRing.visible) {aimRing.position.set(aim.p.x + aim.n.x * .04, aim.p.y + aim.n.y * .04, aim.p.z + aim.n.z * .04);aimRing.lookAt(aim.p.x + aim.n.x, aim.p.y + aim.n.y, aim.p.z + aim.n.z);aimRing.material.color.setHex(cls === 'reach' ? 0x66ff88 : cls === 'dyno' ? 0xffb02e : cls === 'foot' ? 0x9aa0a6 : 0xff5252);}
+      if (!session) {drawRope([]);return;}
+      const harness = add(climber.hip, climber.up, -.05);
+      const pts = [];
+      if (session.belay && siri) {const sp = siri.group.getWorldPosition(new T.Vector3());pts.push({x: sp.x, y: sp.y + 1.0, z: sp.z});}
+      if (climber.style === 'rope' && climber.anchor) pts.push(climber.anchor);
+      else if (climber.style === 'lead') {for (let i = 0; i < climber.clipped; i++) pts.push(climber.bolts[i]);if (climber.anchorClipped) pts.push(climber.anchor);}
+      else if (climber.style === 'auto' && climber.anchor) pts.push(climber.anchor);
+      pts.push(harness);drawRope(pts.length > 1 && climber.style !== 'boulder' && climber.style !== 'moon' && climber.style !== 'campus' ? pts : []);
+    }
+
+    // ---------- Belaying Siri: she climbs a top-rope route, you stand at its foot ----------
+    let belayRoute = null;
+    const belaySpot = route => {const f = faces.get(route.face), x = (route.lane[0] + route.lane[1]) / 2, p = W(f.p0[0] + f.dir.a * x + f.n.a * 1.7, f.p0[1] + f.dir.b * x + f.n.b * 1.7), n = wdir({a: f.n.a, b: f.n.b, y: 0});return {x: p.x, z: p.z, yaw: Math.atan2(n.x, n.z)};};
+    function startBelay(route) {belayRoute = route;if (siri) siri.ghost = true;const f = faces.get(route.face);return new Belay(f.H - 2.2, route.id + 7);}
+    function showBelay(b, dt, hand) {
+      if (!belayRoute || !siri) return;const f = faces.get(belayRoute.face), x = (belayRoute.lane[0] + belayRoute.lane[1]) / 2, at = faceAt(f, x + Math.sin(b.t * .9) * .12, b.y + 1.0);
+      siri.group.position.set(at.p.a + at.nrm.a * .42, f.y0 + b.y, at.p.b + at.nrm.b * .42);siri.group.rotation.y = Math.atan2(f.n.a, f.n.b);
+      siri.pose({stance: b.state === 'climb' && b.y > .2 ? 'climb' : b.state === 'climb' ? 'stand' : 'hang', speed: b.state === 'climb' && !(b.rest > 0) ? .7 : 0, dt});
+      const gear = routeGear.get(belayRoute.id), harness = siri.group.localToWorld(new T.Vector3(0, .95, -.1));
+      drawRope(gear && gear.anchor ? [hand, gear.anchor, {x: harness.x, y: harness.y, z: harness.z}] : []);
+    }
+    function endBelay() {belayRoute = null;if (siri) {siri.ghost = false;siri.group.position.set(siriHome.a, 0, siriHome.b);siri.group.rotation.y = siriHome.yaw;}drawRope([]);}
+
+    // ---------- The Moonwall: choose a problem, its LEDs light up ----------
+    const moonRoutes = routes.filter(r => r.moon);let moonSel = -1;
+    function lightMoon(i) {
+      moonSel = i;const col = new T.Color();if (!leds) return null;
+      moonHolds.forEach((h, k) => {const role = i >= 0 ? (set.holds[h.id].moon || {})[moonRoutes[i].id] : null;leds.setColorAt(k, col.setHex(role === 'start' ? 0x22ee55 : role === 'top' ? 0xff3030 : role === 'move' ? 0x3399ff : 0x202020));});
+      leds.instanceColor.needsUpdate = true;return i >= 0 ? moonRoutes[i] : null;
+    }
+
+    return {climber, aimAt, aimPoint, routeAt, begin, end, tick, showClimb, startBelay, showBelay, endBelay, belaySpot, lightMoon, get moonSel() {return moonSel;}, moonRoutes, extras, session: () => session, belayRoute: () => belayRoute};
+  }
+
+  // ---------- The building, the interior and everything in it (browser only) ----------
+  // Before the world is built: this module draws OSM way 1031709261 itself, and the patch's ground under the hall is lowered
+  // to just below the hall floor (Kartverket's DTM rises up to 0.9 m through the building toward the slope behind it).
+  function hallPolygon(data) {const F = data.frame;return [[0, 0], [F.length, 0], [F.length, F.wing], [0, F.wing]].map(([a, b]) => [F.origin[0] + F.u[0] * a + F.v[0] * b, F.origin[1] + F.u[1] * a + F.v[1] * b]);}
+  function prepare(districts, data, groundY, flatten) {
+    for (const d of districts || []) {
+      if (d && Array.isArray(d.buildings)) d.buildings = d.buildings.filter(b => b.id !== 'w1031709261');
+      if (d && flatten && data) flatten(d, hallPolygon(data), data.floorY - groundY - .05);
+    }
+  }
+  function create({T, lib, data, toWorld, avatars, audio, heightAt}) {
+    const F = data.frame, origin = toWorld(F.origin[0], F.origin[1]), ua = toWorld(F.origin[0] + F.u[0], F.origin[1] + F.u[1]), ux = ua.x - origin.x, uz = ua.z - origin.z;
+    const vx = -uz, vz = ux, Y0 = data.floorY;
+    const W = (a, b) => ({x: origin.x + ux * a + vx * b, z: origin.z + uz * a + vz * b});// hall frame -> world x, z
+    const toFrame = (x, z) => {const dx = x - origin.x, dz = z - origin.z;return {a: dx * ux + dz * uz, b: dx * vx + dz * vz};};
+    const wv = (p, y = 0) => ({...W(p.a, p.b), y: Y0 + p.y + y});
+    const wdir = d => ({x: ux * d.a + vx * d.b, y: d.y, z: uz * d.a + vz * d.b});
+    const group = new T.Group();group.name = 'Klatreverket Torshov';group.position.set(origin.x, Y0, origin.z);group.rotation.y = Math.atan2(-uz, ux);
+    const inner = new T.Group();group.add(inner);
+    const floors = [], obstacles = [], hitboxes = [];
+    const LEN = F.length, WING = F.wing, IN = .3, A1 = LEN - IN, B1 = WING - .3, BLOCK = 12;
+    const rectW = (a0, a1, b0, b1) => [W(a0, b0), W(a1, b0), W(a1, b1), W(a0, b1)];
+    const polyW = pts => pts.map(([a, b]) => W(a, b));
+    const solid = (a0, a1, b0, b1, y0, y1, kind = 'gym') => obstacles.push({points: rectW(a0, a1, b0, b1), minY: Y0 + y0, maxY: Y0 + y1, kind});
+    const {M, box, blk, textTexture, sign} = kit(T, lib);
     // ---------- The building (exterior) ----------
     const shell = new T.Group();group.add(shell);
     // Wing: walls to the eaves (Kartverket DOM), a low gable along the hall. The rest of the building (Myrens Treningssenter):
@@ -555,128 +810,20 @@
     // ---------- Climbing walls and holds ----------
     const set = makeRoutes(40), faces = new Map(set.faces.map(f => [f.id, f])), routes = set.routes;
     const faceMat = f => f.zone === 'Autobelay' ? M.tower : f.kind === 'moon' ? M.moon : f.lvl > 0 || f.zone === 'Hula' ? M.boulder : M.hall;
-    for (const f of set.faces) {
-      // The climbing surface as one strip per segment, UVs in metres; side cheeks and a back fill close it toward the wall.
-      const pos = [], uv = [], idx = [];let s0 = 0;
-      for (const [l] of f.segs) {const k = pos.length / 3;for (const [x, s] of [[0, s0], [f.W, s0], [f.W, s0 + l], [0, s0 + l]]) {const p = faceAt(f, x, s).p;pos.push(p.a, p.y, p.b);uv.push(x, s);}idx.push(k, k + 1, k + 2, k, k + 2, k + 3);s0 += l;}
-      const g = new T.BufferGeometry();g.setAttribute('position', new T.Float32BufferAttribute(pos, 3));g.setAttribute('uv', new T.Float32BufferAttribute(uv, 2));g.setIndex(idx);g.computeVertexNormals();
-      const m = new T.Mesh(g, faceMat(f));m.castShadow = m.receiveShadow = true;inner.add(m);
-      for (const x of [0, f.W]) {
-        const prof = [];let s = 0;prof.push(faceAt(f, x, 0).p);for (const [l] of f.segs) {s += l;prof.push(faceAt(f, x, s).p);}
-        const top = prof[prof.length - 1], back = Math.min(0, ...prof.map(p => (p.a - f.p0[0] - f.dir.a * x) * f.n.a + (p.b - f.p0[1] - f.dir.b * x) * f.n.b)) - .05;
-        const ba = f.p0[0] + f.dir.a * x + f.n.a * back, bb = f.p0[1] + f.dir.b * x + f.n.b * back, poly = [...prof, {a: ba, b: bb, y: top.y}, {a: ba, b: bb, y: f.y0}];
-        const flat = poly.map(p => new T.Vector2((p.a - f.p0[0]) * f.n.a + (p.b - f.p0[1]) * f.n.b, p.y)), tris = T.ShapeUtils.triangulateShape(flat, []);
-        const cp = [];poly.forEach(p => cp.push(p.a, p.y, p.b));const cg = new T.BufferGeometry();cg.setAttribute('position', new T.Float32BufferAttribute(cp, 3));cg.setIndex(tris.flat());cg.computeVertexNormals();inner.add(new T.Mesh(cg, M.cheek));
-      }
-      // Walk obstacles: the face where it is below head height, and everything behind it.
-      const fr = faceAt(f, 0, Math.min(f.L, 2.0)), off = (fr.p.a - f.p0[0]) * f.n.a + (fr.p.b - f.p0[1]) * f.n.b, front = Math.max(0, off) + .05;
-      const back = -(f.back ?? 1.2), corners = [[0, front], [f.W, front], [f.W, back], [0, back]].map(([x, o]) => W(f.p0[0] + f.dir.a * x + f.n.a * o, f.p0[1] + f.dir.b * x + f.n.b * o));
-      obstacles.push({points: corners, minY: Y0 + f.y0 - .2, maxY: Y0 + f.y0 + Math.min(f.H, 3.2), kind: 'wall'});
-      // Orange stripes between the autobelay lanes (as on the real tower) and yellow safety gates in front of every line.
-      if (f.zone === 'Autobelay') for (let li = 0; li <= f.lanes; li++) {
-        const x = li * f.W / f.lanes, at = faceAt(f, x, f.L / 2), st = new T.Mesh(new T.BoxGeometry(.09, f.L, .02), M.orange);
-        st.quaternion.setFromRotationMatrix(new T.Matrix4().makeBasis(new T.Vector3(f.dir.a, 0, f.dir.b), new T.Vector3(at.up.a, at.up.y, at.up.b), new T.Vector3(at.nrm.a, at.nrm.y, at.nrm.b)));
-        st.position.set(at.p.a + at.nrm.a * .012, at.p.y + at.nrm.y * .012, at.p.b + at.nrm.b * .012);inner.add(st);
-      }
-    }
+    const C = {T, lib, M, box, blk, textTexture, sign, inner, floors, obstacles, W, Y0, wv, wdir, rectW};
+    buildFaces(C, set, faceMat);
     // The autobelay tower's core (its two other sides are plain panels).
     blk(inner, 16.6, 21.4, 0, 14.0, 11.6, 16.4, M.tower);solid(16.6, 21.4, 11.6, 16.4, -.5, 14.5);
-    // Holds (one instanced mesh of shaped domes, one of volumes) and their world data for the climber.
-    const dome = new T.SphereGeometry(1, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2);dome.rotateX(Math.PI / 2);
-    const tet = new T.ConeGeometry(1, 1, 3);tet.rotateX(Math.PI / 2);tet.translate(0, 0, .5);
-    const holdsWorld = worldHolds(set, W, Y0), byId = new Map(holdsWorld.map(h => [h.id, h]));
-    const domeList = [], volList = [], taps = [];
-    for (const h of set.holds) {
-      const f = faces.get(h.face), at = faceAt(f, h.x, h.s), route = h.route >= 0 ? routes[h.route] : null;
-      (h.type === 'volume' ? volList : domeList).push({h, at, info: HOLDS[h.type], hex: h.hex ?? (route ? route.hex : 0xdddddd)});
-      if (h.start && route && !route.moon) taps.push({at, f, hex: route.hex});
-    }
-    const placeInst = (mesh, list) => {
-      const mtx = new T.Matrix4(), basis = new T.Matrix4(), col = new T.Color(), q = new T.Quaternion();
-      list.forEach((e, i) => {
-        const f = faces.get(e.h.face), ax = new T.Vector3(f.dir.a, 0, f.dir.b), up = new T.Vector3(e.at.up.a, e.at.up.y, e.at.up.b), n = new T.Vector3(e.at.nrm.a, e.at.nrm.y, e.at.nrm.b);
-        basis.makeBasis(ax, up, n);q.setFromRotationMatrix(basis).multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(0, 0, 1), e.h.rot || 0));
-        const s = e.info.s;mtx.compose(new T.Vector3(e.at.p.a, e.at.p.y, e.at.p.b), q, new T.Vector3(s[0], s[1], s[2]));mesh.setMatrixAt(i, mtx);col.setHex(e.hex);mesh.setColorAt(i, col);
-      });
-      mesh.instanceMatrix.needsUpdate = true;if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;mesh.castShadow = true;mesh.receiveShadow = true;inner.add(mesh);return mesh;
-    };
-    const holdMat = new T.MeshStandardMaterial({roughness: .82, metalness: 0});
-    const domeMesh = placeInst(new T.InstancedMesh(dome, holdMat, domeList.length), domeList), volMesh = placeInst(new T.InstancedMesh(tet, holdMat, Math.max(1, volList.length)), volList);
-    // Start tape under every start hold, and the route's card (colour, grade, style) at the bottom of its line.
-    const tapeMesh = new T.InstancedMesh(new T.BoxGeometry(.05, .14, .004), new T.MeshStandardMaterial({roughness: .7}), taps.length);
-    {const mtx = new T.Matrix4(), col = new T.Color(), basis = new T.Matrix4(), q = new T.Quaternion();taps.forEach((t, i) => {basis.makeBasis(new T.Vector3(t.f.dir.a, 0, t.f.dir.b), new T.Vector3(t.at.up.a, t.at.up.y, t.at.up.b), new T.Vector3(t.at.nrm.a, t.at.nrm.y, t.at.nrm.b));q.setFromRotationMatrix(basis);mtx.compose(new T.Vector3(t.at.p.a + t.at.nrm.a * .01 - t.at.up.a * .17, t.at.p.y - t.at.up.y * .17 - .01, t.at.p.b + t.at.nrm.b * .01 - t.at.up.b * .17), q, new T.Vector3(1, 1, 1));tapeMesh.setMatrixAt(i, mtx);tapeMesh.setColorAt(i, col.setHex(t.hex));});}
-    inner.add(tapeMesh);
-    {
-      const cards = routes.filter(r => !r.moon && r.kind !== 'campus'), cols = 8, rows = Math.ceil(cards.length / cols), cw = 256, ch = 128;
-      const atlas = textTexture(cols * cw, rows * ch, (c) => {
-        cards.forEach((r, i) => {const x = (i % cols) * cw, y = Math.floor(i / cols) * ch;c.fillStyle = '#fbfbf8';c.fillRect(x + 2, y + 2, cw - 4, ch - 4);c.fillStyle = '#' + r.hex.toString(16).padStart(6, '0');c.fillRect(x + 2, y + 2, 34, ch - 4);
-          c.fillStyle = '#16191d';c.font = 'bold 46px Arial, sans-serif';c.fillText(r.grade, x + 48, y + 52);c.font = '24px Arial, sans-serif';c.fillText(r.colour, x + 48, y + 84);c.fillText(STYLE[r.kind] + (r.toprope && r.kind === 'rope' ? '' : ''), x + 48, y + 112);});
-      });
-      const pos = [], uv = [], idx = [];
-      cards.forEach((r, i) => {
-        const f = faces.get(r.face), x = (r.lane[0] + r.lane[1]) / 2, at = faceAt(f, x, .45), u0 = (i % cols) / cols, v0 = 1 - Math.floor(i / cols) / rows, du = 1 / cols, dv = 1 / rows, k = pos.length / 3;
-        for (const [ox, oy, uu, vv] of [[-.13, -.065, u0, v0 - dv], [.13, -.065, u0 + du, v0 - dv], [.13, .065, u0 + du, v0], [-.13, .065, u0, v0]]) {pos.push(at.p.a + f.dir.a * ox + at.nrm.a * .012 + at.up.a * oy, at.p.y + at.up.y * oy + at.nrm.y * .012, at.p.b + f.dir.b * ox + at.nrm.b * .012 + at.up.b * oy);uv.push(uu, vv);}
-        idx.push(k, k + 1, k + 2, k, k + 2, k + 3);
-      });
-      const g = new T.BufferGeometry();g.setAttribute('position', new T.Float32BufferAttribute(pos, 3));g.setAttribute('uv', new T.Float32BufferAttribute(uv, 2));g.setIndex(idx);g.computeVertexNormals();
-      const m = new T.Mesh(g, new T.MeshStandardMaterial({map: atlas, roughness: .7, side: T.DoubleSide}));m.userData.noMerge = true;inner.add(m);
-    }
-    // Rope gear: quickdraws on every bolt, anchors, top-ropes hanging from their anchors, autobelay devices and their gates.
-    const routeGear = new Map();
-    {
-      const qd = [], anchors = [], tops = [];
-      for (const r of routes) {
-        const f = faces.get(r.face);if (!r.bolts.length && !r.anchor) continue;
-        const bolts = r.bolts.map(b => {const at = faceAt(f, b.x, b.s);qd.push(at);return add(wv(at.p), norm(wdir(at.nrm)), .05);});
-        let anchor = null;if (r.anchor) {const at = faceAt(f, r.anchor.x, r.anchor.s);anchors.push(at);anchor = add(wv(at.p), norm(wdir(at.nrm)), .08);if (r.toprope) tops.push({at, f});}
-        routeGear.set(r.id, {bolts, anchor});
-      }
-      const qm = new T.InstancedMesh(new T.BoxGeometry(.025, .16, .025), new T.MeshStandardMaterial({color: 0x2b2d31, roughness: .5, metalness: .4}), qd.length + anchors.length * 2), mtx = new T.Matrix4();
-      qd.forEach((at, i) => {mtx.makeTranslation(at.p.a + at.nrm.a * .04, at.p.y - .08, at.p.b + at.nrm.b * .04);qm.setMatrixAt(i, mtx);});
-      anchors.forEach((at, i) => {for (const k of [0, 1]) {mtx.makeTranslation(at.p.a + at.nrm.a * .05 + (k ? .12 : -.12) * 0, at.p.y - .05 - k * .06, at.p.b + at.nrm.b * .05);qm.setMatrixAt(qd.length + i * 2 + k, mtx);}});
-      qm.instanceMatrix.needsUpdate = true;inner.add(qm);
-      for (const {at, f} of tops) {
-        // The top-rope: both strands from the anchor down to a coiled end on the floor beside the line.
-        for (const k of [-.06, .06]) {const top = {a: at.p.a + at.nrm.a * .12 + f.dir.a * k, y: at.p.y, b: at.p.b + at.nrm.b * .12 + f.dir.b * k}, foot = {a: top.a + f.n.a * .45, y: f.y0 + .05, b: top.b + f.n.b * .45}, l = Math.hypot(top.a - foot.a, top.y - foot.y, top.b - foot.b);
-          const c = new T.Mesh(new T.CylinderGeometry(.006, .006, l, 5), M.rope);c.position.set((top.a + foot.a) / 2, (top.y + foot.y) / 2, (top.b + foot.b) / 2);c.lookAt(top.a, top.y, top.b);c.rotateX(Math.PI / 2);inner.add(c);}
-      }
-      for (const r of routes) if (r.kind === 'auto') {
-        const f = faces.get(r.face), x = (r.lane[0] + r.lane[1]) / 2, top = faceAt(f, x, f.L - .2);
-        const dev = box(inner, .32, .32, .2, top.p.a + top.nrm.a * .12, top.p.y + .1, top.p.b + top.nrm.b * .12, M.red, false);dev.rotation.y = Math.atan2(f.n.a, f.n.b);
-        const foot = faceAt(f, x, .2), gate = new T.Mesh(new T.PlaneGeometry(1.3, 1.4), M.yellow), gp = {a: foot.p.a + f.n.a * .9, b: foot.p.b + f.n.b * .9};
-        gate.position.set(gp.a, .75, gp.b);gate.rotation.y = Math.atan2(f.n.a, f.n.b);inner.add(gate);
-        sign(inner, .5, .45, gp.a + f.n.a * .01, .9, gp.b + f.n.b * .01, Math.atan2(f.n.a, f.n.b), (c, w, h) => {c.fillStyle = '#f4c20d';c.fillRect(0, 0, w, h);c.fillStyle = '#16191d';c.beginPath();c.moveTo(w / 2, h * .08);c.lineTo(w * .9, h * .62);c.lineTo(w * .1, h * .62);c.closePath();c.lineWidth = 14;c.stroke();c.font = `bold ${h * .26}px Arial`;c.textAlign = 'center';c.fillText('!', w / 2, h * .55);c.font = `bold ${h * .12}px Arial`;c.fillText('KLIPP INN', w / 2, h * .85);});
-        const step = box(inner, .5, .3, .4, foot.p.a + f.n.a * .45, .15, foot.p.b + f.n.b * .45, M.red, false);step.rotation.y = Math.atan2(f.n.a, f.n.b);
-        const strap = new T.Mesh(new T.CylinderGeometry(.012, .012, top.p.y - 1.2, 4), new T.MeshStandardMaterial({color: 0x1d4fa0}));strap.position.set(top.p.a + top.nrm.a * .2, (top.p.y + 1.2) / 2, top.p.b + top.nrm.b * .2);inner.add(strap);
-        const gear = routeGear.get(r.id) || {bolts: []};gear.anchor = add(wv(top.p), norm(wdir(top.nrm)), .2);routeGear.set(r.id, gear);
-      }
-    }
+    const {holdsWorld, byId, routeGear} = buildHolds(C, set, faces);
     // Crash mats: 30 cm under every bouldering wall's room and the training room (walkable, soft).
     const MAT = .3;
     const mats = [[0, IN, BLOCK - .1, 8.6, 16.3], [1, IN, BLOCK - .1, IN, 16.4], [2, IN, BLOCK - .1, IN, 16.4], [3, IN, 6.2, IN, 17.8], [3, 6.2, BLOCK - .1, IN, 2.8], [3, 6.2, 8.8, 15.4, 17.8]];
-    for (const [lvl, a0, a1, b0, b1] of mats) {
-      const y = LEVELS[lvl];blk(inner, a0, a1, y, y + MAT - .02, b0, b1, M.matSide);blk(inner, a0 + .02, a1 - .02, y + MAT - .02, y + MAT, b0 + .02, b1 - .02, M.mat);
-      floors.push({name: `Klatreverket mats ${lvl + 1}`, points: rectW(a0, a1, b0, b1), y: Y0 + y + MAT, ceilingHeight: (lvl === 3 ? CEILING : LEVELS[lvl + 1] - SLAB) - y - MAT, surfaceKind: 'mat'});
-    }
     // Ramps onto the mats (issue #137): walk floors only join at the same height, so every mat's 30 cm edge was a wall you
     // could not cross. Hula fenced the lobby and the hall off from the stairs, and upstairs each landing was cut off from its
     // room. A sloped mat edge now leads onto the mats wherever you come in: [level, a0, a1, b0, b1, the side it slopes down to].
     const ramps = [[0, 6.3, 10.2, 8.0, 8.6, 'b-'], [0, 11.9, 12.5, 9.5, 15.7, 'a+'], [0, .5, 2.7, 16.3, 16.9, 'b+'], [1, 9.6, 11.7, 16.4, 17.0, 'b+'],
       [2, .5, 2.0, 16.4, 17.0, 'b+'], [3, 6.2, 6.8, 3.2, 14.6, 'a+'], [3, 8.8, 9.4, 15.6, 17.6, 'a+']];
-    for (const [lvl, a0, a1, b0, b1, side] of ramps) {
-      const y = LEVELS[lvl], alongA = side[0] === 'a', down = side[1] === '+' ? 1 : -1, k = MAT / (alongA ? a1 - a0 : b1 - b0);
-      const hi = alongA ? (down > 0 ? a0 : a1) : (down > 0 ? b0 : b1), lo = alongA ? (down > 0 ? a1 : a0) : (down > 0 ? b1 : b0);// the high edge meets the mat
-      const gr = wdir(alongA ? {a: -down * k, b: 0, y: 0} : {a: 0, b: -down * k, y: 0});
-      floors.push({name: `Klatreverket mat ramp ${lvl + 1}`, points: rectW(a0, a1, b0, b1), y: Y0 + y + MAT, slope: {x: gr.x, z: gr.z, origin: alongA ? W(hi, b0) : W(a0, hi)}, ceilingHeight: (lvl === 3 ? CEILING : LEVELS[lvl + 1] - SLAB) - y - MAT, surfaceKind: 'mat'});
-      // Drawn: the sloped top and two cheeks (no back or bottom face: those would lie on the mat's side and on the floor).
-      const v = (s, t, h) => alongA ? [s, h, t] : [t, h, s], s0 = alongA ? b0 : a0, s1 = alongA ? b1 : a1;// s across the ramp, t down it
-      const tri = (out, uv, p, want) => {const [A, B, C] = p, n = [(B[1] - A[1]) * (C[2] - A[2]) - (B[2] - A[2]) * (C[1] - A[1]), (B[2] - A[2]) * (C[0] - A[0]) - (B[0] - A[0]) * (C[2] - A[2]), (B[0] - A[0]) * (C[1] - A[1]) - (B[1] - A[1]) * (C[0] - A[0])];
-        const q = n[0] * want[0] + n[1] * want[1] + n[2] * want[2] < 0 ? [A, C, B] : p;for (const P of q) {out.push(...P);uv.push(want[1] ? P[0] : P[0] + P[2], want[1] ? P[2] : P[1]);}};
-      const mesh = (tris, mat) => {const pos = [], uv = [];for (const [p, w] of tris) tri(pos, uv, p, w);const geo = new T.BufferGeometry();geo.setAttribute('position', new T.Float32BufferAttribute(pos, 3));geo.setAttribute('uv', new T.Float32BufferAttribute(uv, 2));geo.computeVertexNormals();const m = new T.Mesh(geo, mat);m.castShadow = m.receiveShadow = true;inner.add(m);};
-      const up = [0, 1, 0], H = y + MAT, Lo = y + .002, side0 = alongA ? [0, 0, -1] : [-1, 0, 0], side1 = alongA ? [0, 0, 1] : [1, 0, 0];
-      mesh([[[v(s0, hi, H), v(s1, hi, H), v(s1, lo, Lo)], up], [[v(s0, hi, H), v(s1, lo, Lo), v(s0, lo, Lo)], up]], M.mat);
-      mesh([[[v(s0, hi, H), v(s0, lo, Lo), v(s0, hi, y)], side0], [[v(s1, hi, H), v(s1, lo, Lo), v(s1, hi, y)], side1]], M.matSide);
-    }
+    buildMats(C, mats, ramps, {y: lvl => LEVELS[lvl], ceil: lvl => lvl === 3 ? CEILING : LEVELS[lvl + 1] - SLAB, name: 'Klatreverket'});
     const matsAt = (a, b, y) => {for (const [lvl, a0, a1, b0, b1] of mats) if (a > a0 && a < a1 && b > b0 && b < b1 && Math.abs(y - LEVELS[lvl]) < 1.6) return LEVELS[lvl] + MAT;return null;};
     // Floor (or mat) under a world point, for the climber: the storey below the point.
     const floorUnder = p => {const f = toFrame(p.x, p.z), y = p.y - Y0;let lvl = 0;for (let i = 3; i >= 0; i--) if (y > LEVELS[i] - .1 && (i === 0 || f.a < BLOCK)) {lvl = i;break;}const m = matsAt(f.a, f.b, LEVELS[lvl]);return Y0 + (m ?? LEVELS[lvl]);};
@@ -735,101 +882,10 @@
     // Static geometry: one mesh per material for the shell and one per material for the interior (hidden when far away).
     lib.mergeStatic(shell, o => !!o.userData.noMerge);lib.mergeStatic(inner, o => o.isInstancedMesh || !!o.userData.noMerge);
 
-    // ---------- Visit state (ticket, rentals, brattkort, the ticks), kept in the browser ----------
-    const KEY = 'haarklous-klatreverket-v1';let st = {};
-    const loadState = () => {try {st = JSON.parse(localStorage.getItem(KEY) || '{}') || {};} catch {st = {};}st.ticks = st.ticks || {};st.tries = st.tries || {};};
-    loadState();window.addEventListener('haarklous-progress', loadState);// an account's saved progress was loaded (issue #54)
-    const save = () => {try {localStorage.setItem(KEY, JSON.stringify(st));} catch {}};
-    const today = () => {const d = new Date();return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;};
-    const visit = () => {if (st.day !== today()) {st.day = today();st.paid = false;st.shoes = st.harness = st.chalk = false;}if (st.paid) payEntry(st);return st;};
-    st.ticks = st.ticks || {};st.tries = st.tries || {};
-
-    // ---------- Climbing: which hold the player looks at, starting a route, the rope and the hands ----------
-    const climber = new Climber(holdsWorld, floorUnder);
-    const near = (p, r) => holdsWorld.filter(h => Math.abs(h.p.y - p.y) < r && dist(h.p, p) < r);
-    // The hold closest to the line of sight (within a few centimetres of it, out to 3.2 m).
-    function aimAt(cam, dir, onlyHand = true) {
-      let best = null, bd = 1e9;
-      for (const h of near(cam, 3.4)) {
-        if (onlyHand && !h.hand) continue;const d = sub(h.p, cam), t = dot(d, dir);if (t < .15 || t > 3.3) continue;
-        const off = len(add(d, dir, -t)), tol = .09 + t * .035;if (off < tol && off + t * .01 < bd) {bd = off + t * .01;best = h;}
-      }
-      return best;
-    }
-    // Where the line of sight meets the wall (for the free hand).
-    function aimPoint(cam, dir) {const h = aimAt(cam, dir, false) || near(cam, 2.5).sort((a, b) => dist(a.p, cam) - dist(b.p, cam))[0];if (!h) return null;const t = dot(sub(h.p, cam), h.n) / (dot(dir, h.n) || -1e-6);return t > 0 && t < 4 ? add(cam, dir, t) : h.p;}
-    function routeAt(cam, dir, player) {
-      const h = aimAt(cam, dir, false);if (!h || h.route < 0) return null;const r = routes[h.route];
-      // Only from the floor in front of the line (not from a stair or another storey).
-      return Math.abs(player.feet - floorUnder({x: h.p.x, y: h.p.y - 1, z: h.p.z})) < .9 ? r : null;
-    }
-    function startHoldsOf(r) {const hs = r.moon ? [byId.get(r.startHolds[0])] : r.holds.map(i => byId.get(i)).filter(h => h.start);return hs;}
-    // Hands seen in first person: a simple palm and fingers each.
-    const handMat = new T.MeshStandardMaterial({color: 0xd9a988, roughness: .7});
-    const hands = ['L', 'R'].map(() => {const g = new T.Group();const palm = new T.Mesh(new T.BoxGeometry(.085, .1, .03), handMat);g.add(palm);for (let i = 0; i < 4; i++) {const f = new T.Mesh(new T.BoxGeometry(.017, .075, .022), handMat);f.position.set(-.03 + i * .02, .08, -.012);f.rotation.x = .9;g.add(f);}const th = new T.Mesh(new T.BoxGeometry(.02, .055, .022), handMat);th.position.set(.05, .02, -.01);th.rotation.z = -.8;g.add(th);g.visible = false;g.userData.noMerge = true;return g;});
-    const aimRing = new T.Mesh(new T.TorusGeometry(.13, .012, 6, 24), new T.MeshBasicMaterial({color: 0x66ff88, depthTest: false, transparent: true, opacity: .9}));aimRing.renderOrder = 20;aimRing.visible = false;
-    // The rope from the belayer through the clipped bolts (or the anchor) to the harness: up to 24 short cylinders.
-    const ropeSegs = [];for (let i = 0; i < 24; i++) {const c = new T.Mesh(new T.CylinderGeometry(.007, .007, 1, 5), M.rope);c.visible = false;ropeSegs.push(c);}
-    const extras = new T.Group();extras.add(...hands, aimRing, ...ropeSegs);
-    function drawRope(points) {
-      let k = 0;for (let i = 0; i < points.length - 1 && k < ropeSegs.length; i++) {const a = points[i], b = points[i + 1], l = dist(a, b);if (l < .01) continue;const c = ropeSegs[k++];c.visible = true;c.scale.set(1, l, 1);c.position.set((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);c.lookAt(b.x, b.y, b.z);c.rotateX(Math.PI / 2);}
-      for (; k < ropeSegs.length; k++) ropeSegs[k].visible = false;
-    }
-    let session = null;// {route, style, belayer}
-    function begin(route, opts = {}) {
-      const gear = routeGear.get(route.id) || {bolts: []}, style = opts.style || (route.kind === 'rope' ? (route.toprope ? 'rope' : 'lead') : route.kind);
-      climber.start(route, startHoldsOf(route).length ? startHoldsOf(route) : route.holds.map(i => byId.get(i)), {style, anchor: gear.anchor, bolts: gear.bolts, chalk: visit().chalk});
-      st.tries[route.id] = (st.tries[route.id] || 0) + 1;save();
-      session = {route, style, belay: style === 'rope' || style === 'lead'};
-      if (session.belay && siri) {const f = faces.get(route.face), x = (route.lane[0] + route.lane[1]) / 2;siri.group.position.set(f.p0[0] + f.dir.a * x + f.n.a * 1.5, f.y0, f.p0[1] + f.dir.b * x + f.n.b * 1.5);siri.group.rotation.y = Math.atan2(f.n.a, f.n.b);session.siriAt = {...siri.group.position};}
-      return climber;
-    }
-    function end() {
-      if (session && siri) {siri.group.position.set(siriHome.a, 0, siriHome.b);siri.group.rotation.y = siriHome.yaw;}
-      session = null;climber.state = 'off';hands.forEach(h => {h.visible = false;});aimRing.visible = false;drawRope([]);
-    }
-    function tick(route, style) {const prev = st.ticks[route.id];const how = style === 'lead' ? (st.tries[route.id] <= 1 ? 'flash (lead)' : 'redpoint') : style === 'rope' ? 'top rope' : style === 'auto' ? 'autobelay' : st.tries[route.id] <= 1 ? 'flash' : 'sent';if (!prev || prev === 'top rope' || prev === 'autobelay') st.ticks[route.id] = how;save();return how;}
-    // Per frame while climbing: hands, the target aimRing, the rope.
-    function showClimb(cam, dir, aim, cls) {
-      for (const [i, s] of [[0, 'L'], [1, 'R']]) {
-        const hd = climber.hands[s], g = hands[i];g.visible = climber.state !== 'off';if (!g.visible) continue;
-        const p = hd.pos, n = hd.hold ? hd.hold.n : climber.n, up = hd.hold ? hd.hold.up : climber.up, ax = hd.hold ? hd.hold.ax : climber.ax, match = hd.hold && climber.hands.L.hold === climber.hands.R.hold ? (s === 'L' ? -.06 : .06) : 0;
-        g.position.set(p.x + n.x * .1 + up.x * .05 + ax.x * match, p.y + n.y * .1 + up.y * .05 + ax.y * match, p.z + n.z * .1 + up.z * .05 + ax.z * match);
-        g.lookAt(p.x - n.x, p.y - n.y, p.z - n.z);g.rotateY(Math.PI);g.rotateZ(s === 'L' ? .25 : -.25);g.scale.x = s === 'L' ? -1 : 1;
-      }
-      aimRing.visible = !!aim && climber.state === 'climb';
-      if (aimRing.visible) {aimRing.position.set(aim.p.x + aim.n.x * .04, aim.p.y + aim.n.y * .04, aim.p.z + aim.n.z * .04);aimRing.lookAt(aim.p.x + aim.n.x, aim.p.y + aim.n.y, aim.p.z + aim.n.z);aimRing.material.color.setHex(cls === 'reach' ? 0x66ff88 : cls === 'dyno' ? 0xffb02e : cls === 'foot' ? 0x9aa0a6 : 0xff5252);}
-      if (!session) {drawRope([]);return;}
-      const harness = add(climber.hip, climber.up, -.05);
-      const pts = [];
-      if (session.belay && siri) {const sp = siri.group.getWorldPosition(new T.Vector3());pts.push({x: sp.x, y: sp.y + 1.0, z: sp.z});}
-      if (climber.style === 'rope' && climber.anchor) pts.push(climber.anchor);
-      else if (climber.style === 'lead') {for (let i = 0; i < climber.clipped; i++) pts.push(climber.bolts[i]);if (climber.anchorClipped) pts.push(climber.anchor);}
-      else if (climber.style === 'auto' && climber.anchor) pts.push(climber.anchor);
-      pts.push(harness);drawRope(pts.length > 1 && climber.style !== 'boulder' && climber.style !== 'moon' && climber.style !== 'campus' ? pts : []);
-    }
-
-    // ---------- Belaying Siri: she climbs a top-rope route, you stand at its foot ----------
-    let belayRoute = null;
-    const belaySpot = route => {const f = faces.get(route.face), x = (route.lane[0] + route.lane[1]) / 2, p = W(f.p0[0] + f.dir.a * x + f.n.a * 1.7, f.p0[1] + f.dir.b * x + f.n.b * 1.7), n = wdir({a: f.n.a, b: f.n.b, y: 0});return {x: p.x, z: p.z, yaw: Math.atan2(n.x, n.z)};};
-    function startBelay(route) {belayRoute = route;if (siri) siri.ghost = true;const f = faces.get(route.face);return new Belay(f.H - 2.2, route.id + 7);}
-    function showBelay(b, dt, hand) {
-      if (!belayRoute || !siri) return;const f = faces.get(belayRoute.face), x = (belayRoute.lane[0] + belayRoute.lane[1]) / 2, at = faceAt(f, x + Math.sin(b.t * .9) * .12, b.y + 1.0);
-      siri.group.position.set(at.p.a + at.nrm.a * .42, f.y0 + b.y, at.p.b + at.nrm.b * .42);siri.group.rotation.y = Math.atan2(f.n.a, f.n.b);
-      siri.pose({stance: b.state === 'climb' && b.y > .2 ? 'climb' : b.state === 'climb' ? 'stand' : 'hang', speed: b.state === 'climb' && !(b.rest > 0) ? .7 : 0, dt});
-      const gear = routeGear.get(belayRoute.id), harness = siri.group.localToWorld(new T.Vector3(0, .95, -.1));
-      drawRope(gear && gear.anchor ? [hand, gear.anchor, {x: harness.x, y: harness.y, z: harness.z}] : []);
-    }
-    function endBelay() {belayRoute = null;if (siri) {siri.ghost = false;siri.group.position.set(siriHome.a, 0, siriHome.b);siri.group.rotation.y = siriHome.yaw;}drawRope([]);}
-
-    // ---------- The Moonwall: choose a problem, its LEDs light up ----------
-    const moonRoutes = routes.filter(r => r.moon);let moonSel = -1;
-    function lightMoon(i) {
-      moonSel = i;const col = new T.Color();
-      moonHolds.forEach((h, k) => {const role = i >= 0 ? (set.holds[h.id].moon || {})[moonRoutes[i].id] : null;leds.setColorAt(k, col.setHex(role === 'start' ? 0x22ee55 : role === 'top' ? 0xff3030 : role === 'move' ? 0x3399ff : 0x202020));});
-      leds.instanceColor.needsUpdate = true;return i >= 0 ? moonRoutes[i] : null;
-    }
-
+    // ---------- Visit state (ticket, rentals, brattkort, the ticks), kept in the browser (one store for every gym) ----------
+    const stOf = () => Store.gym('torshov'), save = () => Store.save(), visit = () => visitOf(stOf());
+    const R = runtime(C, {set, faces, routes, holdsWorld, byId, routeGear, floorUnder, siri, siriHome, stOf, save, visit, leds, moonHolds});
+    const {climber, begin, end, tick, showClimb, aimAt, aimPoint, routeAt, startBelay, showBelay, endBelay, belaySpot, lightMoon, moonRoutes, extras} = R;
     // ---------- Each frame (on foot or climbing) ----------
     let tt = 0;
     function update(dt, player, camera, remotes = []) {
@@ -845,7 +901,7 @@
       // The receptionist and Siri turn toward you when you are near (an avatar faces -z at yaw 0).
       const face = (av, a, b, rest, r) => {const t = Math.hypot(pl.a - a, pl.b - b) < r && Math.abs(player.feet - Y0) < 2 ? Math.atan2(-(pl.a - a), -(pl.b - b)) : rest;let d = t - av.group.rotation.y;d = Math.atan2(Math.sin(d), Math.cos(d));av.group.rotation.y += d * Math.min(1, dt * 2.5);};
       if (staff) face(staff, 4.0, 7.3, 0, 8);
-      if (siri) {siri.belaying = !!(session && session.belay);siriHit.position.copy(siri.group.position).add(new T.Vector3(0, .9, 0));if (!session && !belayRoute) face(siri, siriHome.a, siriHome.b, siriHome.yaw, 6);}
+      if (siri) {const session = R.session();siri.belaying = !!(session && session.belay);siriHit.position.copy(siri.group.position).add(new T.Vector3(0, .9, 0));if (!session && !R.belayRoute()) face(siri, siriHome.a, siriHome.b, siriHome.yaw, 6);}
       for (const g of ghosts) {
         g.t += dt;const T0 = 70, T1 = 12, k = g.t % (T0 + T1), up = k < T0 ? k / T0 : 1 - (k - T0) / T1, at = faceAt(g.f, g.x + Math.sin(g.t * .7) * .15, .4 + up * (g.f.L - 2.2));
         g.climber.group.position.set(at.p.a + at.nrm.a * .4, at.p.y - .9, at.p.b + at.nrm.b * .4);g.climber.group.rotation.y = Math.atan2(g.f.n.a, g.f.n.b);g.climber.pose({stance: k < T0 ? 'climb' : 'hang', speed: k < T0 ? .6 : 0, dt});
@@ -866,8 +922,394 @@
     // The ground under the hall is the hall floor (for groundAt in game-main: the terrain under the building is higher).
     function ground(x, z) {const f = toFrame(x, z);return f.a > -.05 && f.a < LEN + .05 && f.b > -.05 && f.b < WING + .05 ? Y0 : null;}
     const local = {x: data.gym[0], s: data.gym[1]};
-    return {group, extras, floors, obstacles, hitboxes, routes, holds: holdsWorld, faces, climber, begin, end, tick, showClimb, aimAt, aimPoint, routeAt, classify: (s, h) => classify(climber, s, h), update, zoneAt, ZONE_NAME, ground, visit, save, get state() {return st;},
-      lightMoon, get moonSel() {return moonSel;}, moonRoutes, startBelay, showBelay, endBelay, belaySpot, QUIZ, siri, staff, door: W(-1.2, (DOOR[0] + DOOR[1]) / 2), doorYaw: Math.atan2(ux, uz), local, floorY: Y0, toFrame, W, routeGear, session: () => session, LEVELS, priceAt, brattkortPriceAt, staffedAt, openAt, HOURS, PRICES, STYLE};
+    return {group, extras, floors, obstacles, hitboxes, routes, holds: holdsWorld, faces, climber, begin, end, tick, showClimb, aimAt, aimPoint, routeAt, classify: (s, h) => classify(climber, s, h), update, zoneAt, ZONE_NAME, ground, visit, save, get state() {return stOf();},
+      lightMoon, get moonSel() {return R.moonSel;}, moonRoutes, startBelay, showBelay, endBelay, belaySpot, QUIZ, siri, staff, door: W(-1.2, (DOOR[0] + DOOR[1]) / 2), doorYaw: Math.atan2(ux, uz), local, floorY: Y0, toFrame, W, routeGear, session: () => R.session(), LEVELS, priceAt, brattkortPriceAt, staffedAt, openAt, HOURS, PRICES, STYLE, ...TORSHOV_INFO, deskPoint: W(4, 5), belayRoutes: routes.filter(r => r.zone === 'Galleriet' && r.toprope),
+      centre: W(LEN / 2, WING / 2), distTo: (x, z) => {const f = toFrame(x, z);return Math.hypot(Math.max(0, Math.abs(f.a - LEN / 2) - LEN / 2), Math.max(0, Math.abs(f.b - WING / 2) - WING / 2));}};
   }
-  return {PRICES, HOURS, priceAt, payEntry, brattkortPriceAt, staffedAt, openAt, gradeName, ROPE_GRADES, BOULDER_GRADES, WALLS, LEVELS, HOLDS, COLOURS, STYLE, faceInfo, faceAt, makeRoutes, classify, leadCatch, steepness, Climber, Belay, QUIZ, worldHolds, prepare, hallPolygon, create, REACH, DYNO};
+
+  // ---------- The other climbing gyms inside the map (issue #168) ----------
+  // Found on the gyms' own pages and in OpenStreetMap (sport=climbing), November 2026: Klatreverket Løkka (Thorvald Meyers gate 9,
+  // bouldering), Klatreverket Løren (Kanonhallen, Peter Møllers vei 4: bouldering and autobelays), Vulkan klatresenter (Vulkan 13,
+  // Kolsås klatreklubb: ropes and three bouldering rooms) and Brak Buldring (Østerdalsgata 7A, opened 2026: bouldering on three
+  // floors). Klatreverket Bryn (Brynsveien 3) is outside the map. Each is a room cut into its real building in the district patch
+  // (a notch, as the shops and the police station: tools/make-climbing.py gyms -> climbing-gyms-data.js).
+  // Facts (prices for an adult day ticket, opening hours: Sunday first) from klatreverket.no, kolsaas.no and brakbuldring.no.
+  const KV_PRICE = {day: 155, evening: 175, before: 16};// one price list for every Klatreverket centre
+  const GYM_FACTS = {
+    lokka: {name: 'Klatreverket Løkka', short: 'Løkka', operator: 'Klatreverket', sign: ['KLATREVERKET', 'LØKKA'], colour: '#c4161c', ropes: false,
+      hours: 'Mo 10–23 · Tu 08–23 · We 10–23 · Th 08–23 · Fr 10–21 · Sa 09–20 · Su 10–21', table: [[10, 21], [10, 23], [8, 23], [10, 23], [8, 23], [10, 21], [9, 20]],
+      price: KV_PRICE, phone: '940 10 352', welcome: 'Hei! Velkommen til Klatreverket Løkka.', shop: 'BUTIKK',
+      about: 'bouldering only, about 100 problems, about 20 new every week'},
+    loren: {name: 'Klatreverket Løren', short: 'Løren', operator: 'Klatreverket', sign: ['KLATREVERKET', 'LØREN'], colour: '#c4161c', ropes: false,
+      hours: 'Mo 08–22 · Tu 09–22 · We 08–22 · Th 09–22 · Fr 09–20 · Sa 09–18 · Su 09–20', table: [[9, 20], [8, 22], [9, 22], [8, 22], [9, 22], [9, 20], [9, 18]],
+      price: KV_PRICE, phone: '484 22 241', welcome: 'Hei! Velkommen til Klatreverket Løren.', shop: 'KLATRESJAPPA',
+      about: 'bouldering and autobelays in Kanonhallen, 8 m from floor to ceiling'},
+    vulkan: {name: 'Vulkan klatresenter', short: 'Vulkan', operator: 'Kolsås klatreklubb', sign: ['VULKAN', 'KLATRESENTER'], colour: '#1d4fa0', ropes: true,
+      hours: 'Mo 10–22 · Tu 07–22 · We 10–22 · Th 07–22 · Fr 10–21 · Sa–Su 10–18', table: [[10, 18], [10, 22], [7, 22], [10, 22], [7, 22], [10, 21], [10, 18]],
+      price: {day: 130, evening: 155, before: 15}, phone: '22 11 28 90', welcome: 'Hei! Velkommen til Vulkan klatresenter.', shop: null,
+      about: 'top rope and lead: 10 m beginner walls, walls up to 14.5 m at 5–30°, three bouldering rooms'},
+    brak: {name: 'Brak Buldring', short: 'Brak', operator: 'Brak Buldring', sign: ['BRAK', 'BULDRING'], colour: '#ff5a1f', ropes: false,
+      hours: 'Mo–Fr 08–23 · Sa–Su 09–23', table: [[9, 23], [8, 23], [8, 23], [8, 23], [8, 23], [8, 23], [9, 23]],
+      price: {day: 160, evening: 170, before: 16}, phone: '', welcome: 'Hei! Velkommen til Brak.', shop: null,
+      about: 'bouldering on three floors (1500 m²), about 110 problems graded 1–9, a Quantum Board and a Tension Board, café and bar'}
+  };
+  const factsPriceAt = F => d => weekday(d) && hourOf(d) < F.price.before ? F.price.day : F.price.evening;
+  const factsOpenAt = F => d => {const [o, c] = F.table[d.getDay()], h = hourOf(d);return h >= o && h < c;};
+  const factsPriceNote = F => d => factsPriceAt(F)(d) === F.price.day ? `before ${F.price.before} on weekdays` : `after ${F.price.before} and at weekends`;
+  const BRAK_GRADES = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];// Brak grades its problems 1 (easiest) to 9
+  // What game-main shows for Klatreverket Torshov (its menu, Siri and the belay test).
+  const TORSHOV_INFO = {id: 'torshov', name: 'Klatreverket Torshov', short: 'Torshov', hasRopes: true, harness: true, belayZone: 'Galleriet', welcome: 'Hei! Velkommen til Klatreverket.',
+    priceNote: d => priceAt(d) === PRICES.entryDay ? 'before 16 on weekdays' : 'after 16 and at weekends', ticketNote: 'shoes, harness, chalk and the autobelays included',
+    staffNote: 'only when the climbing staff is on duty: after 17 on weekdays, after 11 at weekends',
+    siriLines: sends => ['Jeg har brattkort – velg en rute med topptau i Galleriet, så sikrer jeg. (Pick a top-rope route.)', 'Lede på Konkurranseveggen? Husk å klippe alle boltene!', `Du har klatret ${sends} ruter her. Prøv Hula eller Discorommet for buldring.`, 'Moonwall er i fjerde etasje, innerst og øverst.']};
+
+  // The room of each gym, in its frame: a along the front wall (0 … W), b into the building (0 … D), y up from the ground floor.
+  // Walls use the WALLS format (p0 -> p1, the climbing side is n = (-dir.b, dir.a); segs [length, overhang °]). The real gyms'
+  // pages tell what each has; where they give no number (most wall angles, the room layout) the game chooses one.
+  // mats/ramps as Torshov's; parts [lvl, a0, a1, b0, b1, height, material] are walls and blocks (drawn and solid); decks are the
+  // walkable floors above the ground floor; stairs [{along, lo, hi, s0, s1, y0, y1}] run from lo (at y0) to hi (at y1).
+  const HALLS = ['lokka', 'loren', 'vulkan', 'brak'];
+  function hallSpec(id, {W, D, H, aDoor}) {
+    const A = W - .32, Bk = D - .32, w = (o) => o;
+    if (id === 'lokka') {
+      // Klatreverket Løkka: one level; two long walls of varying steepness, the mushroom (Soppen) with many angles, a short end
+      // wall (vertical, overhang, system wall), Grasshopper (a tilting system wall), Moonwall 40°, Kilterboard, Kaosvegg, campus.
+      const R = .32, top = Math.min(4.45, H - .4);
+      return {levels: [0], H, lobbyB: 6.0, ceil: () => H, seed: 168,
+        walls: [
+          w({id: 'lA1', zone: 'Langveggen', kind: 'boulder', lvl: 0, p0: [R, 12.0], p1: [R, 6.8], segs: [[top, 5]], lanes: 4, d: [0, .4]}),
+          w({id: 'lA2', zone: 'Langveggen', kind: 'boulder', lvl: 0, p0: [R, 17.4], p1: [R, 12.0], segs: [[1.0, 0], [top - 1.0, 30]], lanes: 4, d: [.3, .8]}),
+          w({id: 'lA3', zone: 'Langveggen', kind: 'boulder', lvl: 0, p0: [R + .66, 22.1], p1: [R + .66, 17.4], segs: [[top, -8]], lanes: 3, d: [.05, .45]}),
+          w({id: 'kaos', zone: 'Kaosvegg', kind: 'boulder', lvl: 0, p0: [R, Bk - .7], p1: [R, 22.4], segs: [[.3, 0], [top - .3, 28]], lanes: 2, d: [.3, .75]}),
+          w({id: 'lB1', zone: 'Langveggen', kind: 'boulder', lvl: 0, p0: [A, 6.8], p1: [A, 12.4], segs: [[2.0, 10], [top - 2.0, 40]], lanes: 4, d: [.4, .95]}),
+          w({id: 'lB2', zone: 'Langveggen', kind: 'boulder', lvl: 0, p0: [A, 12.4], p1: [A, 18.0], segs: [[top, 15]], lanes: 4, d: [.2, .65]}),
+          w({id: 'moon', zone: 'Moonwall', kind: 'moon', lvl: 0, p0: [A, 18.5], p1: [A, 21.1], segs: [[.3, 0], [3.15, 40]], lanes: 1, d: [.45, .95]}),
+          w({id: 'kilter', zone: 'Kilterboard', kind: 'boulder', lvl: 0, p0: [A, 21.5], p1: [A, Bk - .4], segs: [[.3, 0], [3.6, 40]], lanes: 2, d: [.4, .9]}),
+          w({id: 'end1', zone: 'Endeveggen', kind: 'boulder', lvl: 0, p0: [W - 3.4, Bk], p1: [W - 7.4, Bk], segs: [[top, 0]], lanes: 4, d: [0, .4]}),
+          w({id: 'end2', zone: 'Endeveggen', kind: 'boulder', lvl: 0, p0: [W - 7.4, Bk], p1: [W - 11.4, Bk], segs: [[1.0, 0], [top - 1.0, 35]], lanes: 3, d: [.45, .95]}),
+          w({id: 'grass', zone: 'Grasshopper', kind: 'boulder', lvl: 0, p0: [W - 11.7, Bk], p1: [W - 15.0, Bk], segs: [[.3, 0], [3.6, 35]], lanes: 2, d: [.35, .8]}),
+          w({id: 'campus', zone: 'Campusbrett', kind: 'campus', lvl: 0, p0: [W - 15.2, Bk], p1: [W - 17.1, Bk], segs: [[2.6, 15]], lanes: 1, d: [.6, .6], back: .1}),
+          // Soppen: a free-standing block with a face on every side.
+          w({id: 'sopp1', zone: 'Soppen', kind: 'boulder', lvl: 0, p0: [7.0, 13.2], p1: [7.0, 18.8], segs: [[1.2, 0], [top - 1.3, 25]], lanes: 3, d: [.25, .7]}),
+          w({id: 'sopp2', zone: 'Soppen', kind: 'boulder', lvl: 0, p0: [11.0, 18.8], p1: [11.0, 13.2], segs: [[top, 10]], lanes: 3, d: [.1, .55]}),
+          w({id: 'sopp3', zone: 'Soppen', kind: 'boulder', lvl: 0, p0: [10.8, 13.0], p1: [7.2, 13.0], segs: [[.8, 0], [top - 1.1, 35]], lanes: 2, d: [.5, 1]}),
+          w({id: 'sopp4', zone: 'Soppen', kind: 'boulder', lvl: 0, p0: [7.2, 19.0], p1: [10.8, 19.0], segs: [[top, -5]], lanes: 2, d: [0, .35]})],
+        mats: [[0, .3, W - .3, 6.6, D - .3]], ramps: [[0, .5, W - .5, 6.0, 6.6, 'b-']],
+        parts: [[0, 7.35, 10.65, 13.35, 18.5, top - .05, 'boulder'], [0, 5.5, 11.8, 10.9, 19.0, .12, 'boulder', top - .05]],
+        hang: {a: 9.0, b: 23.0, y: .3, len: 2.4}, desk: {b0: 3.2, b1: 3.9, len: 3.6, min: 1.6},
+        lights: [[9, H - .6, 9, 30], [9, H - .6, 20, 30]],
+        zoneAt: (a, b) => b < 6.0 ? 'lobby' : b > 22.2 ? 'training' : 'hall', zoneNames: {lobby: 'the reception', hall: 'Buldrehallen', training: 'the training corner'},
+        lamps: [[3, 9, 15], [4.5, 13.5]]};
+    }
+    if (id === 'loren') {
+      // Klatreverket Løren in Kanonhallen (long and narrow, 8 m to the ceiling): the autobelay room (more than ten lines, some set
+      // for children, 7.5 m), two big bouldering islands with training walls on top (Moonwall 40°, Kilter, Tension Board 2).
+      const R = .32, Hab = Math.min(7.5, H - .4), isl = [{b0: 23, b1: 32, stair: 'end'}, {b0: 40, b1: 50, stair: 'start'}], IY = 4.0, top = IY - .3;
+      const walls = [
+        w({id: 'ab1', zone: 'Autobelay', kind: 'auto', lvl: 0, p0: [R, 12.8], p1: [R, 7.0], segs: [[Hab, 0]], lanes: 3, d: [0, .3]}),
+        w({id: 'ab2', zone: 'Autobelay', kind: 'auto', lvl: 0, p0: [R, 18.7], p1: [R, 12.9], segs: [[Hab, 5]], lanes: 3, d: [.2, .55]}),
+        w({id: 'ab3', zone: 'Autobelay', kind: 'auto', lvl: 0, p0: [A, 7.0], p1: [A, 12.8], segs: [[Hab, 0]], lanes: 3, d: [.1, .45]}),
+        w({id: 'ab4', zone: 'Autobelay', kind: 'auto', lvl: 0, p0: [A, 12.9], p1: [A, 18.7], segs: [[Hab, 8]], lanes: 3, d: [.3, .65]})];
+      isl.forEach((I, k) => {
+        const z = `Buldreøy ${k + 1}`;
+        walls.push(w({id: `i${k}a`, zone: z, kind: 'boulder', lvl: 0, p0: [3.0, I.b0 + .2], p1: [3.0, I.b1 - .2], segs: [[1.0, 0], [top - 1.0, 20]], lanes: 4, d: [.2, .7]}));
+        walls.push(w({id: `i${k}b`, zone: z, kind: 'boulder', lvl: 0, p0: [11.0, I.b1 - .2], p1: [11.0, I.b0 + .2], segs: [[top, 10]], lanes: 4, d: [0, .5]}));
+        if (I.stair === 'end') walls.push(w({id: `i${k}c`, zone: z, kind: 'boulder', lvl: 0, p0: [10.8, I.b0], p1: [3.2, I.b0], segs: [[.8, 0], [top - .8, 30]], lanes: 3, d: [.45, 1]}));
+        else walls.push(w({id: `i${k}c`, zone: z, kind: 'boulder', lvl: 0, p0: [3.2, I.b1], p1: [10.8, I.b1], segs: [[top, -6]], lanes: 3, d: [0, .4]}));
+      });
+      // The training walls on the islands' tops (level 1 = the top, 4 m up).
+      walls.push(w({id: 'moon', zone: 'Moonwall', kind: 'moon', lvl: 1, p0: [6.6, 31.4], p1: [4.0, 31.4], segs: [[.3, 0], [3.15, 40]], lanes: 1, d: [.45, .95], back: .3}));
+      walls.push(w({id: 'kilter', zone: 'Kilter', kind: 'boulder', lvl: 1, p0: [10.0, 31.4], p1: [7.0, 31.4], segs: [[.3, 0], [3.0, 40]], lanes: 2, d: [.4, .9], back: .3}));
+      walls.push(w({id: 'tension', zone: 'Tension Board 2', kind: 'boulder', lvl: 1, p0: [7.4, 49.6], p1: [3.7, 49.6], segs: [[.3, 0], [3.0, 40]], lanes: 2, d: [.4, .9], back: .3}));
+      // Islands: the core, the top slab; stairs up beside one end and a landing onto the top.
+      const parts = [], decks = [], stairs = [], rails = [];
+      isl.forEach((I, k) => {
+        parts.push([0, 3.35, 10.65, I.b0 + .35, I.b1 - .5, top - .02, 'boulder']);
+        const sb = I.stair === 'end' ? [I.b1, I.b1 + 1.4] : [I.b0 - 1.4, I.b0];
+        decks.push({name: `island ${k + 1} top`, y: IY, pts: [[1.7, I.b0 - (I.stair === 'end' ? 2.0 : 0)], [12.0, I.b0 - (I.stair === 'end' ? 2.0 : 0)], [12.0, I.b1 + (I.stair === 'end' ? 0 : .05)], [1.7, I.b1 + (I.stair === 'end' ? 0 : .05)]].map(([a, b]) => [a, b]), slab: .3, ceil: H - IY, kind: 'mat'});
+        decks.push({name: `island ${k + 1} landing`, y: IY, pts: [[10.2, sb[0]], [12.0, sb[0]], [12.0, sb[1]], [10.2, sb[1]]], slab: .3, ceil: H - IY});
+        stairs.push({along: 'a', lo: 4.0, hi: 10.2, s0: sb[0] + .02, s1: sb[1] - .02, y0: 0, y1: IY});parts.push([0, 7.7, 10.2, sb[0] + .05, sb[1] - .05, 1.9, 'slab']);
+        rails.push([IY, 1.75, I.b0 - (I.stair === 'end' ? 1.95 : 0), 1.75, I.b1 + (I.stair === 'end' ? -.05 : 0)]);
+      });
+      return {levels: [0, IY], H, lobbyB: 6.0, ceil: lvl => lvl ? H : H, seed: 585, walls, parts: [
+          [0, .3, 4.5, 6.4, 6.6, H, 'paintIn'], [0, 9.5, W - .3, 6.4, 6.6, H, 'paintIn'], [0, 4.5, 9.5, 6.4, 6.6, H - 2.6, 'paintIn', 2.6],
+          [0, .3, 4.5, 19.0, 19.2, H, 'paintIn'], [0, 9.5, W - .3, 19.0, 19.2, H, 'paintIn'], [0, 4.5, 9.5, 19.0, 19.2, H - 2.6, 'paintIn', 2.6], ...parts],
+        decks, stairs, rails,
+        mats: [[0, .3, W - .3, 19.8, 21.0], [0, .3, 2.95, 21.0, 33.0], [0, 11.05, W - .3, 21.0, 31.9],
+          [0, .3, 2.95, 40.0, 50.1], [0, 11.05, W - .3, 40.0, 50.1], [0, .3, W - .3, 50.1, D - .3]],
+        ramps: [[0, 4.6, 9.4, 19.2, 19.8, 'b-'], [0, .5, 2.8, 33.0, 33.6, 'b+'], [0, 11.2, W - .5, 31.9, 32.5, 'b+'], [0, 3.0, 10.9, 21.0, 21.6, 'b+'],
+          [0, .5, 2.8, 39.4, 40.0, 'b-'], [0, 11.2, W - .5, 39.4, 40.0, 'b-']],
+        hang: {a: 6.0, b: 45.5, y: IY, len: 2.4}, desk: {b0: 3.0, b1: 3.7, len: 3.6, min: 1.6},
+        lights: [[7, H - .5, 13, 26], [7, H - .5, 30, 34], [7, H - .5, 46, 34]],
+        zoneAt: (a, b, y) => b < 6.5 ? 'lobby' : b < 19.1 ? 'auto' : y > 3.0 ? 'top' : 'hall',
+        zoneNames: {lobby: 'the reception', auto: 'the autobelay room', hall: 'the bouldering hall', top: 'the training walls on the island'}, lamps: [[3, 7, 11], [5, 12, 19, 26, 33, 40, 47, 54]]};
+    }
+    if (id === 'vulkan') {
+      // Vulkan klatresenter: beginner walls 10 m and mostly vertical, the walls for the experienced up to 14.5 m at 5–30°
+      // (top rope and lead), and three bouldering rooms. The hall's walls are as high as the real roof allows (Kartverket).
+      const R = .32, Hw = Math.min(14.0, H - .5), Hb = Math.min(10, Hw), rooms = [[.3, 4.35], [4.55, 8.5], [8.7, 12.8]], lowC = 4.8;
+      const walls = [
+        w({id: 'vb1', zone: 'Nybegynnerveggen', kind: 'rope', lvl: 0, p0: [R, 27.0], p1: [R, 16.0], segs: [[Hb, 0]], lanes: 5, d: [0, .4], tr: 'all'}),
+        w({id: 'vb2', zone: 'Nybegynnerveggen', kind: 'rope', lvl: 0, p0: [R, 35.0], p1: [R, 27.4], segs: [[Hb, 3]], lanes: 4, d: [.05, .5], tr: 'all'}),
+        w({id: 'v1', zone: 'Høyveggen', kind: 'rope', lvl: 0, p0: [A, 16.0], p1: [A, 23.5], segs: [[Hw, 5]], lanes: 3, d: [.3, .7], tr: [1, 0, 1]}),
+        w({id: 'v2', zone: 'Høyveggen', kind: 'rope', lvl: 0, p0: [A, 23.5], p1: [A, 31.0], segs: [[6, 10], [Hw - 6.1, 30]], lanes: 3, d: [.5, .9], tr: [0, 1, 0]}),
+        w({id: 'v3', zone: 'Høyveggen', kind: 'rope', lvl: 0, p0: [A, 31.0], p1: [A, 33.4], segs: [[Hw, 15]], lanes: 1, d: [.45, .75], tr: [1]}),
+        w({id: 'v4', zone: 'Brattveggen', kind: 'lead', lvl: 0, p0: [12.4, Bk], p1: [1.0, Bk], segs: [[Hw / Math.cos(20 * Math.PI / 180), 20]], lanes: 5, d: [.55, 1]})];
+      const z = k => `Buldrerom ${k + 1}`;
+      rooms.forEach(([a0, a1], k) => {
+        walls.push(w({id: `r${k}a`, zone: z(k), kind: 'boulder', lvl: 0, p0: [a1 - .15, 14.83], p1: [a0 + .2, 14.83], segs: k === 2 ? [[.6, 0], [3.5, 40]] : k === 1 ? [[4.2, 15]] : [[1.0, 0], [3.2, 30]], lanes: 3, d: k === 2 ? [.5, 1] : k === 1 ? [.2, .65] : [.3, .8], back: .3}));
+        walls.push(w({id: `r${k}b`, zone: z(k), kind: 'boulder', lvl: 0, p0: [a0 + .02, 14.6], p1: [a0 + .02, 8.0], segs: k === 1 ? [[4.25, -5]] : [[4.2, k ? 10 : 5]], ...(k === 1 ? {p0: [a0 + .42, 14.6], p1: [a0 + .42, 8.0]} : {}), lanes: 3, d: k === 1 ? [0, .4] : [.1, .55], back: .2}));
+      });
+      return {levels: [0], H, lobbyB: 7.0, ceil: () => H, seed: 178, walls,
+        parts: [[0, 4.35, 4.55, 7.6, 14.85, lowC, 'paintIn'], [0, 8.5, 8.7, 7.6, 14.85, lowC, 'paintIn'], [0, 12.8, 13.0, 7.6, 15.15, lowC, 'paintIn'],
+          [0, .3, 13.0, 14.85, 15.15, lowC, 'paintIn'], [0, .3, W - .3, 14.85, 15.15, H - lowC, 'paintIn', lowC], [0, .3, W - .3, .3, 15.15, .12, 'slab', lowC]],
+        mats: rooms.map(([a0, a1]) => [0, a0 + .05, a1 - .05, 7.6, 14.75]), ramps: rooms.map(([a0, a1]) => [0, a0 + .2, a1 - .2, 7.0, 7.6, 'b-']),
+        siri: {a: 9.0, b: 19.0, yaw: Math.PI / 2}, belayZone: 'Nybegynnerveggen', desk: {b0: 3.6, b1: 4.3, len: 3.6, min: 1.6},
+        lights: [[8.5, Math.min(H - .8, 12), 22, 40], [8.5, Math.min(H - .8, 12), 34, 40], [6.5, lowC - .4, 7, 18]],
+        zoneAt: (a, b) => b < 7.0 ? 'lobby' : b < 15.0 && a < 12.9 ? 'rooms' : b < 15.0 ? 'passage' : 'hall',
+        zoneNames: {lobby: 'the reception', rooms: 'the bouldering rooms', passage: 'the way to the rope hall', hall: 'the rope hall'}, lamps: [[3, 9, 15], [17, 22, 27, 32, 37]], lowCeil: lowC};
+    }
+    if (id === 'brak') {
+      // Brak Buldring: three floors; the 2nd floor has the lower walls and the easier boulders, the 3rd floor steep walls, a large
+      // overhang and the boards (Quantum Board, Tension Board). Reception and the café / bar on the ground floor. The storey
+      // heights are the game's, from Kartverket's roof height (about 12 m).
+      const L1 = 3.8, L2 = 7.6, S = .25, R = .32, c2 = Math.min(4.2, H - L2 - .3);
+      const hole = [[.3, .3], [W - .3, .3], [W - .3, D - .3], [.3, D - .3], [.3, 9.3], [3.2, 9.3], [3.2, 2.8], [.3, 2.8]];
+      return {levels: [0, L1, L2], H, lobbyB: D, ceil: lvl => lvl === 0 ? L1 - S : lvl === 1 ? L2 - S : H, seed: 658, grades: BRAK_GRADES,
+        walls: [
+          w({id: 'b1', zone: 'Andre etasje', kind: 'boulder', lvl: 1, p0: [12.0, Bk], p1: [4.2, Bk], segs: [[3.25, 0]], lanes: 4, d: [0, .35]}),
+          w({id: 'b2', zone: 'Andre etasje', kind: 'boulder', lvl: 1, p0: [20.0, Bk - .5], p1: [12.0, Bk - .5], segs: [[3.27, -8]], lanes: 4, d: [0, .4]}),
+          w({id: 'b3', zone: 'Andre etasje', kind: 'boulder', lvl: 1, p0: [W - .5, Bk], p1: [20.0, Bk], segs: [[1.0, 0], [2.35, 20]], lanes: 4, d: [.1, .5]}),
+          w({id: 'b4', zone: 'Andre etasje', kind: 'boulder', lvl: 1, p0: [A, .6], p1: [A, 13.6], segs: [[3.25, 8]], lanes: 5, d: [.05, .45]}),
+          w({id: 'c1', zone: 'Tredje etasje', kind: 'boulder', lvl: 2, p0: [14.0, Bk], p1: [4.2, Bk], segs: [[1.0, 0], [c2 - 1.1, 35]], lanes: 4, d: [.4, .9]}),
+          w({id: 'c2', zone: 'Det store overhenget', kind: 'boulder', lvl: 2, p0: [24.0, Bk], p1: [14.0, Bk], segs: [[.6, 0], [1.5, 30], [Math.min(2.4, (c2 - 1.9) / Math.cos(55 * Math.PI / 180)), 55]], lanes: 4, d: [.55, 1]}),
+          w({id: 'quantum', zone: 'Quantum Board', kind: 'boulder', lvl: 2, p0: [A, 1.0], p1: [A, 4.0], segs: [[.3, 0], [Math.min(3.6, c2 - .5), 40]], lanes: 2, d: [.4, .9]}),
+          w({id: 'tension', zone: 'Tension Board', kind: 'boulder', lvl: 2, p0: [A, 4.6], p1: [A, 8.3], segs: [[.3, 0], [Math.min(3.66, c2 - .5), 40]], lanes: 2, d: [.4, .9]}),
+          w({id: 'c3', zone: 'Tredje etasje', kind: 'boulder', lvl: 2, p0: [A, 9.0], p1: [A, 12.8], segs: [[c2, 20]], lanes: 3, d: [.35, .8]})],
+        decks: [{name: '2. etasje', y: L1, pts: hole, slab: S, ceil: L2 - S - L1}, {name: '3. etasje', y: L2, pts: hole, slab: S, ceil: H - L2}],
+        stairs: [{along: 'b', lo: 2.8, hi: 9.3, s0: .32, s1: 1.68, y0: 0, y1: L1}, {along: 'b', lo: 9.3, hi: 2.8, s0: 1.82, s1: 3.18, y0: L1, y1: L2}],
+        rails: [[L1, 3.25, 2.8, 3.25, 9.3], [L1, .3, 2.75, 3.2, 2.75], [L2, 3.25, 2.8, 3.25, 9.3], [L2, .3, 9.35, 3.2, 9.35]],
+        mats: [[1, 3.8, W - .3, .3, D - .3], [2, 3.8, W - .3, .3, D - .3]], ramps: [[1, 3.2, 3.8, 9.5, D - .5, 'a-'], [2, 3.2, 3.8, .5, 2.6, 'a-']],
+        parts: [[0, .3, 1.7, 6.2, 9.3, 1.8, 'slab']], desk: {b0: 4.2, b1: 4.9, len: 3.6, min: 4.0}, cafe: true,
+        lights: [[16, L1 - .6, 7, 22], [16, L2 - .6, 7, 22], [16, H - .6, 7, 22]],
+        zoneAt: (a, b, y) => y > L2 - .4 ? 'third' : y > L1 - .4 ? 'second' : 'ground',
+        zoneNames: {ground: 'the reception and café', second: 'the 2nd floor', third: 'the 3rd floor'}, lamps: [[3.5, 7, 11], [6, 11, 16, 21, 26]]};
+    }
+    return null;
+  }
+  // The patch's edge given by its two corners (either way round).
+  function edgeOf(ring, a, b, tol = 1.5) {
+    const near = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]) < tol, n = ring.length;
+    for (let i = 0; i < n; i++) {const p = ring[i], q = ring[(i + 1) % n];if (near(p, a) && near(q, b)) return {edge: i, flip: false};if (near(p, b) && near(q, a)) return {edge: i, flip: true};}
+    return null;
+  }
+  const shopsApi = () => (typeof window !== 'undefined' && window.GameShops) || (typeof module === 'object' ? (require('./game-shops.js'), globalThis.GameShops) : null);
+  // Before the world is built: cut each gym's room into its building, lower the patch's ground under it to just below the floor,
+  // and raise the building's roof to its real height (Kartverket's surface model over the room) so the walls fit under it.
+  // -> [{g (the data), local {o, u, W, D, aDoor, P0, P1}, at(a, b) -> [x, s], bldg, patch, District, floorRel}]
+  function prepareHalls(districts, gyms, District) {
+    const S = shopsApi(), out = [];if (!S || !District) return out;
+    for (const g of gyms || []) {
+      const d = (districts || []).find(x => x && x.name === g.district), b = d && d.buildings.find(x => x.id === 'w' + g.osm);if (!b) continue;
+      const e = edgeOf(b.ring, g.edge[0], g.edge[1]);if (!e || !GYM_FACTS[g.id]) continue;
+      const [t0, t1] = e.flip ? [1 - g.t[1], 1 - g.t[0]] : g.t, nt = S.notchFor(b.ring, e.edge, t0, t1, g.depth);
+      b.ring = nt.ring;b.hip = null;
+      const left = [-nt.u[1], nt.u[0]], flip = left[0] * nt.n[0] + left[1] * nt.n[1] < 0, u = flip ? [-nt.u[0], -nt.u[1]] : nt.u, o = flip ? nt.P1 : nt.P0;
+      const at = (a, bb) => [o[0] + u[0] * a - u[1] * bb, o[1] + u[1] * a + u[0] * bb];
+      // The door: doorA is measured along the data's edge from its t0 point.
+      const ed = g.edge, Ld = Math.hypot(ed[1][0] - ed[0][0], ed[1][1] - ed[0][1]), ud = [(ed[1][0] - ed[0][0]) / Ld, (ed[1][1] - ed[0][1]) / Ld];
+      const dp = [ed[0][0] + ud[0] * (Ld * g.t[0] + g.doorA), ed[0][1] + ud[1] * (Ld * g.t[0] + g.doorA)];
+      const aDoor = Math.max(2.4, Math.min(nt.W - 2.4, (dp[0] - o[0]) * u[0] + (dp[1] - o[1]) * u[1]));
+      const door = at(aDoor, -.8), floorRel = District.height(d, door[0], door[1]) + .05;
+      District.flatten(d, [at(0, 0), at(nt.W, 0), at(nt.W, nt.depth), at(0, nt.depth)], floorRel - .25, 9);
+      let cx = 0, cs = 0;for (const p of b.ring) {cx += p[0];cs += p[1];}cx /= b.ring.length;cs /= b.ring.length;
+      b.h = Math.max(b.h, floorRel - .05 + g.roof.p50 - District.height(d, cx, cs));
+      out.push({g, local: {o, u, W: nt.W, D: nt.depth, aDoor, P0: nt.P0, P1: nt.P1}, at, bldg: b, patch: d, District, floorRel});
+    }
+    return out;
+  }
+  // The local frame of a room: origin o and direction u in the local map (x, s); v (into the building) is u's left normal.
+  function frameOf(toWorld, o, u, Y0) {
+    const origin = toWorld(o[0], o[1]), ua = toWorld(o[0] + u[0], o[1] + u[1]), ux = ua.x - origin.x, uz = ua.z - origin.z, vx = -uz, vz = ux;
+    const W = (a, b) => ({x: origin.x + ux * a + vx * b, z: origin.z + uz * a + vz * b});
+    const toFrame = (x, z) => {const dx = x - origin.x, dz = z - origin.z;return {a: dx * ux + dz * uz, b: dx * vx + dz * vz};};
+    return {origin, ux, uz, vx, vz, W, toFrame, wv: (p, y = 0) => ({...W(p.a, p.b), y: Y0 + p.y + y}), wdir: d => ({x: ux * d.a + vx * d.b, y: d.y, z: uz * d.a + vz * d.b}),
+      rectW: (a0, a1, b0, b1) => [W(a0, b0), W(a1, b0), W(a1, b1), W(a0, b1)], polyW: pts => pts.map(([a, b]) => W(a, b))};
+  }
+  const insideAB = (a, b, pts) => {let r = false;for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {const p = pts[i], q = pts[j];if ((p[1] > b) !== (q[1] > b) && a < (q[0] - p[0]) * (b - p[1]) / (q[1] - p[1]) + p[0]) r = !r;}return r;};
+  // createHall({T, lib, world {toWorld, heightWorld, facadeFill?}, prep (one of prepareHalls' results), avatars, audio}) -> a gym
+  // with the same parts as Klatreverket Torshov's (game-main uses whichever you are in).
+  function createHall({T, lib, world, prep, avatars, audio}) {
+    const g = prep.g, Fx = GYM_FACTS[g.id], L = prep.local, RW = L.W, RD = L.D, aDoor = L.aDoor;
+    const doorL = prep.at(aDoor, -.8), doorW = world.toWorld(doorL[0], doorL[1]);
+    const Y0 = world.heightWorld(doorW.x, doorW.z) - prep.District.height(prep.patch, doorL[0], doorL[1]) + prep.floorRel;
+    const top = Number.isFinite(prep.bldg.top) ? prep.bldg.top - Y0 : 60, H = Math.min(g.id === 'vulkan' ? 14.6 : g.id === 'loren' ? 8.0 : g.id === 'lokka' ? 4.9 : 12.1, top - .15);
+    const spec = hallSpec(g.id, {W: RW, D: RD, H, aDoor}), FR = frameOf(world.toWorld, L.o, L.u, Y0), {W, toFrame, wv, wdir, rectW, polyW, ux, uz} = FR;
+    const {M, box, blk, textTexture, sign} = kit(T, lib);
+    const group = new T.Group();group.name = Fx.name;group.position.set(FR.origin.x, Y0, FR.origin.z);group.rotation.y = Math.atan2(-uz, ux);
+    const shell = new T.Group(), inner = new T.Group();group.add(shell, inner);
+    const floors = [], obstacles = [], hitboxes = [], levels = spec.levels;
+    const solid = (a0, a1, b0, b1, y0, y1, kind = 'gym') => obstacles.push({points: rectW(a0, a1, b0, b1), minY: Y0 + y0, maxY: Y0 + y1, kind});
+    const C = {T, lib, M, box, blk, textTexture, sign, inner, floors, obstacles, W, Y0, wv, wdir, rectW};
+    const outside = prep.bldg.style === 'brick' ? M.brick : lib.plaster(0xd8d1c3);
+
+    // ---------- The front wall with the door, the sign, the wall above in the building's own look, the roof over the room ----------
+    const DW = 1.1, IN = .3, HD = 2.6;
+    for (const [a0, a1] of [[0, aDoor - DW], [aDoor + DW, RW]]) {if (a1 - a0 < .01) continue;const m = blk(shell, a0, a1, 0, H, 0, IN, outside);m.material = [0, 1, 2, 3, 4, 5].map(i => i === 4 ? M.paintIn : outside);solid(a0, a1, -.05, IN, -1, H);}
+    blk(shell, aDoor - DW, aDoor + DW, HD, H, 0, IN, outside);blk(shell, aDoor - DW, aDoor + DW, -.4, 0, 0, IN, M.lobby);
+    if (world.facadeFill && H < top - .05) world.facadeFill(prep.bldg, L.P0, L.P1, Y0 + H);
+    if (top - H > .3) box(shell, RW, .06, RD, RW / 2, top - .03, RD / 2, M.roof);
+    const win = (wd, ht, a, y) => {const m = new T.Mesh(new T.PlaneGeometry(wd, ht), M.winOut);m.position.set(a, y, -.02);m.rotation.y = Math.PI;shell.add(m);const f = new T.Mesh(new T.PlaneGeometry(wd + .16, ht + .16), M.white);f.position.set(a, y, -.014);f.rotation.y = Math.PI;shell.add(f);};
+    for (let a = 2.2; a < RW - 1.5; a += 3.6) if (Math.abs(a - aDoor) > 3.2 && H > 3.4) win(2.0, Math.min(1.6, H - 2.6), a, Math.min(H - .9, 2.4));
+    const doors = [-1, 1].map(sd => {const d = new T.Group();d.position.set(aDoor + sd * .55, 0, .02);d.userData.noMerge = true;shell.add(d);const p = new T.Mesh(new T.PlaneGeometry(1.08, 2.45), M.glass);p.position.y = 1.25;d.add(p);box(d, 1.1, .06, .06, 0, 2.47, 0, M.steel, false);return {g: d, sd};});
+    sign(shell, 4.2, 1.0, aDoor, Math.min(H - .6, HD + .75), -.05, Math.PI, (c, w, h) => {c.fillStyle = '#ffffff';c.fillRect(0, 0, w, h);c.fillStyle = Fx.colour;c.textAlign = 'center';c.textBaseline = 'middle';c.font = `bold ${h * .46}px Arial Black, Arial, sans-serif`;c.fillText(Fx.sign[0], w / 2, h * .38);c.font = `bold ${h * .26}px Arial, sans-serif`;c.fillStyle = '#16191d';c.fillText(Fx.sign[1], w / 2, h * .8);}, .35);
+    sign(shell, .55, .42, aDoor + DW + .45, 1.45, -.04, Math.PI, (c, w, h) => {c.fillStyle = '#ffffff';c.fillRect(0, 0, w, h);c.fillStyle = '#16191d';c.textAlign = 'center';c.font = `bold ${h * .11}px Arial, sans-serif`;c.fillText(Fx.name, w / 2, h * .15);c.font = `${h * .075}px Arial, sans-serif`;Fx.hours.split(' · ').forEach((t, i) => c.fillText(t, w / 2, h * (.3 + i * .085)));c.fillText(g.address.split(',')[0], w / 2, h * .95);});
+    // The slab from the door down to the street (its far edge ends on the ground: walk floors only join within 5 cm).
+    {
+      const step = rl => {const e = W(aDoor, -rl);return Y0 - world.heightWorld(e.x, e.z);};
+      let rl = 1.2;for (let it = 0; it < 3; it++) rl = clamp(Math.abs(step(rl)) / .12, 1.2, 8);
+      let rise = step(rl);if (Math.abs(rise) > 2) rise = 0;
+      const o = W(aDoor, 0), q = W(aDoor, 1), grad = rise / rl, half = DW + .2;
+      floors.push({name: `${Fx.name} entrance`, points: [W(aDoor - half, 0), W(aDoor + half, 0), W(aDoor + half, -rl), W(aDoor - half, -rl)], y: Y0, slope: {x: (q.x - o.x) * grad, z: (q.z - o.z) * grad, origin: o}, ceilingHeight: Infinity, surfaceKind: 'stone'});
+      floors.push({name: `${Fx.name} doorstep`, points: rectW(aDoor - DW, aDoor + DW, -.02, IN + .02), y: Y0, ceilingHeight: HD, surfaceKind: 'stone'});
+      const pos = [aDoor - half, 0, 0, aDoor + half, 0, 0, aDoor + half, -rise, -rl, aDoor - half, -rise, -rl, aDoor - half, -rise - .5, 0, aDoor + half, -rise - .5, 0], rg = new T.BufferGeometry();
+      rg.setAttribute('position', new T.Float32BufferAttribute(pos, 3));rg.setIndex([0, 2, 1, 0, 3, 2, 0, 4, 3, 1, 2, 5]);rg.computeVertexNormals();const rm = M.lobby.clone();rm.side = T.DoubleSide;const m = new T.Mesh(rg, rm);m.receiveShadow = true;shell.add(m);
+    }
+
+    // ---------- Inside: floor, linings, ceiling, the upper floors and stairs ----------
+    blk(inner, 0, RW, -.2, 0, IN, Math.min(spec.lobbyB, RD), M.lobby);if (spec.lobbyB < RD) blk(inner, 0, RW, -.2, 0, spec.lobbyB, RD, M.floor);
+    blk(inner, .03, IN, 0, H, IN, RD - .03, M.paintIn);blk(inner, RW - IN, RW - .03, 0, H, IN, RD - .03, M.paintIn);blk(inner, IN, RW - IN, 0, H, RD - IN, RD - .03, M.paintIn);
+    solid(-.05, IN, 0, RD, -1, H);solid(RW - IN, RW + .05, 0, RD, -1, H);solid(0, RW, RD - IN, RD + .05, -1, H);
+    blk(inner, 0, RW, H, H + .1, 0, RD, M.slab);
+    for (const [lvl, a0, a1, b0, b1, h, mat, y1] of spec.parts || []) {const y = levels[lvl] + (y1 || 0);blk(inner, a0, a1, y, y + h, b0, b1, M[mat] || M.paintIn);solid(a0, a1, b0, b1, y - .2, y + h);}
+    for (const dk of spec.decks || []) {
+      floors.push({name: `${Fx.name} ${dk.name}`, points: polyW(dk.pts), y: Y0 + dk.y, ceilingHeight: dk.ceil, surfaceKind: dk.kind || 'gym'});
+      const shape = new T.Shape(dk.pts.map(([a, b]) => new T.Vector2(a, -b))), geo = new T.ExtrudeGeometry(shape, {depth: dk.slab, bevelEnabled: false});geo.rotateX(-Math.PI / 2);geo.translate(0, dk.y - dk.slab, 0);
+      const m = new T.Mesh(geo, dk.kind === 'mat' ? M.mat : M.slab);m.castShadow = m.receiveShadow = true;inner.add(m);
+    }
+    for (const fl of spec.stairs || []) {
+      const rise = fl.y1 - fl.y0, run = fl.hi - fl.lo, grad = rise / run, steps = Math.round(rise / .18), alongA = fl.along === 'a';
+      const pts = alongA ? rectW(Math.min(fl.lo, fl.hi), Math.max(fl.lo, fl.hi), fl.s0, fl.s1) : rectW(fl.s0, fl.s1, Math.min(fl.lo, fl.hi), Math.max(fl.lo, fl.hi));
+      const o = alongA ? W(fl.lo, fl.s0) : W(fl.s0, fl.lo), gv = wdir(alongA ? {a: grad, b: 0, y: 0} : {a: 0, b: grad, y: 0});
+      floors.push({name: `${Fx.name} stairs`, points: pts, y: Y0 + fl.y0, slope: {x: gv.x, z: gv.z, origin: o}, surfaceKind: 'metal', ceilingHeight: 2.6});
+      const st = Math.abs(run) / steps;
+      for (let k = 0; k < steps; k++) {const c = fl.lo + run * (k + .5) / steps, y = fl.y0 + rise * (k + .5) / steps;if (alongA) blk(inner, c - st / 2 - .02, c + st / 2 + .02, y - .05, y, fl.s0, fl.s1, M.steel);else blk(inner, fl.s0, fl.s1, y - .05, y, c - st / 2 - .02, c + st / 2 + .02, M.steel);}
+      const sl = Math.hypot(run, rise), tilt = Math.atan(rise / run), mid = (fl.lo + fl.hi) / 2, ym = (fl.y0 + fl.y1) / 2;
+      for (const s of [fl.s0 + .03, fl.s1 - .03]) {
+        const sg = new T.Mesh(alongA ? new T.BoxGeometry(sl, .22, .05) : new T.BoxGeometry(.05, .22, sl), M.steel), hr = new T.Mesh(alongA ? new T.BoxGeometry(sl, .05, .05) : new T.BoxGeometry(.05, .05, sl), M.rail);
+        if (alongA) {sg.position.set(mid, ym - .1, s);sg.rotation.z = tilt;hr.position.set(mid, ym + .9, s);hr.rotation.z = tilt;}
+        else {sg.position.set(s, ym - .1, mid);sg.rotation.x = -tilt;hr.position.set(s, ym + .9, mid);hr.rotation.x = -tilt;}
+        inner.add(sg, hr);
+      }
+      // Solid sides from the floor to a metre above the treads (in four pieces), so you cannot walk in under a flight from
+      // the side and come up on it; the ends stay open.
+      for (let k = 0; k < 4; k++) {
+        const p0 = fl.lo + run * k / 4, p1 = fl.lo + run * (k + 1) / 4, hy = fl.y0 + rise * Math.max(k, k + 1) / 4 + 1.0;
+        for (const [q0, q1] of [[fl.s0 - .05, fl.s0], [fl.s1, fl.s1 + .05]]) solid(alongA ? Math.min(p0, p1) : q0, alongA ? Math.max(p0, p1) : q1, alongA ? q0 : Math.min(p0, p1), alongA ? q1 : Math.max(p0, p1), fl.y0 - .2, hy, 'rail');
+      }
+    }
+    for (const [y, a0, b0, a1, b1] of spec.rails || []) {
+      const l = Math.hypot(a1 - a0, b1 - b0), r = box(inner, l, .05, .05, (a0 + a1) / 2, y + 1.1, (b0 + b1) / 2, M.rail, false);r.rotation.y = -Math.atan2(b1 - b0, a1 - a0);
+      const gl = new T.Mesh(new T.PlaneGeometry(l, 1.0), M.glass);gl.position.set((a0 + a1) / 2, y + .55, (b0 + b1) / 2);gl.rotation.y = -Math.atan2(b1 - b0, a1 - a0);gl.userData.noMerge = true;inner.add(gl);
+      obstacles.push({points: [W(Math.min(a0, a1) - .03, Math.min(b0, b1) - .03), W(Math.max(a0, a1) + .03, Math.min(b0, b1) - .03), W(Math.max(a0, a1) + .03, Math.max(b0, b1) + .03), W(Math.min(a0, a1) - .03, Math.max(b0, b1) + .03)], minY: Y0 + y, maxY: Y0 + y + 1.1, kind: 'rail'});
+    }
+    // Ceiling lamps: rows of light strips under each ceiling.
+    {const [as, bs] = spec.lamps || [[RW / 2], [RD / 2]];levels.forEach((ly, i) => {const yc = i + 1 < levels.length ? levels[i + 1] - .25 : H;for (const a of as) for (const b of bs) if (b < RD - .5) blk(inner, a - .7, a + .7, yc - .05, yc - .02, b - .06, b + .06, M.lamp);});}
+
+    // ---------- Walls, holds, mats ----------
+    const set = makeRoutes(spec.seed, spec.walls, {levels, moonName: Fx.short, grade: spec.grades ? (kind, d) => spec.grades[Math.max(0, Math.min(spec.grades.length - 1, Math.round(d * (spec.grades.length - 1))))] : gradeName});
+    const faces = new Map(set.faces.map(f => [f.id, f])), routes = set.routes;
+    buildFaces(C, set, f => f.zone === 'Autobelay' ? M.tower : f.kind === 'moon' ? M.moon : f.kind === 'rope' || f.kind === 'lead' ? M.hall : M.boulder);
+    const {holdsWorld, byId, routeGear} = buildHolds(C, set, faces);
+    const MAT = .3, mats = spec.mats || [], ramps = spec.ramps || [];
+    buildMats(C, mats, ramps, {y: lvl => levels[lvl], ceil: lvl => spec.ceil(lvl), name: Fx.name});
+    // The floor (or mat, or island top) under a world point, for the climber.
+    const tops = (spec.decks || []).map(dk => ({y: dk.y, pts: dk.pts}));
+    const floorUnder = p => {
+      const f = toFrame(p.x, p.z), y = p.y - Y0;let best = 0;
+      for (const t of tops) if (t.y <= y + .05 && t.y > best && insideAB(f.a, f.b, t.pts)) best = t.y;
+      for (const [lvl, a0, a1, b0, b1] of mats) {const my = levels[lvl] + MAT;if (my <= y + .05 && my > best && f.a > a0 && f.a < a1 && f.b > b0 && f.b < b1) best = my;}
+      return Y0 + best;
+    };
+
+    // ---------- Reception (away from the door), shop, café, the hangboard, the Moonwall's box, lights, people ----------
+    const dk = spec.desk, dLen = dk.len, cand = [aDoor + DW + 1.4, aDoor - DW - 1.4 - dLen], dA = cand.find(a => a >= dk.min && a + dLen <= RW - 1.6) ?? clamp(cand[0], dk.min, RW - 1.6 - dLen), dMid = dA + dLen / 2;
+    const desk = new T.Group();inner.add(desk);
+    blk(desk, dA, dA + dLen, 0, 1.05, dk.b0, dk.b1, M.counter);blk(desk, dA - .05, dA + dLen + .05, 1.05, 1.1, dk.b0 - .05, dk.b1 + .05, M.white);
+    const screen = box(desk, .5, .32, .03, dMid - .6, 1.35, (dk.b0 + dk.b1) / 2, new T.MeshStandardMaterial({color: 0x0d1a24, emissive: 0x1d5a8a, emissiveIntensity: .8}), false);screen.rotation.x = -.15;
+    solid(dA, dA + dLen, dk.b0, dk.b1, -.5, 1.1);
+    const deskHit = new T.Mesh(new T.BoxGeometry(dLen + .2, 1.0, 1.4), new T.MeshBasicMaterial({visible: false}));deskHit.position.set(dMid, 1.2, (dk.b0 + dk.b1) / 2);deskHit.userData = {gymDesk: true, noMerge: true};inner.add(deskHit);hitboxes.push(deskHit);
+    sign(inner, 1.4, 1.7, aDoor + (dMid > aDoor ? -DW - 1.0 : DW + 1.0), 1.6, IN + .02, 0, (c, w, h) => {
+      c.fillStyle = '#20252b';c.fillRect(0, 0, w, h);c.fillStyle = '#fff';c.textAlign = 'left';c.font = `bold ${w * .1}px Arial`;c.fillText('PRISER', w * .08, h * .1);c.font = `${w * .055}px Arial`;
+      const P = Fx.price;[`Enkel inngang voksen`, `  før ${P.before} hverdager   ${P.day},-`, `  etter ${P.before} og helg     ${P.evening},-`, '', Fx.ropes ? 'Tau: den som sikrer må' : 'Buldring: alle kan prøve', Fx.ropes ? '  ha Brattkort' : '', '', ...Fx.hours.split(' · ')].forEach((t, i) => c.fillText(t, w * .06, h * (.2 + i * .066)));
+    }, .3);
+    if (Fx.shop) {
+      const sa = dMid > RW / 2 ? .3 : RW - .55, sb0 = 1.0, sb1 = Math.min(spec.lobbyB, RD) - 1.0;
+      if (sb1 - sb0 > 1.5) {blk(inner, sa, sa + .25, 0, 2.0, sb0, sb1, M.wood);solid(sa, sa + .25, sb0, sb1, -.5, 2.0);for (let i = 0; i < Math.floor((sb1 - sb0) / .45); i++) for (let j = 0; j < 3; j++) box(inner, .12, .09, .26, sa + (sa < 1 ? .3 : -.05), .5 + j * .5, sb0 + .3 + i * .45, lib.fabric([0x2b2d31, 0xf07a1a, 0x1d5fc4, 0xb71c1c, 0x2e9e44][(i * 3 + j) % 5]), false);
+        sign(inner, 1.6, .4, sa < 1 ? sa + .27 : sa - .02, 2.35, (sb0 + sb1) / 2, sa < 1 ? Math.PI / 2 : -Math.PI / 2, (c, w, h) => {c.fillStyle = Fx.colour;c.fillRect(0, 0, w, h);c.fillStyle = '#fff';c.font = `bold ${h * .55}px Arial Black, Arial`;c.textAlign = 'center';c.textBaseline = 'middle';c.fillText(Fx.shop, w / 2, h / 2);});}
+    }
+    if (spec.cafe) {
+      // Brak's café and bar: a counter along the end wall, tables and stools.
+      blk(inner, RW - 5.0, RW - 1.0, 0, 1.05, RD - 1.7, RD - 1.0, M.counter);solid(RW - 5.0, RW - 1.0, RD - 1.7, RD - 1.0, -.5, 1.1);
+      for (const [a, b] of [[RW - 8, 8.5], [RW - 11, 8.5], [RW - 8, 11.2], [RW - 11, 11.2]]) {blk(inner, a - .4, a + .4, .72, .76, b - .4, b + .4, M.wood);blk(inner, a - .05, a + .05, 0, .72, b - .05, b + .05, M.steel);solid(a - .4, a + .4, b - .4, b + .4, -.5, .76);}
+      sign(inner, 2.2, .5, RW - 3.0, 2.4, RD - IN - .02, Math.PI, (c, w, h) => {c.fillStyle = '#16191d';c.fillRect(0, 0, w, h);c.fillStyle = Fx.colour;c.font = `bold ${h * .5}px Arial Black, Arial`;c.textAlign = 'center';c.textBaseline = 'middle';c.fillText('KAFÉ · BAR', w / 2, h / 2);});
+      sign(inner, 1.2, .35, RW - IN - .02, 2.1, RD - 4.0, -Math.PI / 2, (c, w, h) => {c.fillStyle = '#5d4037';c.fillRect(0, 0, w, h);c.fillStyle = '#fff';c.font = `bold ${h * .5}px Arial`;c.textAlign = 'center';c.textBaseline = 'middle';c.fillText('BADSTUE', w / 2, h / 2);});
+    }
+    if (spec.hang) {
+      const hg = spec.hang, by = hg.y + 2.35;blk(inner, hg.a - hg.len / 2, hg.a + hg.len / 2, by, by + .35, hg.b - .25, hg.b + .25, M.orange);
+      for (const a of [hg.a - hg.len / 2 + .1, hg.a + hg.len / 2 - .1]) {blk(inner, a - .1, a + .1, hg.y, by, hg.b - .1, hg.b + .1, M.orange);solid(a - .1, a + .1, hg.b - .1, hg.b + .1, hg.y - .2, by + .35);}
+      for (const a of [hg.a - .7, hg.a, hg.a + .7]) box(inner, .55, .09, .2, a, by - .05, hg.b, M.wood, false);
+      const hang = new T.Mesh(new T.BoxGeometry(hg.len, .5, .6), new T.MeshBasicMaterial({visible: false}));hang.position.set(hg.a, by - .2, hg.b);hang.userData = {gymHang: true, noMerge: true};inner.add(hang);hitboxes.push(hang);
+    }
+    let leds = null, moonHolds = [];
+    const moonFace = faces.get('moon');
+    if (moonFace) {
+      moonHolds = holdsWorld.filter(h => h.face === 'moon');leds = new T.InstancedMesh(new T.SphereGeometry(.018, 6, 4), new T.MeshBasicMaterial({color: 0xffffff}), Math.max(1, moonHolds.length));
+      {const mtx = new T.Matrix4(), col = new T.Color(0x202020);moonHolds.forEach((h, i) => {const at = h.local;mtx.makeTranslation(at.p.a + at.nrm.a * .02 + at.up.a * .11, at.p.y + at.up.y * .11 + at.nrm.y * .02, at.p.b + at.nrm.b * .02 + at.up.b * .11);leds.setMatrixAt(i, mtx);leds.setColorAt(i, col);});}
+      leds.userData.noMerge = true;inner.add(leds);
+      const f = moonFace, ba = f.p1[0] + f.dir.a * .35 + f.n.a * .25, bb = f.p1[1] + f.dir.b * .35 + f.n.b * .25, by = f.y0 + (f.lvl === 0 && mats.length ? MAT : 0) + 1.2;
+      const moonBox = new T.Mesh(new T.BoxGeometry(.3, .4, .3), M.dark);moonBox.position.set(ba, by, bb);moonBox.userData = {gymMoon: true, noMerge: true};inner.add(moonBox);hitboxes.push(moonBox);
+    }
+    const lights = (spec.lights || []).slice(0, 3).map(([a, y, b, r]) => {const l = new T.PointLight(0xfff4e6, 0, r, 1.4);l.position.set(a, y, b);inner.add(l);return l;});
+    const people = [];
+    const mk = (name, shirt, a, b, yaw, y = 0) => {if (!avatars) return null;const av = avatars.avatar(0, name, shirt);av.group.position.set(a, y, b);av.group.rotation.y = yaw;av.group.userData.noMerge = true;inner.add(av.group);av.pose({stance: 'stand'});people.push(av);return av;};
+    const staffAt = {a: dMid, b: dk.b1 + .6};
+    const staff = mk('Resepsjonen', 0x8e1b23, staffAt.a, staffAt.b, 0);
+    const siriHome = spec.siri || null, siri = siriHome ? mk('Siri (klatrepartner)', 0x2e86de, siriHome.a, siriHome.b, siriHome.yaw) : null;
+    let siriHit = null;if (siri) {siriHit = new T.Mesh(new T.BoxGeometry(.7, 1.8, .7), new T.MeshBasicMaterial({visible: false}));siriHit.userData = {gymPartner: true, noMerge: true};inner.add(siriHit);hitboxes.push(siriHit);}
+    lib.mergeStatic(shell, o => !!o.userData.noMerge);lib.mergeStatic(inner, o => o.isInstancedMesh || !!o.userData.noMerge);
+
+    // ---------- Visit state (a ticket for this gym, the brattkort for all), climbing ----------
+    const stOf = () => Store.gym(g.id), save = () => Store.save(), visit = () => visitOf(stOf());
+    const R = runtime(C, {set, faces, routes, holdsWorld, byId, routeGear, floorUnder, siri, siriHome, stOf, save, visit, leds, moonHolds});
+    const centreA = RW / 2, centreB = RD / 2;
+    const distTo = (x, z) => {const f = toFrame(x, z);return Math.hypot(Math.max(0, Math.abs(f.a - centreA) - centreA), Math.max(0, Math.abs(f.b - centreB) - centreB));};
+    let doorOpen = 0, doorWas = 0;
+    function update(dt, player, camera) {
+      const pl = toFrame(player.x, player.z), d = distTo(player.x, player.z), inside = d === 0 && player.feet > Y0 - 2 && player.feet < Y0 + H + 1;
+      inner.visible = d < 120;lights.forEach(l => {l.intensity = d < 60 ? 40 : 0;});
+      const want = Math.hypot(pl.a - aDoor, pl.b) < 2.6 && Math.abs(player.feet - Y0) < 1.5 ? 1 : 0;doorOpen += (want - doorOpen) * Math.min(1, dt * 5);for (const dr of doors) dr.g.position.x = aDoor + dr.sd * (.55 + doorOpen * .9);
+      if (want && !doorWas) audio && audio.sfx('shopDoor');doorWas = want;
+      if (!inner.visible) return {inside};
+      for (const av of people) {if (!av.ghost) av.pose({stance: av.belaying ? 'belay' : 'stand', dt});av.update(dt, camera, inside);}
+      const face = (av, a, b, rest, r) => {const t = Math.hypot(pl.a - a, pl.b - b) < r && Math.abs(player.feet - Y0 - (av.group.position.y || 0)) < 2 ? Math.atan2(-(pl.a - a), -(pl.b - b)) : rest;let dd = t - av.group.rotation.y;dd = Math.atan2(Math.sin(dd), Math.cos(dd));av.group.rotation.y += dd * Math.min(1, dt * 2.5);};
+      if (staff) face(staff, staffAt.a, staffAt.b, 0, 8);
+      if (siri) {const session = R.session();siri.belaying = !!(session && session.belay);siriHit.position.copy(siri.group.position).add(new T.Vector3(0, .9, 0));if (!session && !R.belayRoute()) face(siri, siriHome.a, siriHome.b, siriHome.yaw, 6);}
+      return {inside};
+    }
+    function zoneAt(p, feet) {const f = toFrame(p.x, p.z), y = feet - Y0;if (f.a < 0 || f.a > RW || f.b < 0 || f.b > RD || y < -1 || y > H + .5) return null;return spec.zoneAt(f.a, f.b, y);}
+    function ground(x, z) {const f = toFrame(x, z);return f.a > -.05 && f.a < RW + .05 && f.b > -.05 && f.b < RD + .05 ? Y0 : null;}
+    const priceAtG = factsPriceAt(Fx), openAtG = factsOpenAt(Fx);
+    const belayRoutes = routes.filter(r => r.zone === spec.belayZone && r.toprope);
+    return {group, extras: R.extras, floors, obstacles, hitboxes, routes, holds: holdsWorld, faces, climber: R.climber, begin: R.begin, end: R.end, tick: R.tick, showClimb: R.showClimb, aimAt: R.aimAt, aimPoint: R.aimPoint, routeAt: R.routeAt,
+      classify: (s, h) => classify(R.climber, s, h), update, zoneAt, ZONE_NAME: spec.zoneNames, ground, visit, save, get state() {return stOf();}, lightMoon: R.lightMoon, get moonSel() {return R.moonSel;}, moonRoutes: R.moonRoutes,
+      startBelay: R.startBelay, showBelay: R.showBelay, endBelay: R.endBelay, belaySpot: R.belaySpot, QUIZ, siri, staff, door: W(aDoor, -1.4), doorYaw: Math.atan2(FR.vx, FR.vz), local: {x: g.gym[0], s: g.gym[1]}, floorY: Y0, toFrame, W, routeGear,
+      session: () => R.session(), LEVELS: levels, H, W_: RW, D_: RD, aDoor, spec, priceAt: priceAtG, openAt: openAtG, staffedAt: openAtG, HOURS: Fx.hours, PRICES: {entryDay: Fx.price.day, entryEvening: Fx.price.evening}, STYLE,
+      id: g.id, name: Fx.name, short: Fx.short, address: g.address, hasRopes: Fx.ropes, belayZone: spec.belayZone || null, belayRoutes, welcome: Fx.welcome, about: Fx.about,
+      priceNote: factsPriceNote(Fx), harness: Fx.ropes || routes.some(r => r.kind === 'auto'), ticketNote: Fx.ropes ? 'shoes, harness and chalk included' : routes.some(r => r.kind === 'auto') ? 'shoes, harness, chalk and the autobelays included' : 'shoes and chalk included', staffNote: 'only while the gym is open',
+      siriLines: sends => [`Jeg har brattkort – velg en rute med topptau på ${spec.belayZone || 'veggen'}, så sikrer jeg. (Pick a top-rope route.)`, 'Lede på Brattveggen? Husk å klippe alle boltene!', `Du har klatret ${sends} ruter her. Buldrerommene er ved resepsjonen.`],
+      deskPoint: W(dMid, dk.b0 - 1.0), centre: W(centreA, centreB), distTo};
+  }
+
+  return {PRICES, HOURS, priceAt, payEntry, brattkortPriceAt, staffedAt, openAt, gradeName, ROPE_GRADES, BOULDER_GRADES, WALLS, LEVELS, HOLDS, COLOURS, STYLE, faceInfo, faceAt, makeRoutes, classify, leadCatch, steepness, Climber, Belay, QUIZ, worldHolds, prepare, hallPolygon, create, REACH, DYNO, Store, visitOf, HALLS, prepareHalls, createHall, hallSpec, GYM_FACTS, TORSHOV_INFO, edgeOf};
 });
