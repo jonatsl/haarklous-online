@@ -265,6 +265,9 @@
         case 'learn': for (let i = 0; i < 8; i++) tone(440 * Math.pow(2, i / 4), 440 * Math.pow(2, i / 4) * 1.02, .06, .02, .6, 'sine', t + i * .07);burst(5000, 1, .08, .3, .8, 'highpass', t + .2);break;
         case 'levitate': tone(300, 620, .07, .2, .7, 'sine');burst(2200, .6, .06, .25, .6, 'bandpass');break;
         case 'land': burst(400, .8, .12, .005, .15, 'lowpass');break;
+        // Jumping (issue #144): a short breath and a whoosh at take-off; a thud on landing (gain grows with the fall).
+        case 'jump': burst(1400, .9, .05, .02, .16, 'bandpass');burst(700, 1.2, .07, .01, .09, 'bandpass');tone(190, 150, .03, .01, .08, 'triangle');break;
+        case 'jumpLand': burst(150, .8, .55, .003, .18, 'lowpass');tone(80, 45, .3, .003, .16);burst(900, .7, .08, .002, .07);break;
         case 'blink': tone(1800, 240, .12, .002, .22, 'sawtooth');burst(4000, 1.5, .18, .002, .18, 'highpass');tone(240, 1600, .08, .005, .18, 'sine', t + .12);break;
         case 'gust': burst(500, .5, .5, .05, .9, 'lowpass');burst(1800, .4, .25, .1, .8, 'bandpass');burst(3600, .6, .1, .05, .5, 'highpass', t + .1);break;
         case 'orbOn': tone(880, 1320, .07, .02, .4, 'sine');tone(1320, 1760, .05, .02, .5, 'sine', t + .1);break;

@@ -632,8 +632,8 @@
       const bottleCols = [0x2f6b2a, 0x7a2a1d, 0xd8c25a, 0x1f3f7a, 0x9a6b2a, 0xe8e8e0];
       for (const y of [1.03, 1.48, 1.93]) for (let b = ct.b0 + .25, i = 0; b < ct.b1 - .2; b += .19, i++) box(.2, .3, b - .04, b + .04, y, y + .28, bottleCols[(i + Math.round(y * 7)) % 6], Gg);
       for (let i = 0; i < 4; i++) box(ct.a0 + 1.0, ct.a0 + 1.08, ct.b0 + 2.2 + i * .45, ct.b0 + 2.28 + i * .45, 1.11, 1.45, 0xd0d4d8, Gm);
-      obstacles.push({points: rectW(ct.a0, ct.a1 + .06, ct.b0 - .06, ct.b1 + .06), minY: y0 - .2, maxY: y0 + 1.15, kind: 'bar'}, {points: rectW(0, .5, ct.b0, ct.b1), minY: y0 - .2, maxY: y0 + 2.3, kind: 'bar'});
-      obstacles.push({points: rectW(0, ct.a0 + .9, ct.b0 - .3, ct.b0), minY: y0 - .2, maxY: y0 + 1.1, kind: 'bar'});
+      obstacles.push({points: rectW(ct.a0, ct.a1 + .06, ct.b0 - .06, ct.b1 + .06), minY: y0 - .2, maxY: y0 + 1.15, kind: 'bar', noJump: true}, {points: rectW(0, .5, ct.b0, ct.b1), minY: y0 - .2, maxY: y0 + 2.3, kind: 'bar'});
+      obstacles.push({points: rectW(0, ct.a0 + .9, ct.b0 - .3, ct.b0), minY: y0 - .2, maxY: y0 + 1.1, kind: 'bar', noJump: true});// the bartender's side stays closed (issue #144)
       for (let i = 0; i < 6; i++) {const b = ct.b0 + .5 + i * 1.05, cx = ct.a1 + .38;box(cx - .17, cx + .17, b - .17, b + .17, .72, .78, 0x8a2f24);box(cx - .03, cx + .03, b - .03, b + .03, 0, .72, 0x222222, Gm);}
       const neon = canvasTex(512, 128, (g, w, h) => {g.fillStyle = '#000';g.fillRect(0, 0, w, h);g.shadowColor = '#ff6a3d';g.shadowBlur = 24;g.fillStyle = '#ffb08a';g.font = 'bold 84px Arial';g.textAlign = 'center';g.textBaseline = 'middle';g.fillText('🏕 BAR', w / 2, 70);});
       const nm = new T.Mesh(new T.PlaneGeometry(1.8, .45), new T.MeshBasicMaterial({map: neon, transparent: true, blending: T.AdditiveBlending, depthWrite: false}));nm.position.set(...FB(.08, (ct.b0 + ct.b1) / 2, 2.75));nm.rotation.y = face(1, 0);C.group.add(nm);

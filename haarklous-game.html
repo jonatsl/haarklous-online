@@ -319,7 +319,7 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
         <p>Walk the neighbourhood, go home to your 4th-floor apartment (street door of 17A, up the stairs), go into the stairwells, ride the Honda CBF600, drive the parked cars or the excavator, work the machines on the construction site (each needs its licence: take the tests at Soria Moria Trafikkskole on Vogts gate, the site office or the airstrip), go skydiving from the jump plane, go bouldering and rope climbing at Klatreverket Torshov, play paintball, disc golf in Torshovdalen and petanque in the park, minigolf at the real courses (Torshov, Grünerløkka, Jordal park and the bar Oslo Camping in Møllergata), take photos, earn money delivering food or driving a taxi (phone: D-pad → / P), ride e-scooters and Oslo city bikes from their real docks, and start the hostage-rescue mission at the red marker beside the entrance of number 17A. Further south the world goes on down Trondheimsveien to Gamle Oslo, Ensjø and Bjørvika – real streets, ground heights and buildings, the churches, MUNCH and the Opera's walkable roof – with a timed run from Ensjø T-bane to Rathkes gate (green ring, □). In Grünerløkka: paddle a kayak down Akerselva from Bjølsen, Sagene or Grünerløkka to Vaterland, play table tennis at Schous plass, browse Deichman Grünerløkka (walk – the librarian hears everything) and go through the gate of Rathkes gate 1 and its backyard up stair 1C to flat 501 on the 5th floor. Play together: up to twelve players per lobby – your lobby code is in the pause menu, and there you can also log in or create an account (optional, email and password).</p>
         <dl class="controls">
           <dt>Move / look</dt><dd>Left stick / WASD · Right stick / mouse</dd>
-          <dt>✕ / Space</dt><dd>Jump</dd>
+          <dt>✕ / Space</dt><dd>Jump – tap for a small hop, hold for a high jump (about 1 m); you keep your speed in the air and steer a little; land on benches, crates, walls and car roofs; jump at a ledge up to chest height (1.6 m) to pull yourself up; fences and railings up to about 1.2 m you jump over</dd>
           <dt>○ / C · hold ○ / Z</dt><dd>Crouch · lie prone</dd>
           <dt>□ / E</dt><dd>Use: doors, drinks, vehicles, games, mission · at a tram, bus or metro stop: the timetable · at an open door: get on (get off when the doors open)</dd>
           <dt>△ / F</dt><dd>Tap: photo camera (L2 / right mouse raises it, R2 / left mouse takes a photo, □ / G gallery, ✕ / Delete twice deletes a photo) · hold: choose camera, binoculars or FPV drone · with the camera or binoculars raised: zoom with D-pad ↑↓, the mouse wheel or + −; the right stick / mouse only looks, and you can walk</dd>
@@ -398,6 +398,7 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
         <p id="imageryStatus" class="small"></p>
         <label>Graphics <select id="quality"><option value="0">Fast (no shadows)</option><option value="1">Balanced</option><option value="2">Sharp</option></select></label>
         <dl class="controls small">
+          <dt>Jumping</dt><dd>✕ / Space: tap for a small hop, hold for a high jump (about 1 m) · land on benches, crates, walls and car roofs (walk off the edge to drop down) · jump at a ledge up to chest height (1.6 m) and you pull yourself up · fences and railings up to about 1.2 m you jump over · shop counters, the water and high walls stay closed</dd>
           <dt>Motorcycle / car</dt><dd>□ get on/in · R2 throttle · L2 brake/reverse · left stick steer · right stick look · R3 / V first / third person (kept for the next vehicle) · police car: L3 / H blue lights, again for the siren, again off</dd>
           <dt>Police (Grønland)</dt><dd>Oslo politihus, Grønlandsleiret 44 (🚔 on the map): walk in through the glass doors, □ talk to the officer at the desk or take a queue ticket · behind the steel door: the glattceller – □ opens a cell door, □ on the hatch opens or closes it · Oslo fengsel (Botsen, 🔒) is behind the police station: □ opens the gates in the outer and inner wall, cross the yard to cell wing A, □ talk to the prison officer, □ open the cells · police cars stand outside the police station and around the city: drive them with class B</dd>
           <dt>Excavator</dt><dd>L1/L2 left track forward/back · R1/R2 right track · left stick: swing and stick · right stick: boom and bucket · R3 / V first / third person (the mouse turns the camera)</dd>
@@ -421,7 +422,7 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
           <dt>Stashes</dt><dd>Three hidden crates around the neighbourhood: □ snort a line or use the needle for a random 30-second boost – 3× running speed, 3× jump height or bullet time</dd>
           <dt>Catacombs</dt><dd>Three stone mausoleums in Torshovdalen (☠ on the map: the petanque lawn, the west side and the big lawn) lead down long stairs to a large catacomb · torches light the bone galleries; in the dark quarry tunnels □ / L1 / Q switches on your torch · underground the map shows only what you have seen there</dd>
           <dt>Drinks</dt><dd>Beer and aquavit in the apartment: each beer or sip = 30 s drunk</dd>
-          <dt>Kayak (Akerselva)</dt><dd>□ at a kayak rack (Bjølsen, Sagene, Grünerløkka) · left stick ↑ / W paddle, ↓ / S back-paddle, ←→ / A D turn · right stick / mouse look around (behind: turn the camera) · R3 / V first / third person · □ get out on a bank when slow · the run ends at Vaterland, before the culvert</dd>
+          <dt>Kayak (Akerselva)</dt><dd>□ at a kayak rack (Bjølsen, Sagene, Grünerløkka) · left stick ↑ / W paddle, R2 / Shift: sprint (hold while paddling), ↓ / S back-paddle, ←→ / A D turn · right stick / mouse look around (behind: turn the camera) · R3 / V first / third person · □ get out on a bank when slow · the run ends at Vaterland, before the culvert</dd>
           <dt>Construction City</dt><dd>The office building at Ulven (Standardveien 1, east of Økern): walk in through the glass hall, take the hall stair or a stair core in any wing, or stand in a lift and press □ (↑↓ choose a floor, ✕ / □ go, ○ close) · the garage P1 / P2 is under the building: drive in by the ramp at the west wing's end, or take one of the cars parked there</dd>
           <dt>Minigolf</dt><dd>The real courses: Torshov and Grünerløkka (18 holes, ticket at the kiosk), Jordal park (free) and Oslo Camping, the minigolf bar in Møllergata (ticket and drinks at the bar, 11 holes upstairs, 7 downstairs) · □ / E at a tee starts · aim with the right stick / mouse, the left stick fine-tunes · hold R2 / left mouse and let go to putt (the meter goes up and down) · L2 / right mouse shows the whole lane · max 7 strokes a hole · walk to the next tee (□ takes you there) · ○ / C quit</dd>
           <dt>Table tennis</dt><dd>Schous plass, against Ola: R2 / left mouse swing (early = cross-court, late = down the line) · aim with the camera · L2 smash · left stick / A D move · R2 serves · first to 11 · ○ quit</dd>
@@ -475,6 +476,12 @@ window.APARTMENT={"title":"Haarklous plass 17A · proposed kitchen + bedroom","c
  * setMoving(world, list): a short list of solids that move every frame (trams, buses, metro trains), set every frame, not hashed.
  * canStand(world, point, eyeHeight, y, staticOnly): staticOnly leaves out the dynamic and parked solids.
  * Worlds snapshot geometry; recreate after walls or room heights change.
+ * Jumping (issue #144): supportAt also gives the top of a solid you are on ({solid, top: true, y}; only from above, walking never
+ *   steps up onto a solid). Solids with noJump: true (or kind 'water') are never passed over or stood on.
+ * groundBelow(world, p, y) -> the highest floor or solid top at or under y; headroom(world, p, y) -> room over the feet
+ * canPass(world, p, eyeHeight, y, maxDrop=MAX_DROP) / airMove(world, p, delta, eyeHeight, y, maxDrop) -> moving in the air at feet y
+ * climbAt(world, p, dir, eyeHeight, from, maxTop, maxVault) -> {x, z, y, over} a ledge to pull up onto, {vault: true} a fence, or null
+ * startJump(s, scale) / stepAir(world, s, dt, {eye, held, wish, maxDrop}) -> events; walk(world, p, delta, eye, y) -> move + fall
  */
 (function (root, factory) {
   const api = factory();
@@ -486,6 +493,8 @@ window.APARTMENT={"title":"Haarklous plass 17A · proposed kitchen + bedroom","c
   // Largest height change followed in one substep (a stair ramp rises ~3 cm per 4 cm substep),
   // and the tolerance for treating two touching floors as one continuous walking surface.
   const STEP = .36, JOIN = .05, CELL = 16, EMPTY = {obstacles:[],boundary:[]};
+  // Jumping (issue #144): gravity; the farthest drop the air lets you go over an edge to (higher roofs and balconies stay closed).
+  const G = 9.81, MAX_DROP = 6;
   const near = (world,p) => world.cells ? (world.cells.get(Math.floor(p.x/CELL)+','+Math.floor(p.z/CELL)) || EMPTY) : world;
   // Moving solids (door leaves, vehicles, people) live in world.dynamic: set it any time without rebuilding.
   const prepared = list => list.map(o=>o.bounds?o:{...o,bounds:bounds(o.points),minY:o.minY ?? -Infinity,maxY:o.maxY ?? Infinity});
@@ -585,7 +594,7 @@ window.APARTMENT={"title":"Haarklous plass 17A · proposed kitchen + bedroom","c
     const copyPoints=points=>points.map(p=>({x:p.x,z:p.z}));
     const world={
       floors:floors.map(f=>{const copy={points:copyPoints(f.points),bounds:bounds(f.points),ceilingHeight:f.ceilingHeight ?? Infinity,y:f.y ?? 0,slope:f.slope?{x:f.slope.x||0,z:f.slope.z||0,origin:{...(f.slope.origin||{x:0,z:0})}}:null,height:f.height,name:f.name,surfaceKind:f.surfaceKind};copy.surface=surfaceFunction(copy);return copy;}),
-      obstacles:obstacles.map(o=>({points:copyPoints(o.points),bounds:bounds(o.points),minY:o.minY ?? -Infinity,maxY:o.maxY ?? Infinity,voids:o.voids&&o.voids.length?o.voids.map(v=>({points:copyPoints(v.points),bounds:bounds(v.points),minY:v.minY ?? -Infinity,maxY:v.maxY ?? Infinity})):null})),
+      obstacles:obstacles.map(o=>({points:copyPoints(o.points),bounds:bounds(o.points),minY:o.minY ?? -Infinity,maxY:o.maxY ?? Infinity,kind:o.kind,noJump:!!o.noJump,voids:o.voids&&o.voids.length?o.voids.map(v=>({points:copyPoints(v.points),bounds:bounds(v.points),minY:v.minY ?? -Infinity,maxY:v.maxY ?? Infinity})):null})),
       radius,clearance
     };
     world.boundary=exposedBoundary(world.floors);
@@ -617,7 +626,99 @@ window.APARTMENT={"title":"Haarklous plass 17A · proposed kitchen + bedroom","c
       const height=f.surface(p);
       if (Math.abs(height-y)<=STEP && height>gap) {best={floor:f,y:height};gap=height;}
     }
+    if (best && best.y>=y-.06) return best;// on a floor (the usual case): no need to look at the solids' tops
+    // The top of a solid you stand on (a bench, a crate, a car roof; issue #144): only from above (you jumped or climbed onto it),
+    // never stepped up onto by walking, so walking into a low solid still stops you as before.
+    for (const o of solidsNear(world,p)) {
+      if (o.maxY>y+.05 || o.maxY<y-STEP || o.maxY<=gap || !standable(o) || !nearBounds(p,o.bounds) || !inside(p,o.points) || hollow(o,p,o.maxY)) continue;
+      best={floor:null,solid:o,top:true,y:o.maxY};gap=o.maxY;
+    }
     return best;
+  }
+  // Jumping (issue #144). A solid's top is a place to stand when it has a real height, is at least ~0.2 m thick (not a fence or
+  // a railing: 2 x area / perimeter) and is not marked noJump (water, shop counters): those also stay as tall as a wall in the air.
+  const noJump = o => !!o.noJump || o.kind==='water';
+  const topOf = o => noJump(o) ? Infinity : o.maxY;
+  function polyWidth(points) {let a=0,per=0;for (let i=0;i<points.length;i++) {const p=points[i],q=points[(i+1)%points.length];a+=p.x*q.z-q.x*p.z;per+=Math.hypot(q.x-p.x,q.z-p.z);}return per ? Math.abs(a)/per : 0;}
+  const standable = o => Number.isFinite(o.maxY) && !noJump(o) && (o._w ?? (o._w=polyWidth(o.points)))>=.2;
+  // The highest place to stand at the point p at or below height y (a floor or a solid's top), or null.
+  function groundBelow(world,p,y) {
+    let best=null;
+    for (const f of floorsNear(world,p)) {
+      if (!nearBounds(p,f.bounds,EPS) || !inside(p,f.points)) continue;
+      const h=f.surface(p);if (h<=y+EPS && (!best || h>best.y)) best={floor:f,y:h};
+    }
+    for (const o of solidsNear(world,p)) {
+      if (o.maxY>y+EPS || (best && o.maxY<=best.y) || !standable(o) || !nearBounds(p,o.bounds) || !inside(p,o.points) || hollow(o,p,o.maxY)) continue;
+      best={floor:null,solid:o,top:true,y:o.maxY};
+    }
+    return best;
+  }
+  // Room over the feet at height y: the lowest floor above (more than a step up) or the ceiling of a room whose floor is under
+  // the feet (up to 3.2 m under them: a jump or a solid's top), Infinity in the open.
+  function headroom(world,p,y) {
+    let lowest=Infinity;
+    for (const f of floorsNear(world,p)) {
+      if (!nearBounds(p,f.bounds,EPS) || !inside(p,f.points)) continue;
+      const h=f.surface(p);
+      if (h>y+STEP) lowest=Math.min(lowest,h);else if (y-h<=3.2) lowest=Math.min(lowest,h+f.ceilingHeight);
+    }
+    return lowest-y;
+  }
+  // In the air with the feet at height y: no solid in the body's way (solids are passed over once the feet are above their top),
+  // not inside the side of a floor more than a step above the feet, room for the head, and (maxDrop) something to come down on
+  // no more than maxDrop m below. Floor edges are not walls in the air: you can jump over a railing and drop to the ground below,
+  // but not off a high roof or balcony (nothing within maxDrop).
+  function canPass(world,p,eyeHeight,y,maxDrop=MAX_DROP) {
+    if (!Number.isFinite(p.x) || !Number.isFinite(p.z) || !Number.isFinite(y)) return false;
+    for (const o of solidsNear(world,p)) if (topOf(o)>y+.04 && o.minY<y+eyeHeight+.10 && nearBounds(p,o.bounds,world.radius) && !hollow(o,p,y) && distanceToPolygon(p,o.points)<world.radius-EPS) return false;
+    for (const piece of near(world,p).boundary) {
+      if (distanceToSegment(p,piece.a,piece.b)>=world.radius-EPS) continue;
+      const s=piece.floor.surface(closestOnSegment(p,piece.a,piece.b));if (y<s-STEP && y>s-STEP*1.7) return false;
+    }
+    if (headroom(world,p,y)<eyeHeight+Math.max(.10,world.clearance)) return false;
+    if (maxDrop!==Infinity) {const g=groundBelow(world,p,y+STEP);if (!g || g.y<y-maxDrop) return false;}
+    return true;
+  }
+  // Swept move in the air at a fixed feet height y (like move: substeps, contact by bisection, sliding along what stops you).
+  function airMove(world,position,delta,eyeHeight,y,maxDrop=MAX_DROP) {
+    let p={x:position.x,z:position.z};
+    const distance=length(delta);
+    if (!Number.isFinite(distance) || distance<EPS) return p;
+    const ok=q=>canPass(world,q,eyeHeight,y,maxDrop);
+    const count=Math.max(1,Math.ceil(distance/Math.min(.04,world.radius*.25))), step={x:delta.x/count,z:delta.z/count};
+    for (let i=0;i<count;i++) {
+      const next={x:p.x+step.x,z:p.z+step.z};
+      if (ok(next)) {p=next;continue;}
+      let low=0,high=1;
+      for (let j=0;j<10;j++) {const mid=(low+high)/2;if (ok(lerp(p,next,mid))) low=mid;else high=mid;}
+      const contact=lerp(p,next,low), rest={x:step.x*(1-low),z:step.z*(1-low)}, cands=[{x:rest.x,z:0},{x:0,z:rest.z}], reach=world.radius+length(rest)+.001;
+      const along=(a,b)=>{if (distanceToSegment(contact,a,b)>reach) return;const e=subtract(b,a),sq=dot(e,e);if (sq<EPS) return;const t=dot(rest,e)/sq;cands.push({x:e.x*t,z:e.z*t});};
+      for (const o of solidsNear(world,contact)) if (topOf(o)>y+.04 && o.minY<y+eyeHeight+.10 && nearBounds(contact,o.bounds,reach)) for (const [a,b] of edges(o.points)) along(a,b);
+      for (const piece of near(world,contact).boundary) along(piece.a,piece.b);
+      let best=contact,score=0;
+      for (const c of cands) {const q={x:contact.x+c.x,z:contact.z+c.z},progress=dot(c,rest);if (progress>score && ok(q)) {best=q;score=progress;}}
+      p=best;
+    }
+    return p;
+  }
+  // Climbing what stops you in the air: going in direction dir (unit) from p, find the lowest feet height h from `from` up to
+  // maxTop (ledges) / maxVault (thin things) at which you get over it, with room to rise where you are (else null: a low ceiling).
+  //  - a place to stand just ahead at about that height (a ledge, a wall's top, a car roof): {x, z, y: where you stand, over: h}
+  //  - else, for h <= maxVault, open ground beyond (a fence, a railing, a hedge): {x, z, y: null, over: h, vault: true}
+  function climbAt(world,p,dir,eyeHeight,from,maxTop,maxVault=maxTop,maxDrop=MAX_DROP) {
+    const at=d=>({x:p.x+dir.x*(world.radius+d),z:p.z+dir.z*(world.radius+d)});
+    for (let h=from;h<=maxTop+.051;h+=.1) {
+      if (!canPass(world,p,eyeHeight,h,Infinity)) return null;// a low ceiling over you: no higher try can work
+      for (const d of [.12,.3,.5,.75]) {
+        const q=at(d);
+        if (!canPass(world,q,eyeHeight,h,maxDrop) || !canPass(world,lerp(p,q,.5),eyeHeight,h,Infinity)) continue;
+        const g=groundBelow(world,q,h+STEP);if (!g) continue;
+        if (g.y>=h-.3) {if (canStand(world,q,eyeHeight,g.y)) return {x:q.x,z:q.z,y:g.y,over:Math.max(h,g.y)};continue;}
+        if (h<=maxVault+.051 && canPass(world,q,eyeHeight,g.y+.05,Infinity)) return {x:q.x,z:q.z,y:null,over:h,vault:true};
+      }
+    }
+    return null;
   }
   function ceilingAt(world,p,y=0) {
     let lowest=Infinity;
@@ -673,6 +774,7 @@ window.APARTMENT={"title":"Haarklous plass 17A · proposed kitchen + bedroom","c
     if (!support) return false;
     const feet=support.y;
     if (eyeHeight>ceilingAt(world,p,feet)-Math.max(.10,world.clearance)+EPS) return false;
+    if (support.top && eyeHeight>headroom(world,p,feet)-Math.max(.10,world.clearance)+EPS) return false;// on a table: the room's ceiling
     const cell=near(world,p);
     if (cell.boundary.some(piece=>distanceToSegment(p,piece.a,piece.b)<world.radius-EPS && barrierActive(piece,p,feet))) return false;
     return !solidsNear(world,p,staticOnly).some(o=>overhead(o,feet,eyeHeight) && nearBounds(p,o.bounds,world.radius) && !hollow(o,p,feet) && distanceToPolygon(p,o.points)<world.radius-EPS);
@@ -770,7 +872,95 @@ window.APARTMENT={"title":"Haarklous plass 17A · proposed kitchen + bedroom","c
     }
     return null;
   }
-  return {createWorld,supportAt,canStand,hitsSolid,overlapDepth,move,findSafeSpawn,ceilingAt,roofAt,floorAt,clampEyeHeight,setDynamic,setMoving,parkedLayer,setParked,STEP};
+  // ---------- The jump (issue #144) ----------
+  // A tap lifts the feet TAP m; holding the button for the first HOLD s lowers gravity to HOLD_G, so a full press peaks at APEX m.
+  // In the air you keep your speed and steer with AIR m/s²; running into a ledge you cannot clear but can reach (its top no more
+  // than REACH m over the feet at take-off) pulls you up onto it in MANTLE s.
+  const JUMP = {APEX:1.0,TAP:.5,HOLD:.2,REACH:1.6,VAULT:1.25,AIR:5,MANTLE:.5};
+  JUMP.TAP_V=Math.sqrt(2*G*JUMP.TAP);
+  // Height gained from v0 when gravity is g1 for the first T s, then G (g1 < G).
+  const riseOf=(v0,T,g1)=>{const v=v0-g1*T;return v<=0 ? v0*v0/(2*g1) : v0*T-.5*g1*T*T+v*v/(2*G);};
+  {let lo=0,hi=G;for (let i=0;i<60;i++) {const m=(lo+hi)/2;if (riseOf(JUMP.TAP_V,JUMP.HOLD,m)>JUMP.APEX) lo=m;else hi=m;}JUMP.HOLD_G=(lo+hi)/2;}
+  // Start a jump from the feet at s.y; scale multiplies the heights (the stash's 3x jump boost).
+  function startJump(s,scale=1) {const k=Math.sqrt(scale);s.vy=JUMP.TAP_V*k;s.hold=JUMP.HOLD*k;s.t=0;s.takeoff=s.y;s.mantle=null;return s;}
+  // How much higher the feet still go on this arc (held: the button is still down).
+  function riseLeft(s,held) {if (s.vy<=0) return 0;const T=held ? Math.max(0,(s.hold||0)-(s.t||0)) : 0;return T>0 ? riseOf(s.vy,T,JUMP.HOLD_G) : s.vy*s.vy/(2*G);}
+  const ease=k=>k<.5 ? 2*k*k : 1-Math.pow(-2*k+2,2)/2;
+  // One step in the air. s = {x, z, y (feet), vx, vz, vy, t, hold, takeoff, mantle}; o = {eye, held, wish {x, z} m/s, maxDrop}.
+  // Returns {landed, impact (m/s down), mantle (started), mantled, bump (head), stuck (landed where you cannot stand)}.
+  function stepAir(world,s,dt,o={}) {
+    const eye=o.eye ?? 1.65, maxDrop=o.maxDrop ?? MAX_DROP, wish=o.wish || {x:0,z:0};
+    if (s.mantle) {
+      // Pulling up (or vaulting): up to the top first, then over the edge; a vault then drops on the far side.
+      const m=s.mantle;m.t+=dt;const k=Math.min(1,m.t/m.T), up=ease(Math.min(1,k/.6)), fw=ease(Math.max(0,(k-.4)/.6));
+      s.y=k<.6 ? m.y0+(m.top-m.y0)*up : m.top+(m.y1-m.top)*ease((k-.6)/.4);s.x=m.x0+(m.x1-m.x0)*fw;s.z=m.z0+(m.z1-m.z0)*fw;
+      if (k<1) return {};
+      s.mantle=null;s.y=m.y1;s.vy=0;
+      if (m.vault) {s.vx=m.dir.x*2;s.vz=m.dir.z*2;s.t=9;return {vaulted:true};}
+      s.vx=s.vz=0;return {landed:true,impact:0,mantled:true};
+    }
+    if (!o.held) s.hold=0;// let go: the extra lift is over for this jump
+    const g=s.vy>0 && s.t<(s.hold||0) ? JUMP.HOLD_G : G;s.t=(s.t||0)+dt;s.vy-=g*dt;
+    // Steer a little; with the stick let go you keep your speed.
+    const wl=Math.hypot(wish.x,wish.z);
+    if (wl>.05) {const dx=wish.x-s.vx,dz=wish.z-s.vz,dl=Math.hypot(dx,dz),a=Math.min(dl,JUMP.AIR*dt);if (dl>1e-9) {s.vx+=dx/dl*a;s.vz+=dz/dl*a;}}
+    const out={};
+    // Across: pass over what is lower than the feet.
+    const want=Math.hypot(s.vx,s.vz)*dt;
+    if (want>1e-9) {
+      const r=airMove(world,s,{x:s.vx*dt,z:s.vz*dt},eye,s.y,maxDrop), got=Math.hypot(r.x-s.x,r.z-s.z);
+      if (got<want*.6 && wl>.05) {
+        // Stopped by something you will not clear on this arc: a ledge in reach is climbed, a low fence or railing vaulted.
+        const base=s.takeoff ?? s.y, dir={x:wish.x/wl,z:wish.z/wl}, nc=s.noClimb;
+        // (Nothing to climb here is remembered while you stay at the same spot and push the same way: the search is not cheap.)
+        const same=nc && Math.hypot(s.x-nc.x,s.z-nc.z)<.25 && dir.x*nc.dx+dir.z*nc.dz>.9;
+        const L=same ? null : climbAt(world,s,dir,eye,s.y+.1,Math.min(base+JUMP.REACH,s.y+JUMP.REACH),base+JUMP.VAULT,maxDrop);
+        if (!L && !same) s.noClimb={x:s.x,z:s.z,dx:dir.x,dz:dir.z};
+        if (L && L.over>s.y+riseLeft(s,o.held)+.04) {
+          s.mantle={t:0,x0:s.x,z0:s.z,y0:s.y,x1:L.x,z1:L.z,top:L.over,y1:L.vault ? L.over : L.y,vault:!!L.vault,dir,T:L.vault ? JUMP.MANTLE*.7 : JUMP.MANTLE};
+          s.vx=s.vz=s.vy=0;out.mantle=true;out.vault=!!L.vault;return out;
+        }
+      }
+      s.vx=(r.x-s.x)/dt;s.vz=(r.z-s.z)/dt;s.x=r.x;s.z=r.z;// sliding along a wall keeps only the speed along it
+    }
+    // Up and down.
+    const y0=s.y, y1=s.y+s.vy*dt;
+    {const g0=groundBelow(world,s,y0+STEP);if (g0 && g0.y>y0) s.y=g0.y;}// the ground rose under you (a slope, a step): onto it
+    if (s.vy>0) {
+      if (canPass(world,s,eye,Math.max(s.y,y1),Infinity)) s.y=Math.max(s.y,y1);else {s.vy=0;out.bump=true;}
+      return out;
+    }
+    const g1=groundBelow(world,s,s.y+.001);
+    if (g1 && g1.y>=y1) {
+      // Landed: on a floor or on a solid's top.
+      out.landed=true;out.impact=-s.vy;s.y=g1.y;s.vy=0;
+      if (!canStand(world,s,eye,g1.y)) {const sp=findSafeSpawn(world,s,eye,{maxDistance:.6,step:.05,y:g1.y});if (sp) {s.x=sp.x;s.z=sp.z;s.y=sp.y;} else out.stuck=true;}
+      return out;
+    }
+    if (!canPass(world,s,eye,y1,Infinity)) {
+      // Coming down onto a thin top (a fence, a railing, an edge): slide off it, the way you are going if you can.
+      const hv=Math.hypot(s.vx,s.vz), fx=hv>.1 ? s.vx/hv : 0, fz=hv>.1 ? s.vz/hv : 0;let best=null,score=-Infinity;
+      for (const d of [.06,.12,.2,.3,.42]) {for (let i=0;i<8;i++) {const a=i*Math.PI/4, q={x:s.x+Math.cos(a)*d,z:s.z+Math.sin(a)*d}, sc=Math.cos(a)*fx+Math.sin(a)*fz-d*2;if (sc>score && canPass(world,q,eye,y1,maxDrop)) {best=q;score=sc;}}if (best) break;}
+      if (best) {s.x=best.x;s.z=best.z;}
+    }
+    s.y=y1;
+    return out;
+  }
+  // Walking with falling: like move, but standing on a solid's top you can walk off its edge and drop (fall: true).
+  function walk(world,position,delta,eyeHeight,y=0,maxDrop=MAX_DROP) {
+    const r=move(world,position,delta,eyeHeight,y), want=length(delta);
+    if (want<1e-6) return {...r,fall:false};
+    const s=supportAt(world,position,y);
+    const got=Math.hypot(r.x-position.x,r.z-position.z);
+    if (!s || !s.top || got>=want*.7) return {...r,fall:false};
+    const a=airMove(world,position,delta,eyeHeight,y,maxDrop);
+    if (Math.hypot(a.x-position.x,a.z-position.z)<=got+1e-4) return {...r,fall:false};
+    const s2=supportAt(world,a,y);
+    if (s2) return canStand(world,a,eyeHeight,s2.y) ? {x:a.x,z:a.z,y:s2.y,fall:false} : {...r,fall:false};
+    return {x:a.x,z:a.z,y,fall:true};
+  }
+  return {createWorld,supportAt,canStand,hitsSolid,overlapDepth,move,findSafeSpawn,ceilingAt,roofAt,floorAt,clampEyeHeight,setDynamic,setMoving,parkedLayer,setParked,STEP,
+    groundBelow,headroom,canPass,airMove,climbAt,startJump,stepAir,riseLeft,walk,JUMP,G,MAX_DROP};
 });
 </script><script>/* Pure gamepad reading for the first-person walkthrough (PS4 DualShock 4 and
  * other controllers). No DOM access; app.js polls navigator.getGamepads().
@@ -5182,6 +5372,9 @@ window.BRIDGES = {"attribution":"Map data © OpenStreetMap contributors (ODbL)."
         case 'learn': for (let i = 0; i < 8; i++) tone(440 * Math.pow(2, i / 4), 440 * Math.pow(2, i / 4) * 1.02, .06, .02, .6, 'sine', t + i * .07);burst(5000, 1, .08, .3, .8, 'highpass', t + .2);break;
         case 'levitate': tone(300, 620, .07, .2, .7, 'sine');burst(2200, .6, .06, .25, .6, 'bandpass');break;
         case 'land': burst(400, .8, .12, .005, .15, 'lowpass');break;
+        // Jumping (issue #144): a short breath and a whoosh at take-off; a thud on landing (gain grows with the fall).
+        case 'jump': burst(1400, .9, .05, .02, .16, 'bandpass');burst(700, 1.2, .07, .01, .09, 'bandpass');tone(190, 150, .03, .01, .08, 'triangle');break;
+        case 'jumpLand': burst(150, .8, .55, .003, .18, 'lowpass');tone(80, 45, .3, .003, .16);burst(900, .7, .08, .002, .07);break;
         case 'blink': tone(1800, 240, .12, .002, .22, 'sawtooth');burst(4000, 1.5, .18, .002, .18, 'highpass');tone(240, 1600, .08, .005, .18, 'sine', t + .12);break;
         case 'gust': burst(500, .5, .5, .05, .9, 'lowpass');burst(1800, .4, .25, .1, .8, 'bandpass');burst(3600, .6, .1, .05, .5, 'highpass', t + .1);break;
         case 'orbOn': tone(880, 1320, .07, .02, .4, 'sine');tone(1320, 1760, .05, .02, .5, 'sine', t + .1);break;
@@ -7244,7 +7437,7 @@ window.BRIDGES = {"attribution":"Map data © OpenStreetMap contributors (ODbL)."
 </script><script>/* Other players: a jointed humanoid (jacket colour per player slot) with walk, crouch, prone, sit, drive and ride poses,
  * a beer bottle when drinking, a name tag and a chat bubble; plus a small FPV quad for players flying their drone.
  * GameAvatars.create({T, lib}) -> {avatar(slot, name) -> Avatar, drone() -> Group, SLOT_COLORS}
- * Avatar: {group, setName(n), say(text), pose({stance, speed, dt, beer, seat}), update(dt, camera, showTag = true), dispose()}
+ * Avatar: {group, setName(n), say(text), pose({stance, speed, dt, beer, seat, jump}), update(dt, camera, showTag = true), dispose()}
  * The group's origin is between the feet and it faces -z (like the camera at yaw 0). For seated poses the origin is the hip.
  */
 (function (root, factory) {
@@ -7311,7 +7504,7 @@ window.BRIDGES = {"attribution":"Map data © OpenStreetMap contributors (ODbL)."
       }
       const set = (o, x = 0, y = 0, z = 0) => o.rotation.set(x, y, z);
       // stance: stand | crouch | prone | sit | drive | ride | pillion | cycle | scoot | drone | climb | hang | belay ; seat poses put the hip at the group origin.
-      function pose({stance = 'stand', speed = 0, dt = 0, beer = false, marker = false}) {
+      function pose({stance = 'stand', speed = 0, dt = 0, beer = false, marker = false, jump = false}) {
         phase += speed * dt * (stance === 'cycle' ? 1.5 : 3.2);const sw = Math.sin(phase), amp = Math.min(1, speed / 3.6);
         hips.position.set(0, .95, 0);set(hips);set(torso);set(neck);set(head);
         for (const [s, side] of [[1, L], [-1, R]]) {set(side.leg.hip);set(side.leg.kn);set(side.arm.sh, 0, 0, s * .08);set(side.arm.el);}
@@ -7353,6 +7546,8 @@ window.BRIDGES = {"attribution":"Map data © OpenStreetMap contributors (ODbL)."
           L.arm.sh.rotation.x = -sw * .45 * amp;R.arm.sh.rotation.x = sw * .45 * amp;L.arm.el.rotation.x = R.arm.el.rotation.x = .25 + .3 * amp;
           hips.position.y = .95 + Math.abs(Math.cos(phase)) * .03 * amp;torso.rotation.x = -.06 * amp;
           if (stance === 'drone') for (const side of [L, R]) {side.arm.sh.rotation.x = .8;side.arm.el.rotation.x = .9;}
+          // In the air (issue #144): knees drawn up, arms up and forward.
+          if (jump && stance === 'stand') {set(L.leg.hip, .75);set(R.leg.hip, .45);set(L.leg.kn, -1.2);set(R.leg.kn, -.8);for (const [s, side] of [[1, L], [-1, R]]) {set(side.arm.sh, 1.5, 0, s * .25);set(side.arm.el, .35);}torso.rotation.x = -.12;hips.position.y = .95;}
         }
         // Paintball: the marker shouldered, right hand on the grip, left on the front.
         if (marker && !seated && stance !== 'prone') {set(R.arm.sh, 1.2, 0, -.2);set(R.arm.el, .55);set(L.arm.sh, 1.35, 0, .55);set(L.arm.el, .35);}
@@ -7618,7 +7813,7 @@ window.BRIDGES = {"attribution":"Map data © OpenStreetMap contributors (ODbL)."
           if (ctx.skyPose) ctx.skyPose(r, st, g);// skydiving: belly-down in freefall, a canopy over them (game-main)
           if (st.sit) stance = 'sit';
         }
-        r.seen = true;r.av.pose({stance, speed: stance === 'stand' || stance === 'crouch' || stance === 'prone' || stance === 'climb' || stance === 'cycle' ? r.speed : 0, dt, beer: !!st.b, marker: ctx.holdsMarker ? ctx.holdsMarker(r.id) : false});r.av.update(dt, cam, ctx.showTag ? ctx.showTag(r.id) : true);
+        r.seen = true;r.av.pose({stance, speed: stance === 'stand' || stance === 'crouch' || stance === 'prone' || stance === 'climb' || stance === 'cycle' ? r.speed : 0, dt, beer: !!st.b, jump: !!st.j && !anchor, marker: ctx.holdsMarker ? ctx.holdsMarker(r.id) : false});r.av.update(dt, cam, ctx.showTag ? ctx.showTag(r.id) : true);
         // Their drone.
         if (st.dr) {if (!r.drone) {r.drone = avatars.drone();scene.add(r.drone);}r.drone.visible = true;r.drone.position.set(st.dr[0], st.dr[1], st.dr[2]);r.drone.quaternion.set(st.dr[3], st.dr[4], st.dr[5], st.dr[6]);}
         else if (r.drone) r.drone.visible = false;
@@ -7991,13 +8186,13 @@ window.BRIDGES = {"attribution":"Map data © OpenStreetMap contributors (ODbL)."
         const rollM = new T.MeshStandardMaterial({color: 0xb5472f, roughness: .5}), cupM = new T.MeshStandardMaterial({color: 0xf4efe6, roughness: .7});
         for (let k = 0; k < 5; k++) {const r = new T.Mesh(new T.CylinderGeometry(.022, .022, .34, 8), rollM);r.rotation.z = Math.PI / 2;r.position.set(6.05, 1.085, .32 + k * .05);g.add(r);}
         for (let k = 0; k < 3; k++) {const cup = new T.Mesh(new T.CylinderGeometry(.04, .032, .11, 10), cupM);cup.position.set(5.62, 1.015, .3 + k * .09);g.add(cup);}
-        obstacles.push(rect(a0, a1, .08, b1 + .02, -.2, 1.0));
+        obstacles.push({...rect(a0, a1, .08, b1 + .02, -.2, 1.0), noJump: true});// counters are not jumped over (issue #144)
         PRODUCTS.filter(p => p.where === 'counter').forEach((p, k) => spots.push({p, x: k ? 6.05 : 5.4, y: 1.15, z: .45, w: .55, h: .5, d: .5, tag: [k ? 6.05 : 5.4, .8, b1 + .025], face: 'in'}));
       }
       // Till: counter with belt, register and card terminal; the cashier stands between the counter and the window.
       box(g, 2.4, .9, .65, 2.4, .45, 1.32, lib.wood(0x6b4b33, .6));box(g, 1.6, .04, .45, 2.0, .92, 1.32, darkM);box(g, .4, .28, .34, 3.2, 1.06, 1.2, darkM);box(g, .14, .1, .2, 2.95, .98, 1.6, darkM);
       const screen = box(g, .3, .2, .02, 3.2, 1.3, 1.05, new T.MeshStandardMaterial({color: 0x0b1a10, emissive: 0x1c5a2a, emissiveIntensity: .9}));screen.rotation.x = -.2;
-      obstacles.push(rect(1.18, 3.62, 1.0, 1.65, -.2, 1.0));
+      obstacles.push({...rect(1.18, 3.62, 1.0, 1.65, -.2, 1.0), noJump: true});// nobody jumps over the till to the cashier (issue #144)
       const tillHit = new T.Mesh(new T.BoxGeometry(2.4, .6, .8), hitM);tillHit.position.set(2.4, 1.1, 1.4);tillHit.userData = {shopTill: s, noMerge: true};g.add(tillHit);hitboxes.push(tillHit);
       // Bottle-return machine ("pant") against the right wall.
       const mach = new T.Group();mach.position.set(W - .38, 0, 1.55);mach.rotation.y = -Math.PI / 2;g.add(mach);
@@ -10635,8 +10830,8 @@ window.MUSELUNDEN={"name":"Muselunden DiscGolfPark","layout":"Muselunden 12 hull
       const bottleCols = [0x2f6b2a, 0x7a2a1d, 0xd8c25a, 0x1f3f7a, 0x9a6b2a, 0xe8e8e0];
       for (const y of [1.03, 1.48, 1.93]) for (let b = ct.b0 + .25, i = 0; b < ct.b1 - .2; b += .19, i++) box(.2, .3, b - .04, b + .04, y, y + .28, bottleCols[(i + Math.round(y * 7)) % 6], Gg);
       for (let i = 0; i < 4; i++) box(ct.a0 + 1.0, ct.a0 + 1.08, ct.b0 + 2.2 + i * .45, ct.b0 + 2.28 + i * .45, 1.11, 1.45, 0xd0d4d8, Gm);
-      obstacles.push({points: rectW(ct.a0, ct.a1 + .06, ct.b0 - .06, ct.b1 + .06), minY: y0 - .2, maxY: y0 + 1.15, kind: 'bar'}, {points: rectW(0, .5, ct.b0, ct.b1), minY: y0 - .2, maxY: y0 + 2.3, kind: 'bar'});
-      obstacles.push({points: rectW(0, ct.a0 + .9, ct.b0 - .3, ct.b0), minY: y0 - .2, maxY: y0 + 1.1, kind: 'bar'});
+      obstacles.push({points: rectW(ct.a0, ct.a1 + .06, ct.b0 - .06, ct.b1 + .06), minY: y0 - .2, maxY: y0 + 1.15, kind: 'bar', noJump: true}, {points: rectW(0, .5, ct.b0, ct.b1), minY: y0 - .2, maxY: y0 + 2.3, kind: 'bar'});
+      obstacles.push({points: rectW(0, ct.a0 + .9, ct.b0 - .3, ct.b0), minY: y0 - .2, maxY: y0 + 1.1, kind: 'bar', noJump: true});// the bartender's side stays closed (issue #144)
       for (let i = 0; i < 6; i++) {const b = ct.b0 + .5 + i * 1.05, cx = ct.a1 + .38;box(cx - .17, cx + .17, b - .17, b + .17, .72, .78, 0x8a2f24);box(cx - .03, cx + .03, b - .03, b + .03, 0, .72, 0x222222, Gm);}
       const neon = canvasTex(512, 128, (g, w, h) => {g.fillStyle = '#000';g.fillRect(0, 0, w, h);g.shadowColor = '#ff6a3d';g.shadowBlur = 24;g.fillStyle = '#ffb08a';g.font = 'bold 84px Arial';g.textAlign = 'center';g.textBaseline = 'middle';g.fillText('🏕 BAR', w / 2, 70);});
       const nm = new T.Mesh(new T.PlaneGeometry(1.8, .45), new T.MeshBasicMaterial({map: neon, transparent: true, blending: T.AdditiveBlending, depthWrite: false}));nm.position.set(...FB(.08, (ct.b0 + ct.b1) / 2, 2.75));nm.rotation.y = face(1, 0);C.group.add(nm);
@@ -18309,7 +18504,7 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
  * bridges, put-ins and the take-out.
  * Pure (Node-tested):
  *   GameKayak.river(data) -> {length, n, at(t), locate(x, s, hint), flow(t), level(t), fallAt(t)}  (t = metres downstream)
- *   new GameKayak.Boat(river) -> place(t, side), step(dt, {fwd, turn}) -> events [{kind: 'bump' | 'fall' | 'finish', …}]
+ *   new GameKayak.Boat(river) -> place(t, side), step(dt, {fwd, turn, sprint}) -> events [{kind: 'bump' | 'fall' | 'finish', …}]
  * Browser:
  *   GameKayak.prepare(districts, D) lowers the ground along the river bed (before Surroundings.create builds it), then sinks
  *     the grid corners that still hold the drawn ground above the water (sinkGrid, issue #63), in the old 4 m grid and the 8 m
@@ -18318,7 +18513,8 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
  *   GameKayak.create({T, lib, data, world, audio, districts}) -> {group, obstacles, groundAt(x, z), racks, prompt(player),
  *     farWater (the ribbon in the far pass, over its own sunk ground),
  *     start(i), update(dt, input, camera) -> {exit?, notice?}, exitPoint(), hud(), remoteBoat(), riverModel, boat, active}
- * Controls (the user's wish): left stick ↑ / W paddle forward, ↓ / S back-paddle, ←→ / A D turn. R3 / V outside view.
+ * Controls (the user's wish): left stick ↑ / W paddle forward, ↓ / S back-paddle, ←→ / A D turn, hold R2 / Shift to sprint
+ * (issue #146). R3 / V outside view.
  * □ / E gets out on the nearer bank when slow.
  */
 (function (root, factory) {
@@ -18365,7 +18561,7 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
 
   // ---------- The boat: paddling on the moving water (local frame, heading h: direction (sin h, cos h)) ----------
   class Boat {
-    constructor(R) {this.R = R;this.x = 0;this.s = 0;this.h = 0;this.u = 0;this.v = 0;this.r = 0;this.k = null;this.t = 0;this.n = 0;this.stroke = 0;this.inFall = null;this.done = false;}
+    constructor(R) {this.R = R;this.x = 0;this.s = 0;this.h = 0;this.u = 0;this.v = 0;this.r = 0;this.k = null;this.t = 0;this.n = 0;this.stroke = 0;this.inFall = null;this.done = false;this.sprint = false;}
     place(t, side = 0) {
       const c = this.R.at(t), off = clamp(side, -c.wl + HULL + .2, c.wr - HULL - .2);
       this.x = c.x - c.ds * off;this.s = c.s + c.dx * off;this.h = Math.atan2(c.dx, c.ds);this.u = this.v = this.r = 0;this.k = c.k;this.t = t;this.n = off;this.inFall = null;this.done = false;
@@ -18373,17 +18569,22 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
     }
     // Speed over the ground (m/s), the boat's own speed through the water, and the current there.
     get ground() {const c = this.R.at(this.t), w = this.R.flow(this.t), fx = Math.sin(this.h), fs = Math.cos(this.h);return {x: c.dx * w + fx * this.u - fs * this.v, s: c.ds * w + fs * this.u + fx * this.v};}
-    step(dt, {fwd = 0, turn = 0} = {}) {
+    step(dt, {fwd = 0, turn = 0, sprint = false} = {}) {
       const ev = [], R = this.R;
-      // Paddling: forward up to about 3 m/s through the water (a sprinting touring kayak), backward up to 1.2 m/s.
-      if (fwd > .05) this.u += 1.8 * fwd * dt * clamp(1 - this.u / 3.1, 0, 1.4);
+      // Paddling (issue #146): cruising about 2.5 m/s through the water (9 km/h, 25 % faster than before), sprinting (R2 /
+      // Shift while paddling forward) about 4.2 m/s (15 km/h, twice the old top speed); backward up to 1.2 m/s.
+      // Thrust A·fwd·(1 − u/M) against the drag below: cruise A 2.2, M 4.3; sprint A 3.6, M 11.4.
+      this.sprint = !!sprint && fwd > .05;
+      if (fwd > .05) this.u += (this.sprint ? 3.6 : 2.2) * fwd * dt * clamp(1 - this.u / (this.sprint ? 11.4 : 4.3), 0, 1.4);
       else if (fwd < -.05) this.u += 1.3 * fwd * dt * clamp(1 + this.u / 1.2, 0, 1.6);
       this.u -= (.12 * this.u + .1 * this.u * Math.abs(this.u)) * dt;
       this.v *= Math.exp(-2.6 * dt);
       // Turning: stick right = turn right (clockwise seen from above, so h falls); a sweep stroke turns faster when moving slowly.
-      const want = -turn * (1.25 + .25 * clamp(1 - Math.abs(this.u) / 2, 0, 1));
-      this.r += (want - this.r) * Math.min(1, dt * 4);
-      if (Math.abs(fwd) > .05 || Math.abs(turn) > .05) this.stroke += dt * (2.2 + Math.abs(fwd) * 1.4);
+      // Above cruising speed a little more turn, and a quicker answer, so a sprinting boat does not run wide into the banks.
+      const fast = clamp((Math.abs(this.u) - 2.5) / 1.7, 0, 1);
+      const want = -turn * (1.25 + .25 * clamp(1 - Math.abs(this.u) / 2, 0, 1) + .25 * fast);
+      this.r += (want - this.r) * Math.min(1, dt * (4 + 2 * fast));
+      if (Math.abs(fwd) > .05 || Math.abs(turn) > .05) this.stroke += dt * (2.2 + Math.abs(fwd) * 1.4 + (this.sprint ? 1.8 : 0));
       // The current pushes, and in fast water it slowly swings the bow downstream.
       let c = R.at(this.t);const w = R.flow(this.t), flowH = Math.atan2(c.dx, c.ds);
       let dh = flowH - this.h;dh = Math.atan2(Math.sin(dh), Math.cos(dh));
@@ -18840,7 +19041,7 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
     function start(i) {
       const r = racks[i];boat.place(r.t + 3, r.side * 1.2);active = true;view = 0;run = {from: r.name.replace(/ \(.*\)/, ''), key: String(i), t0: 0, time: 0};kayak.visible = true;
       if (audio && audio.sfx) audio.sfx('splash', {gain: .5});
-      return `Kayak: left stick ↑ / W paddle · ↓ / S back-paddle · ←→ / A D turn · R3 / V view · □ get out on a bank when slow. ${r.km.toFixed(1)} km to Vaterland.`;
+      return `Kayak: left stick ↑ / W paddle · R2 / Shift: sprint · ↓ / S back-paddle · ←→ / A D turn · R3 / V view · □ get out on a bank when slow. ${r.km.toFixed(1)} km to Vaterland.`;
     }
     function stop() {active = false;kayak.visible = false;run = null;pose = null;if (audio && audio.water) audio.water(0);}
     // Where to stand after getting out: on the nearer bank, 2.5 m beyond the water.
@@ -18855,7 +19056,8 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
       const out = {};
       run.time += dt;
       const fwd = clamp(-(input.move.y || 0), -1, 1), turn = clamp(input.move.x || 0, -1, 1);
-      for (const e of boat.step(dt, {fwd, turn})) {
+      const sprint = (input.r2 || 0) > .3 || !!(input.held && input.held.l3);// R2, or Shift (mapped to L3 like running on foot)
+      for (const e of boat.step(dt, {fwd, turn, sprint})) {
         if (e.kind === 'bump' && audio && audio.sfx) audio.sfx('thud', {gain: Math.min(1, e.speed / 2)});
         if (e.kind === 'fall') {shake = Math.min(1.2, .3 + e.drop / 8);if (audio && audio.sfx) audio.sfx('splash', {gain: Math.min(1, .4 + e.drop / 10)});out.notice = e.drop > 4 ? `Waterfall! ${e.drop.toFixed(0)} m down` : 'White water!';}
         if (e.kind === 'finish') {
@@ -18873,8 +19075,8 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
       const w = toW(boat.x, boat.s), y = yOf(R.level(boat.t)) + .02 + Math.sin(performance.now() / 700) * .02, yaw = worldYaw();
       kayak.position.set(w.x, y, w.z);kayak.rotation.order = 'YXZ';kayak.rotation.set(-boat.pitch, yaw, boat.roll);
       // Paddle: alternate strokes while paddling, held across the deck when resting.
-      const ph = boat.stroke * Math.PI, k = Math.abs(fwd) > .05 || Math.abs(turn) > .05 ? 1 : 0;
-      paddle.rotation.set(0, Math.sin(ph) * .55 * k * Math.sign(fwd || 1), Math.cos(ph) * .5 * k + (1 - k) * .05);
+      const ph = boat.stroke * Math.PI, k = Math.abs(fwd) > .05 || Math.abs(turn) > .05 ? 1 : 0, big = boat.sprint ? 1.2 : 1;// sprint: longer, faster strokes
+      paddle.rotation.set(0, Math.sin(ph) * .55 * big * k * Math.sign(fwd || 1), Math.cos(ph) * .5 * big * k + (1 - k) * .05);
       paddle.position.set(Math.sin(ph) * .05 * k, .52 - Math.abs(Math.cos(ph)) * .08 * k, -.3);
       kayak.updateMatrixWorld(true);
       // Camera: in the cockpit (first person), or behind and above (R3 / V).
@@ -18889,14 +19091,14 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
       if (camera.fov !== 72) {camera.fov = 72;camera.updateProjectionMatrix();}
       // Rushing water: louder in falls and fast water.
       if (audio && audio.water) audio.water(clamp((R.flow(boat.t) - .6) / 3, .08, 1));
-      splashT -= dt;if (k && splashT <= 0 && audio && audio.sfx) {splashT = .55 / (1 + Math.abs(fwd));audio.sfx('paddle', {gain: .35 + Math.abs(fwd) * .3});}
+      splashT -= dt;if (k && splashT <= 0 && audio && audio.sfx) {splashT = .55 / (1 + Math.abs(fwd)) / (boat.sprint ? 1.5 : 1);audio.sfx('paddle', {gain: Math.min(1, .35 + Math.abs(fwd) * .3 + (boat.sprint ? .25 : 0))});}
       out.pos = pose = {x: w.x, y, z: w.z, yaw};
       return out;
     }
     function hud() {
       if (!active) return '';
       const g = boat.ground, left = Math.max(0, (data.finish ? data.finish.t : R.length) - boat.t);
-      return `Kayak · ${(Math.hypot(g.x, g.s) * 3.6).toFixed(1)} km/h · ${left > 950 ? (left / 1000).toFixed(1) + ' km' : Math.round(left) + ' m'} to Vaterland · ${fmt(run ? run.time : 0)}${best[run && run.key] ? ` · best ${fmt(best[run.key])}` : ''}${canExit() ? ' · □ get out' : ''}`;
+      return `Kayak${boat.sprint ? ' · SPRINT' : ''} · ${(Math.hypot(g.x, g.s) * 3.6).toFixed(1)} km/h · ${left > 950 ? (left / 1000).toFixed(1) + ' km' : Math.round(left) + ' m'} to Vaterland · ${fmt(run ? run.time : 0)}${best[run && run.key] ? ` · best ${fmt(best[run.key])}` : ''}${canExit() ? ' · □ get out' : boat.sprint ? '' : ' · R2 / Shift sprint'}`;
     }
     // A tick for the water's flow animation (always, so the river moves when you walk past).
     function tick(dt) {tex.offset.y -= dt * .1;ripples.offset.y -= dt * .12;foamTex.offset.y -= dt * .6;}
@@ -21382,7 +21584,7 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
       // Reception: the desk with a glass screen and the officer, partitions behind it, the POLITIET sign, chairs, the ticket machine.
       box(ext, 6, 1.1, .7, 7, .55, 6.55, M.desk);box(ext, 6.1, .05, .8, 7, 1.12, 6.55, M.dark);
       {const s = new T.Mesh(new T.PlaneGeometry(5.6, .7), M.glass);s.position.set(7, 1.5, 6.62);ext.add(s);}
-      obstacles.push(fr.rect(4, 10, 6.2, 6.9, -.2, 1.2));
+      obstacles.push({...fr.rect(4, 10, 6.2, 6.9, -.2, 1.2), noJump: true});// the glass screen on the desk: no jumping over (issue #144)
       wallB(fr, ext, 4, 6.9, D - .12, .12, M.wall);wallB(fr, ext, 10, 6.9, D - .12, .12, M.wall);
       box(ext, .4, .25, .05, 6.2, 1.28, 6.75, new T.MeshStandardMaterial({color: 0x0b1a10, emissive: 0x1c3a5a, emissiveIntensity: .9}));
       sign(ext, 3.2, .8, 7, 2.45, D - .125, Math.PI, text('#0b1f3a', [['POLITIET', .42, '#ffffff', .4], ['Oslo politidistrikt · Publikumsmottak', .15, '#c9d3e0', .78]]), {glow: .45});
@@ -26805,7 +27007,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
   const stanceSpeed = () => player.stance === 'prone' ? .28 : player.stance === 'crouch' ? .55 : 1;
   function place(x, z, yaw, y) {
     const sp = collision.findSafeSpawn(walkWorld, {x, z}, stanceEye('stand'), {y: y ?? heightAt(x, z), maxDistance: 6});
-    player.x = sp ? sp.x : x;player.z = sp ? sp.z : z;player.feet = sp ? sp.y : (y ?? heightAt(x, z));if (yaw !== undefined) player.yaw = yaw;player.pitch = 0;player.stance = 'stand';player.eyeNow = player.eye;player.jumpY = player.jumpV = 0;player.floating = false;
+    player.x = sp ? sp.x : x;player.z = sp ? sp.z : z;player.feet = sp ? sp.y : (y ?? heightAt(x, z));if (yaw !== undefined) player.yaw = yaw;player.pitch = 0;player.stance = 'stand';player.eyeNow = player.eye;player.jumpY = player.jumpV = 0;player.floating = false;player.air = null;
   }
   // The hostage mission starts from its own marker on the grass beside the entrance, so the street door is a normal door.
   const MISSION_MARK = {x: 4.8, z: 14.2};
@@ -26825,8 +27027,10 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     if (stanceEye(next) > stanceEye(player.stance) && !collision.canStand(walkWorld, player, stanceEye(next), player.feet)) {notice('No room to stand up here.');return;}
     player.stance = next;
   }
-  const move = (dx, dz) => {const r0 = walkWorld.radius, pr = prophunt ? prophunt.bodyRadius() : 0;if (pr > r0) {walkWorld.radius = pr;if (!collision.canStand(walkWorld, player, stanceEye(player.stance), player.feet)) walkWorld.radius = r0;}
-    const n = collision.move(walkWorld, player, {x: dx, z: dz}, stanceEye(player.stance), player.feet);walkWorld.radius = r0;player.x = n.x;player.z = n.z;player.feet = n.y;};
+  // walk(): as move(), and on a solid's top (a bench, a car roof) you can walk off its edge and drop (issue #144). dt: this frame.
+  const move = (dx, dz, dt) => {const r0 = walkWorld.radius, pr = prophunt ? prophunt.bodyRadius() : 0;if (pr > r0) {walkWorld.radius = pr;if (!collision.canStand(walkWorld, player, stanceEye(player.stance), player.feet)) walkWorld.radius = r0;}
+    const n = collision.walk(walkWorld, player, {x: dx, z: dz}, stanceEye(player.stance), player.feet);walkWorld.radius = r0;player.x = n.x;player.z = n.z;player.feet = n.y;
+    if (n.fall) startAir({x: dx / dt, z: dz / dt}, false);};
   function inApartment() {return player.feet > -.5 && player.feet < 2.5 && apt.floors.some(f => inside(player, f.points));}
   // Ambience: the whole flat (also doorways and wall gaps) counts as indoors; the balcony is open air.
   const aptBox = (() => {const pts = apt.floors.filter(f => !/balcony/i.test(f.id || f.name || '')).flatMap(f => f.points);return {x0: Math.min(...pts.map(p => p.x)) - .15, x1: Math.max(...pts.map(p => p.x)) + .15, z0: Math.min(...pts.map(p => p.z)) - .15, z1: Math.max(...pts.map(p => p.z)) + .15};})();
@@ -27891,6 +28095,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     else if (player.mode === 'belay') updateBelay(dt, input, dl);
     else if (player.mode === 'kayak') updateKayak(dt, input, dl);
     else updateFoot(dt, input, dl);
+    if (player.air && player.mode !== 'foot' && player.mode !== 'minigame') {player.air = null;player.jumpY = player.jumpV = 0;}// got into a seat mid-jump
     // Other vehicles: parked ones idle (far ones are hidden and skipped), ones driven by other players are posed by the lobby.
     cullT -= dt;if (cullT <= 0) {cullT = .4;for (const v of vehicles) {const near = Math.hypot(v.x - camera.position.x, v.z - camera.position.z) < (v.cullDistance || 170);v.group.visible = near || v === player.vehicle;}remoteDyn = vehicles.some((v, i) => mp.remoteDriven(i));}
     vehicles.forEach((v, i) => {if (v === player.vehicle && player.mode === 'vehicle') return;if (mp.remoteDriven(i) || (gp && v === caravan)) return;if (!v.group.visible && Math.abs(v.speed || 0) < .01 && !v.aircraft) return;v.update(wdt, {});});
@@ -27943,6 +28148,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     return 'Torshov, Oslo';}
 
   function updateFoot(dt, input, dl) {
+    let wantJump = false;
     // Look.
     // Looking slows down with the camera's or binoculars' zoom (1 / zoom, so the picture moves as fast at any zoom), for the mouse too.
     const zoomLook = photo.active && photo.raised > .5 ? 1 / photo.zoom : 1, mouseScale = .0024 * sensitivity.mouse * zoomLook, padScale = sensitivity.pad * zoomLook * (caseGame?.active ? caseGame.lookScale() : 1), curve = v => Math.sign(v) * v * v;
@@ -27950,10 +28156,11 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     player.pitch = Math.max(-1.5, Math.min(1.5, player.pitch - input.mouse.dy * mouseScale - curve(input.look.y) * 1.9 * padScale * dt));
     // Buttons: ✕ jump, ○ tap crouch / hold prone, □ interact, L3 run toggle.
     if (!caseGame?.active || caseGame.state === 'play') {
-      if (input.pressed.has('cross')) {if (player.stance !== 'stand') setStance('stand');else if (!player.jumpY && !player.jumpV) {player.jumpV = 3.1 * (boostIs('jump') ? Math.sqrt(3) : 1);audio.footstep('grass', false, .4);}}
-      if (input.pressed.has('circle')) {player.circleAt = performance.now();player.circleHeld = false;}
+      // ✕ jumps (issue #144: a real jump; hold for higher), from standing; crouching or prone it stands you up first.
+      if (input.pressed.has('cross')) {if (player.stance !== 'stand') setStance('stand');else if (!player.air && !player.floating && !magic.levitating) wantJump = true;}
+      if (player.air) player.circleAt = null;else if (input.pressed.has('circle')) {player.circleAt = performance.now();player.circleHeld = false;}
       if (player.circleAt) {if (!input.held.circle) {if (!player.circleHeld) setStance(player.stance === 'crouch' ? 'stand' : 'crouch');player.circleAt = null;} else if (!player.circleHeld && performance.now() - player.circleAt > 320) {player.circleHeld = true;setStance(player.stance === 'prone' ? 'stand' : 'prone');}}
-      if (input.pressed.has('prone')) setStance(player.stance === 'prone' ? 'stand' : 'prone');
+      if (input.pressed.has('prone') && !player.air) setStance(player.stance === 'prone' ? 'stand' : 'prone');
       if (input.pressed.has('l3')) player.run = !player.run;
       if (input.pressed.has('square') && !photo.active && !caseGame?.active && !pbArmed() && !(prophunt && prophunt.ownsSquare)) interact();// paintball: □ reloads; prop hunt: □ becomes a thing
     }
@@ -27961,7 +28168,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     const canMove = (!caseGame?.active || caseGame.canMove()) && !(paintball && paintball.frozen) && !(prophunt && prophunt.frozen), propSpeed = prophunt ? prophunt.speed : 0;
     let mx = input.move.x, my = input.move.y;
     if (dl > 0) {mx += Math.sin(performance.now() / 700) * .55 * dl;my += Math.sin(performance.now() / 1100) * .15 * dl;}
-    const mag = Math.min(1, Math.hypot(mx, my));
+    const mag = Math.min(1, Math.hypot(mx, my)), wish = {x: 0, z: 0};// wish: where the stick takes you, m/s
     player.running = false;
     if (canMove && mag > .05) {
       const running = !propSpeed && player.stance === 'stand' && !(hushed > 0) && (player.run || (!caseGame?.active && !(photo.active && photo.kind === 'camera') && !pbArmed() && input.r2 > .3) || input.held.l3);player.running = running;
@@ -27969,22 +28176,60 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
       const base = propSpeed || (player.stance === 'stand' ? WALK_SPEED : 1.45 * stanceSpeed());
       const speed = (running ? RUN_SPEED : base) * (caseGame?.active ? caseGame.moveScale() : 1) * (1 - dl * .25) * (boostIs('speed') ? 3 : 1), fwd = -my, right = mx;
       const dx = (-Math.sin(player.yaw) * fwd + Math.cos(player.yaw) * right) * speed * dt, dz = (-Math.cos(player.yaw) * fwd - Math.sin(player.yaw) * right) * speed * dt;
-      const bx = player.x, bz = player.z;move(dx, dz);
-      player.stride += Math.hypot(player.x - bx, player.z - bz);
-      if (player.stride > (running || speed > 2.5 ? 1.05 : .72) * (player.stance === 'stand' ? 1 : .8)) {player.stride = 0;if (!(player.jumpY > .05) && !propSpeed) footstep(running ? 1.2 : player.stance === 'stand' ? .8 : .45);}
+      wish.x = dx / dt;wish.z = dz / dt;
+      if (!player.air) {
+        const bx = player.x, bz = player.z;move(dx, dz, dt);
+        player.stride += Math.hypot(player.x - bx, player.z - bz);
+        if (player.stride > (running || speed > 2.5 ? 1.05 : .72) * (player.stance === 'stand' ? 1 : .8)) {player.stride = 0;if (!(player.jumpY > .05) && !propSpeed) footstep(running ? 1.2 : player.stance === 'stand' ? .8 : .45);}
+      }
     } else if (!mag) player.run = false;
+    if (wantJump && !player.air) startAir(wish, true);
+    else if (!player.air && !magic.levitating && !player.floating && !collision.supportAt(walkWorld, player, player.feet)) {
+      // Nothing under your feet (the car you stood on drove off): you fall.
+      const g = collision.groundBelow(walkWorld, player, player.feet);if (g && player.feet - g.y <= collision.MAX_DROP) startAir(wish, false);
+    }
     // Jump and stance easing.
     player.eyeNow += (stanceEye(player.stance) - player.eyeNow) * Math.min(1, dt * 9);
     // Levitation (Svev, issue #65): rising while R1 / 1 is held, then a slow sink until you land.
     if (magic.levitating || player.floating) {
+      if (player.air) {player.air = null;player.jumpV = 0;}// levitation takes over from the jump
       const head = collision.ceilingAt(walkWorld, player, player.feet) - .1 - player.eyeNow, r = window.GameMagic.levitate({y: player.jumpY, v: player.jumpV}, dt, {hold: magic.levitating, max: 3.2, head});
       player.jumpY = r.y;player.jumpV = r.v;if (player.floating && !r.floating) audio.sfx('land');player.floating = r.floating || magic.levitating;
-    } else if (player.jumpV || player.jumpY) {player.jumpV -= 9.81 * dt;player.jumpY += player.jumpV * dt;const head = collision.ceilingAt(walkWorld, player, player.feet) - .1 - player.eyeNow;if (player.jumpY > head) {player.jumpY = Math.max(0, head);player.jumpV = Math.min(0, player.jumpV);}if (player.jumpY <= 0 && player.jumpV <= 0) {if (player.jumpV < -2) footstep(1.3);player.jumpY = 0;player.jumpV = 0;}}
+    } else if (player.air) airStep(dt, input, canMove ? wish : null);
+    else if (player.jumpY) {player.jumpY = 0;player.jumpV = 0;}
     // Camera.
     const sway = dl ? {r: Math.sin(performance.now() / 1300) * .09 * dl, y: Math.sin(performance.now() / 1700) * .05 * dl, p: Math.sin(performance.now() / 900) * .03 * dl} : {r: 0, y: 0, p: 0};
-    camera.position.set(player.x, player.feet + player.eyeNow + player.jumpY, player.z);
+    let dip = 0;if (player.dipT !== undefined) {player.dipT += dt;const k = player.dipT / .3;if (k >= 1) player.dipT = undefined;else dip = player.dipAmp * Math.sin(Math.PI * k);}// the landing dip
+    camera.position.set(player.x, player.feet + player.eyeNow + player.jumpY - dip, player.z);
     camera.rotation.set(0, 0, 0, 'YXZ');camera.rotation.order = 'YXZ';camera.rotation.y = player.yaw + sway.y;camera.rotation.x = player.pitch + sway.p;camera.rotation.z = sway.r;
     const fov = photo.active && photo.raised > .5 ? 70 / photo.zoom : caseGame?.active ? camera.fov : pbArmed() ? 70 / (1 + .45 * (prophunt && prophunt.armed ? prophunt.aim : paintball.aim)) : boostIs('speed') ? 82 : 70 + magicKick * 16;if (Math.abs(camera.fov - fov) > .01 && !caseGame?.active) {camera.fov = fov;camera.updateProjectionMatrix();}
+  }
+  // ---------- Jumping (issue #144): a real jump with gravity; the maths is in walk-collision.js (stepAir) ----------
+  // player.air = the jump's state {x, z, y (feet), vx, vz, vy, t, hold, takeoff, mantle}; while it lasts player.feet is the ground
+  // under you and player.jumpY your height above it (so everything that adds the two, the camera and the lobby, sees the jump).
+  function startAir(wish, jumping) {
+    const A = {x: player.x, z: player.z, y: player.feet, vx: wish.x, vz: wish.z, vy: 0, t: 9, hold: 0, takeoff: player.feet, mantle: null};
+    if (jumping) {collision.startJump(A, boostIs('jump') ? 3 : 1);audio.sfx('jump');}
+    player.air = A;player.lastGround = {x: player.x, z: player.z, y: player.feet};
+  }
+  function airStep(dt, input, wish) {
+    const A = player.air, eye = stanceEye(player.stance);A.x = player.x;A.z = player.z;// a teleport or the prop hunt bounds may have moved you
+    if (!wish) A.vx = A.vz = 0;// frozen (paintball, prop hunt, the mission): no drifting on
+    const r0 = walkWorld.radius, pr = prophunt ? prophunt.bodyRadius() : 0;if (pr > r0) walkWorld.radius = pr;
+    const e = collision.stepAir(walkWorld, A, dt, {eye, held: !!input.held.cross, wish: wish || {x: 0, z: 0}});
+    walkWorld.radius = r0;
+    player.x = A.x;player.z = A.z;player.jumpV = A.vy;
+    if (e.mantle) audio.sfx('jump', {gain: .6});
+    if (e.landed) {
+      player.air = null;player.feet = A.y;player.jumpY = 0;player.jumpV = 0;
+      if (e.stuck && player.lastGround) {player.x = player.lastGround.x;player.z = player.lastGround.z;player.feet = player.lastGround.y;}
+      const v = e.impact || 0;
+      if (v > 1.5) {footstep(Math.min(1.6, .6 + v * .12));audio.sfx('jumpLand', {gain: Math.min(1.3, .2 + v / 7)});player.dipT = 0;player.dipAmp = Math.min(.26, .03 + v * .025);}
+      else footstep(e.mantled ? .7 : .5);
+      return;
+    }
+    const g = collision.groundBelow(walkWorld, A, A.y + .001);if (g) player.feet = g.y;
+    player.jumpY = A.y - player.feet;
   }
   function footstep(soft = 1) {
     let surface = 'grass', stair = false;
@@ -28390,6 +28635,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
   function localState() {
     const r = v => Math.round(v * 100) / 100, q = v => Math.round(v * 1000) / 1000;
     const s = {p: [r(player.x), r(player.feet + (player.jumpY || 0)), r(player.z)], y: r(player.yaw), st: player.stance, b: beerT > 0 ? 1 : 0};
+    if (player.air && player.mode === 'foot') s.j = 1;// in the air: others see the jump pose (issue #144)
     if (player.mode === 'transit' && transit && transit.ride) {Object.assign(s, transit.localState());s.st = transit.ride.standing ? 'stand' : 'sit';}// standing: walking through the vehicle (issue #142)
     if ((player.mode === 'vehicle' || player.mode === 'passenger') && player.vehicle) {s.v = vehicles.indexOf(player.vehicle);s.s = player.mode === 'vehicle' ? 'd' : 'p';}
     if (player.mode === 'sit' && player.sitSpot) {const sp = player.sitSpot;s.sit = sp.id + 1;s.p = [r(sp.x), r(sp.y), r(sp.z)];s.y = r(sp.yaw);}
