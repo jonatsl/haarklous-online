@@ -9,9 +9,10 @@ Live game: https://haarklous-online.server-smoke.workers.dev · Source: https://
 ## Features (what the game has now)
 
 In pull requests (not merged yet):
-- Smooth rides with other players (issue #135, PR #136): as a passenger (car, motorcycle back seat, aircraft) the ride and the view are smooth, and other players' vehicles move smoothly when you watch them, also when an update is lost on the way.
+- Walk up to every floor of Klatreverket Torshov (issue #137, PR pending): the stairs from the ground floor to Discorommet, the inner bouldering room and the training room, and sloped mat edges onto the crash mats, so every wall upstairs can be climbed.
 
 On `main`:
+- Smooth rides with other players (issue #135, PR #136, live since 23 Nov 2026): as a passenger (car, motorcycle back seat, aircraft) the ride and the view are smooth, and other players' vehicles move smoothly when you watch them, also when an update is lost on the way.
 - Camera zoom on its own controls, and binoculars (issue #133, PR #134, live since 21 Nov 2026): with the camera raised, zoom with D-pad ↑↓, the mouse wheel or + −, while the right stick / mouse only looks and you walk; binoculars in the △ gear menu, raised with L2 / right mouse to the classic two-circle view, zoom 4–12×.
 - Vans you can see out of (issue #131, PR #132, live since 21 Nov 2026): the parked vans have a real glass cab like the cars – windscreen and front side windows, a roof, a painted wall behind the seats and the closed load space behind it.
 - Prop hunt – hide and seek (issue #124, PR #125, live since 15 Nov 2026): hiders become benches, bins, bushes, bikes, lamps and more at Haarklous plass, Olaf Ryes plass and the backyard of Rathkes gate 1; hunters with a paint marker; rounds, fair turns, points, whistles; alone against the game's players or with friends online.
@@ -63,9 +64,25 @@ On `main`:
 - Ground with real detail up close (grass, asphalt, paving slabs, gravel, pavements and kerbs) with or without the aerial photo, and buildings that look like their part of town – Torshov brick and Harald Hals' plastered blocks, Grünerløkka's tenements with shop fronts, buff brick, wooden houses, new blocks – chosen from OpenStreetMap and Street View notes (issues #67 and #68, PR #81, not merged yet).
 - Friends (needs an account): add a friend by their player name, they accept or decline; see which friends are online and in which lobby; Join goes straight into a friend's lobby, Invite asks them into yours (a message in their game, Options then ✕ to come); "friends can join my lobby" can be turned off; pause menu → Friends (L1 / N), with a red count of new requests and invites (issue #115, PR #117, not merged yet).
 
-Live site: runs `main` (Worker version 5400ee4c, deployed 21 Nov 2026 after PR #134; `main` builds byte-for-byte to the live page), so everything above is online. Account emails (issue #55) wait for the user's Brevo key.
+Live site: runs `main` (Worker version d2c8f0f7, deployed 23 Nov 2026 after PR #136; `main` builds byte-for-byte to the live page), so everything above is online. Account emails (issue #55) wait for the user's Brevo key.
 
 ## Log
+
+### 2026-11-23 · Klatreverket Torshov: walk up to every floor (issue #137)
+- **What:**
+  - From the street door you can now walk through the reception and Hula to the stairs, up the three flights to Discorommet (2nd floor), the inner bouldering room (3rd floor) and the training room (4th floor), onto the mats there, and back down the same way.
+  - Every crash mat has a sloped edge where you come in: the lobby door into Hula, the hall's opening into Hula, Hula to the stairs, each upstairs landing to its room, and two in the training room.
+  - The stairs look like the walkable ones: the steel treads sit where your feet are (the walk slope runs through the middle of every tread, before your feet were up to 18 cm below the treads), a stringer on both sides, a handrail on each flight and a glass balustrade on the open side of the middle flight.
+  - A railing at the open edge of the training room over the top flight; the railing that stood 1 cm in front of the stairs' wall behind the campus board is gone.
+- **Why:** the user's issue #137: you could not get up to the other floors. The causes, found with a walk-collision flood fill from the street door (Node):
+  1. **The crash mats were walls.** In the walk collision two floors only join where they are at the same height (within 5 cm); every other floor edge is a barrier. The mats are walk floors 30 cm above the floor, so all their edges were invisible walls. Hula's mat covers the whole room between the reception and the stairs, so from the reception and the hall you could not reach the stairs at all. Upstairs, each storey is almost all mat, so arriving on a landing you could not step into the room either.
+  2. **The campus board's solid reached over the top flight.** Every climbing wall has a walk solid 1.2 m deep behind it; the campus board hangs on the stairs' wall on the 4th floor, so its solid stuck out over the 3rd → 4th flight and stopped you halfway up.
+  The stairs themselves, the floors, the head room and the step height were fine.
+- **Where:** `game-climbing.js` (the `ramps` list and their walk floors and meshes after the mats; the stair treads, stringers, handrails and glass; `back` on the campus wall and its walk solid; the 4th floor railing), `tests/climbing.test.cjs` (new test: walks from the street to every floor and back).
+- **Other players:** are already drawn at the height they send (their feet), so they show on the right floor; nothing changed there.
+- **Galleriet:** in the game it is a 10 m top-rope wall in the hall on the ground floor, reached as before.
+- **Checked:** `node --test` (303 pass). The flood fill reached a standing spot in front of every lane of all 25 walls (hall and all four floors), and walking back from the training room reaches the street. Not checked in the browser (the user asked to skip browser tests for this run).
+- **Status:** branch `fix/gym-floors`, PR pending.
 
 ### 2026-11-23 · Passenger in a car: a smooth ride (issue #135)
 - **What:**
@@ -80,7 +97,7 @@ Live site: runs `main` (Worker version 5400ee4c, deployed 21 Nov 2026 after PR #
 - **How it works now:** the driver adds its own clock time (one number) to each vehicle update it sends, still about 12 a second, so the traffic is about the same. The receiver keeps the last few updates for each vehicle and shows the car a short moment in the past, in between the two updates around that moment (position, heading, pitch, roll; aircraft turn smoothly by quaternion). That moment runs at the game's own frame time and is only gently nudged, so uneven arrivals do not show. The car is moved by this one place only, once a frame, before the passenger's camera, the seat avatars and the car's collision shape read it. A game from before this change (no time in its updates) still works: arrival times stand in.
 - **Where:** `game-netsmooth.js` (new, pure: the update buffer and its maths), `game-multiplayer.js` (time on each sent update, one buffer per remote-driven vehicle, the old smoothing removed), `game-main.js` (`passengerView` places the first-person eye after `mp.update`; the remote vehicles' collision shapes are refreshed after `mp.update`), `index.html` (the new script), `tests/netsmooth.test.cjs` (new).
 - **Checked:** `node --test` (302 pass). The new tests drive a car at 72 km/h with up to 60 ms of jitter and check that it moves the same distance every frame, is never more than about a quarter of a second behind, takes the short way round through ±180°, follows a turn, keeps going over one or two lost updates and glides back after a long gap, slerps an aircraft, snaps a respawn, and works without time stamps. Not checked in the browser or online with two players (the user asked to skip browser tests for this run).
-- **Status:** branch `fix/passenger-smooth`, PR #136 (https://github.com/jonatsl/haarklous-online/pull/136), not merged yet.
+- **Status:** PR #136 (https://github.com/jonatsl/haarklous-online/pull/136), merged into `main` and live (deployed 23 Nov 2026, Worker version d2c8f0f7).
 
 ### 2026-11-21 · Camera zoom on its own controls, and binoculars (issue #133)
 - **What:**

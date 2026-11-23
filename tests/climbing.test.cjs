@@ -157,3 +157,34 @@ test('issue #91: the day ticket is the only payment – shoes, harness, chalk an
   const st = G.payEntry({paid: false, shoes: false, harness: false, chalk: false});
   assert.deepEqual([st.paid, st.shoes, st.harness, st.chalk, st.autoIntro, st.legal], [true, true, true, true, true, true]);
 });
+
+// Issue #137: walk from the street door up to every storey of the entrance block and back, with the walk world built as in
+// game-main (the gym's floors and solids, and the ground, which is the hall floor inside the building).
+test('issue #137: you can walk from the entrance to every floor and back down', () => {
+  const warn = console.warn;console.warn = () => {};const T = require('../vendor/three.min.js');console.warn = warn;
+  globalThis.document = {createElement: () => ({getContext: () => new Proxy({}, {get: () => () => {}})})};globalThis.addEventListener = () => {};
+  const lib = new Proxy({mergeStatic() {}}, {get: (o, k) => o[k] || (() => new T.MeshStandardMaterial())});
+  const WC = require('../walk-collision.js'), Y0 = K.floorY, street = Y0 - .02;
+  const gym = G.create({T, lib, data: K, toWorld: (x, s) => ({x, z: -s}), heightAt: () => street});
+  const ground = {points: [{x: -5e3, z: -5e3}, {x: 5e3, z: -5e3}, {x: 5e3, z: 5e3}, {x: -5e3, z: 5e3}], height: p => gym.ground(p.x, p.z) ?? street, ceilingHeight: Infinity};
+  const world = WC.createWorld({floors: [...gym.floors, ground], obstacles: gym.obstacles, radius: .18, clearance: .08});
+  const p = {...gym.W(-1.5, 3.4), feet: street};
+  const walk = (a, b, expect, zone) => {
+    const t = gym.W(a, b);
+    for (let i = 0; i < 400; i++) {const dx = t.x - p.x, dz = t.z - p.z, d = Math.hypot(dx, dz);if (d < .01) break;const s = Math.min(.1, d) / d, n = WC.move(world, p, {x: dx * s, z: dz * s}, 1.65, p.feet);p.x = n.x;p.z = n.z;p.feet = n.y;}
+    const f = gym.toFrame(p.x, p.z);
+    assert.ok(Math.hypot(t.x - p.x, t.z - p.z) < .05, `stuck at a ${f.a.toFixed(2)}, b ${f.b.toFixed(2)}, ${(p.feet - Y0).toFixed(2)} m up, on the way to ${a}, ${b}`);
+    if (expect !== undefined) assert.ok(Math.abs(p.feet - Y0 - expect) < .03, `at ${a}, ${b}: ${(p.feet - Y0).toFixed(2)} m up, wanted ${expect}`);
+    if (zone) assert.equal(gym.zoneAt(p, p.feet), zone);
+  };
+  // [a, b, height above the hall floor (the mats are 0.3 m), zone]
+  const route = [[1.5, 3.4, 0, 'ground-lobby'], [6.5, 4.0], [6.5, 7.8], [8.2, 7.8], [8.2, 9.5, .3, 'ground'], [1.6, 15.6, .3], [1.6, 17.4, 0], [1.6, 18.7], [2.5, 18.7, 0],
+    [9.8, 18.7, 3.4, 'disco'], [10.6, 17.6, 3.4], [10.6, 15.5, 3.7, 'disco'], [10.6, 17.6], [9.6, 17.15, 3.4], [2.4, 17.15, 7.4, 'inner'], [1.2, 17.6, 7.4], [1.5, 15.5, 7.7, 'inner'],
+    [1.2, 17.6], [2.4, 18.7, 7.4], [9.8, 18.7, 11, 'training'], [10.5, 16.5, 11], [10.5, 12, 11], [7.6, 6.0, 11], [5.0, 6.0, 11.3, 'training']];
+  for (const [a, b, y, z] of route) walk(a, b, y, z);
+  for (const [a, b, y, z] of route.slice(0, -1).reverse()) walk(a, b, y, z);
+  walk(-1.5, 3.4);assert.ok(Math.abs(p.feet - street) < .05, 'back out on the street');
+  // The campus board's solid stays on its side of the stairs' wall (it used to reach over the top flight).
+  const campus = gym.obstacles.find(o => o.kind === 'wall' && o.minY > Y0 + 10 && o.points.every(q => gym.toFrame(q.x, q.z).b > 17));
+  assert.ok(campus && Math.max(...campus.points.map(q => gym.toFrame(q.x, q.z).b)) < 17.95);
+});

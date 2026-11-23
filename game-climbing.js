@@ -48,7 +48,8 @@
     pinch: {q: .5, s: [.07, .17, .07]}, pocket: {q: .54, s: [.09, .09, .065]}, volume: {q: .3, s: [.42, .3, .2]}, rung: {q: .45, s: [.5, .03, .04]}, foot: {q: 1, s: [.05, .035, .03]}};
   const LEVELS = [0, 3.4, 7.4, 11.0], SLAB = .25, CEILING = 14.3;
   // The walls in the hall frame: a = metres along the south-west wall from the south corner, b = metres into the building,
-  // y up from the level's floor. A face rises from its base line p0 -> p1 in segments [length along the surface, degrees of
+  // y up from the level's floor. back = how deep the walk solid behind the face goes (1.2 m; the campus board hangs on the
+  // stairwell's wall, so its solid must not reach over the stairs behind it, issue #137). A face rises from its base line p0 -> p1 in segments [length along the surface, degrees of
   // overhang] (+ leans out over the climber, - is a slab); the climbing side is n = (-dir.b, dir.a).
   // d = the range of difficulty (0 = the easiest grade, 1 = the hardest), tr = which lanes have a top-rope hanging.
   const WALLS = [
@@ -76,7 +77,7 @@
     {id: 'vipp', zone: 'Vippevegg', kind: 'boulder', lvl: 3, p0: [.32, 6.6], p1: [.32, 4.0], segs: [[3.0, 30]], lanes: 2, d: [.3, .6], tilt: [0, 50]},
     {id: 'system', zone: 'Systemvegg', kind: 'boulder', lvl: 3, p0: [.32, 11.0], p1: [.32, 7.4], segs: [[.3, 0], [3.0, 45]], lanes: 3, d: [.45, .8]},
     {id: 'tek', zone: 'Teknikkhjørnet', kind: 'boulder', lvl: 3, p0: [2.6, .32], p1: [11.8, .32], segs: [[3.2, 0]], lanes: 10, perLane: 2, d: [.05, .55]},
-    {id: 'campus', zone: 'Campusbrett', kind: 'campus', lvl: 3, p0: [8.6, 17.84], p1: [3.4, 17.84], segs: [[2.6, 15]], lanes: 1, d: [.6, .6]}
+    {id: 'campus', zone: 'Campusbrett', kind: 'campus', lvl: 3, p0: [8.6, 17.84], p1: [3.4, 17.84], segs: [[2.6, 15]], lanes: 1, d: [.6, .6], back: .1}
   ];
 
   // ---------- Small maths ----------
@@ -519,16 +520,24 @@
       rail(BLOCK - .05, IN, BLOCK - .05, i === 1 ? 16.4 : B1);
       if (i === 0) {rail(2.9, 16.45, 8.85, 16.45);rail(2.95, 16.45, 2.95, B1);}
       if (i === 1) rail(2.95, 16.45, BLOCK, 16.45);
-      if (i === 2) rail(2.9, 17.85, 8.85, 17.85);
+      if (i === 2) rail(2.95, 17.9, 2.95, B1);// over flight C (toward b it is the stairs' spine wall, with the campus board)
     });
-    // Stair flights: A (17.95–19.35) 1→2 and 3→4 rising toward the hall, B (16.45–17.85) 2→3 rising toward the street.
+    // Stair flights: A (17.95–19.45) 1→2 and 3→4 rising toward the hall, B (16.45–17.85) 2→3 rising toward the street.
+    // Open steel treads; the walk ramp runs through the middle of every tread (issue #137); a stringer on each side, a handrail
+    // on the low-b side, and on flight B (open toward Discorommet) a glass balustrade under it.
     const flights = [{b: [17.95, B1 - .05], y0: LEVELS[0], y1: LEVELS[1], up: 1}, {b: [16.45, 17.85], y0: LEVELS[1], y1: LEVELS[2], up: -1}, {b: [17.95, B1 - .05], y0: LEVELS[2], y1: LEVELS[3], up: 1}];
     for (const fl of flights) {
-      const aLow = fl.up > 0 ? 2.9 : 8.9, aHigh = fl.up > 0 ? 8.9 : 2.9, rise = fl.y1 - fl.y0, grad = rise / 6 * fl.up, steps = Math.round(rise / .18);
+      const aLow = fl.up > 0 ? 2.9 : 8.9, aHigh = fl.up > 0 ? 8.9 : 2.9, rise = fl.y1 - fl.y0, grad = rise / 6 * fl.up, steps = Math.round(rise / .18), run = Math.abs(aHigh - aLow) / steps;
       const o = W(aLow, fl.b[0]), g = wdir({a: grad, b: 0, y: 0});
       floors.push({name: 'Klatreverket stairs', points: rectW(Math.min(aLow, aHigh), Math.max(aLow, aHigh), fl.b[0], fl.b[1]), y: Y0 + fl.y0, slope: {x: g.x, z: g.z, origin: o}, surfaceKind: 'metal', ceilingHeight: 2.6});
-      for (let k = 0; k < steps; k++) {const a = aLow + (aHigh - aLow) * (k + .5) / steps, y = fl.y0 + rise * (k + 1) / steps;blk(inner, Math.min(a, a + (aHigh - aLow) / steps) - .02, Math.max(a, a + (aHigh - aLow) / steps) + .02, y - .05, y, fl.b[0], fl.b[1], M.steel).position.x = a;}
-      const sl = Math.hypot(6, rise), st = new T.Mesh(new T.BoxGeometry(sl, .25, .06), M.steel);st.position.set(5.9, fl.y0 + rise / 2 - .1, fl.b[0] - .03);st.rotation.z = Math.atan2(rise, 6) * fl.up;inner.add(st);
+      for (let k = 0; k < steps; k++) {const a = aLow + (aHigh - aLow) * (k + .5) / steps, y = fl.y0 + rise * (k + .5) / steps;blk(inner, a - run / 2 - .02, a + run / 2 + .02, y - .05, y, fl.b[0], fl.b[1], M.steel);}
+      const sl = Math.hypot(6, rise), tilt = Math.atan2(rise, 6) * fl.up;
+      for (const b of [fl.b[0] - .03, fl.b[1] - .04]) {const st = new T.Mesh(new T.BoxGeometry(sl, .25, .06), M.steel);st.position.set(5.9, fl.y0 + rise / 2 - .1, b);st.rotation.z = tilt;inner.add(st);}
+      const hr = box(inner, sl, .05, .05, 5.9, fl.y0 + rise / 2 + .9, fl.b[0] + .03, M.rail, false);hr.rotation.z = tilt;
+      if (fl.up < 0) {
+        const b = fl.b[0] + .03, pos = [aLow, fl.y0 + .05, b, aHigh, fl.y1 + .05, b, aHigh, fl.y1 + .88, b, aLow, fl.y0 + .88, b], gg = new T.BufferGeometry();
+        gg.setAttribute('position', new T.Float32BufferAttribute(pos, 3));gg.setIndex([0, 1, 2, 0, 2, 3]);gg.computeVertexNormals();const gl = new T.Mesh(gg, M.glass);gl.userData.noMerge = true;inner.add(gl);
+      }
     }
     blk(inner, 2.9, 8.9, 0, CEILING, 17.86, 17.94, M.slab);solid(2.9, 8.9, 17.86, 17.94, -.5, CEILING);// the stairs' spine wall
     blk(inner, 2.9, BLOCK, 0, LEVELS[1] - SLAB, 16.35, 16.42, M.slab);solid(2.9, BLOCK, 16.35, 16.42, -.5, LEVELS[1] - SLAB);
@@ -561,7 +570,7 @@
       }
       // Walk obstacles: the face where it is below head height, and everything behind it.
       const fr = faceAt(f, 0, Math.min(f.L, 2.0)), off = (fr.p.a - f.p0[0]) * f.n.a + (fr.p.b - f.p0[1]) * f.n.b, front = Math.max(0, off) + .05;
-      const corners = [[0, front], [f.W, front], [f.W, -1.2], [0, -1.2]].map(([x, o]) => W(f.p0[0] + f.dir.a * x + f.n.a * o, f.p0[1] + f.dir.b * x + f.n.b * o));
+      const back = -(f.back ?? 1.2), corners = [[0, front], [f.W, front], [f.W, back], [0, back]].map(([x, o]) => W(f.p0[0] + f.dir.a * x + f.n.a * o, f.p0[1] + f.dir.b * x + f.n.b * o));
       obstacles.push({points: corners, minY: Y0 + f.y0 - .2, maxY: Y0 + f.y0 + Math.min(f.H, 3.2), kind: 'wall'});
       // Orange stripes between the autobelay lanes (as on the real tower) and yellow safety gates in front of every line.
       if (f.zone === 'Autobelay') for (let li = 0; li <= f.lanes; li++) {
@@ -648,6 +657,25 @@
     for (const [lvl, a0, a1, b0, b1] of mats) {
       const y = LEVELS[lvl];blk(inner, a0, a1, y, y + MAT - .02, b0, b1, M.matSide);blk(inner, a0 + .02, a1 - .02, y + MAT - .02, y + MAT, b0 + .02, b1 - .02, M.mat);
       floors.push({name: `Klatreverket mats ${lvl + 1}`, points: rectW(a0, a1, b0, b1), y: Y0 + y + MAT, ceilingHeight: (lvl === 3 ? CEILING : LEVELS[lvl + 1] - SLAB) - y - MAT, surfaceKind: 'mat'});
+    }
+    // Ramps onto the mats (issue #137): walk floors only join at the same height, so every mat's 30 cm edge was a wall you
+    // could not cross. Hula fenced the lobby and the hall off from the stairs, and upstairs each landing was cut off from its
+    // room. A sloped mat edge now leads onto the mats wherever you come in: [level, a0, a1, b0, b1, the side it slopes down to].
+    const ramps = [[0, 6.3, 10.2, 8.0, 8.6, 'b-'], [0, 11.9, 12.5, 9.5, 15.7, 'a+'], [0, .5, 2.7, 16.3, 16.9, 'b+'], [1, 9.6, 11.7, 16.4, 17.0, 'b+'],
+      [2, .5, 2.0, 16.4, 17.0, 'b+'], [3, 6.2, 6.8, 3.2, 14.6, 'a+'], [3, 8.8, 9.4, 15.6, 17.6, 'a+']];
+    for (const [lvl, a0, a1, b0, b1, side] of ramps) {
+      const y = LEVELS[lvl], alongA = side[0] === 'a', down = side[1] === '+' ? 1 : -1, k = MAT / (alongA ? a1 - a0 : b1 - b0);
+      const hi = alongA ? (down > 0 ? a0 : a1) : (down > 0 ? b0 : b1), lo = alongA ? (down > 0 ? a1 : a0) : (down > 0 ? b1 : b0);// the high edge meets the mat
+      const gr = wdir(alongA ? {a: -down * k, b: 0, y: 0} : {a: 0, b: -down * k, y: 0});
+      floors.push({name: `Klatreverket mat ramp ${lvl + 1}`, points: rectW(a0, a1, b0, b1), y: Y0 + y + MAT, slope: {x: gr.x, z: gr.z, origin: alongA ? W(hi, b0) : W(a0, hi)}, ceilingHeight: (lvl === 3 ? CEILING : LEVELS[lvl + 1] - SLAB) - y - MAT, surfaceKind: 'mat'});
+      // Drawn: the sloped top and two cheeks (no back or bottom face: those would lie on the mat's side and on the floor).
+      const v = (s, t, h) => alongA ? [s, h, t] : [t, h, s], s0 = alongA ? b0 : a0, s1 = alongA ? b1 : a1;// s across the ramp, t down it
+      const tri = (out, uv, p, want) => {const [A, B, C] = p, n = [(B[1] - A[1]) * (C[2] - A[2]) - (B[2] - A[2]) * (C[1] - A[1]), (B[2] - A[2]) * (C[0] - A[0]) - (B[0] - A[0]) * (C[2] - A[2]), (B[0] - A[0]) * (C[1] - A[1]) - (B[1] - A[1]) * (C[0] - A[0])];
+        const q = n[0] * want[0] + n[1] * want[1] + n[2] * want[2] < 0 ? [A, C, B] : p;for (const P of q) {out.push(...P);uv.push(want[1] ? P[0] : P[0] + P[2], want[1] ? P[2] : P[1]);}};
+      const mesh = (tris, mat) => {const pos = [], uv = [];for (const [p, w] of tris) tri(pos, uv, p, w);const geo = new T.BufferGeometry();geo.setAttribute('position', new T.Float32BufferAttribute(pos, 3));geo.setAttribute('uv', new T.Float32BufferAttribute(uv, 2));geo.computeVertexNormals();const m = new T.Mesh(geo, mat);m.castShadow = m.receiveShadow = true;inner.add(m);};
+      const up = [0, 1, 0], H = y + MAT, Lo = y + .002, side0 = alongA ? [0, 0, -1] : [-1, 0, 0], side1 = alongA ? [0, 0, 1] : [1, 0, 0];
+      mesh([[[v(s0, hi, H), v(s1, hi, H), v(s1, lo, Lo)], up], [[v(s0, hi, H), v(s1, lo, Lo), v(s0, lo, Lo)], up]], M.mat);
+      mesh([[[v(s0, hi, H), v(s0, lo, Lo), v(s0, hi, y)], side0], [[v(s1, hi, H), v(s1, lo, Lo), v(s1, hi, y)], side1]], M.matSide);
     }
     const matsAt = (a, b, y) => {for (const [lvl, a0, a1, b0, b1] of mats) if (a > a0 && a < a1 && b > b0 && b < b1 && Math.abs(y - LEVELS[lvl]) < 1.6) return LEVELS[lvl] + MAT;return null;};
     // Floor (or mat) under a world point, for the climber: the storey below the point.
