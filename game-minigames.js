@@ -11,6 +11,9 @@
  *   your feet {x, z, y}, input.skip = □ takes you straight there); the hole starts within 3 m of the tee. layout() -> what the
  *   minimap and the map draw while a round is on: {name, outline (local [x, s, ...] or null), holes [{n, tee, basket}] (local
  *   [x, s]), current (index), walking, lie [x, s] | null (after your first throw on the hole), distance (m to the basket)} | null.
+ * Online (issue #148): create({..., net: {peers, now, you}}); each course game's dgNet() -> st.dg (or null); mini.dgNet() (the one
+ *   to send), mini.remotePose(id, st.dg, colour, avatarPos) once a frame per other player, mini.netTick() once a frame,
+ *   mini.remoteGroup (add to the scene). Pure and Node-tested: dgEncode / dgDecode / dgJoinable / dgCard / dgAway / dgWinner.
  */
 (function (root, factory) {
   root.GameMinigames = factory();
@@ -23,15 +26,102 @@
     const other = hold === 'you' ? 'npc' : 'you';
     return left[other] > 0 ? other : left[hold] > 0 ? hold : null;
   }
-  function create({T, lib, audio, heightAt, toWorld, toLocal, data, hud, trees, reward, muselunden, onEvent = () => {}}) {
+  // ---- Disc golf online (issue #148): everything rides in each player's own st.dg; the server relays it unchanged. ----
+  // st.dg = {c course (0 Torshovdalen, 1 Muselunden), r round id (the round's first starter's lobby clock, ms), h hole index,
+  //   w 0 playing | 1 walking to the next tee | 2 finished (the card stays for a while), n throws on this hole, d metres to the
+  //   basket, l lie [x, y, z], s throws per finished hole (0 = not played), th the latest throw [seq, t0 (lobby clock ms), x, y, z,
+  //   vx, vy, vz, bank, putt 0|1] (sent for DG_THROW_MS; receivers replay it with the same flight code and skip a seq they saw)}
+  const DG_THROW_MS = 2000, num = (v, d = 0) => (typeof v === 'number' && isFinite(v) ? v : d), r2 = v => Math.round(v * 100) / 100;
+  function dgEncode(o) {
+    const out = {c: o.c | 0, r: Math.round(num(o.r)), h: o.h | 0, w: o.w | 0, n: o.n | 0, d: Math.round(num(o.d)), s: (o.s || []).map(x => x | 0)};
+    if (o.l) out.l = [r2(o.l.x), r2(o.l.y), r2(o.l.z)];
+    if (o.th) out.th = o.th.map((v, i) => i < 2 ? Math.round(v) : r2(v));
+    return out;
+  }
+  function dgDecode(v) {
+    if (!v || typeof v !== 'object' || !Array.isArray(v.s) || v.s.length > 40) return null;
+    const o = {c: num(v.c) | 0, r: num(v.r), h: num(v.h) | 0, w: num(v.w) | 0, n: num(v.n) | 0, d: num(v.d), s: v.s.map(x => Math.max(0, num(x) | 0))};
+    if (Array.isArray(v.l) && v.l.length === 3) o.l = v.l.map(x => num(x));
+    if (Array.isArray(v.th) && v.th.length === 10) o.th = v.th.map(x => num(x));
+    if (o.h < 0 || o.h >= o.s.length) return null;
+    return o;
+  }
+  // The round to join on this course: the one of a player still playing it (the earliest round when there are two), with its players' names.
+  function dgJoinable(peers, course) {
+    let r = null;
+    for (const p of peers) {const d = dgDecode(p.dg);if (d && d.c === course && d.w !== 2 && (r === null || d.r < r)) r = d.r;}
+    if (r === null) return null;
+    return {r, names: peers.filter(p => {const d = dgDecode(p.dg);return d && d.c === course && d.r === r;}).sort((a, b) => a.id - b.id).map(p => p.name)};
+  }
+  // The shared scorecard: you plus everyone in your round on your course. pars = the course's pars. Leader first.
+  function dgCard(me, peers, pars) {
+    const rows = [], add = (id, name, slot, d, mine) => {
+      let total = 0, rel = 0, played = 0;d.s.forEach((x, i) => {if (x > 0 && i < pars.length) {total += x;rel += x - pars[i];played++;}});
+      rows.push({id, name, slot, me: mine, s: d.s.slice(0, pars.length), h: d.h, w: d.w, n: d.n, d: d.d, l: d.l, holed: d.s[d.h] > 0, total, rel, played, complete: played === pars.length});
+    };
+    const mine = dgDecode(me.dg);if (!mine) return [];add(me.id, me.name, me.slot, mine, true);
+    for (const p of peers) {const d = dgDecode(p.dg);if (d && d.c === mine.c && d.r === mine.r && p.id !== me.id) add(p.id, p.name, p.slot, d, false);}
+    return rows.sort((a, b) => a.rel - b.rel || b.played - a.played || a.id - b.id);
+  }
+  // Away (throws next): on that hole, still playing it, furthest from the basket. Nobody is made to wait; it is only shown.
+  function dgAway(rows, hole) {
+    let best = null;for (const r of rows) if (r.h === hole && r.w === 0 && !r.holed && (!best || r.d > best.d)) best = r;
+    return best && rows.filter(r => r.h === hole && r.w === 0 && !r.holed).length > 1 ? best.id : null;
+  }
+  // The round's winner once nobody is playing it any more: the lowest total of the full cards (at least two), alone at the top.
+  function dgWinner(rows) {
+    if (rows.some(r => r.w !== 2)) return null;
+    const full = rows.filter(r => r.complete).sort((a, b) => a.total - b.total);
+    return full.length >= 2 && full[0].total < full[1].total ? full[0].id : null;
+  }
+  function create({T, lib, audio, heightAt, toWorld, toLocal, data, hud, trees, reward, muselunden, onEvent = () => {}, net = null}) {
+    // net (online, issue #148): {peers() -> [{id, name, slot, dg}], now() -> lobby clock ms, you() -> id, name() -> your name}
+    const NET = net || {peers: () => [], now: () => Date.now(), you: () => 0, name: () => 'You'};
     const V3 = (x, y, z) => new T.Vector3(x, y, z);
     const mesh = (parent, geo, mat, x = 0, y = 0, z = 0) => {const m = new T.Mesh(geo, mat);m.position.set(x, y, z);m.castShadow = m.receiveShadow = true;parent.add(m);return m;};
     const gauss = () => {let u = 0, v = 0;while (!u) u = Math.random();while (!v) v = Math.random();return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);};
     const treeWorld = (trees || []).map(t => {const w = toWorld(t.x, t.s);return {x: w.x, z: w.z, h: t.h || 11};});
+    let throwSeq = 0;
 
     // ======================= DISC GOLF =======================
+    // One step of a flying or skidding disc D {pos, vel, bank, flying, putt, time} towards hole h (its basket); sfx(name, opts).
+    // Your own throws and the replays of other players' throws (issue #148) use it; only the tree knock-downs are random.
+    function flight(D, h, dt, sfx) {
+      const v = D.vel, speed = v.length();D.time += dt;
+      if (speed > .3 && D.flying) {
+        // Drag and lift (mid-range driver: glide 4, turn -1, fade 1). Bank tilts lift sideways: turn at high speed, fade when slow.
+        const k = .0135, lift = .085 * speed * speed * .195 * (D.putt ? .55 : 1);
+        const up = V3(0, 1, 0), dir = v.clone().normalize(), side = V3().crossVectors(dir, up).normalize();
+        D.bank += ((speed > 18 ? -.22 : 0) + (speed < 15 ? .55 * (1 - speed / 15) : 0)) * dt * (D.putt ? .3 : 1);
+        const liftDir = up.clone().multiplyScalar(Math.cos(D.bank)).addScaledVector(side, Math.sin(D.bank));
+        v.addScaledVector(dir, -k * speed * speed * dt).addScaledVector(liftDir, lift * dt).y -= 9.81 * dt;
+      }
+      D.pos.addScaledVector(v, dt);
+      // Trees: trunk or crown hits knock the disc down.
+      for (const t of treeWorld) {
+        const dx = D.pos.x - t.x, dz = D.pos.z - t.z;if (Math.abs(dx) > 5 || Math.abs(dz) > 5) continue;
+        const gy = heightAt(t.x, t.z), r = Math.hypot(dx, dz), crownY = gy + t.h * .62, crownR = t.h * .28;
+        if ((r < .3 && D.pos.y < gy + t.h * .5) || (Math.hypot(r, (D.pos.y - crownY) * 1.3) < crownR && Math.random() < dt * 12)) {v.multiplyScalar(.25);v.x += gauss() * 1.5;v.z += gauss() * 1.5;sfx('thud', {gain: .5});}
+      }
+      // Basket: chains catch a disc at the right height when it is not too fast.
+      const bx = D.pos.x - h.basket.x, bz = D.pos.z - h.basket.z, by = D.pos.y - h.basket.y, rb = Math.hypot(bx, bz);
+      if (rb < .33 && by > .55 && by < 1.4) {
+        if (speed < 13 || Math.random() < .3) {sfx('chains');D.flying = false;v.set(0, 0, 0);D.pos.set(h.basket.x, h.basket.y + .62, h.basket.z);return 'in';}
+        v.multiplyScalar(-.25);sfx('chains', {gain: .5});
+      }
+      if (rb < .05 + .025 && by > 0 && by < 1.6) {v.x *= -.4;v.z *= -.4;sfx('click');}
+      const g = heightAt(D.pos.x, D.pos.z);
+      // Once down, the disc stays on the grass (also downhill) and skids to a stop.
+      if (!D.flying || D.pos.y < g + .015) {
+        D.pos.y = g + .015;
+        if (D.flying) {D.flying = false;sfx('thud', {gain: .4});v.y = 0;v.multiplyScalar(.35);}
+        v.y = 0;const hs = Math.hypot(v.x, v.z), dec = 6 * dt;if (hs <= dec || D.time > 12) {v.set(0, 0, 0);return 'rest';}v.multiplyScalar((hs - dec) / hs);
+      }
+      if (D.time > 12) {v.set(0, 0, 0);D.flying = false;D.pos.y = g + .015;return 'rest';}
+      return null;
+    }
     // course: {name, holes: [{tee: [x, s], basket: [x, s], par, n?}]} in the local map frame.
-    function discGolf(course) {
+    function discGolf(course, idx) {
       const group = new T.Group();group.name = `Disc golf · ${course.name}`;
       const holes = (course.holes || []).map((h, i) => {
         const tee = toWorld(h.tee[0], h.tee[1]), basket = toWorld(h.basket[0], h.basket[1]);
@@ -62,12 +152,18 @@
       const game = {group, holes, active: false, hole: 0, walk: null, toTee: 0, strokes: [], lie: null, disc: {pos: V3(), vel: V3(), bank: 0, flying: false, rest: false}, charging: 0, followT: 0, message: ''};
       game.near = p => {
         if (game.active) return null;
-        for (const h of holes) if (Math.hypot(p.x - h.tee.x, p.z - h.tee.z) < 4 && Math.abs(p.y - h.tee.y) < 3) return `□ Play disc golf · ${course.name} · Hull ${h.n} (par ${h.par}, ${Math.round(h.length)} m)`;
+        for (const h of holes) if (Math.hypot(p.x - h.tee.x, p.z - h.tee.z) < 4 && Math.abs(p.y - h.tee.y) < 3) {
+          // Others are playing this course (issue #148): you join their round.
+          const j = dgJoinable(NET.peers(), idx), who = j ? (j.names.length > 1 ? `${j.names[0]} +${j.names.length - 1}` : j.names[0]) : '';
+          return j ? `□ Join ${who}'s round · disc golf ${course.name} · Hull ${h.n} (par ${h.par}, ${Math.round(h.length)} m)` : `□ Play disc golf · ${course.name} · Hull ${h.n} (par ${h.par}, ${Math.round(h.length)} m)`;
+        }
         return null;
       };
       game.start = p => {
         const h = holes.reduce((best, x) => Math.hypot(p.x - x.tee.x, p.z - x.tee.z) < Math.hypot(p.x - best.tee.x, p.z - best.tee.z) ? x : best, holes[0]);
-        game.active = true;game.hole = h.n - 1;game.walk = null;game.pending = null;game.landed = false;game.strokes = holes.map(() => 0);game.lie = {x: h.tee.x, z: h.tee.z, y: h.tee.y};game.disc.flying = false;disc.visible = false;game.message = `${course.name} · Hull ${h.n} · Par ${h.par} · Hold R2 (or left mouse) to throw, aim with the camera, left stick X for hyzer/anhyzer.`;
+        game.active = true;game.hole = h.n - 1;game.walk = null;game.pending = null;game.landed = false;game.strokes = holes.map(() => 0);game.done = holes.map(() => false);game.th = null;game.finished = null;
+        const j = dgJoinable(NET.peers(), idx);game.round = j ? j.r : Math.round(NET.now());game.with = j ? j.names : [];game.lie = {x: h.tee.x, z: h.tee.z, y: h.tee.y};game.disc.flying = false;disc.visible = false;game.message = `${course.name} · Hull ${h.n} · Par ${h.par} · Hold R2 (or left mouse) to throw, aim with the camera, left stick X for hyzer/anhyzer.`;
+        if (j) game.message = `You joined the round of ${j.names.join(', ')} · ${game.message}`;
         return {x: h.tee.x, z: h.tee.z, yaw: Math.atan2(-(h.basket.x - h.tee.x), -(h.basket.z - h.tee.z))};
       };
       game.stop = () => {game.active = false;game.walk = null;game.pending = null;disc.visible = false;hud.discgolf(null);};
@@ -84,41 +180,9 @@
         const d = V3(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
         game.disc.pos.set(game.lie.x, game.lie.y + 1.2, game.lie.z).addScaledVector(d, .5);game.disc.vel.copy(d).multiplyScalar(speed);
         game.disc.bank = (input.hyzer || 0) * .55;game.disc.flying = true;game.disc.putt = putt;game.disc.time = 0;disc.visible = true;game.strokes[game.hole]++;audio.sfx('throw');game.followT = 0;
+        const D = game.disc;game.th = [++throwSeq, NET.now(), D.pos.x, D.pos.y, D.pos.z, D.vel.x, D.vel.y, D.vel.z, D.bank, putt ? 1 : 0];// for others' screens
       }
-      function step(dt) {
-        const D = game.disc, v = D.vel, speed = v.length();D.time += dt;
-        if (speed > .3 && D.flying) {
-          // Drag and lift (mid-range driver: glide 4, turn -1, fade 1). Bank tilts lift sideways: turn at high speed, fade when slow.
-          const k = .0135, lift = .085 * speed * speed * .195 * (D.putt ? .55 : 1);
-          const up = V3(0, 1, 0), dir = v.clone().normalize(), side = V3().crossVectors(dir, up).normalize();
-          D.bank += ((speed > 18 ? -.22 : 0) + (speed < 15 ? .55 * (1 - speed / 15) : 0)) * dt * (D.putt ? .3 : 1);
-          const liftDir = up.clone().multiplyScalar(Math.cos(D.bank)).addScaledVector(side, Math.sin(D.bank));
-          v.addScaledVector(dir, -k * speed * speed * dt).addScaledVector(liftDir, lift * dt).y -= 9.81 * dt;
-        }
-        D.pos.addScaledVector(v, dt);
-        // Trees: trunk or crown hits knock the disc down.
-        for (const t of treeWorld) {
-          const dx = D.pos.x - t.x, dz = D.pos.z - t.z;if (Math.abs(dx) > 5 || Math.abs(dz) > 5) continue;
-          const gy = heightAt(t.x, t.z), r = Math.hypot(dx, dz), crownY = gy + t.h * .62, crownR = t.h * .28;
-          if ((r < .3 && D.pos.y < gy + t.h * .5) || (Math.hypot(r, (D.pos.y - crownY) * 1.3) < crownR && Math.random() < dt * 12)) {v.multiplyScalar(.25);v.x += gauss() * 1.5;v.z += gauss() * 1.5;audio.sfx('thud', {gain: .5});}
-        }
-        // Basket: chains catch a disc at the right height when it is not too fast.
-        const h = holes[game.hole], bx = D.pos.x - h.basket.x, bz = D.pos.z - h.basket.z, by = D.pos.y - h.basket.y, rb = Math.hypot(bx, bz);
-        if (rb < .33 && by > .55 && by < 1.4) {
-          if (speed < 13 || Math.random() < .3) {audio.sfx('chains');D.flying = false;v.set(0, 0, 0);D.pos.set(h.basket.x, h.basket.y + .62, h.basket.z);return 'in';}
-          v.multiplyScalar(-.25);audio.sfx('chains', {gain: .5});
-        }
-        if (rb < .05 + .025 && by > 0 && by < 1.6) {v.x *= -.4;v.z *= -.4;audio.sfx('click');}
-        const g = heightAt(D.pos.x, D.pos.z);
-        // Once down, the disc stays on the grass (also downhill) and skids to a stop.
-        if (!D.flying || D.pos.y < g + .015) {
-          D.pos.y = g + .015;
-          if (D.flying) {D.flying = false;audio.sfx('thud', {gain: .4});v.y = 0;v.multiplyScalar(.35);}
-          v.y = 0;const hs = Math.hypot(v.x, v.z), dec = 6 * dt;if (hs <= dec || D.time > 12) {v.set(0, 0, 0);return 'rest';}v.multiplyScalar((hs - dec) / hs);
-        }
-        if (D.time > 12) {v.set(0, 0, 0);D.flying = false;D.pos.y = g + .015;return 'rest';}
-        return null;
-      }
+      const step = dt => flight(game.disc, holes[game.hole], dt, audio.sfx);
       game.update = (dt, input, view) => {
         if (!game.active) return null;
         const h = holes[game.hole], D = game.disc;
@@ -139,7 +203,7 @@
             // Money: par 50 kr, birdie 100 kr, eagle or better 200 kr.
             if (reward && diff <= 0) reward(diff <= -2 ? 200 : diff === -1 ? 100 : 50, `${name} on ${course.name} hole ${h.n}`);
             onEvent('disc-hole', {course: course.name, hole: h.n, strokes: total, par: h.par});
-            game.pending = {next: true, t: 2.5};D.rest = true;
+            game.pending = {next: true, t: 2.5};D.rest = true;game.done[game.hole] = true;
           } else if (r === 'rest') {D.rest = true;game.landed = true;game.lie = {x: D.pos.x, z: D.pos.z, y: heightAt(D.pos.x, D.pos.z)};game.message = `${Math.round(Math.hypot(h.basket.x - D.pos.x, h.basket.z - D.pos.z))} m to the basket. Throw again from where the disc landed.`;game.pending = {lie: true, t: .8};}
           // Follow camera behind and above the disc.
           const back = V3(D.pos.x - game.lie.x, 0, D.pos.z - game.lie.z).normalize();
@@ -152,7 +216,9 @@
             if (game.pending.next) {
               game.pending = null;disc.visible = false;D.rest = false;
               if (game.hole + 1 < holes.length) {game.walk = game.hole + 1;const n = holes[game.walk];game.toTee = Math.hypot(game.lie.x - n.tee.x, game.lie.z - n.tee.z);hud.discgolf(game.state());return {walk: true};}
-              const total = game.strokes.reduce((a, b) => a + b, 0), par = holes.reduce((a, b) => a + b.par, 0);game.stop();
+              const total = game.strokes.reduce((a, b) => a + b, 0), par = holes.reduce((a, b) => a + b.par, 0);
+              // Your card stays in the round for others (and for the round's winner) for 5 minutes (issue #148).
+              const card = {...game.netState(), w: 2};game.stop();game.finished = {dg: card, until: performance.now() + 300000, won: false};
               if (game.strokes.every(s => s > 0)) onEvent('disc-round', {course: course.name, total, par, holes: holes.length});
               return {done: `${course.name} finished: ${total} throws (${total - par >= 0 ? '+' : ''}${total - par} vs par ${par}).`};
             }
@@ -166,8 +232,19 @@
       };
       game.state = (charge = 0) => {
         const walk = game.walk !== null, h = holes[walk ? game.walk : game.hole];
-        return {course: course.name, hole: h.n, holes: holes.length, par: h.par, strokes: game.strokes.slice(), walk, distance: walk ? Math.round(game.toTee) : game.lie ? Math.round(Math.hypot(h.basket.x - game.lie.x, h.basket.z - game.lie.z)) : 0, charge, message: game.message};
+        const distance = walk ? Math.round(game.toTee) : game.lie ? Math.round(Math.hypot(h.basket.x - game.lie.x, h.basket.z - game.lie.z)) : 0;
+        // The shared scorecard (issue #148): only when somebody else is in your round.
+        const card = game.active ? game.card() : [], away = card.length > 1 ? dgAway(card, game.hole) : null;
+        return {course: course.name, hole: h.n, holes: holes.length, par: h.par, pars: holes.map(x => x.par), strokes: game.strokes.slice(), walk, distance, charge, message: game.message,
+          card: card.length > 1 ? card : null, away: away === null ? null : away === NET.you() ? 'You' : (card.find(r => r.id === away) || {}).name};
       };
+      // What others in the lobby get of your round (st.dg, issue #148); while the round is on, or your finished card for a while.
+      game.netState = () => {
+        const walk = game.walk !== null, h = holes[game.hole], l = game.lie || h.tee, th = game.th && NET.now() - game.th[1] < DG_THROW_MS ? game.th : null;
+        return dgEncode({c: idx, r: game.round, h: game.hole, w: walk ? 1 : 0, n: game.strokes[game.hole], d: Math.hypot(h.basket.x - l.x, h.basket.z - l.z), l, s: game.strokes.map((x, i) => game.done[i] ? x : 0), th});
+      };
+      game.dgNet = () => game.active ? game.netState() : game.finished && performance.now() < game.finished.until ? game.finished.dg : null;
+      game.card = () => {const me = game.dgNet();return me ? dgCard({id: NET.you(), name: 'You', slot: -1, dg: me}, NET.peers(), holes.map(x => x.par)) : [];};
       // The course on the minimap and the map (issue #60). The lie shows once you have thrown on the hole, until it is holed.
       const plan = {name: course.name, outline: course.outline || null, holes: holes.map(h => ({n: h.n, tee: h.local.tee, basket: h.local.basket}))};
       game.layout = () => {
@@ -327,7 +404,58 @@
       game.debug = () => ({jack: jack && {u: jack.u, v: jack.v, alive: jack.alive, dead: jack.dead}, boules: boules && Object.fromEntries(Object.entries(boules).map(([k, l]) => [k, l.map(b => ({u: +b.u.toFixed(2), v: +b.v.toFixed(2), alive: b.alive, dead: !!b.dead}))])), circle, phase, current, aimingFor});
       return game;
     }
-    return {discgolf: discGolf({name: 'Torshovdalen', holes: data.discgolf}), muselunden: muselunden ? discGolf(muselunden) : null, petanque: petanque()};
+    const courses = [discGolf({name: 'Torshovdalen', holes: data.discgolf}, 0), muselunden ? discGolf(muselunden, 1) : null];
+
+    // ---- Other players' discs (issue #148): one small disc in their colour, flying their throw again, then at their lie. ----
+    const remoteGroup = new T.Group();remoteGroup.name = 'Disc golf · other players';
+    const rDiscGeo = new T.CylinderGeometry(.105, .1, .022, 16), rPoleGeo = new T.CylinderGeometry(.015, .015, 1.4, 5), rTopGeo = new T.SphereGeometry(.06, 8, 6);
+    const others = new Map();// player id -> {disc, pole, top, fly, seq, seen, t}
+    const quiet = () => {};
+    function remotePose(id, raw, color, at) {
+      const dg = dgDecode(raw), now = performance.now();let o = others.get(id);
+      if (!dg || dg.w === 2 || !courses[dg.c] || !courses[dg.c].holes[dg.h]) {if (o) o.disc.visible = o.pole.visible = o.top.visible = false;return;}
+      if (!o) {
+        const mat = new T.MeshStandardMaterial({color, roughness: .4}), flag = new T.MeshBasicMaterial({color});
+        o = {disc: new T.Mesh(rDiscGeo, mat), pole: new T.Mesh(rPoleGeo, flag), top: new T.Mesh(rTopGeo, flag), fly: null, seq: null, t: now, holeKey: ''};
+        o.disc.name = 'Remote disc';remoteGroup.add(o.disc, o.pole, o.top);others.set(id, o);
+      }
+      const dt = Math.min(.1, (now - o.t) / 1000), hole = courses[dg.c].holes[dg.h], holed = dg.s[dg.h] > 0;o.t = now;o.seen = now;
+      // A new throw: fly it from where it is now in the thrower's flight (they threw at th[1] on the lobby clock).
+      if (dg.th && dg.th[0] !== o.seq) {
+        o.seq = dg.th[0];const age = (NET.now() - dg.th[1]) / 1000;
+        if (age >= 0 && age < 3) {
+          const t = dg.th;o.fly = {pos: V3(t[2], t[3], t[4]), vel: V3(t[5], t[6], t[7]), bank: t[8], putt: !!t[9], flying: true, time: 0, spin: 0};
+          for (let k = 0; k < age * 120 && o.fly; k++) if (flight(o.fly, hole, 1 / 120, quiet)) o.fly = null;
+        }
+      }
+      if (o.fly) {
+        const F = o.fly;let r = null;for (let k = 0, n = Math.max(1, Math.ceil(dt * 120)); k < n && !r; k++) r = flight(F, hole, dt / n, quiet);
+        o.disc.position.copy(F.pos);o.disc.rotation.set(Math.sin(F.bank) * .6, F.time * 40, 0);o.disc.visible = true;
+        if (r || F.time > 13) o.fly = null;
+      } else if (dg.w === 0 && holed) {o.disc.position.set(hole.basket.x, hole.basket.y + .62, hole.basket.z);o.disc.rotation.set(0, 0, 0);o.disc.visible = true;}
+      else if (dg.w === 0 && dg.n > 0 && dg.l) {
+        // On the grass at their lie (it moves smoothly there when the replay ended a little off).
+        const k = o.disc.visible ? 1 - Math.exp(-dt * 6) : 1;o.disc.position.x += (dg.l[0] - o.disc.position.x) * k;o.disc.position.z += (dg.l[2] - o.disc.position.z) * k;
+        o.disc.position.y = heightAt(o.disc.position.x, o.disc.position.z) + .015;o.disc.rotation.set(0, 0, 0);o.disc.visible = true;
+      } else o.disc.visible = false;
+      // A marker pole at their lie while they are not standing on it (their name is on their avatar).
+      const mark = !o.fly && dg.w === 0 && dg.n > 0 && !holed && dg.l && (!at || Math.hypot(at.x - dg.l[0], at.z - dg.l[2]) > 1.5);
+      o.pole.visible = o.top.visible = !!mark;
+      if (mark) {const y = heightAt(dg.l[0], dg.l[2]);o.pole.position.set(dg.l[0], y + .7, dg.l[2]);o.top.position.set(dg.l[0], y + 1.42, dg.l[2]);}
+    }
+    // Once a frame: hide the discs of players who left; the bonus for winning a round with others (once per round).
+    function netTick() {
+      const now = performance.now();
+      for (const [id, o] of others) if (now - o.seen > 1500) {remoteGroup.remove(o.disc, o.pole, o.top);o.disc.material.dispose();o.pole.material.dispose();others.delete(id);}
+      for (const g of courses) {
+        const f = g && g.finished;if (!f || f.won || now > f.until) continue;
+        const card = dgCard({id: NET.you(), name: 'You', slot: -1, dg: f.dg}, NET.peers(), g.holes.map(x => x.par));
+        if (card.length > 1 && dgWinner(card) === NET.you()) {f.won = true;if (reward) reward(100, `You won the disc golf round on ${g.group.name.replace('Disc golf · ', '')} against ${card.length - 1} other${card.length > 2 ? 's' : ''}`);audio.sfx('cheer');}
+      }
+    }
+    // The round you play now, or else a finished card that is still shown to the others.
+    const dgNet = () => {const on = courses.find(g => g && g.active);if (on) return on.dgNet();for (const g of courses) {const d = g && g.dgNet();if (d) return d;}return null;};
+    return {discgolf: courses[0], muselunden: courses[1], petanque: petanque(), remoteGroup, remotePose, netTick, dgNet};
   }
-  return {create, petanqueNext};
+  return {create, petanqueNext, dgEncode, dgDecode, dgJoinable, dgCard, dgAway, dgWinner};
 });

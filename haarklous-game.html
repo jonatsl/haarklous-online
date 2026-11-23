@@ -45,6 +45,10 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
 #drunk{position:absolute;left:22px;top:18px;padding:5px 12px;border-radius:14px;background:#7a3b10cc;font-weight:700;pointer-events:none}
 .game-card{position:absolute;left:18px;bottom:18px;width:min(380px,calc(100% - 36px));display:grid;gap:3px;padding:12px 14px;border-radius:10px;background:var(--card);pointer-events:none;font-size:14px}
 .game-card b{font-size:16px;color:#fff}.game-card small{opacity:.8}
+#game #discHud.wide{width:min(460px,calc(100% - 36px))}#game.has-minimap #discHud.wide{width:min(460px,calc(100% - var(--mm) - 58px))}
+.dgcard{border-collapse:collapse;font:12px/1.35 ui-monospace,Consolas,monospace;margin:4px 0}.dgcard th,.dgcard td{padding:0 3px;text-align:center}.dgcard th{opacity:.6;font-weight:400}
+.dgcard td:first-child{text-align:left;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.dgcard td i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}
+.dgcard tr.me td{color:#fff}.dgcard td b{font-size:12px}.dgcard em{color:#ffd27a;font-style:normal}
 .meter{display:block;height:8px;border-radius:4px;background:#ffffff1f;overflow:hidden;margin:4px 0}.meter u{display:block;height:100%;background:linear-gradient(90deg,#9ff0a8,#ffd27a,#ff7a6b)}
 #markers{position:absolute;inset:0;pointer-events:none}
 .marker{position:absolute;transform:translate(-50%,-100%);padding:1px 6px;border-radius:8px;background:#000a;font:600 11px/1.4 ui-monospace,Consolas,monospace;white-space:nowrap}
@@ -316,7 +320,7 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
       <div class="panel">
         <span class="eyebrow">HAARKLOUS PLASS 17A · TORSHOV · OSLO</span>
         <h1>Haarklous online</h1>
-        <p>Walk the neighbourhood, go home to your 4th-floor apartment (street door of 17A, up the stairs), go into the stairwells, ride the Honda CBF600, drive the parked cars or the excavator, work the machines on the construction site (each needs its licence: take the tests at Soria Moria Trafikkskole on Vogts gate, the site office or the airstrip), go skydiving from the jump plane, go bouldering and rope climbing at Klatreverket Torshov, play paintball, disc golf in Torshovdalen and petanque in the park, minigolf at the real courses (Torshov, Grünerløkka, Jordal park and the bar Oslo Camping in Møllergata), take photos, earn money delivering food or driving a taxi (phone: D-pad → / P), ride e-scooters and Oslo city bikes from their real docks, and start the hostage-rescue mission at the red marker beside the entrance of number 17A. Further south the world goes on down Trondheimsveien to Gamle Oslo, Ensjø and Bjørvika – real streets, ground heights and buildings, the churches, MUNCH and the Opera's walkable roof – with a timed run from Ensjø T-bane to Rathkes gate (green ring, □). In Grünerløkka: paddle a kayak down Akerselva from Bjølsen, Sagene or Grünerløkka to Vaterland, play table tennis at Schous plass, browse Deichman Grünerløkka (walk – the librarian hears everything) and go through the gate of Rathkes gate 1 and its backyard up stair 1C to flat 501 on the 5th floor. Play together: up to twelve players per lobby – your lobby code is in the pause menu, and there you can also log in or create an account (optional, email and password).</p>
+        <p>Walk the neighbourhood, go home to your 4th-floor apartment (street door of 17A, up the stairs), go into the stairwells, ride the Honda CBF600, drive the parked cars or the excavator, work the machines on the construction site (each needs its licence: take the tests at Soria Moria Trafikkskole on Vogts gate, the site office or the airstrip), go skydiving from the jump plane, go bouldering and rope climbing at Klatreverket Torshov, play paintball, disc golf in Torshovdalen and at Muselunden (alone or together with the others in your lobby) and petanque in the park, minigolf at the real courses (Torshov, Grünerløkka, Jordal park and the bar Oslo Camping in Møllergata), take photos, earn money delivering food or driving a taxi (phone: D-pad → / P), ride e-scooters and Oslo city bikes from their real docks, and start the hostage-rescue mission at the red marker beside the entrance of number 17A. Further south the world goes on down Trondheimsveien to Gamle Oslo, Ensjø and Bjørvika – real streets, ground heights and buildings, the churches, MUNCH and the Opera's walkable roof – with a timed run from Ensjø T-bane to Rathkes gate (green ring, □). In Grünerløkka: paddle a kayak down Akerselva from Bjølsen, Sagene or Grünerløkka to Vaterland, play table tennis at Schous plass, browse Deichman Grünerløkka (walk – the librarian hears everything) and go through the gate of Rathkes gate 1 and its backyard up stair 1C to flat 501 on the 5th floor. Play together: up to twelve players per lobby – your lobby code is in the pause menu, and there you can also log in or create an account (optional, email and password).</p>
         <dl class="controls">
           <dt>Move / look</dt><dd>Left stick / WASD · Right stick / mouse</dd>
           <dt>✕ / Space</dt><dd>Jump – tap for a small hop, hold for a high jump (about 1 m); you keep your speed in the air and steer a little; land on benches, crates, walls and car roofs; jump at a ledge up to chest height (1.6 m) to pull yourself up; fences and railings up to about 1.2 m you jump over</dd>
@@ -402,7 +406,7 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
           <dt>Motorcycle / car</dt><dd>□ get on/in · R2 throttle · L2 brake/reverse · left stick steer · right stick look · R3 / V first / third person (kept for the next vehicle) · police car: L3 / H blue lights, again for the siren, again off</dd>
           <dt>Police (Grønland)</dt><dd>Oslo politihus, Grønlandsleiret 44 (🚔 on the map): walk in through the glass doors, □ talk to the officer at the desk or take a queue ticket · behind the steel door: the glattceller – □ opens a cell door, □ on the hatch opens or closes it · Oslo fengsel (Botsen, 🔒) is behind the police station: □ opens the gates in the outer and inner wall, cross the yard to cell wing A, □ talk to the prison officer, □ open the cells · police cars stand outside the police station and around the city: drive them with class B</dd>
           <dt>Excavator</dt><dd>L1/L2 left track forward/back · R1/R2 right track · left stick: swing and stick · right stick: boom and bucket · R3 / V first / third person (the mouse turns the camera)</dd>
-          <dt>Disc golf / petanque</dt><dd>Aim with the camera · hold R2, release to throw · ○ quit · disc golf: walk to the next tee after each hole (□ takes you straight there); the minimap shows the course</dd>
+          <dt>Disc golf / petanque</dt><dd>Aim with the camera · hold R2, release to throw · ○ quit · disc golf: walk to the next tee after each hole (□ takes you straight there); the minimap shows the course; online you play together with the others in your lobby – □ at a tee joins their round, you see their discs fly, and the shared scorecard shows who is away (throws next, nobody has to wait)</dd>
           <dt>Construction site</dt><dd>North in Torshovdalen, through the gate: dozer, 30 t excavator, wheel loader, hauler, tipper truck, mobile crane and tower crane · □ climb in · R2 / L2 drive (excavator: L1/L2 R1/R2 tracks) · right stick (or the arrow keys) works the blade, bucket, body or boom · mobile crane: L1 outriggers · cranes: ✕ hook or set down a load · R3 / V view: cab, outside, above the hook</dd>
           <dt>Prop hunt (hide and seek)</dt><dd>Stand in a purple ring (Haarklous plass, Olaf Ryes plass, the backyard of Rathkes gate 1) to join; the first one there is the admin: ←→ arena, ↑↓ rounds, hold ✕ start (alone: △ hunt or hide first, the game's players fill in) · hider: □ / E become the thing you look at, R1 / X lock or free its turning, D-pad ←/→ turn it, △ / F taunt · hunter: R2 / left mouse shoot, L2 / right mouse aim – a real thing costs you health · out: D-pad ←/→ watch someone else · hold △ leave</dd>
           <dt>Paintball</dt><dd>Walk into the lobby outside the course gate (the first one there is the admin) · ↑↓ team · admin: ←→ game, △ paint / reball, hold ✕ start · in a game: R2 / left mouse fire, L2 / right mouse aim, □ / R reload, hold △ leave</dd>
@@ -9874,6 +9878,9 @@ window.MUSELUNDEN={"name":"Muselunden DiscGolfPark","layout":"Muselunden 12 hull
  *   your feet {x, z, y}, input.skip = □ takes you straight there); the hole starts within 3 m of the tee. layout() -> what the
  *   minimap and the map draw while a round is on: {name, outline (local [x, s, ...] or null), holes [{n, tee, basket}] (local
  *   [x, s]), current (index), walking, lie [x, s] | null (after your first throw on the hole), distance (m to the basket)} | null.
+ * Online (issue #148): create({..., net: {peers, now, you}}); each course game's dgNet() -> st.dg (or null); mini.dgNet() (the one
+ *   to send), mini.remotePose(id, st.dg, colour, avatarPos) once a frame per other player, mini.netTick() once a frame,
+ *   mini.remoteGroup (add to the scene). Pure and Node-tested: dgEncode / dgDecode / dgJoinable / dgCard / dgAway / dgWinner.
  */
 (function (root, factory) {
   root.GameMinigames = factory();
@@ -9886,15 +9893,102 @@ window.MUSELUNDEN={"name":"Muselunden DiscGolfPark","layout":"Muselunden 12 hull
     const other = hold === 'you' ? 'npc' : 'you';
     return left[other] > 0 ? other : left[hold] > 0 ? hold : null;
   }
-  function create({T, lib, audio, heightAt, toWorld, toLocal, data, hud, trees, reward, muselunden, onEvent = () => {}}) {
+  // ---- Disc golf online (issue #148): everything rides in each player's own st.dg; the server relays it unchanged. ----
+  // st.dg = {c course (0 Torshovdalen, 1 Muselunden), r round id (the round's first starter's lobby clock, ms), h hole index,
+  //   w 0 playing | 1 walking to the next tee | 2 finished (the card stays for a while), n throws on this hole, d metres to the
+  //   basket, l lie [x, y, z], s throws per finished hole (0 = not played), th the latest throw [seq, t0 (lobby clock ms), x, y, z,
+  //   vx, vy, vz, bank, putt 0|1] (sent for DG_THROW_MS; receivers replay it with the same flight code and skip a seq they saw)}
+  const DG_THROW_MS = 2000, num = (v, d = 0) => (typeof v === 'number' && isFinite(v) ? v : d), r2 = v => Math.round(v * 100) / 100;
+  function dgEncode(o) {
+    const out = {c: o.c | 0, r: Math.round(num(o.r)), h: o.h | 0, w: o.w | 0, n: o.n | 0, d: Math.round(num(o.d)), s: (o.s || []).map(x => x | 0)};
+    if (o.l) out.l = [r2(o.l.x), r2(o.l.y), r2(o.l.z)];
+    if (o.th) out.th = o.th.map((v, i) => i < 2 ? Math.round(v) : r2(v));
+    return out;
+  }
+  function dgDecode(v) {
+    if (!v || typeof v !== 'object' || !Array.isArray(v.s) || v.s.length > 40) return null;
+    const o = {c: num(v.c) | 0, r: num(v.r), h: num(v.h) | 0, w: num(v.w) | 0, n: num(v.n) | 0, d: num(v.d), s: v.s.map(x => Math.max(0, num(x) | 0))};
+    if (Array.isArray(v.l) && v.l.length === 3) o.l = v.l.map(x => num(x));
+    if (Array.isArray(v.th) && v.th.length === 10) o.th = v.th.map(x => num(x));
+    if (o.h < 0 || o.h >= o.s.length) return null;
+    return o;
+  }
+  // The round to join on this course: the one of a player still playing it (the earliest round when there are two), with its players' names.
+  function dgJoinable(peers, course) {
+    let r = null;
+    for (const p of peers) {const d = dgDecode(p.dg);if (d && d.c === course && d.w !== 2 && (r === null || d.r < r)) r = d.r;}
+    if (r === null) return null;
+    return {r, names: peers.filter(p => {const d = dgDecode(p.dg);return d && d.c === course && d.r === r;}).sort((a, b) => a.id - b.id).map(p => p.name)};
+  }
+  // The shared scorecard: you plus everyone in your round on your course. pars = the course's pars. Leader first.
+  function dgCard(me, peers, pars) {
+    const rows = [], add = (id, name, slot, d, mine) => {
+      let total = 0, rel = 0, played = 0;d.s.forEach((x, i) => {if (x > 0 && i < pars.length) {total += x;rel += x - pars[i];played++;}});
+      rows.push({id, name, slot, me: mine, s: d.s.slice(0, pars.length), h: d.h, w: d.w, n: d.n, d: d.d, l: d.l, holed: d.s[d.h] > 0, total, rel, played, complete: played === pars.length});
+    };
+    const mine = dgDecode(me.dg);if (!mine) return [];add(me.id, me.name, me.slot, mine, true);
+    for (const p of peers) {const d = dgDecode(p.dg);if (d && d.c === mine.c && d.r === mine.r && p.id !== me.id) add(p.id, p.name, p.slot, d, false);}
+    return rows.sort((a, b) => a.rel - b.rel || b.played - a.played || a.id - b.id);
+  }
+  // Away (throws next): on that hole, still playing it, furthest from the basket. Nobody is made to wait; it is only shown.
+  function dgAway(rows, hole) {
+    let best = null;for (const r of rows) if (r.h === hole && r.w === 0 && !r.holed && (!best || r.d > best.d)) best = r;
+    return best && rows.filter(r => r.h === hole && r.w === 0 && !r.holed).length > 1 ? best.id : null;
+  }
+  // The round's winner once nobody is playing it any more: the lowest total of the full cards (at least two), alone at the top.
+  function dgWinner(rows) {
+    if (rows.some(r => r.w !== 2)) return null;
+    const full = rows.filter(r => r.complete).sort((a, b) => a.total - b.total);
+    return full.length >= 2 && full[0].total < full[1].total ? full[0].id : null;
+  }
+  function create({T, lib, audio, heightAt, toWorld, toLocal, data, hud, trees, reward, muselunden, onEvent = () => {}, net = null}) {
+    // net (online, issue #148): {peers() -> [{id, name, slot, dg}], now() -> lobby clock ms, you() -> id, name() -> your name}
+    const NET = net || {peers: () => [], now: () => Date.now(), you: () => 0, name: () => 'You'};
     const V3 = (x, y, z) => new T.Vector3(x, y, z);
     const mesh = (parent, geo, mat, x = 0, y = 0, z = 0) => {const m = new T.Mesh(geo, mat);m.position.set(x, y, z);m.castShadow = m.receiveShadow = true;parent.add(m);return m;};
     const gauss = () => {let u = 0, v = 0;while (!u) u = Math.random();while (!v) v = Math.random();return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);};
     const treeWorld = (trees || []).map(t => {const w = toWorld(t.x, t.s);return {x: w.x, z: w.z, h: t.h || 11};});
+    let throwSeq = 0;
 
     // ======================= DISC GOLF =======================
+    // One step of a flying or skidding disc D {pos, vel, bank, flying, putt, time} towards hole h (its basket); sfx(name, opts).
+    // Your own throws and the replays of other players' throws (issue #148) use it; only the tree knock-downs are random.
+    function flight(D, h, dt, sfx) {
+      const v = D.vel, speed = v.length();D.time += dt;
+      if (speed > .3 && D.flying) {
+        // Drag and lift (mid-range driver: glide 4, turn -1, fade 1). Bank tilts lift sideways: turn at high speed, fade when slow.
+        const k = .0135, lift = .085 * speed * speed * .195 * (D.putt ? .55 : 1);
+        const up = V3(0, 1, 0), dir = v.clone().normalize(), side = V3().crossVectors(dir, up).normalize();
+        D.bank += ((speed > 18 ? -.22 : 0) + (speed < 15 ? .55 * (1 - speed / 15) : 0)) * dt * (D.putt ? .3 : 1);
+        const liftDir = up.clone().multiplyScalar(Math.cos(D.bank)).addScaledVector(side, Math.sin(D.bank));
+        v.addScaledVector(dir, -k * speed * speed * dt).addScaledVector(liftDir, lift * dt).y -= 9.81 * dt;
+      }
+      D.pos.addScaledVector(v, dt);
+      // Trees: trunk or crown hits knock the disc down.
+      for (const t of treeWorld) {
+        const dx = D.pos.x - t.x, dz = D.pos.z - t.z;if (Math.abs(dx) > 5 || Math.abs(dz) > 5) continue;
+        const gy = heightAt(t.x, t.z), r = Math.hypot(dx, dz), crownY = gy + t.h * .62, crownR = t.h * .28;
+        if ((r < .3 && D.pos.y < gy + t.h * .5) || (Math.hypot(r, (D.pos.y - crownY) * 1.3) < crownR && Math.random() < dt * 12)) {v.multiplyScalar(.25);v.x += gauss() * 1.5;v.z += gauss() * 1.5;sfx('thud', {gain: .5});}
+      }
+      // Basket: chains catch a disc at the right height when it is not too fast.
+      const bx = D.pos.x - h.basket.x, bz = D.pos.z - h.basket.z, by = D.pos.y - h.basket.y, rb = Math.hypot(bx, bz);
+      if (rb < .33 && by > .55 && by < 1.4) {
+        if (speed < 13 || Math.random() < .3) {sfx('chains');D.flying = false;v.set(0, 0, 0);D.pos.set(h.basket.x, h.basket.y + .62, h.basket.z);return 'in';}
+        v.multiplyScalar(-.25);sfx('chains', {gain: .5});
+      }
+      if (rb < .05 + .025 && by > 0 && by < 1.6) {v.x *= -.4;v.z *= -.4;sfx('click');}
+      const g = heightAt(D.pos.x, D.pos.z);
+      // Once down, the disc stays on the grass (also downhill) and skids to a stop.
+      if (!D.flying || D.pos.y < g + .015) {
+        D.pos.y = g + .015;
+        if (D.flying) {D.flying = false;sfx('thud', {gain: .4});v.y = 0;v.multiplyScalar(.35);}
+        v.y = 0;const hs = Math.hypot(v.x, v.z), dec = 6 * dt;if (hs <= dec || D.time > 12) {v.set(0, 0, 0);return 'rest';}v.multiplyScalar((hs - dec) / hs);
+      }
+      if (D.time > 12) {v.set(0, 0, 0);D.flying = false;D.pos.y = g + .015;return 'rest';}
+      return null;
+    }
     // course: {name, holes: [{tee: [x, s], basket: [x, s], par, n?}]} in the local map frame.
-    function discGolf(course) {
+    function discGolf(course, idx) {
       const group = new T.Group();group.name = `Disc golf · ${course.name}`;
       const holes = (course.holes || []).map((h, i) => {
         const tee = toWorld(h.tee[0], h.tee[1]), basket = toWorld(h.basket[0], h.basket[1]);
@@ -9925,12 +10019,18 @@ window.MUSELUNDEN={"name":"Muselunden DiscGolfPark","layout":"Muselunden 12 hull
       const game = {group, holes, active: false, hole: 0, walk: null, toTee: 0, strokes: [], lie: null, disc: {pos: V3(), vel: V3(), bank: 0, flying: false, rest: false}, charging: 0, followT: 0, message: ''};
       game.near = p => {
         if (game.active) return null;
-        for (const h of holes) if (Math.hypot(p.x - h.tee.x, p.z - h.tee.z) < 4 && Math.abs(p.y - h.tee.y) < 3) return `□ Play disc golf · ${course.name} · Hull ${h.n} (par ${h.par}, ${Math.round(h.length)} m)`;
+        for (const h of holes) if (Math.hypot(p.x - h.tee.x, p.z - h.tee.z) < 4 && Math.abs(p.y - h.tee.y) < 3) {
+          // Others are playing this course (issue #148): you join their round.
+          const j = dgJoinable(NET.peers(), idx), who = j ? (j.names.length > 1 ? `${j.names[0]} +${j.names.length - 1}` : j.names[0]) : '';
+          return j ? `□ Join ${who}'s round · disc golf ${course.name} · Hull ${h.n} (par ${h.par}, ${Math.round(h.length)} m)` : `□ Play disc golf · ${course.name} · Hull ${h.n} (par ${h.par}, ${Math.round(h.length)} m)`;
+        }
         return null;
       };
       game.start = p => {
         const h = holes.reduce((best, x) => Math.hypot(p.x - x.tee.x, p.z - x.tee.z) < Math.hypot(p.x - best.tee.x, p.z - best.tee.z) ? x : best, holes[0]);
-        game.active = true;game.hole = h.n - 1;game.walk = null;game.pending = null;game.landed = false;game.strokes = holes.map(() => 0);game.lie = {x: h.tee.x, z: h.tee.z, y: h.tee.y};game.disc.flying = false;disc.visible = false;game.message = `${course.name} · Hull ${h.n} · Par ${h.par} · Hold R2 (or left mouse) to throw, aim with the camera, left stick X for hyzer/anhyzer.`;
+        game.active = true;game.hole = h.n - 1;game.walk = null;game.pending = null;game.landed = false;game.strokes = holes.map(() => 0);game.done = holes.map(() => false);game.th = null;game.finished = null;
+        const j = dgJoinable(NET.peers(), idx);game.round = j ? j.r : Math.round(NET.now());game.with = j ? j.names : [];game.lie = {x: h.tee.x, z: h.tee.z, y: h.tee.y};game.disc.flying = false;disc.visible = false;game.message = `${course.name} · Hull ${h.n} · Par ${h.par} · Hold R2 (or left mouse) to throw, aim with the camera, left stick X for hyzer/anhyzer.`;
+        if (j) game.message = `You joined the round of ${j.names.join(', ')} · ${game.message}`;
         return {x: h.tee.x, z: h.tee.z, yaw: Math.atan2(-(h.basket.x - h.tee.x), -(h.basket.z - h.tee.z))};
       };
       game.stop = () => {game.active = false;game.walk = null;game.pending = null;disc.visible = false;hud.discgolf(null);};
@@ -9947,41 +10047,9 @@ window.MUSELUNDEN={"name":"Muselunden DiscGolfPark","layout":"Muselunden 12 hull
         const d = V3(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
         game.disc.pos.set(game.lie.x, game.lie.y + 1.2, game.lie.z).addScaledVector(d, .5);game.disc.vel.copy(d).multiplyScalar(speed);
         game.disc.bank = (input.hyzer || 0) * .55;game.disc.flying = true;game.disc.putt = putt;game.disc.time = 0;disc.visible = true;game.strokes[game.hole]++;audio.sfx('throw');game.followT = 0;
+        const D = game.disc;game.th = [++throwSeq, NET.now(), D.pos.x, D.pos.y, D.pos.z, D.vel.x, D.vel.y, D.vel.z, D.bank, putt ? 1 : 0];// for others' screens
       }
-      function step(dt) {
-        const D = game.disc, v = D.vel, speed = v.length();D.time += dt;
-        if (speed > .3 && D.flying) {
-          // Drag and lift (mid-range driver: glide 4, turn -1, fade 1). Bank tilts lift sideways: turn at high speed, fade when slow.
-          const k = .0135, lift = .085 * speed * speed * .195 * (D.putt ? .55 : 1);
-          const up = V3(0, 1, 0), dir = v.clone().normalize(), side = V3().crossVectors(dir, up).normalize();
-          D.bank += ((speed > 18 ? -.22 : 0) + (speed < 15 ? .55 * (1 - speed / 15) : 0)) * dt * (D.putt ? .3 : 1);
-          const liftDir = up.clone().multiplyScalar(Math.cos(D.bank)).addScaledVector(side, Math.sin(D.bank));
-          v.addScaledVector(dir, -k * speed * speed * dt).addScaledVector(liftDir, lift * dt).y -= 9.81 * dt;
-        }
-        D.pos.addScaledVector(v, dt);
-        // Trees: trunk or crown hits knock the disc down.
-        for (const t of treeWorld) {
-          const dx = D.pos.x - t.x, dz = D.pos.z - t.z;if (Math.abs(dx) > 5 || Math.abs(dz) > 5) continue;
-          const gy = heightAt(t.x, t.z), r = Math.hypot(dx, dz), crownY = gy + t.h * .62, crownR = t.h * .28;
-          if ((r < .3 && D.pos.y < gy + t.h * .5) || (Math.hypot(r, (D.pos.y - crownY) * 1.3) < crownR && Math.random() < dt * 12)) {v.multiplyScalar(.25);v.x += gauss() * 1.5;v.z += gauss() * 1.5;audio.sfx('thud', {gain: .5});}
-        }
-        // Basket: chains catch a disc at the right height when it is not too fast.
-        const h = holes[game.hole], bx = D.pos.x - h.basket.x, bz = D.pos.z - h.basket.z, by = D.pos.y - h.basket.y, rb = Math.hypot(bx, bz);
-        if (rb < .33 && by > .55 && by < 1.4) {
-          if (speed < 13 || Math.random() < .3) {audio.sfx('chains');D.flying = false;v.set(0, 0, 0);D.pos.set(h.basket.x, h.basket.y + .62, h.basket.z);return 'in';}
-          v.multiplyScalar(-.25);audio.sfx('chains', {gain: .5});
-        }
-        if (rb < .05 + .025 && by > 0 && by < 1.6) {v.x *= -.4;v.z *= -.4;audio.sfx('click');}
-        const g = heightAt(D.pos.x, D.pos.z);
-        // Once down, the disc stays on the grass (also downhill) and skids to a stop.
-        if (!D.flying || D.pos.y < g + .015) {
-          D.pos.y = g + .015;
-          if (D.flying) {D.flying = false;audio.sfx('thud', {gain: .4});v.y = 0;v.multiplyScalar(.35);}
-          v.y = 0;const hs = Math.hypot(v.x, v.z), dec = 6 * dt;if (hs <= dec || D.time > 12) {v.set(0, 0, 0);return 'rest';}v.multiplyScalar((hs - dec) / hs);
-        }
-        if (D.time > 12) {v.set(0, 0, 0);D.flying = false;D.pos.y = g + .015;return 'rest';}
-        return null;
-      }
+      const step = dt => flight(game.disc, holes[game.hole], dt, audio.sfx);
       game.update = (dt, input, view) => {
         if (!game.active) return null;
         const h = holes[game.hole], D = game.disc;
@@ -10002,7 +10070,7 @@ window.MUSELUNDEN={"name":"Muselunden DiscGolfPark","layout":"Muselunden 12 hull
             // Money: par 50 kr, birdie 100 kr, eagle or better 200 kr.
             if (reward && diff <= 0) reward(diff <= -2 ? 200 : diff === -1 ? 100 : 50, `${name} on ${course.name} hole ${h.n}`);
             onEvent('disc-hole', {course: course.name, hole: h.n, strokes: total, par: h.par});
-            game.pending = {next: true, t: 2.5};D.rest = true;
+            game.pending = {next: true, t: 2.5};D.rest = true;game.done[game.hole] = true;
           } else if (r === 'rest') {D.rest = true;game.landed = true;game.lie = {x: D.pos.x, z: D.pos.z, y: heightAt(D.pos.x, D.pos.z)};game.message = `${Math.round(Math.hypot(h.basket.x - D.pos.x, h.basket.z - D.pos.z))} m to the basket. Throw again from where the disc landed.`;game.pending = {lie: true, t: .8};}
           // Follow camera behind and above the disc.
           const back = V3(D.pos.x - game.lie.x, 0, D.pos.z - game.lie.z).normalize();
@@ -10015,7 +10083,9 @@ window.MUSELUNDEN={"name":"Muselunden DiscGolfPark","layout":"Muselunden 12 hull
             if (game.pending.next) {
               game.pending = null;disc.visible = false;D.rest = false;
               if (game.hole + 1 < holes.length) {game.walk = game.hole + 1;const n = holes[game.walk];game.toTee = Math.hypot(game.lie.x - n.tee.x, game.lie.z - n.tee.z);hud.discgolf(game.state());return {walk: true};}
-              const total = game.strokes.reduce((a, b) => a + b, 0), par = holes.reduce((a, b) => a + b.par, 0);game.stop();
+              const total = game.strokes.reduce((a, b) => a + b, 0), par = holes.reduce((a, b) => a + b.par, 0);
+              // Your card stays in the round for others (and for the round's winner) for 5 minutes (issue #148).
+              const card = {...game.netState(), w: 2};game.stop();game.finished = {dg: card, until: performance.now() + 300000, won: false};
               if (game.strokes.every(s => s > 0)) onEvent('disc-round', {course: course.name, total, par, holes: holes.length});
               return {done: `${course.name} finished: ${total} throws (${total - par >= 0 ? '+' : ''}${total - par} vs par ${par}).`};
             }
@@ -10029,8 +10099,19 @@ window.MUSELUNDEN={"name":"Muselunden DiscGolfPark","layout":"Muselunden 12 hull
       };
       game.state = (charge = 0) => {
         const walk = game.walk !== null, h = holes[walk ? game.walk : game.hole];
-        return {course: course.name, hole: h.n, holes: holes.length, par: h.par, strokes: game.strokes.slice(), walk, distance: walk ? Math.round(game.toTee) : game.lie ? Math.round(Math.hypot(h.basket.x - game.lie.x, h.basket.z - game.lie.z)) : 0, charge, message: game.message};
+        const distance = walk ? Math.round(game.toTee) : game.lie ? Math.round(Math.hypot(h.basket.x - game.lie.x, h.basket.z - game.lie.z)) : 0;
+        // The shared scorecard (issue #148): only when somebody else is in your round.
+        const card = game.active ? game.card() : [], away = card.length > 1 ? dgAway(card, game.hole) : null;
+        return {course: course.name, hole: h.n, holes: holes.length, par: h.par, pars: holes.map(x => x.par), strokes: game.strokes.slice(), walk, distance, charge, message: game.message,
+          card: card.length > 1 ? card : null, away: away === null ? null : away === NET.you() ? 'You' : (card.find(r => r.id === away) || {}).name};
       };
+      // What others in the lobby get of your round (st.dg, issue #148); while the round is on, or your finished card for a while.
+      game.netState = () => {
+        const walk = game.walk !== null, h = holes[game.hole], l = game.lie || h.tee, th = game.th && NET.now() - game.th[1] < DG_THROW_MS ? game.th : null;
+        return dgEncode({c: idx, r: game.round, h: game.hole, w: walk ? 1 : 0, n: game.strokes[game.hole], d: Math.hypot(h.basket.x - l.x, h.basket.z - l.z), l, s: game.strokes.map((x, i) => game.done[i] ? x : 0), th});
+      };
+      game.dgNet = () => game.active ? game.netState() : game.finished && performance.now() < game.finished.until ? game.finished.dg : null;
+      game.card = () => {const me = game.dgNet();return me ? dgCard({id: NET.you(), name: 'You', slot: -1, dg: me}, NET.peers(), holes.map(x => x.par)) : [];};
       // The course on the minimap and the map (issue #60). The lie shows once you have thrown on the hole, until it is holed.
       const plan = {name: course.name, outline: course.outline || null, holes: holes.map(h => ({n: h.n, tee: h.local.tee, basket: h.local.basket}))};
       game.layout = () => {
@@ -10190,9 +10271,60 @@ window.MUSELUNDEN={"name":"Muselunden DiscGolfPark","layout":"Muselunden 12 hull
       game.debug = () => ({jack: jack && {u: jack.u, v: jack.v, alive: jack.alive, dead: jack.dead}, boules: boules && Object.fromEntries(Object.entries(boules).map(([k, l]) => [k, l.map(b => ({u: +b.u.toFixed(2), v: +b.v.toFixed(2), alive: b.alive, dead: !!b.dead}))])), circle, phase, current, aimingFor});
       return game;
     }
-    return {discgolf: discGolf({name: 'Torshovdalen', holes: data.discgolf}), muselunden: muselunden ? discGolf(muselunden) : null, petanque: petanque()};
+    const courses = [discGolf({name: 'Torshovdalen', holes: data.discgolf}, 0), muselunden ? discGolf(muselunden, 1) : null];
+
+    // ---- Other players' discs (issue #148): one small disc in their colour, flying their throw again, then at their lie. ----
+    const remoteGroup = new T.Group();remoteGroup.name = 'Disc golf · other players';
+    const rDiscGeo = new T.CylinderGeometry(.105, .1, .022, 16), rPoleGeo = new T.CylinderGeometry(.015, .015, 1.4, 5), rTopGeo = new T.SphereGeometry(.06, 8, 6);
+    const others = new Map();// player id -> {disc, pole, top, fly, seq, seen, t}
+    const quiet = () => {};
+    function remotePose(id, raw, color, at) {
+      const dg = dgDecode(raw), now = performance.now();let o = others.get(id);
+      if (!dg || dg.w === 2 || !courses[dg.c] || !courses[dg.c].holes[dg.h]) {if (o) o.disc.visible = o.pole.visible = o.top.visible = false;return;}
+      if (!o) {
+        const mat = new T.MeshStandardMaterial({color, roughness: .4}), flag = new T.MeshBasicMaterial({color});
+        o = {disc: new T.Mesh(rDiscGeo, mat), pole: new T.Mesh(rPoleGeo, flag), top: new T.Mesh(rTopGeo, flag), fly: null, seq: null, t: now, holeKey: ''};
+        o.disc.name = 'Remote disc';remoteGroup.add(o.disc, o.pole, o.top);others.set(id, o);
+      }
+      const dt = Math.min(.1, (now - o.t) / 1000), hole = courses[dg.c].holes[dg.h], holed = dg.s[dg.h] > 0;o.t = now;o.seen = now;
+      // A new throw: fly it from where it is now in the thrower's flight (they threw at th[1] on the lobby clock).
+      if (dg.th && dg.th[0] !== o.seq) {
+        o.seq = dg.th[0];const age = (NET.now() - dg.th[1]) / 1000;
+        if (age >= 0 && age < 3) {
+          const t = dg.th;o.fly = {pos: V3(t[2], t[3], t[4]), vel: V3(t[5], t[6], t[7]), bank: t[8], putt: !!t[9], flying: true, time: 0, spin: 0};
+          for (let k = 0; k < age * 120 && o.fly; k++) if (flight(o.fly, hole, 1 / 120, quiet)) o.fly = null;
+        }
+      }
+      if (o.fly) {
+        const F = o.fly;let r = null;for (let k = 0, n = Math.max(1, Math.ceil(dt * 120)); k < n && !r; k++) r = flight(F, hole, dt / n, quiet);
+        o.disc.position.copy(F.pos);o.disc.rotation.set(Math.sin(F.bank) * .6, F.time * 40, 0);o.disc.visible = true;
+        if (r || F.time > 13) o.fly = null;
+      } else if (dg.w === 0 && holed) {o.disc.position.set(hole.basket.x, hole.basket.y + .62, hole.basket.z);o.disc.rotation.set(0, 0, 0);o.disc.visible = true;}
+      else if (dg.w === 0 && dg.n > 0 && dg.l) {
+        // On the grass at their lie (it moves smoothly there when the replay ended a little off).
+        const k = o.disc.visible ? 1 - Math.exp(-dt * 6) : 1;o.disc.position.x += (dg.l[0] - o.disc.position.x) * k;o.disc.position.z += (dg.l[2] - o.disc.position.z) * k;
+        o.disc.position.y = heightAt(o.disc.position.x, o.disc.position.z) + .015;o.disc.rotation.set(0, 0, 0);o.disc.visible = true;
+      } else o.disc.visible = false;
+      // A marker pole at their lie while they are not standing on it (their name is on their avatar).
+      const mark = !o.fly && dg.w === 0 && dg.n > 0 && !holed && dg.l && (!at || Math.hypot(at.x - dg.l[0], at.z - dg.l[2]) > 1.5);
+      o.pole.visible = o.top.visible = !!mark;
+      if (mark) {const y = heightAt(dg.l[0], dg.l[2]);o.pole.position.set(dg.l[0], y + .7, dg.l[2]);o.top.position.set(dg.l[0], y + 1.42, dg.l[2]);}
+    }
+    // Once a frame: hide the discs of players who left; the bonus for winning a round with others (once per round).
+    function netTick() {
+      const now = performance.now();
+      for (const [id, o] of others) if (now - o.seen > 1500) {remoteGroup.remove(o.disc, o.pole, o.top);o.disc.material.dispose();o.pole.material.dispose();others.delete(id);}
+      for (const g of courses) {
+        const f = g && g.finished;if (!f || f.won || now > f.until) continue;
+        const card = dgCard({id: NET.you(), name: 'You', slot: -1, dg: f.dg}, NET.peers(), g.holes.map(x => x.par));
+        if (card.length > 1 && dgWinner(card) === NET.you()) {f.won = true;if (reward) reward(100, `You won the disc golf round on ${g.group.name.replace('Disc golf · ', '')} against ${card.length - 1} other${card.length > 2 ? 's' : ''}`);audio.sfx('cheer');}
+      }
+    }
+    // The round you play now, or else a finished card that is still shown to the others.
+    const dgNet = () => {const on = courses.find(g => g && g.active);if (on) return on.dgNet();for (const g of courses) {const d = g && g.dgNet();if (d) return d;}return null;};
+    return {discgolf: courses[0], muselunden: courses[1], petanque: petanque(), remoteGroup, remotePose, netTick, dgNet};
   }
-  return {create, petanqueNext};
+  return {create, petanqueNext, dgEncode, dgDecode, dgJoinable, dgCard, dgAway, dgWinner};
 });
 </script><script>/* Minigolf courses at their real places (issue #114), made by tools/make-minigolf.py. Map data (c) OpenStreetMap contributors (ODbL). */
 (function (root) {const data = {"note":"Real minigolf courses inside the game world (issue #114), from OpenStreetMap (c) OpenStreetMap contributors, ODbL 1.0 (Overpass leisure=miniature_golf, 15 Nov 2026), minigolfparken.no and campingen.no/oslo (prices, hours). Made by tools/make-minigolf.py.","courses":[{"id":"torshov","name":"Torshov minigolfpark","short":"Torshov","osm":"way 72563100","kioskOsm":"way 801539736","address":"Hegermanns gate 25, 0476 Oslo","operator":"Christiania Minigolf Club","website":"http://minigolfparken.no/","kind":"outdoor","surface":"eternit","holes":18,"price":{"adult":90,"child":60},"hours":"Every day 12–21 in the season (last tee-off 20:00)","season":"Summer half-year (April–October)","outline":[[-453.85,255.19],[-454.13,256.18],[-456.71,261.8],[-459.86,268.64],[-417.53,285.71],[-414.81,277.82],[-415.59,273.19],[-418.78,269.92],[-444.11,259.32]],"kiosk":[[-454.13,256.18],[-451.04,257.59],[-453.62,263.22],[-456.71,261.8]],"gate":[-449.577,257.044],"gateDir":[-0.374,0.92743],"rows":[{"x":-450.284,"s":264.145,"dir":[0.374,-0.92743],"step":[3.4779,1.4025],"count":9},{"x":-423.95,"s":276.382,"dir":[-0.374,0.92743],"step":[-3.4779,-1.4025],"count":9}],"lane":[5.6,1.25],"order":["straight","pyramids","angle","waves","plateau","lightning","windmill","hill","loop","bridge","volcano","tube","gates","slope","bowl","bumpers","banks","uphill"],"pars":[2,2,2,2,2,3,2,2,2,3,3,2,2,2,2,3,2,2],"benches":[[-420.25,281.379],[-418.941,278.133],[-456.232,266.329]]},{"id":"grunerlokka","name":"Grünerløkka Minigolfpark","short":"Grünerløkka","osm":"way 44044598","address":"Søndre gate 1, 0550 Oslo","operator":"Christiania Minigolf Club","website":"http://minigolfparken.no/","kind":"outdoor","surface":"eternit","holes":18,"price":{"adult":90,"child":60},"hours":"Every day 12–21 in the season (last tee-off 20:00)","season":"Summer half-year (April–October)","outline":[[-1012.82,1983.81],[-1015.22,1992.42],[-1020.56,1993.73],[-1017.93,1999.14],[-1015.91,2002.44],[-1012.92,2005.41],[-1009.75,2007.82],[-1001.98,2011.4],[-992.89,2014.31],[-972.25,2016.53],[-971.76,1988.79],[-974.2,1987.0],[-977.58,1984.5]],"kiosk":[[-975.86,2001.07],[-979.23,2000.67],[-979.97,2006.84],[-976.6,2007.24]],"kioskOsm":"way 1031362183","gate":[-971.95,1993.7],"gateDir":[-1,0],"rows":[{"x":-1009.2,"s":1992.4,"dir":[0,-1],"step":[4.0,0],"count":9},{"x":-982.6,"s":1995.0,"dir":[0,1],"step":[-4.0,0],"count":9}],"lane":[5.6,1.25],"order":["straight","angle","pyramids","hill","windmill","waves","lightning","loop","plateau","gates","bridge","slope","tube","volcano","bumpers","bowl","banks","uphill"],"pars":[2,2,2,2,2,2,3,2,2,2,3,2,2,3,3,2,2,2],"benches":[[-1000,2008.5],[-992,2010.5],[-984,2011.5]]},{"id":"jordal","name":"Jordal park minigolf","short":"Jordal park","osm":"way 1297710953","address":"Jordal park by Strømsveien, 0657 Oslo","operator":"Oslo kommune (park)","website":"","kind":"outdoor","surface":"concrete","holes":3,"price":{"adult":0,"child":0},"hours":"Always open, free","season":"All year","outline":[[440.31,3106.89],[441.01,3105.44],[441.61,3105.32],[441.32,3103.8],[441.91,3103.59],[442.51,3102.34],[442.82,3102.27],[443.02,3101.82],[443.02,3101.5],[442.25,3099.79],[445.68,3098.29],[445.26,3097.33],[442.54,3098.46],[442.18,3097.62],[442.22,3097.21],[442.16,3096.87],[442.04,3096.67],[441.67,3096.54],[441.13,3096.62],[435.6,3098.66],[437.64,3103.74],[437.71,3104.04],[437.69,3104.41],[437.82,3104.79],[438.02,3105.03],[438.26,3105.09],[438.53,3105.1],[439.66,3105.82],[439.37,3106.36]],"kiosk":null,"gate":null,"rows":[{"x":437.273,"s":3099.761,"dir":[0.91355,-0.40674],"step":[0.6508,1.4617],"count":3}],"lane":[3.4,0.9],"order":["straight","hill","angle"],"pars":[2,2,2],"benches":[]},{"id":"oslo-camping","name":"Oslo Camping","short":"Oslo Camping","osm":"node 4958723297","building":"w183822363","buildingOsm":"way 183822363","district":"mollergata","address":"Møllergata 12, 0179 Oslo","operator":"Campingen (Oslo Camping)","website":"https://www.campingen.no/oslo","kind":"bar","surface":"felt","holes":18,"price":{"adult":155,"student":130,"child":120},"hours":"Mon–Tue 13–22 · Wed–Thu 13–24 · Fri 13–01:30 · Sat 12–01:30 · Sun 12–22","season":"All year (indoor)","ageLimit":"20 years after 19:00 every day","node":[-1635.59,2431.9],"fredshuset":[[-1631.35,2421.32],[-1642.62,2433.9],[-1634.27,2441.88],[-1617.35,2458.39],[-1613.84,2454.61],[-1605.42,2446.15],[-1603.97,2444.7],[-1606.93,2442.03],[-1607.09,2441.69],[-1614.68,2434.68],[-1616.18,2436.24]],"open":[[12,22],[13,22],[13,22],[13,24],[13,24],[13,25.5],[12,25.5]],"notch":{"edge":0,"t0":0.05,"t1":0.95,"depth":19},"upstairs":11,"order":["straight","tent","pyramids","caravan","angle","campfire","waves","canoe","bumpers","loop","hill","slope","tube","gates","bowl","lightning","banks","uphill"],"pars":[2,2,2,3,2,3,2,3,3,2,2,2,2,2,2,3,2,2]}]};if (typeof module === "object" && module.exports) module.exports = data;else root.MINIGOLF = data;})(typeof window === "undefined" ? globalThis : window);
@@ -27030,8 +27162,15 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
   });
 
   // ---------- HUD ----------
+  // The shared disc golf scorecard (issue #148): everyone in your round, throws per hole and the total against par; away = throws next.
+  function discCard(s) {
+    if (!s.card) return '';
+    const rel = v => v === 0 ? 'E' : v > 0 ? `+${v}` : `${v}`, head = s.pars.map((p, i) => `<th>${i + 1}</th>`).join('');
+    const rows = s.card.map(r => `<tr class="${r.me ? 'me' : ''}"><td><i style="background:${r.me ? '#fff' : window.GameAvatars.slotCss(r.slot)}"></i>${esc(r.name)}${r.w === 2 ? ' ✓' : ''}</td>${r.s.map((x, i) => `<td>${x || (i === r.h && r.w === 0 && r.n ? `<em>${r.n}</em>` : '·')}</td>`).join('')}<td><b>${rel(r.rel)}</b></td></tr>`).join('');
+    return `<table class="dgcard"><tr><th></th>${head}<th>±</th></tr>${rows}</table>${s.away ? `<small>${s.away === 'You' ? 'You are' : esc(s.away) + ' is'} away (furthest from the basket) – nobody has to wait.</small>` : ''}`;
+  }
   const hud = {
-    discgolf(s) {const el = $('discHud');if (!s) {el.hidden = true;return;}el.hidden = false;el.innerHTML = `<b>${s.course} · Hull ${s.hole}/${s.holes} · Par ${s.par}</b><span>Throws: ${s.strokes.map((n, i) => `H${i + 1} ${n}`).join(' · ')}</span><span>${s.distance} m to the ${s.walk ? 'tee' : 'basket'}</span><i class="meter"><u style="width:${Math.round(s.charge * 100)}%"></u></i><small>${s.message}</small><small>${s.walk ? 'Walk or run to the tee · □ straight there · ○ quit' : 'Hold R2 / left mouse, release to throw · left stick ←/→ hyzer · ○ quit'}</small>`;},
+    discgolf(s) {const el = $('discHud');el.classList.toggle('wide', !!(s && s.card));if (!s) {el.hidden = true;return;}el.hidden = false;el.innerHTML = `<b>${s.course} · Hull ${s.hole}/${s.holes} · Par ${s.par}</b><span>Throws: ${s.strokes.map((n, i) => `H${i + 1} ${n}`).join(' · ')}</span><span>${s.distance} m to the ${s.walk ? 'tee' : 'basket'}</span><i class="meter"><u style="width:${Math.round(s.charge * 100)}%"></u></i><small>${s.message}</small>${discCard(s)}<small>${s.walk ? 'Walk or run to the tee · □ straight there · ○ quit' : 'Hold R2 / left mouse, release to throw · left stick ←/→ hyzer · ○ quit'}</small>`;},
     petanque(s) {
       const el = $('petanqueHud'), marks = $('markers');if (!s) {el.hidden = true;marks.replaceChildren();return;}el.hidden = false;
       el.innerHTML = `<b>Petanque · You ${s.score.you} – ${s.score.npc} ${s.npcName}</b><span>Mène ${s.mene} · Boules left: you ${s.you}, ${s.npcName} ${s.npc}</span><span>${s.hold ? (s.hold === 'you' ? `You hold the point by ${s.margin.toFixed(2)} m` : `${s.npcName} holds the point by ${s.margin.toFixed(2)} m`) : 'Nobody holds the point'}</span><span>${s.turn === 'you' ? `Your turn: ${s.aim === 'jack' ? 'throw the jack (6–10 m)' : (s.shoot ? 'shoot (L2 held)' : 'point (hold L2 to shoot)')}` : s.turn === 'npc' ? `${s.npcName} is throwing…` : ''}</span><i class="meter"><u style="width:${Math.round(s.charge * 100)}%"></u></i><small>${s.message}</small><small>Hold R2 / left mouse for power, release to throw · ○ quit</small>`;
@@ -27149,9 +27288,12 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
 
   // ---------- Minigames, photo camera, map ----------
   const mini = window.GameMinigames.create({T, lib, audio, heightAt, toWorld, toLocal: world.toLocal, data: D, hud, trees: world.trees, reward: (v, why) => earn(v, why), muselunden: window.MUSELUNDEN,
-    onEvent: (kind, data) => badges.record(kind, data)});
+    onEvent: (kind, data) => badges.record(kind, data),
+    // Disc golf together (issue #148): the others in the lobby who send a round (st.dg), and the lobby clock.
+    net: {peers: () => mp && mp.net.online ? [...mp.remotes.values()].filter(r => r.st && r.st.dg).map(r => ({id: r.id, name: r.name, slot: r.slot, dg: r.st.dg})) : [],
+      now: () => mp && mp.net.online ? mp.net.serverNow() : Date.now(), you: () => mp && mp.net.online ? mp.net.you : 0}});
   const discCourses = [mini.discgolf, mini.muselunden].filter(Boolean);
-  scene.add(...discCourses.map(g => g.group), mini.petanque.group);
+  scene.add(...discCourses.map(g => g.group), mini.petanque.group, mini.remoteGroup);
   const photo = window.GameCamera.create({T, lib, audio, root: view, notice});
   const overlayScene = new T.Scene(), overlayCamera = new T.PerspectiveCamera(55, 1, .01, 5);overlayScene.add(new T.HemisphereLight(0xf1f5ff, 0x4a4540, 2.2));
   const ovSun = new T.DirectionalLight(0xffffff, 1.8);ovSun.position.set(.6, 1, .5);overlayScene.add(ovSun);overlayScene.environment = lib.environment();
@@ -28167,7 +28309,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     ambienceTimer -= dt;if (ambienceTimer <= 0) {ambienceTimer = .25;updateAmbience();if (audio.context) music.attach(audio.context, audio.output);music.play(musicTrack());}
     // Adaptive resolution keeps the frame rate in the 20–30+ fps range on slower PCs.
     if (fpsAvg < 22) {if (++lowFrames > 90 && pixelRatio > .6) {pixelRatio = Math.max(.6, pixelRatio - .1);renderer.setPixelRatio(pixelRatio);resize();lowFrames = 0;}} else lowFrames = 0;
-    updateGuide(dt);
+    updateGuide(dt);mini.netTick();// others' discs that left; the bonus for winning a disc golf round together (issue #148)
     magicFx(dt);
     renderFrame(dt, t);
   }
@@ -28688,6 +28830,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     if (magic.orb) s.mg = 1;// the light orb (issue #65): others see it by your shoulder
     // Minigolf (issue #114): which course and hole, and where your ball is, so others see it on the lane.
     if (player.mode === 'minigame' && player.minigame && player.minigame.net) {const g = player.minigame.net();if (g) s.golf = g;}
+    {const dg = mini.dgNet();if (dg) s.dg = dg;}// disc golf (issue #148): your round, hole, lie, card and latest throw
     // Skydiving: a jump seat in the flown Caravan (a vehicle seat 'j0'..'j11'), in the scheduled flight (ja), or in the air.
     if (player.mode === 'jumpseat' && skyd.ride) {if (skyd.ride.auto) s.ja = skyd.ride.seat;else {s.v = vehicles.indexOf(caravan);s.s = 'j' + skyd.ride.seat;}}
     if (player.mode === 'skydive' && skyd.jumper) {const J = skyd.jumper;s.p = [r(J.pos.x), r(J.pos.y), r(J.pos.z)];s.y = r(J.yaw);s.sky = J.state === 'freefall' ? 'f' : 'c';if (J.pose.pitch || J.pose.roll) s.sk = [r(J.pose.pitch), r(J.pose.roll)];}
@@ -28935,7 +29078,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     // Joining a lobby: alone in a lobby that has nothing stored, what you did offline is sent up; otherwise the lobby's state wins.
     resetObjs: m => {if (!living) return;if (m.players.length <= 1 && !Object.keys(m.objs || {}).length) living.publish();else living.reset();},
     onRemoteWood: r => fire.throwLog({x: r.pos.x, y: r.pos.y + 1.3, z: r.pos.z}), holdsMarker: id => (!!paintball && paintball.rules.memberPlaying(id)) || (!!phRules && phRules.holdsMarker(id)),
-    autoAnchor: seat => autoPlane.hipAnchor('j' + seat), skyPose: (r, st, g) => {skyPose(r, st, g);kayakPose(r, st, g);orbPose(r, st, g);if (transit) transit.pose(r, st, g);golfPose(r, st);if (phRules && phRules.concealed(r.id)) g.visible = false;},
+    autoAnchor: seat => autoPlane.hipAnchor('j' + seat), skyPose: (r, st, g) => {skyPose(r, st, g);kayakPose(r, st, g);orbPose(r, st, g);if (transit) transit.pose(r, st, g);golfPose(r, st);mini.remotePose(r.id, st.dg, window.GameAvatars.slotCss(r.slot), r.pos);if (phRules && phRules.concealed(r.id)) g.visible = false;},
     // In a paintball game you see your team-mates' names, not your opponents' (issue #25).
     showTag: id => !paintball || !paintball.rules.inGame() || !paintball.rules.memberPlaying(id) || paintball.rules.teamOfMember(id) === paintball.rules.myTeam()});
   // Flat 501's living room (issue #116): its record player, TV, lava lamp and chairs are shared through the lobby.

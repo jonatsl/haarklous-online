@@ -11,6 +11,7 @@ Live game: https://haarklous-online.server-smoke.workers.dev · Source: https://
 In pull requests (not merged yet): none.
 
 On `main`:
+- Disc golf together online (issue #148, PR #161; live once merged): players in the same lobby play a round together at Muselunden and in Torshovdalen – □ at a tee joins their round, you see their discs fly and lie in their colour, a shared scorecard shows everyone's throws per hole and the total against par and who is away (throws next, nobody waits); join or leave at any time; 100 kr for winning a round against others; alone it plays as before.
 - Grey Volvo V70s (issue #149, PR #160; live once merged): about 750 of the parked estate cars are now grey, dark grey or silver Volvo V70s (the 2000–2007 model), all over the city like in Oslo, one by Haarklous plass; drive them like the other cars.
 - Cars that crash no longer get stuck in each other (issue #145, PR #159; live once merged): you can always back away or drive off from a car you are in; your car is pushed gently out of another one; a crash still bounces you back with the sound; the same for motorcycles, parked cars and site machines.
 - Jumping (issue #144, PR #157; live once merged): a real jump with gravity – tap ✕ / Space for a small hop, hold it for about 1 m; you keep your speed in the air and steer a little; you land on benches, crates, walls and car roofs (and walk off their edges); fences and railings up to about 1.2 m you jump over; jump at a ledge up to chest height (1.6 m) and you pull yourself up; a landing dip and sounds; other players see you jump.
@@ -77,6 +78,17 @@ Live site: runs `main` (Worker version 3766909d, deployed 23 Nov 2026 after PR #
 
 ## Log
 
+### 2026-11-23 · Disc golf together online (issue #148)
+- **What:**
+  - Players in the same lobby can play disc golf together on both courses (Muselunden's 12 holes and the two holes in Torshovdalen).
+  - At a tee where others are playing, the prompt says "□ Join <name>'s round". Alone, or with nobody on the course, it is the same game as before.
+  - You see the others' throws: their disc (in their jacket colour) flies the same way and lands where they threw it; a small pole marks their lie.
+  - The disc golf card shows a shared scorecard: everyone in the round, their throws per hole and the total against par. The one furthest from the basket on your hole is shown as "away" (throws next), but nobody has to wait.
+  - Someone can join or leave in the middle of a round; the card is built from what each player sends, so it does not depend on the one who started.
+  - Money and badges stay per player; winning a round against at least one other player gives 100 kr.
+- **Why:** the user asked: "Gjør Disc golf mulig til multiplayer."
+- **Where:** `game-minigames.js` (pure `dgEncode` / `dgDecode` / `dgJoinable` / `dgCard` / `dgAway` / `dgWinner`; the shared `flight` step; `remotePose`, `netTick`, `dgNet`), `game-main.js` (the `net` hooks, `st.dg`, the other players' discs, `discCard` in the disc golf card), `style.css`, `index.html` (start and pause screens), `tests/minigames.test.cjs`, `docs/HANDOFF.md`.
+- **Status:** PR #161; live once merged. 335 Node tests pass. Not checked in the browser (the user's instruction: build and deploy, he says if something does not work).
 ### 2026-11-23 · Grey Volvo V70s (issue #149)
 - **What:**
   - A new parked car: the Volvo V70 estate (the 2000–2007 "P2", 4.71 × 1.80 × 1.49 m), in mid grey, dark grey metallic or silver only (three in four grey).
