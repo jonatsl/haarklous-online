@@ -223,6 +223,7 @@
   const RB = world.bridges;if (RB) {walkFloors.unshift(...RB.floors);staticObstacles.push(...RB.obstacles);}
   const walkWorld = collision.createWorld({floors: walkFloors, obstacles: staticObstacles, radius: .18, clearance: .08});
   const vehicleWorlds = new Map();
+  let mp = null;// the lobby (GameMultiplayer, made further down); declared here because updateDynamic() reads it at start-up
   let vehicleBlockers = null, fleet = null;// the other vehicles' footprints from the last updateDynamic(); the parked vehicles (issue #113)
   function worldFor(r) {
     const key = r.toFixed(2);
@@ -578,7 +579,7 @@
   const overlayScene = new T.Scene(), overlayCamera = new T.PerspectiveCamera(55, 1, .01, 5);overlayScene.add(new T.HemisphereLight(0xf1f5ff, 0x4a4540, 2.2));
   const ovSun = new T.DirectionalLight(0xffffff, 1.8);ovSun.position.set(.6, 1, .5);overlayScene.add(ovSun);overlayScene.environment = lib.environment();
   overlayScene.add(photo.model);photo.model.position.set(.08, -.13, -.32);photo.model.rotation.set(.1, -.15, 0);
-  const homeLocal = world.toLocal(2.8, 5), caseLocal = D.vehicles.missionStart;let mp = null;
+  const homeLocal = world.toLocal(2.8, 5), caseLocal = D.vehicles.missionStart;
   // The Ensjø -> Rathkes gate run (issue #38): any way you like; best time kept in this browser.
   const routeData = DISTRICTS.map(d => d.route).find(Boolean);
   const route = routeData && window.GameRoute ? window.GameRoute.create({T, lib, route: routeData, toWorld, heightAt, root: view, sound: n => audio.sfx(n),
