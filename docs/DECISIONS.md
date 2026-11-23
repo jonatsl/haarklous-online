@@ -9,7 +9,7 @@ Live game: https://haarklous-online.server-smoke.workers.dev · Source: https://
 ## Features (what the game has now)
 
 In pull requests (not merged yet):
-- Smooth rides with other players (issue #135, PR pending): as a passenger (car, motorcycle back seat, aircraft) the ride and the view are smooth, and other players' vehicles move smoothly when you watch them, also when an update is lost on the way.
+- Smooth rides with other players (issue #135, PR #136): as a passenger (car, motorcycle back seat, aircraft) the ride and the view are smooth, and other players' vehicles move smoothly when you watch them, also when an update is lost on the way.
 
 On `main`:
 - Camera zoom on its own controls, and binoculars (issue #133, PR #134, live since 21 Nov 2026): with the camera raised, zoom with D-pad ↑↓, the mouse wheel or + −, while the right stick / mouse only looks and you walk; binoculars in the △ gear menu, raised with L2 / right mouse to the classic two-circle view, zoom 4–12×.
@@ -79,8 +79,8 @@ Live site: runs `main` (Worker version 5400ee4c, deployed 21 Nov 2026 after PR #
   The Worker relays every update at once (no batching), so the server was not a cause and is not changed.
 - **How it works now:** the driver adds its own clock time (one number) to each vehicle update it sends, still about 12 a second, so the traffic is about the same. The receiver keeps the last few updates for each vehicle and shows the car a short moment in the past, in between the two updates around that moment (position, heading, pitch, roll; aircraft turn smoothly by quaternion). That moment runs at the game's own frame time and is only gently nudged, so uneven arrivals do not show. The car is moved by this one place only, once a frame, before the passenger's camera, the seat avatars and the car's collision shape read it. A game from before this change (no time in its updates) still works: arrival times stand in.
 - **Where:** `game-netsmooth.js` (new, pure: the update buffer and its maths), `game-multiplayer.js` (time on each sent update, one buffer per remote-driven vehicle, the old smoothing removed), `game-main.js` (`passengerView` places the first-person eye after `mp.update`; the remote vehicles' collision shapes are refreshed after `mp.update`), `index.html` (the new script), `tests/netsmooth.test.cjs` (new).
-- **Checked:** `node --test`: see the PR. The new tests drive a car at 72 km/h with up to 60 ms of jitter and check that it moves the same distance every frame, is never more than about a quarter of a second behind, takes the short way round through ±180°, follows a turn, keeps going over one or two lost updates and glides back after a long gap, slerps an aircraft, snaps a respawn, and works without time stamps. Not checked in the browser or online with two players (the user asked to skip browser tests for this run).
-- **Status:** branch `fix/passenger-smooth`, PR pending.
+- **Checked:** `node --test` (302 pass). The new tests drive a car at 72 km/h with up to 60 ms of jitter and check that it moves the same distance every frame, is never more than about a quarter of a second behind, takes the short way round through ±180°, follows a turn, keeps going over one or two lost updates and glides back after a long gap, slerps an aircraft, snaps a respawn, and works without time stamps. Not checked in the browser or online with two players (the user asked to skip browser tests for this run).
+- **Status:** branch `fix/passenger-smooth`, PR #136 (https://github.com/jonatsl/haarklous-online/pull/136), not merged yet.
 
 ### 2026-11-21 · Camera zoom on its own controls, and binoculars (issue #133)
 - **What:**
