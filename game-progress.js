@@ -75,8 +75,10 @@
     'haarklous-route-v1': (a, b, mode) => {const x = obj(a), y = obj(b);return JSON.stringify({...y, ...x, best: better(x.best, y.best, true), runs: mode === 'move' ? num(x.runs) + num(y.runs) : Math.max(num(x.runs), num(y.runs))});},
     'haarklous-klatreverket-v1': (a, b) => {
       const x = obj(a), y = obj(b);
-      return JSON.stringify({...y, ...x, ticks: {...(y.ticks || {}), ...(x.ticks || {})}, tries: maxEach(x.tries || {}, y.tries || {}),
-        bestHang: Math.max(num(x.bestHang), num(y.bestHang)), brattkort: x.brattkort || y.brattkort || undefined});
+      // One gym's state (Klatreverket Torshov at the top level, the other gyms under gyms[id], issue #168).
+      const one = (p, q) => ({...q, ...p, ticks: {...(q.ticks || {}), ...(p.ticks || {})}, tries: maxEach(p.tries || {}, q.tries || {}), bestHang: Math.max(num(p.bestHang), num(q.bestHang))});
+      const gyms = {};for (const id of new Set([...Object.keys(plain(x.gyms)), ...Object.keys(plain(y.gyms))])) gyms[id] = one(plain(plain(x.gyms)[id]), plain(plain(y.gyms)[id]));
+      return JSON.stringify({...one(x, y), brattkort: x.brattkort || y.brattkort || undefined, ...(Object.keys(gyms).length ? {gyms} : {})});
     },
     // Licences (issue #59): a licence or a passed theory part is never lost (the earlier date stays); the most failed tries (a failed part is free to retake).
     'haarklous-licences-v1': (a, b) => {

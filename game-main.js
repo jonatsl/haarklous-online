@@ -55,6 +55,8 @@
   if (window.GameLibrary) window.GameLibrary.prepare(DISTRICTS);if (window.GameRathkes) window.GameRathkes.prepare(DISTRICTS, window.District && window.District.height);if (window.GameKayak && window.AKERSELVA) window.GameKayak.prepare(DISTRICTS, D);
   // Klatreverket (issue #40) builds its own building at Myrens verksted, and the patch's ground under its hall goes just below the floor.
   if (window.GameClimbing && window.KLATREVERKET) window.GameClimbing.prepare(DISTRICTS, window.KLATREVERKET, D.ground, window.District && window.District.flatten);
+  // The other climbing gyms inside the map (issue #168: Klatreverket Løkka and Løren, Vulkan, Brak) are rooms cut into their real buildings.
+  const GYM_PREP = window.GameClimbing && window.CLIMBING_GYMS && window.District ? window.GameClimbing.prepareHalls(DISTRICTS, window.CLIMBING_GYMS, window.District) : [];
   // Construction City (issue #85) draws its own building, its inside and the garage under it; the patches lose their block and ground there.
   const CC_DATA = window.GameConstructionCity && window.CONSTRUCTION_CITY && DISTRICTS.length ? window.CONSTRUCTION_CITY : null;
   if (CC_DATA) window.GameConstructionCity.prepare(DISTRICTS, CC_DATA);
@@ -133,7 +135,12 @@
   })();scene.add(stash.group);
   const shops = window.GameShops.create({T, lib, world, audio});scene.add(shops.group);
   // Klatreverket Torshov (issue #40): the climbing centre in its real building at Myrens verksted 3K, about 980 m west-south-west.
-  const gym = window.GameClimbing.create({T, lib, data: window.KLATREVERKET, toWorld: world.toWorld, heightAt: world.heightWorld, avatars: window.GameAvatars.create({T, lib}), audio});scene.add(gym.group, gym.extras);
+  const gymAvatars = window.GameAvatars.create({T, lib});
+  const gyms = [window.GameClimbing.create({T, lib, data: window.KLATREVERKET, toWorld: world.toWorld, heightAt: world.heightWorld, avatars: gymAvatars, audio}),
+    ...GYM_PREP.map(prep => window.GameClimbing.createHall({T, lib, world, prep, avatars: gymAvatars, audio}))];
+  for (const g of gyms) scene.add(g.group, g.extras);
+  // Issue #168: `gym` is the climbing gym you are in or nearest to; it stays the same while you climb, hang, belay or use its menu.
+  let gym = gyms[0];
   // HODET N.N., Marianne Heske's 7 m bronze doll's head at the north end of Torshovdalen (OSM node 2965223021, real place
   // local (9.1, 275.5)), facing south, with its stone steps on the east side.
   const SCULPTURE_AT = {x: 9.1, s: 275.5};
@@ -178,7 +185,7 @@
   function terrainAt(x, z) {
     if (siteField) {const y = siteField.surface(x, z);if (y !== null) return y;}
     if (pbRules) {const y = pbRules.ground(x, z);if (y !== null) return y;}
-    {const y = gym.ground(x, z);if (y !== null) return y;}// the climbing hall's floor (the terrain model rises through the building)
+    for (const g of gyms) {const y = g.ground(x, z);if (y !== null) return y;}// the climbing halls' floors (the terrain model rises through the buildings)
     return world.heightWorld(x, z);
   }
   // Inside a catacomb mausoleum the ground is not walked on: its door threshold, landing and stair take over (far below = no floor).
@@ -217,8 +224,8 @@
     headingToYaw: h => {const dx = Math.sin(h), ds = Math.cos(h), wx = dx * Math.cos(theta) + ds * Math.sin(theta), wz = -dx * Math.sin(theta) + ds * Math.cos(theta);return Math.atan2(-wx, -wz);}};
   const phRules = window.GameProphunt && window.PROPHUNT ? new window.GameProphunt.Rules(window.PROPHUNT, phCtx) : null;let prophunt = null;
   const extraObstacles = [...(phRules ? window.GameProphunt.obstacles(phRules, world.heightWorld) : []), ...(siteField ? window.GameSite.fenceObstacles(siteField, groundAt) : []), ...(pbRules ? pbRules.obstacles : []), ...(catacomb ? catacomb.obstacles : []), ...(rides ? rides.obstacles : []), ...signObstacles, ...(storgata ? storgata.obstacles : [])];
-  const staticObstacles = [...apt.obstacles, ...towers.flatMap(towerObstacles), ...worldSolids(), ...(homes ? homes.obstacles : []), ...fire.obstacles, ...stash.obstacles, ...shops.obstacles, ...sculpture.obstacles, ...oksen.obstacles, ...gym.obstacles, ...extraObstacles, ...landmarks.obstacles];
-  const walkFloors = [...apt.floors, ...towers.flatMap(towerFloors), ...(homes ? homes.floors : []), ...shops.floors, ...sculpture.floors, ...oksen.floors, ...landmarks.floors, ...gym.floors, ...(catacomb ? catacomb.floors : []), ...walkGroundFloors];
+  const staticObstacles = [...apt.obstacles, ...towers.flatMap(towerObstacles), ...worldSolids(), ...(homes ? homes.obstacles : []), ...fire.obstacles, ...stash.obstacles, ...shops.obstacles, ...sculpture.obstacles, ...oksen.obstacles, ...gyms.flatMap(g => g.obstacles), ...extraObstacles, ...landmarks.obstacles];
+  const walkFloors = [...apt.floors, ...towers.flatMap(towerFloors), ...(homes ? homes.floors : []), ...shops.floors, ...sculpture.floors, ...oksen.floors, ...landmarks.floors, ...gyms.flatMap(g => g.floors), ...(catacomb ? catacomb.floors : []), ...walkGroundFloors];
   staticObstacles.push(...grl.flatMap(m => m.obstacles || []));walkFloors.unshift(...grl.flatMap(m => m.floors || []), ...(kayak ? kayak.bridges.map(b => b.floor) : []));
   // Road bridges (issue #139): each deck is a floor of its own over the ground (you walk on it and under it); its parapets, its
   // underside and its piers are solids, for vehicles too.
@@ -230,7 +237,7 @@
   function worldFor(r) {
     const key = r.toFixed(2);
     if (!vehicleWorlds.has(key)) {
-      const w = collision.createWorld({floors: [...(cc ? cc.vehicleFloors : []), ...(RB ? RB.floors : []), ...groundFloors], obstacles: [...(RB ? RB.obstacles : []), ...grl.flatMap(m => m.obstacles || []), ...landmarks.obstacles, ...landmarks.vehicleObstacles, ...world.obstacles(), ...towers.flatMap(towerObstacles), ...fire.obstacles, ...shops.obstacles, ...sculpture.obstacles, ...oksen.obstacles, ...gym.obstacles, ...extraObstacles, ...(catacomb ? catacomb.vehicleObstacles : [])], radius: r, clearance: .08});
+      const w = collision.createWorld({floors: [...(cc ? cc.vehicleFloors : []), ...(RB ? RB.floors : []), ...groundFloors], obstacles: [...(RB ? RB.obstacles : []), ...grl.flatMap(m => m.obstacles || []), ...landmarks.obstacles, ...landmarks.vehicleObstacles, ...world.obstacles(), ...towers.flatMap(towerObstacles), ...fire.obstacles, ...shops.obstacles, ...sculpture.obstacles, ...oksen.obstacles, ...gyms.flatMap(g => g.obstacles), ...extraObstacles, ...(catacomb ? catacomb.vehicleObstacles : [])], radius: r, clearance: .08});
       // A world made during play (e.g. the bike's on its first ride) gets the other vehicles at once, not one update later.
       if (vehicleBlockers) collision.setDynamic(w, vehicleBlockers);
       if (fleet) fleet.applyLayer([w]);
@@ -242,7 +249,7 @@
   const shootTargets = [];[apt.group, ownStair.group].forEach(g => g.traverse(o => {if (o.isMesh && !(o.material.transparent) && o.visible) shootTargets.push(o);}));
   const interactables = [];[apt.group, ...towers.map(t => t.stair.group)].forEach(g => g.traverse(o => {if (o.isMesh && (o.userData.doorId || o.userData.lockedDoor)) interactables.push(o);}));
   apt.drinks.forEach(d => d.object.traverse(o => {if (o.isMesh) {o.userData.drink = d;interactables.push(o);}}));
-  interactables.push(...stash.hitboxes, ...shops.hitboxes, ...gym.hitboxes, ...(storgata ? storgata.hitboxes : []));
+  interactables.push(...stash.hitboxes, ...shops.hitboxes, ...gyms.flatMap(g => g.hitboxes), ...(storgata ? storgata.hitboxes : []));
   interactables.push(...grl.flatMap(m => m.hitboxes || []), ...(homes ? homes.hitboxes : []));
 
   // ---------- Vehicles ----------
@@ -619,7 +626,7 @@
     {x: SCULPTURE_AT.x, s: SCULPTURE_AT.s, color: '#7a5c3e', label: 'HODET N.N.', glyph: '◉'},
     ...(cc ? [{...world.toLocal(cc.mapPoint.x, cc.mapPoint.z), color: '#8a6844', label: 'Construction City (garage under it)', glyph: '🏢'}] : []),
     {x: OKSEN_AT.x, s: OKSEN_AT.s, color: '#3a4436', label: 'Torshovoksen', glyph: '◉'},
-    {x: gym.local.x, s: gym.local.s, color: '#c4161c', label: 'Klatreverket Torshov', glyph: '🧗'},
+    ...gyms.map(g => ({x: g.local.x, s: g.local.s, color: '#c4161c', label: g.name, glyph: '🧗'})),
     {...world.toLocal(AIR.jump.x, AIR.jump.z), color: '#c8322c', label: 'Skydiving (jump plane)', glyph: '🪂'},
     ...landmarks.poi, ...(route ? route.poi() : []),
     ...grl.flatMap(m => m.poi ? m.poi() : []),
@@ -1112,11 +1119,15 @@
   }
   // ---------- Klatreverket Torshov (issue #40): the reception, the routes, climbing ----------
   const GC = window.GameClimbing;let gymMenu = null, gripPrev = {L: false, R: false}, climbMsgT = 0;
+  function pickGym() {
+    if (player.mode === 'climb' || player.mode === 'hang' || player.mode === 'belay' || gymMenu) return;
+    let best = gym, bd = Infinity;for (const g of gyms) {const d = g.distTo(player.x, player.z);if (d < bd) {bd = d;best = g;}}gym = best;
+  }
   function gymPrompt() {
     if (!gym.zoneAt(player, player.feet)) return null;
     const o = lookTarget(), u = (o && o.userData) || {};
     if (u.gymDesk) return {text: '□ Reception: day ticket (shoes, harness and chalk included)', act: () => openGymMenu()};
-    if (u.gymPartner) {const v = gym.visit();return gym.state.brattkort && v.paid && v.harness && player.mode === 'foot' ? {text: '□ Belay Siri – she climbs a top-rope route in Galleriet (you have a brattkort)', act: () => startBelay(false)} : {text: '□ Talk to Siri (your climbing partner)', act: () => siriTalk()};}
+    if (u.gymPartner) {const v = gym.visit();return gym.state.brattkort && v.paid && v.harness && player.mode === 'foot' ? {text: `□ Belay Siri – she climbs a top-rope route in ${gym.belayZone} (you have a brattkort)`, act: () => startBelay(false)} : {text: '□ Talk to Siri (your climbing partner)', act: () => siriTalk()};}
     if (u.gymHang) return {text: '□ Hang on the hangboard (hold L2 + R2)', act: () => startHang()};
     if (u.gymMoon) {const n = gym.moonRoutes.length, next = gym.moonSel + 1 >= n ? -1 : gym.moonSel + 1;return {text: next < 0 ? '□ Moonwall: switch the LEDs off' : `□ Moonwall: light up ${gym.moonRoutes[next].name}`, act: () => {const r = gym.lightMoon(next);audio.sfx('beep');notice(r ? `${r.name}: start on the green hold, blue are the hands, finish on the red one.` : 'Moonwall LEDs off.', 4);}};}
     const dir = camera.getWorldDirection(new T.Vector3()), h = gym.aimAt(camera.position, dir, false);
@@ -1126,7 +1137,7 @@
   }
   function routePrompt(r) {
     const v = gym.visit(), label = `${r.name} (${GC.STYLE[r.kind]})`, tell = t => ({text: `${label} – ${t}`, act: () => {notice(t[0].toUpperCase() + t.slice(1) + '.', 3);}});
-    if (!v.paid) return tell(`pay entry at the reception first (${GC.priceAt(new Date())} kr)`);
+    if (!v.paid) return tell(`pay entry at the reception first (${gym.priceAt(new Date())} kr)`);
     const verb = r.kind === 'auto' ? 'Clip into the autobelay' : r.kind === 'lead' ? 'Lead' : r.kind === 'rope' ? 'Tie in and climb' : 'Climb', tick = gym.state.ticks[r.id];
     return {text: `□ ${verb}: ${label}${r.kind === 'rope' ? ', Siri belays' : r.kind === 'lead' ? ', Siri belays – clip every bolt' : ''}${tick ? ` · ✓ ${tick}` : ''}`, act: () => startClimb(r)};
   }
@@ -1176,7 +1187,7 @@
   // The hangboard: hold L2 + R2 on the 20 mm edge for as long as you can (your best time is saved).
   let hangT = 0, hangPump = 0;
   function startHang() {
-    if (!gym.visit().paid) {notice(`Pay entry at the reception first (${GC.priceAt(new Date())} kr).`, 3);return;}
+    if (!gym.visit().paid) {notice(`Pay entry at the reception first (${gym.priceAt(new Date())} kr).`, 3);return;}
     watch.hide();if (photo.active) photo.toggle();player.mode = 'hang';hangT = 0;hangPump = 0;player.pitch = .5;
     notice('Hangboard, 20 mm edge: hold L2 + R2 (both mouse buttons) to hang – let go to drop off. Seven seconds on, three off is a classic set.', 6);
   }
@@ -1192,7 +1203,7 @@
   // Belaying Siri (the brattkort test, or for fun once you have a brattkort).
   let belay = null;
   function startBelay(test) {
-    const route = gym.routes.filter(r => r.zone === 'Galleriet' && r.toprope)[test ? 1 : Math.floor(Math.random() * 6)];
+    const list = gym.belayRoutes, route = list[test ? Math.min(1, list.length - 1) : Math.floor(Math.random() * Math.min(6, list.length))];if (!route) return;
     const b = gym.startBelay(route), spot = gym.belaySpot(route);belay = {b, route, test};
     place(spot.x, spot.z, spot.yaw, gym.floorY);player.mode = 'belay';player.pitch = .55;watch.hide();if (photo.active) photo.toggle();
     notice(`${test ? 'Brattkort test: ' : ''}You belay Siri on ${route.name} · R2 / left mouse takes in the rope as she climbs (keep the slack in the green) · L2 / right mouse is your brake hand – hold it the moment she falls · at the top hold ✕ / Space to lower her · ○ stop`, 10);
@@ -1218,33 +1229,32 @@
   }
   function siriTalk() {
     const v = gym.visit(), sends = Object.keys(gym.state.ticks).length;
-    const lines = !v.paid ? ['Hei! Betal i resepsjonen, så klatrer vi. (Pay at the reception and we can climb.)'] :
-      ['Jeg har brattkort – velg en rute med topptau i Galleriet, så sikrer jeg. (Pick a top-rope route.)', 'Lede på Konkurranseveggen? Husk å klippe alle boltene!', `Du har klatret ${sends} ruter her. Prøv Hula eller Discorommet for buldring.`, 'Moonwall er i fjerde etasje, innerst og øverst.'];
+    const lines = !v.paid ? ['Hei! Betal i resepsjonen, så klatrer vi. (Pay at the reception and we can climb.)'] : gym.siriLines(sends);
     gym.siri.say(lines[Math.floor(performance.now() / 4000) % lines.length]);
   }
   // The reception menu: what you can buy or get, with the real prices for this time of day.
   function gymItems() {
-    const v = gym.visit(), now = new Date(), price = GC.priceAt(now), staffed = GC.staffedAt(now), P = GC.PRICES;
+    const v = gym.visit(), now = new Date(), price = gym.priceAt(now), staffed = gym.staffedAt(now);
     const pay = (kr, what, after) => () => {if (!wallet.pay(kr)) {notice(`Not enough money: ${KR(kr)} needed, you have ${KR(wallet.money)}.`, 3);return;}audio.sfx('register');walletT = 5;after();gym.save();notice(what, 4);};
     const items = [
       // Issue #91: the day ticket is the only payment; shoes, harness, chalk and the autobelay introduction come with it.
-      {label: v.paid ? '✓ Day ticket – paid today' : `Day ticket, adult – ${price} kr`, note: `${price === P.entryDay ? 'before 16 on weekdays' : 'after 16 and at weekends'} · shoes, harness, chalk and the autobelays included`, done: v.paid,
-        act: pay(price, gym.state.legal ? 'Day ticket paid – shoes, harness and chalk bag are yours for today. God klatring!' : 'Day ticket paid – first visit: you sign the legal notice (egenerklæring). Shoes, harness and chalk bag are yours for today. God klatring!', () => {GC.payEntry(v);})},
-      {label: gym.state.brattkort ? `✓ Brattkort (top rope) – passed ${gym.state.brattkort}` : 'Brattkort test (top rope) – free', note: gym.state.brattkort ? 'you may belay Siri: □ when you look at her' : staffed ? 'three questions, then you belay Siri on a top-rope route while the staff watches' : 'only when the climbing staff is on duty: after 17 on weekdays, after 11 at weekends', done: !!gym.state.brattkort,
+      {label: v.paid ? '✓ Day ticket – paid today' : `Day ticket, adult – ${price} kr`, note: `${gym.priceNote(now)} · ${gym.ticketNote}`, done: v.paid,
+        act: pay(price, gym.state.legal ? `Day ticket for ${gym.name} paid – shoes${gym.harness ? ', harness' : ''} and chalk bag are yours for today. God klatring!` : `Day ticket for ${gym.name} paid – first visit: you sign the legal notice (egenerklæring). Shoes${gym.harness ? ', harness' : ''} and chalk bag are yours for today. God klatring!`, () => {GC.payEntry(v);})},
+      gym.hasRopes && {label: gym.state.brattkort ? `✓ Brattkort (top rope) – passed ${gym.state.brattkort}` : 'Brattkort test (top rope) – free', note: gym.state.brattkort ? 'you may belay Siri: □ when you look at her' : staffed ? 'three questions, then you belay Siri on a top-rope route while the staff watches' : gym.staffNote, done: !!gym.state.brattkort,
         act: () => {
-          if (!staffed) {notice('The brattkort test can be taken when the climbing staff is on duty: after 17 on weekdays, after 11 at weekends.', 4);return;}
+          if (!staffed) {notice(`The brattkort test can be taken ${gym.staffNote.replace(/^only /, '')}.`, 4);return;}
           if (!v.paid) {notice('Pay entry first – the test is done on the rope.', 4);return;}
           gymMenu = {quiz: 0, sel: 0, wrong: 0};gym.staff && gym.staff.say('Først noen spørsmål, så sikrer du Siri.');}},
       {label: 'Your climbing log', note: `${Object.keys(gym.state.ticks).length} routes and problems sent · hangboard best ${(gym.state.bestHang || 0).toFixed(1)} s`, act: () => {const t = Object.entries(gym.state.ticks).slice(-6).map(([id, how]) => `${gym.routes[id].name} (${how})`).join(', ');notice(t ? `Latest: ${t}` : 'Nothing sent yet.', 6);}}
-    ];
+    ].filter(Boolean);
     return items;
   }
-  function openGymMenu() {gymMenu = {sel: 0, stick: false};watch.hide();if (gym.staff) gym.staff.say(gym.visit().paid ? 'Hei igjen! Trenger du noe mer?' : 'Hei! Velkommen til Klatreverket.');renderGymMenu();}
+  function openGymMenu() {gymMenu = {sel: 0, stick: false};watch.hide();if (gym.staff) gym.staff.say(gym.visit().paid ? 'Hei igjen! Trenger du noe mer?' : gym.welcome);renderGymMenu();}
   function renderGymMenu() {
     const el = $('gymMenu');el.hidden = !gymMenu;if (!gymMenu) return;
     if (gymMenu.quiz != null) {const q = GC.QUIZ[gymMenu.quiz];el.innerHTML = `<b>Brattkort test · question ${gymMenu.quiz + 1} of ${GC.QUIZ.length}</b><small>${q.q}</small>` + q.a.map((a, i) => `<div class="${i === gymMenu.sel ? 'sel' : ''}">${a}</div>`).join('') + '<small>↑↓ choose · ✕ / Space answer</small>';return;}
     const items = gymItems();gymMenu.sel = Math.max(0, Math.min(gymMenu.sel, items.length - 1));
-    el.innerHTML = `<b>Klatreverket Torshov · ${KR(wallet.money)}</b><small>Open ${GC.HOURS}</small>` + items.map((e, i) => `<div class="${i === gymMenu.sel ? 'sel' : ''}${e.done ? ' done' : ''}">${e.label}<small>${e.note}</small></div>`).join('') + '<small>↑↓ choose · ✕ / Space take it · ○ / C close</small>';
+    el.innerHTML = `<b>${gym.name} · ${KR(wallet.money)}</b><small>Open ${gym.HOURS}</small>` + items.map((e, i) => `<div class="${i === gymMenu.sel ? 'sel' : ''}${e.done ? ' done' : ''}">${e.label}<small>${e.note}</small></div>`).join('') + '<small>↑↓ choose · ✕ / Space take it · ○ / C close</small>';
   }
   // ---------- Construction City's lifts (issue #85): □ in a cabin, ↑↓ a floor, ✕ / □ go ----------
   let liftMenu = null;
@@ -1287,7 +1297,7 @@
     if (input.pressed.has('down') || (y > .5 && !gymMenu.stick)) gymMenu.sel = Math.min(items.length - 1, gymMenu.sel + 1);
     gymMenu.stick = Math.abs(y) > .5;
     if (input.pressed.has('cross') && items[gymMenu.sel] && !items[gymMenu.sel].done) items[gymMenu.sel].act();
-    if (input.pressed.has('circle') || input.pressed.has('square') || Math.hypot(player.x - gym.W(4, 5).x, player.z - gym.W(4, 5).z) > 4) gymMenu = null;
+    if (input.pressed.has('circle') || input.pressed.has('square') || Math.hypot(player.x - gym.deskPoint.x, player.z - gym.deskPoint.z) > 4) gymMenu = null;
     renderGymMenu();input.move.x = input.move.y = 0;['cross', 'circle', 'up', 'down', 'square', 'triangle'].forEach(b => input.pressed.delete(b));
   }
   function firePrompt() {
@@ -1544,7 +1554,7 @@
     // Drunk effect: decays in real time.
     drunk = Math.max(0, drunk - dt);const dl = drunkLevel();
     if (boost && (boost.t -= dt) <= 0) {boost = null;audio.muffle(false);notice('The boost wears off.', 2);}
-    const wdt = dt * worldScale();stash.update(dt);shopsTick(dt);storgataTick(dt);gym.update(dt, player, camera);grunerTick(dt);homesTick(dt);if (route) route.tick(player, dt);world.update(camera.position);
+    const wdt = dt * worldScale();stash.update(dt);shopsTick(dt);storgataTick(dt);pickGym();for (const g of gyms) g.update(dt, player, camera);grunerTick(dt);homesTick(dt);if (route) route.tick(player, dt);world.update(camera.position);
     // The jump planes move first, so a jumper's seat (and camera) is where the plane is this frame.
     updateJumpFlight(dt);updateGamePilot(dt);updateDoors(dt);
     licExaminer(input);
@@ -1608,7 +1618,7 @@
     const alt = player.mode === 'drone' || player.mode === 'skydive' || player.vehicle?.aircraft ? camera.position.y - groundAt(at.x, at.z) : 0;
     if (map.guide({dt, camera, x: at.x, z: at.z, you: player, heading, view, alt, others: lobbyArrows(), ground: groundAt, show: !photo.active}) === 'reached') notice('Waypoint reached.', 2.5);
   }
-  function placeName() {if (inApartment()) return 'Haarklous plass 17A, 4th floor';{const g = mgl && mgl.placeName(player.x, player.z, player.feet);if (g) return g;}{const at = homes && homes.inside(player.x, player.z, player.feet);if (at) return `${GH.address(at.home)}${homeReg.mine === at.home.id ? ' – your flat' : ''}`;}{const r = rathkes && rathkes.placeName(player.x, player.z, player.feet);if (r) return r;}{const c = cc && cc.placeName(player.x, player.z, player.feet);if (c) return c;}{const c = catacomb && catacomb.placeName(player);if (c) return c;}{const z = gym.zoneAt(player, player.feet);if (z) return `Klatreverket Torshov, ${gym.ZONE_NAME[z]}`;}const tw = towerAt(player.x, player.z, player.feet);if (tw) return tw.t.own ? 'Stairwell, Haarklous plass 17A' : 'Stairwell, Torshov';
+  function placeName() {if (inApartment()) return 'Haarklous plass 17A, 4th floor';{const g = mgl && mgl.placeName(player.x, player.z, player.feet);if (g) return g;}{const at = homes && homes.inside(player.x, player.z, player.feet);if (at) return `${GH.address(at.home)}${homeReg.mine === at.home.id ? ' – your flat' : ''}`;}{const r = rathkes && rathkes.placeName(player.x, player.z, player.feet);if (r) return r;}{const c = cc && cc.placeName(player.x, player.z, player.feet);if (c) return c;}{const c = catacomb && catacomb.placeName(player);if (c) return c;}{const z = gym.zoneAt(player, player.feet);if (z) return `${gym.name}, ${gym.ZONE_NAME[z]}`;}const tw = towerAt(player.x, player.z, player.feet);if (tw) return tw.t.own ? 'Stairwell, Haarklous plass 17A' : 'Stairwell, Torshov';
     if (storgata && Math.hypot(player.x - storgata.people.kjell.at.x, player.z - storgata.people.kjell.at.z) < 60) return 'Kiwi Storgata 33, Oslo';
     // In a district patch: the nearest mapped neighbourhood (Ensjø, Kampen, Vålerenga, Gamlebyen …).
     const l = world.toLocal(player.x, player.z);if (Math.abs(l.x) > world.playHalf || Math.abs(l.s) > world.playHalf) {const near = DISTRICTS.flatMap(d => d.places).sort((a, b) => Math.hypot(a.x - l.x, a.s - l.s) - Math.hypot(b.x - l.x, b.s - l.s))[0];if (near) return `${near.name}, Oslo`;}
@@ -2765,7 +2775,7 @@
     }
     badges.check();
   }
-  window.haarklousGame = {player, vehicles, cc, transit, get prophunt() {return prophunt;}, get liftMenu() {return liftMenu;}, site, paintball, catacomb, groundAt, heli, helis, plane, drone, watch, fire, stash, shops, gym, startClimb, openGymMenu, startBelay, get belay() {return belay;}, sculpture, oksen, weather, caravan, get skyd() {return skyd;}, get autoPlane() {return autoPlane;}, get jumpFlight() {return jumpFlight;}, boardAuto, boardCaravan, jump, get gp() {return gp;}, callGamePilot, handOver, CARAVAN_HOLD, applyWeather, wallet, get basket() {return basket;}, payAt, takeProduct, useItem, earn, openBag, takeBoost, get boost() {return boost;}, set boost(b) {boost = b;}, get mp() {return mp;}, sitDown, standUp, tryDrive, tryRide, openChat, startDrone, stopDrone, floorBelow, doors, mini, music, photo, map, world, apt, towers, walkWorld, route, landmarks, districts: DISTRICTS, get caseGame() {return caseGame;}, place, toggleDoor, enterVehicle, exitVehicle, startMinigame, startMission, drink, interact, findPrompt, renderFrame, begin, get fps() {return fpsAvg;}, kick: () => requestAnimationFrame(frame), get drunk() {return drunk;}, set drunk(v) {drunk = v;}, lic, licBegin, licEnd, get licTest() {return licTest;}, setStance, camera, scene};
+  window.haarklousGame = {player, vehicles, cc, transit, get prophunt() {return prophunt;}, get liftMenu() {return liftMenu;}, site, paintball, catacomb, groundAt, heli, helis, plane, drone, watch, fire, stash, shops, get gym() {return gym;}, gyms, startClimb, openGymMenu, startBelay, get belay() {return belay;}, sculpture, oksen, weather, caravan, get skyd() {return skyd;}, get autoPlane() {return autoPlane;}, get jumpFlight() {return jumpFlight;}, boardAuto, boardCaravan, jump, get gp() {return gp;}, callGamePilot, handOver, CARAVAN_HOLD, applyWeather, wallet, get basket() {return basket;}, payAt, takeProduct, useItem, earn, openBag, takeBoost, get boost() {return boost;}, set boost(b) {boost = b;}, get mp() {return mp;}, sitDown, standUp, tryDrive, tryRide, openChat, startDrone, stopDrone, floorBelow, doors, mini, music, photo, map, world, apt, towers, walkWorld, route, landmarks, districts: DISTRICTS, get caseGame() {return caseGame;}, place, toggleDoor, enterVehicle, exitVehicle, startMinigame, startMission, drink, interact, findPrompt, renderFrame, begin, get fps() {return fpsAvg;}, kick: () => requestAnimationFrame(frame), get drunk() {return drunk;}, set drunk(v) {drunk = v;}, lic, licBegin, licEnd, get licTest() {return licTest;}, setStance, camera, scene};
   Object.assign(window.haarklousGame, {library, pingpong, rathkes, living, kayak, startKayak, hushedFor: () => hushed});
   Object.assign(window.haarklousGame, {badges, huntSpots, huntPhoto, sightBlocked, SKY_TARGET, progress, account});
   Object.assign(window.haarklousGame, {rides, get rentals() {return rentals;}, jobs, openPhone, rentDrive, JOB_SIGNS});
