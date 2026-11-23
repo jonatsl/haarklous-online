@@ -25,6 +25,8 @@
  * GameSkydive.canopy(T, color) -> Group (a ram-air canopy with lines; origin at the jumper's harness)
  * The game's pilot in the Caravan (pure): pilotGround({t0, from, hold, ground, gearH}) or pilotOrbit({t0, pos, yaw, pitch,
  *   roll, speed, vy, toward, ground}) -> G; pilotFlight(t, G) -> {phase, x, y, z, yaw, pitch, roll, speed, green, left}
+ * The jump door (issue #165, pure): riderAction(btn, {atDoor, doorOpen, inAir, stopped}), tooLow(agl), doorEncode /
+ *   doorDecode / doorOpenNow (the shared door state, a lobby obj), doorTrack(s) (the roll-up door's slats)
  */
 (function (root, factory) {
   const api = factory();
@@ -200,6 +202,38 @@
     return f && f.visible ? f : {phase: 'done', visible: false};
   }
 
+  // ---------- The jump door and when you may jump (issue #165, pure) ----------
+  // You may jump at any height once the plane is in the air, from the door, with the door open. Below LOW_AGL the game
+  // warns you (the canopy may not open in time) but lets you go. On the ground with the plane stopped the door is the way out.
+  // btn 'cross' | 'square' | 'circle'; s {atDoor, doorOpen, inAir, stopped} -> 'getOff' | 'toDoor' | 'toSeat' | 'toggle' |
+  //   'jump' | 'openFirst' | 'wait' (moving on the ground) | null
+  const LOW_AGL = 300;
+  function riderAction(btn, {atDoor = false, doorOpen = false, inAir = false, stopped = false} = {}) {
+    if (btn === 'square') return stopped ? 'getOff' : atDoor ? 'toggle' : 'toDoor';
+    if (btn === 'circle') return atDoor && !stopped ? 'toSeat' : null;
+    if (btn !== 'cross') return null;
+    if (stopped) return atDoor ? 'getOff' : 'toDoor';
+    if (!atDoor) return 'toDoor';
+    if (!inAir) return 'wait';
+    return doorOpen ? 'jump' : 'openFirst';
+  }
+  const tooLow = agl => Number.isFinite(agl) && agl < LOW_AGL;
+  // The door's state is a lobby 'obj' (the Worker keeps it for players who join later; no Worker change): the last change,
+  // [t (lobby clock, s), open 0 | 1]. While the plane stands still on the ground the door is open (boarding); a change made
+  // before the last still moment no longer counts, so the door is closed for take-off and the climb until a rider opens it.
+  const doorEncode = r => r && Number.isFinite(r.t) ? [Math.round(r.t * 100) / 100, r.open ? 1 : 0] : null;
+  function doorDecode(v) {if (!Array.isArray(v) || v.length < 2) return null;const t = Number(v[0]);return Number.isFinite(t) ? {t, open: !!Number(v[1])} : null;}
+  const doorOpenNow = (still, rec, since = -Infinity) => still ? true : !!(rec && rec.t > since && rec.open);
+  // The roll-up door's slats along their track (model frame of the JumpPlane): up the side wall, round a bend and along
+  // under the cabin roof. s = metres from the door's bottom edge when closed -> {x, y, rot} (rot about z).
+  const DOOR = {x: -.82, y0: -.57, h: 1.27, top: .75, r: .15, roof: .9};
+  function doorTrack(s) {
+    const D = DOOR, Lv = D.top - D.y0, A = Math.PI / 2 * D.r;
+    if (s <= Lv) return {x: D.x, y: D.y0 + s, rot: 0};
+    if (s <= Lv + A) {const phi = (s - Lv) / D.r, th = Math.PI - phi;return {x: D.x + D.r + D.r * Math.cos(th), y: D.top + D.r * Math.sin(th), rot: -phi};}
+    return {x: D.x + D.r + (s - Lv - A), y: D.roof, rot: -Math.PI / 2};
+  }
+
   // A ram-air sport canopy: 9 cells in a gentle arch about 5.3 m wide and 2.4 m deep, 2.6 m above the harness, with lines.
   function canopy(T, color = 0xd23b2f) {
     const g = new T.Group(), top = new T.MeshStandardMaterial({color, roughness: .7, side: T.DoubleSide}), rib = new T.MeshStandardMaterial({color: 0x2b2b2b, roughness: .8, side: T.DoubleSide});
@@ -214,5 +248,6 @@
     g.add(new T.LineSegments(lg, new T.LineBasicMaterial({color: 0xd8d8d8, transparent: true, opacity: .7})));g.userData.rib = rib;
     return g;
   }
-  return {Jumper, TRICKS, plan, flight, canopy, pilotGround, pilotOrbit, pilotFlight, clearToRoll, CYCLE, JUMP_AGL, AAD_ALT, PULL_HINT, VT, CANOPY, phases: {BOARD_FROM, ROLL, CLIMBOUT, SPIRAL, RUN, AWAY}};
+  return {Jumper, TRICKS, plan, flight, canopy, pilotGround, pilotOrbit, pilotFlight, clearToRoll, CYCLE, JUMP_AGL, AAD_ALT, PULL_HINT, VT, CANOPY, phases: {BOARD_FROM, ROLL, CLIMBOUT, SPIRAL, RUN, AWAY},
+    riderAction, tooLow, LOW_AGL, doorEncode, doorDecode, doorOpenNow, doorTrack, DOOR};
 });

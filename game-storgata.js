@@ -90,7 +90,7 @@
     const q = quest(id), s = status(st, id);
     if (s === 'ready') return L(`Gå tilbake til ${PEOPLE[q.who].name} i Storgata`, `Go back to ${PEOPLE[q.who].name} in Storgata`);
     if (q.kind === 'pant') {const n = Math.min(q.need, ctx.pant || 0);return n >= q.need ? L('Gi Kjell-Arne ti tomflasker', 'Give Kjell-Arne ten empty bottles') : L(`Tomflasker: ${n} av ${q.need}`, `Empty bottles: ${n} of ${q.need} (□ on bottles round Storgata, or drink a soda)`);}
-    if (q.kind === 'buy') {const m = missing(q, ctx.bag);return m.length ? L(`Kjøp ${m.map(i => PRODUCT_NO[i]).join(' og ')} på Kiwi`, `Buy ${m.map(i => PRODUCT_EN[i]).join(' and ')} at the Kiwi counter`) : L('Gi Tore kaffen og pølsa', 'Give Tore the coffee and the hot dog');}
+    if (q.kind === 'buy') {const m = missing(q, ctx.bag);return m.length ? L(`Kjøp ${m.map(i => PRODUCT_NO[i]).join(' og ')} på Kniwi`, `Buy ${m.map(i => PRODUCT_EN[i]).join(' and ')} at the Kniwi counter`) : L('Gi Tore kaffen og pølsa', 'Give Tore the coffee and the hot dog');}
     if (q.kind === 'deliver') return L('Gi Monas lapp til Rolf på Schous plass', "Give Mona's note to Rolf at Schous plass");
     if (q.kind === 'photo') return L('Ta et bilde av Grønland kirke (hele tårnet)', 'Take a photo of Grønland kirke (the whole tower) with the camera');
     if (id === 'bente') return L('Finn munnspillet på Operataket', 'Find the harmonica at the top of the Opera roof');
@@ -129,7 +129,7 @@
   const OFFER = {
     kjell: [L('Ryggen min er ikke hva den var. Kan du samle ti tomflasker for meg? Folk slenger dem rundt her i Storgata.', "My back isn't what it was. Could you collect ten empty bottles for me? People leave them all over Storgata."), L('Klart, jeg finner dem!', "Sure, I'll find them!")],
     bente: [L('I går sang jeg på Operataket, og der glemte jeg munnspillet etter min Arvid. Bakkene er for bratte for knærne mine i dag. Kan du hente det?', "Yesterday I sang on the Opera roof, and I left my Arvid's harmonica up there. The slopes are too steep for my knees today. Could you fetch it?"), L('Jeg henter det!', "I'll fetch it!")],
-    tore: [L('Det er kaldt i dag. Kan du kjøpe en kaffe til meg og en pølse i lompe til Laika? Det er en disk ved vinduet inne på Kiwi. Pølsa er til Laika. Ærlig talt.', "It's cold today. Could you buy me a coffee and a hot dog for Laika? There's a counter by the window inside the Kiwi. The hot dog is for Laika. Honestly."), L('Kaffe og pølse, kommer straks!', 'Coffee and a hot dog, coming right up!')],
+    tore: [L('Det er kaldt i dag. Kan du kjøpe en kaffe til meg og en pølse i lompe til Laika? Det er en disk ved vinduet inne på Kniwi. Pølsa er til Laika. Ærlig talt.', "It's cold today. Could you buy me a coffee and a hot dog for Laika? There's a counter by the window inside the Kniwi. The hot dog is for Laika. Honestly."), L('Kaffe og pølse, kommer straks!', 'Coffee and a hot dog, coming right up!')],
     mona: [L('Broren min Rolf mater duene på Schous plass hver dag. Vi har ikke snakket sammen siden en dum krangel om en fiskestang. Kan du gi ham denne lappen?', "My brother Rolf feeds the pigeons at Schous plass every day. We haven't spoken since a silly row about a fishing rod. Could you give him this note?"), L('Jeg leverer den!', "I'll deliver it!")],
     even: [L('Jeg giftet meg i Grønland kirke i 1981. Knærne mine klarer ikke turen dit lenger. Vil du ta et bilde av kirken for meg? Hele tårnet, takk.', "I got married in Grønland kirke in 1981. My knees can't manage the walk any more. Would you take a picture of the church for me? The whole tower, please."), L('Jeg tar bildet!', "I'll take the picture!")],
     w1: [L('Folk i Storgata sier du er snill. Godt! I Torshovdalen gløder tre stjernesopper. Hent dem, så lærer jeg deg å sveve.', 'People in Storgata say you are kind. Good! Three star mushrooms glow in Torshovdalen. Bring them to me and I will teach you to float.'), L('Jeg finner soppene!', "I'll find the mushrooms!")],
@@ -186,7 +186,7 @@
     else if (s === 'done') out.lines.push(pickLine(IDLE[who], seed));
     else if (ready(st, who, ctx)) {out.lines.push(L('Å! Har du det?', 'Oh! Have you got it?'));out.options.push({...READY[who], act: 'complete', quest: who});}
     else if (q.kind === 'pant') out.lines.push(L(`Du har ${Math.min(ctx.pant || 0, q.need)} av ti. Se langs fortauene – og en brus gir også en flaske!`, `You have ${Math.min(ctx.pant || 0, q.need)} of ten. Look along the pavements – and a soda gives you a bottle too!`));
-    else if (q.kind === 'buy') {const m = missing(q, ctx.bag);out.lines.push(L(`Kaffe og pølse i lompe fra disken ved vinduet inne på Kiwi. Du mangler: ${m.map(i => PRODUCT_NO[i]).join(' og ')}. Laika ser på deg.`, `Coffee and a hot dog from the counter by the window inside the Kiwi. Still missing: ${m.map(i => PRODUCT_EN[i]).join(' and ')}. Laika is watching you.`));}
+    else if (q.kind === 'buy') {const m = missing(q, ctx.bag);out.lines.push(L(`Kaffe og pølse i lompe fra disken ved vinduet inne på Kniwi. Du mangler: ${m.map(i => PRODUCT_NO[i]).join(' og ')}. Laika ser på deg.`, `Coffee and a hot dog from the counter by the window inside the Kniwi. Still missing: ${m.map(i => PRODUCT_EN[i]).join(' and ')}. Laika is watching you.`));}
     else out.lines.push(ACTIVE[who]);
     out.options.push(BYE);return out;
   }

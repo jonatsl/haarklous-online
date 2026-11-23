@@ -75,7 +75,7 @@
     {id: 'airborne', icon: '🚁', name: 'Airborne', how: 'Fly the helicopter or the plane 50 m above the ground.', kr: 100, test: f => !!f.records.marks?.airborne},
     {id: 'hunter', icon: '📷', name: 'Photo hunter', how: 'Find and photograph every place in the photo hunt.', kr: 300, test: f => SPOTS.every(s => f.got[s.id])},
     // KIWI Storgata (issue #65): the regulars' quests and Sopp-Sigvald's four lessons.
-    {id: 'storgata', icon: '🛒', name: 'Friend of Storgata', how: 'Help all five regulars outside Kiwi Storgata 33.', kr: 200,
+    {id: 'storgata', icon: '🛒', name: 'Friend of Storgata', how: 'Help all five regulars outside Kniwi Storgata 33.', kr: 200,
       test: f => ['kjell', 'bente', 'tore', 'mona', 'even'].every(id => ((f.storgata || {}).q || {})[id]?.s === 'done')},
     {id: 'wizard', icon: '🍄', name: 'Mushroom apprentice', how: 'Learn all four magic powers from Sopp-Sigvald, the mushroom wizard in Storgata.', kr: 250,
       test: f => ['levitate', 'blink', 'gust', 'orb'].every(id => ((f.storgata || {}).powers || {})[id])},

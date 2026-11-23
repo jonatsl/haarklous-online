@@ -503,8 +503,11 @@
             vec3 gMacro = gTexel.rgb;
             // What the ground is (issue #112, road-surface.js): from the street geometry, exact at every distance. vStreet = (kind:
             // 0 ground, 1 kerb face, 3 road with a white edge line; metres outside the nearest carriageway; metres outside the
-            // nearest pavement; 1 = granite slabs). The road, the 18 cm granite kerb top and its 12 cm face, the pavement.
+            // nearest pavement; 1 = granite slabs, plus 2 x a path band's surface, issue #147: 1 gravel, 2 asphalt). The road, the
+            // 18 cm granite kerb top and its 12 cm face, the pavement, Akerselva's turvei.
             float sKind = vStreet.x, sEd = vStreet.y, sPd = vStreet.z;
+            float pK = floor(vStreet.w * .5 + .25), sSlab = clamp(vStreet.w - 2.0 * pK, 0.0, 1.0);
+            float isGrav = 1.0 - step(.5, abs(pK - 1.0)), isPath = step(.5, pK);
             float aE = fwidth(sEd) * .6 + 1e-4, aP = fwidth(sPd) * .6 + 1e-4;
             float kFace = 1.0 - step(.5, abs(sKind - 1.0)), kLine = 1.0 - step(.5, abs(sKind - 3.0));
             float cRoad = (1.0 - smoothstep(-aE, aE, sEd)) * (1.0 - kFace);
@@ -515,17 +518,20 @@
             // Street colours: the map's (or the photo's) tone where it agrees, the set colour where its blurry edge does not.
             vec3 gs0 = sqrt(gMacro);float gLum0 = dot(gs0, vec3(.3, .59, .11)), gGrey = 1.0 - smoothstep(.03, .08, max(abs(gs0.r - gs0.g), abs(gs0.g - gs0.b)));
             vec3 roadC = mix(vec3(.070, .074, .080), gMacro, .45 * gGrey * (1.0 - smoothstep(.36, .46, gLum0)));
-            vec3 paveC = mix(mix(vec3(.205, .21, .212), vec3(.40, .38, .34), vStreet.w), gMacro, .35 * gGrey * smoothstep(.3, .4, gLum0));
+            // (the turvei's band, outside a car street's pavement: light grey asphalt or warm gravel, so its edge shows on the grass)
+            float onPathBand = isPath * smoothstep(-aP, aP, sPd);
+            roadC = mix(roadC, mix(vec3(.15, .152, .156), vec3(.34, .30, .24), isGrav), onPathBand);
+            vec3 paveC = mix(mix(vec3(.205, .21, .212), vec3(.40, .38, .34), sSlab), gMacro, .35 * gGrey * smoothstep(.3, .4, gLum0));
             gMacro = gMacro * cOther + roadC * (cRoad - cLine) + vec3(.62) * cLine + vec3(.51, .49, .45) * cKerb + paveC * cPave;
             vec3 gs = sqrt(gMacro);
             float gLum = dot(gs, vec3(.3, .59, .11)), gGreen = gs.g - max(gs.r, gs.b), gWarm = gs.r - gs.b;
             float wGrass = cOther * smoothstep(.012, .055, gGreen);
-            float wDirt = (cOther - wGrass) * smoothstep(.035, .1, gWarm);
+            float wDirt = (cOther - wGrass) * smoothstep(.035, .1, gWarm), wPathG = cRoad * onPathBand * isGrav;
             // Other grey ground: dark = asphalt, light = paving slabs in the map painting. The photo is brightened, so there grey is all
             // asphalt (its squares and yards look alike from the air; a slab pattern on asphalt would be worse than none on slabs).
             float wNeutral = cOther - wGrass - wDirt;
-            float gSlab = vStreet.w;// a pavement is granite slabs in Grünerløkka, Tøyen, Grønland, Kampen and Bjørvika, else asphalt
-            float wAsph = wNeutral * mix(1.0 - smoothstep(.43, .56, gLum), 1.0, uPhoto) + cRoad + cPave * (1.0 - gSlab);
+            float gSlab = sSlab;// a pavement is granite slabs in Grünerløkka, Tøyen, Grønland, Kampen and Bjørvika, else asphalt
+            float wAsph = wNeutral * mix(1.0 - smoothstep(.43, .56, gLum), 1.0, uPhoto) + cRoad - wPathG + cPave * (1.0 - gSlab);
             float wPave = wNeutral * (1.0 - mix(1.0 - smoothstep(.43, .56, gLum), 1.0, uPhoto)) + cPave * gSlab;
             float gDist = length(vViewPosition), gNear = 1.0 - smoothstep(35.0, 140.0, gDist), gMid = 1.0 - smoothstep(120.0, 520.0, gDist);
             vec2 gp = vGround;
@@ -548,15 +554,15 @@
             vec3 dirt = gCol * (1.0 + (mix(.5, d1.a, gNear) - .5) * .9 + (mix(.5, d2.a, gMid) - .5) * .4);
             // The granite kerb: light stone with a fine grain; its band stands up in the relief, so its edges catch the light.
             vec3 kerb = gCol * (1.0 + (mix(.5, d1.a, gNear) - .5) * .35 + (n0 - .5) * .06);
-            gCol = grass * wGrass + asph * wAsph + pave * wPave + dirt * wDirt + kerb * cKerb;
-            float gHeight = (d1.r * wGrass * .7 + d1.g * wAsph * .25 + d1.b * wPave * 1.0 + d1.a * wDirt * .9 + (1.2 + d1.a * .3) * cKerb) * gNear;
+            gCol = grass * wGrass + asph * wAsph + pave * wPave + dirt * (wDirt + wPathG) + kerb * cKerb;
+            float gHeight = (d1.r * wGrass * .7 + d1.g * wAsph * .25 + d1.b * wPave * 1.0 + d1.a * (wDirt + wPathG) * .9 + (1.2 + d1.a * .3) * cKerb) * gNear;
             diffuseColor.rgb *= gCol;`)
           .replace('#include <normal_fragment_maps>', `
             #include <normal_fragment_maps>
             normal = gPerturb(-vViewPosition, normal, vec2(dFdx(gHeight), dFdy(gHeight)) * .045);`)
           .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = roughness - wAsph * .08 * gNear;');
       };
-      mat.customProgramCacheKey = () => 'city-ground-v3';
+      mat.customProgramCacheKey = () => 'city-ground-v4';
       return mat;
     }
     const bytes = {atlas: AW * AH * 4 * 4 / 3, normal: AW * AH / 4 * 4 * 4 / 3, ground: GS * GS * 4 * 4 / 3};

@@ -207,6 +207,7 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
 #waypoint.edge .wp-arrow{display:block}
 .lg.wp{background:#a83dff;border-radius:50% 50% 50% 0;transform:rotate(-45deg)}
 .lg.bikes{background:#1f4fa3}
+.lg.turvei{background:#d0782f;border-radius:2px;height:5px;vertical-align:2px}
 .lg.heli{background:#1565c0}
 /* Jobs (issue #56): the job card top left (below the drunk and boost tags), the phone on the right. */
 #jobHud,#licHud{position:absolute;left:18px;top:90px;width:min(360px,calc(100% - 36px));display:grid;gap:3px;padding:10px 14px;border-radius:10px;background:var(--card);pointer-events:none;font-size:14px}

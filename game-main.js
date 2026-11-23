@@ -177,7 +177,7 @@
   const pbRules = PB_DATA && window.GamePaintball ? new window.GamePaintball.Rules(PB_DATA, pbCtx) : null;
   function groundAt(x, z, y) {
     if (cc && y !== undefined) {const g = cc.groundAt(x, z, y);if (g !== null) return g;}// Construction City's garage floors and ramps (vehicles give their height)
-    if (kayak) {const y = kayak.groundAt(x, z);if (y !== null) return y;}// bridge decks over Akerselva
+    if (kayak) {const g = kayak.groundAt(x, z, y);if (g !== null) return g;}// bridge decks over Akerselva (a vehicle well under one rides on under it, issue #147)
     if (world.bridges && y !== undefined) {const g = world.bridges.groundAt(x, z, y);if (g !== null) return g;}// road bridges (issue #139): on the deck or under it, by the height given
     return terrainAt(x, z);
   }
@@ -191,7 +191,9 @@
   // Inside a catacomb mausoleum the ground is not walked on: its door threshold, landing and stair take over (far below = no floor).
   // Under Construction City, its entrance aprons and the top of its garage ramp the building's own floors take over too.
   const floorsOver = ground => world.terrainFloors().map(f => ({...f, height: p => (catacomb && catacomb.cutsGround(p.x, p.z)) || (cc && cc.cutsGround(p.x, p.z)) || (transit && transit.cutsGround(p.x, p.z)) || (mgl && mgl.cutsGround(p.x, p.z)) ? -1e4 : ground(p.x, p.z)}));
-  const groundFloors = floorsOver(groundAt), walkGroundFloors = floorsOver(terrainAt);// vehicles drive on the decks as ground
+  // Vehicles have Akerselva's bridge decks as floors of their own over the ground (issue #147: a bike rides on under a bridge
+  // along the turvei), as walking has since issue #64.
+  const walkGroundFloors = floorsOver(terrainAt), groundFloors = [...(kayak ? kayak.bridges.map(b => b.floor) : []), ...walkGroundFloors];
   // Oslo city bike docks (issue #57) at their real places, from the operator's open data: posts and a totem with the name.
   const rides = window.GameRentals && window.RIDES ? window.GameRentals.create({T, lib, audio, data: window.RIDES, toWorld: world.toWorld, heightAt: groundAt}) : null;
   if (rides) scene.add(rides.group);
@@ -598,7 +600,7 @@
   const mapKind = {cemetery: 'grass', rail: 'yard', sand: 'playground', rock: 'yard', paved: 'parking'};
   const mapData = !DISTRICTS.length ? D : {...D,
     areas: [...D.areas, ...DISTRICTS.flatMap(d => [...d.areas.map(a => ({k: mapKind[a.k] || a.k, o: a.o})), ...d.sea.map(o => ({k: 'water', o}))])],
-    roads: [...D.roads, ...DISTRICTS.flatMap(d => d.roads.map(r => ({...r, k: r.k === 'rail' ? 'tram' : r.k})))],
+    roads: [...D.roads, ...DISTRICTS.flatMap(d => d.roads.map(r => ({...r, k: r.k === 'rail' ? 'tram' : r.k})))], turvei: window.RIVER_PATH || null,
     buildings: [...D.buildings, ...DISTRICTS.flatMap(d => [...d.buildings.map(b => ({r: {o: b.ring.flat()}, s: b.style})), ...d.landmarks.map(l => ({r: {o: l.ring}, s: 'brick'}))]), ...(window.GameRathkes ? window.GameRathkes.mapBuildings() : []), ...(CC_DATA ? window.GameConstructionCity.mapBuildings(CC_DATA) : [])]};
   let rentals = null, jobs = null;// the e-scooter / city bike trips and the jobs (made below, once the wallet exists)
   const map = window.GameMap.create({data: mapData, toLocal: world.toLocal, toWorld, root: view, poi: () => [
@@ -741,7 +743,7 @@
   const AIR_HELP = {
     helicopter: 'Helicopter (Mode 2) · left stick ↑↓ collective (centre = hover), ←→ pedals · right stick pitch/roll · R3 / V chase camera · Keyboard + mouse: W/S collective, A/D pedals, mouse pitch/roll (up = nose down), hold Shift to look around · the rotor needs a few seconds to spool up',
     plane: 'Plane (Mode 2) · left stick ↑ to add throttle (it stays), ←→ rudder/nose wheel · right stick pitch/roll · pull back at about 85 km/h · L2 brakes · R3 / V view · Keyboard + mouse: W/S throttle, A/D rudder, mouse pitch/roll (up = nose down), hold Shift to look around',
-    jumpplane: 'Caravan jump plane (Mode 2, flies like the plane) · left stick ↑ throttle (it stays), ←→ rudder/nose wheel · right stick pitch/roll · the flaps are automatic: pull back at about 110 km/h · L2 brakes · R3 / V view · others board at the door (□) and can jump above 300 m · △ / F: the game\'s pilot takes over (you go to the back) · ✕ / Space above 300 m: jump yourself (the game\'s pilot takes over) · Keyboard + mouse: W/S throttle, A/D rudder, mouse pitch/roll, hold Shift to look around'};
+    jumpplane: 'Caravan jump plane (Mode 2, flies like the plane) · left stick ↑ throttle (it stays), ←→ rudder/nose wheel · right stick pitch/roll · the flaps are automatic: pull back at about 110 km/h · L2 brakes · R3 / V view · others board at the door (□) and can jump any time in the air · △ / F: the game\'s pilot takes over (you go to the back) · ✕ / Space in the air: the game\'s pilot takes over and you go to the jump door (□ / E opens it, ✕ / Space jumps; below 300 m the parachute may not open in time) · Keyboard + mouse: W/S throttle, A/D rudder, mouse pitch/roll, hold Shift to look around'};
   function setClip(near, far) {if (camera.near !== near || camera.far !== far) {camera.near = near;camera.far = far;camera.updateProjectionMatrix();applyNearFog();}}
   // ---------- Third person in the vehicles (issue #129) ----------
   // R3 / V switches between first and third person in every vehicle you drive, ride, fly or paddle; the choice is kept while
@@ -1473,6 +1475,7 @@
     if (input.pressed.has('options') && !caseGame?.active) {if (map.open) map.toggle();else if (photo.gallery) photo.openGallery(false);else if (library && library.reading) {library.closeBook();input.pressed.delete('options');}else setPaused(!paused);}
     if (paused) {
       if (police) police.mute();// no siren in the pause menu (issue #140)
+      if (living) living.mute();// nor the flat's record, TV or dehumidifier (issue #167)
       if (badges.isOpen) {
         if (input.pressed.has('circle') || input.pressed.has('r1') || input.pressed.has('badges')) badges.close();
         badges.scroll((input.pressed.has('down') ? 120 : 0) - (input.pressed.has('up') ? 120 : 0) + (input.move.y + input.look.y) * 900 * dt);
@@ -1553,7 +1556,7 @@
     if (boost && (boost.t -= dt) <= 0) {boost = null;audio.muffle(false);notice('The boost wears off.', 2);}
     const wdt = dt * worldScale();stash.update(dt);shopsTick(dt);storgataTick(dt);pickGym();for (const g of gyms) g.update(dt, player, camera);grunerTick(dt);homesTick(dt);if (route) route.tick(player, dt);world.update(camera.position);
     // The jump planes move first, so a jumper's seat (and camera) is where the plane is this frame.
-    updateJumpFlight(dt);updateGamePilot(dt);
+    updateJumpFlight(dt);updateGamePilot(dt);updateDoors(dt);
     licExaminer(input);
     if (transit) transit.tick(dt, {camera, player});transitDynamic();
     if (player.mode === 'vehicle') updateVehicle(dt, input, dl);
@@ -1793,9 +1796,10 @@
   function updateAircraft(dt, input, dl) {
     const v = player.vehicle;
     if (input.pressed.has('square') && v.grounded && v.speed < 3) {exitVehicle();return;}
-    // The Caravan: △ hands it to the game's pilot (you go to the back); ✕ above 300 m hands it over and jumps.
+    // The Caravan: △ hands it to the game's pilot (you go to the back); ✕ in the air hands it over and takes you to the jump door
+    // (any height since issue #165; open the door with □ and jump with ✕).
     if (v === caravan && input.pressed.has('triangle')) {handOver(false);return;}
-    if (v === caravan && input.pressed.has('cross') && !v.grounded) {if (v.y - heightAt(v.x, v.z) > 300) {handOver(true);return;}notice('Climb above 300 m to jump.', 2);}
+    if (v === caravan && input.pressed.has('cross') && !v.grounded) {handOver(true);return;}
     if (viewPressed(input)) toggleThird();// the chase camera (issue #129: the same remembered choice as the other vehicles)
     v.update(dt, flightSticks(input, dl, dt));
     const pose = v.cameraPose(player.third, player.chaseCam);if (player.third) player.chaseCam = pose.position.clone();
@@ -1869,55 +1873,105 @@
     return null;
   }
   function enterSeat(craft, auto) {
-    watch.hide();if (photo.active) photo.toggle();player.mode = 'jumpseat';player.vehicle = null;skyd.ride = {craft, auto, seat: mySeat()};player.lookYaw = 0;player.lookPitch = 0;
-    setClip(.12, 1600);audio.sfx('doorClose');notice(auto ? 'You are on the jump flight. It climbs to 3000 m; at the green light press ✕ (Space) to jump. □ gets off before take-off.' : 'You are a jumper in the Caravan. When it is above 300 m, press ✕ (Space) to jump.', 6);
+    watch.hide();if (photo.active) photo.toggle();player.mode = 'jumpseat';player.vehicle = null;skyd.ride = {craft, auto, seat: mySeat(), atDoor: false, lowWarned: false};player.lookYaw = 0;player.lookPitch = 0;
+    setClip(.12, 1600);audio.sfx('doorClose');
+    notice((auto ? 'You are on the jump flight. It climbs to 3000 m (the green light on the jump run is the best moment).' : 'You are a jumper in the Caravan.') + ' Jump whenever the plane is in the air: ✕ / Space goes to the door, □ / E opens it, ✕ / Space jumps. □ gets off before take-off.', 7);
   }
   const boardAuto = () => enterSeat(autoPlane, true), boardCaravan = () => enterSeat(caravan, false);
-  function leaveSeat(where) {const p = where || skyd.ride.craft.doorWorld();skyd.ride = null;player.mode = 'foot';place(p.x, p.z, player.yaw);setClip(.05, 450);}
-  function canJump() {
-    const R = skyd.ride;if (!R) return false;const c = R.craft, agl = c.pos.y - heightAt(c.pos.x, c.pos.z);
-    return R.auto ? jumpFlight.green : !c.grounded && agl > 300;
+  function leaveSeat(where) {const p = where || skyd.ride.craft.doorWorld();skyd.ride = null;player.mode = 'foot';place(p.x, p.z, player.yaw);setClip(.05, 450);audio.rush(0);}
+  // ---- The jump door (issue #165): one door per jump plane, its last change a lobby obj ('skydoor0' the jump flight,
+  // 'skydoor1' the Caravan: [t, open], SKY.doorEncode), so the Worker keeps it for players who join later ----
+  // still = the plane stands on the ground (boarding: the door is open); a change made before the last still moment no longer
+  // counts, so the door is closed for take-off and the climb until a rider opens it. Anyone aboard may open or close it; the
+  // game's pilot never does.
+  skyd.doors = [{rec: null, still: -Infinity, open: true, k: 1}, {rec: null, still: -Infinity, open: true, k: 1}];
+  const doorOf = c => skyd.doors[c === caravan ? 1 : 0], planeStill = i => i ? caravan.grounded && caravan.speed < 3 : jumpFlight.phase === 'board';
+  const rideInAir = R => R.auto ? !['board', 'roll'].includes(jumpFlight.phase) : !R.craft.grounded;
+  const rideStopped = R => R.auto ? jumpFlight.phase === 'board' : R.craft.grounded && R.craft.speed < 3;
+  // Another player opened or closed a door (or the lobby's saved state on joining): riders in that plane hear it.
+  function applySkyDoor(id, v) {
+    const i = id === 'skydoor1' ? 1 : 0, D = skyd.doors[i], rec = SKY.doorDecode(v);if (!rec || (D.rec && rec.t <= D.rec.t)) return;
+    const was = D.open;D.rec = rec;D.open = SKY.doorOpenNow(planeStill(i), rec, D.still);
+    if (D.open !== was && player.mode === 'jumpseat' && skyd.ride && doorOf(skyd.ride.craft) === D) audio.sfx(D.open ? 'doorOpen' : 'doorClose');
+  }
+  function updateDoors(dt) {
+    const now = skyClock();
+    for (let i = 0; i < 2; i++) {
+      const D = skyd.doors[i], c = i ? caravan : autoPlane, still = planeStill(i);
+      if (still) D.still = now;
+      D.open = SKY.doorOpenNow(still, D.rec, D.still);
+      D.k = Math.max(0, Math.min(1, D.k + Math.sign((D.open ? 1 : 0) - D.k) * Math.min(Math.abs((D.open ? 1 : 0) - D.k), dt / 1.4)));
+      if (c.group.visible) c.setDoor(D.k);
+    }
+    // The wind at the open door (louder close to it and the faster the plane flies).
+    const R = skyd.ride;let wind = 0;
+    if (player.mode === 'jumpseat' && R) {const D = doorOf(R.craft);wind = D.k * (R.atDoor ? 1 : .55) * Math.min(1, R.craft.speed / 45);}
+    audio.rush(wind);
+  }
+  function toggleDoor(R) {
+    const D = doorOf(R.craft), open = !D.open;D.rec = {t: skyClock(), open};D.open = open;mp.sendObj(R.craft === caravan ? 'skydoor1' : 'skydoor0', SKY.doorEncode(D.rec));
+    audio.sfx(open ? 'doorOpen' : 'doorClose');notice(open ? 'Door open · ✕ / Space: jump · □ / E close it · ○ / C back to your seat' : 'Door closed · □ / E open it again · ○ / C back to your seat', 3);
   }
   function jumpseatPrompt() {
     const R = skyd.ride;if (!R) return null;
-    const onGround = R.auto ? jumpFlight.phase === 'board' : R.craft.grounded && R.craft.speed < 3;
-    if (onGround) return {text: '□ Get off the plane' + (!R.auto && !gamePilotFlies() && !mp.occupant(caravanIndex(), 'd') ? " · △ / F: the game's pilot flies you up" : ''), act: () => leaveSeat()};
-    return null;
+    if (rideStopped(R)) return {text: '□ Get off the plane' + (!R.auto && !gamePilotFlies() && !mp.occupant(caravanIndex(), 'd') ? " · △ / F: the game's pilot flies you up" : ''), act: () => leaveSeat()};
+    if (!R.atDoor) return {text: '✕ / Space or □ / E: go to the door', act: () => goToDoor(R)};
+    const open = doorOf(R.craft).open;
+    return {text: open ? (rideInAir(R) ? '✕ / Space: jump · □ / E close the door · ○ / C back to your seat' : 'Wait for take-off to jump · □ / E close the door · ○ / C back to your seat') : '□ / E open the door · ○ / C back to your seat', act: () => toggleDoor(R)};
   }
+  function goToDoor(R) {R.atDoor = true;player.lookYaw = 0;player.lookPitch = -.35;audio.footstep('metal', false, .6);}
   function updateJumpseat(dt, input, dl) {
-    const R = skyd.ride, c = R.craft, f = jumpFlight;
+    const R = skyd.ride, c = R.craft, f = jumpFlight, D = doorOf(c);
     // The scheduled flight: anybody still on board when it has flown off is brought back to the airstrip.
     if (R.auto && f.phase === 'away' && !f.visible) {leaveSeat(jumpStart);notice('The jump plane landed back at the airfield.', 4);return;}
     if (!R.auto && c.broken) {leaveSeat(c.exitPoint());return;}
-    if (input.pressed.has('cross') && canJump()) {jump();return;}
-    if (input.pressed.has('square')) {const p = jumpseatPrompt();if (p) {p.act();return;}}// get off while it stands still
+    const agl = c.pos.y - heightAt(c.pos.x, c.pos.z), inAir = rideInAir(R), st = {atDoor: R.atDoor, doorOpen: D.open, inAir, stopped: rideStopped(R)};
+    for (const btn of ['cross', 'square', 'circle']) {
+      if (!input.pressed.has(btn)) continue;const act = SKY.riderAction(btn, st);if (!act) continue;
+      if (act === 'jump') {jump();return;}
+      if (act === 'getOff') {leaveSeat();return;}
+      if (act === 'toDoor') goToDoor(R);
+      else if (act === 'toSeat') {R.atDoor = false;player.lookYaw = 0;player.lookPitch = 0;}
+      else if (act === 'toggle') toggleDoor(R);
+      else if (act === 'openFirst') notice('Open the door first: □ / E', 2);
+      else if (act === 'wait') notice('Wait until the plane is in the air.', 2);
+      break;
+    }
+    if (R.atDoor && inAir && SKY.tooLow(agl) && !R.lowWarned) {R.lowWarned = true;notice(`Too low (${Math.round(agl)} m): the parachute may not open in time. You can still jump.`, 4);}
+    // The green light (the scheduled flight's jump run, or the game's pilot's): a hint with a beep; you may jump before and after it.
+    {const ps = R.auto ? null : pilotStatus(), green = R.auto ? f.green : !!(ps && ps.green);if (green && !R.green) {audio.sfx('locked');notice('Green light: a good place to jump.' + (R.atDoor ? '' : ' ✕ go to the door'), 3);}R.green = green;}
     if (input.pressed.has('triangle') && !R.auto) callGamePilot();
     player.lookYaw = Math.max(-2.6, Math.min(2.6, (player.lookYaw || 0) - input.mouse.dx * .0024 * sensitivity.mouse - input.look.x * 2.2 * sensitivity.pad * dt));
-    player.lookPitch = Math.max(-1.1, Math.min(1, (player.lookPitch || 0) - input.mouse.dy * .0024 * sensitivity.mouse - input.look.y * 1.6 * sensitivity.pad * dt));
+    player.lookPitch = Math.max(-1.3, Math.min(1, (player.lookPitch || 0) - input.mouse.dy * .0024 * sensitivity.mouse - input.look.y * 1.6 * sensitivity.pad * dt));
     const hip = seatCamera();
     if (camera.fov !== 70) {camera.fov = 70;camera.updateProjectionMatrix();}
-    player.x = hip.x;player.z = hip.z;player.feet = hip.y;player.yaw = new T.Euler().setFromQuaternion(c.q, 'YXZ').y + Math.PI;// you face the tail
-    const agl = c.pos.y - heightAt(c.pos.x, c.pos.z), sp = $('speedo');sp.hidden = false;sp.classList.add('air');
+    player.x = hip.x;player.z = hip.z;player.feet = hip.y;player.yaw = new T.Euler().setFromQuaternion(c.q, 'YXZ').y + (R.atDoor ? Math.PI / 2 : Math.PI);// you face the tail (at the door: out of it)
+    const sp = $('speedo');sp.hidden = false;sp.classList.add('air');
     const m = Math.floor(Math.max(0, R.auto && f.phase === 'board' ? f.leavesIn : 0) / 60), ss = String(Math.floor(Math.max(0, R.auto ? f.leavesIn || 0 : 0) % 60)).padStart(2, '0');
-    sp.textContent = R.auto ? (f.phase === 'board' ? `JUMP FLIGHT · boarding · leaves in ${m}:${ss}` : f.green ? `GREEN LIGHT · ${Math.round(agl)} m · ✕ / Space: JUMP` : f.phase === 'run' ? `Jump run · ${Math.round(agl)} m · door open, wait for the green light` : `Climbing · ${Math.round(agl)} m${f.phase === 'climb' ? ' · the climb is sped up' : ''}`)
-      : pilotHud(agl, c);
+    const where = R.atDoor ? (D.open ? (inAir ? '✕ / Space: JUMP' : 'door open') : '□ open the door') : 'you can jump any time in the air (✕ go to the door)';
+    sp.textContent = (R.auto ? (f.phase === 'board' ? `JUMP FLIGHT · boarding · leaves in ${m}:${ss}` : f.green ? `GREEN LIGHT · ${Math.round(agl)} m · ${where}` : f.phase === 'run' ? `Jump run · ${Math.round(agl)} m · the green light comes soon · ${where}` : `Climbing · ${Math.round(agl)} m${f.phase === 'climb' ? ' (sped up)' : ''} · ${where}`)
+      : pilotHud(agl, c)) + (R.atDoor && inAir && SKY.tooLow(agl) ? ' · TOO LOW for a safe jump' : '');
     setClip(agl > 800 ? .4 : .12, Math.min(9000, Math.max(1600, agl * 2.5 + 1200)));
   }
-  // You sit facing the tail; looking round turns your head. Placed again at the end of the frame, after a plane flown on
-  // another computer has moved (else the camera trails it by a frame and can end up behind the cabin wall).
+  // You sit facing the tail (or kneel at the door, looking out of it); looking round turns your head. Placed again at the end
+  // of the frame, after a plane flown on another computer has moved (else the camera trails it by a frame and can end up
+  // behind the cabin wall).
   function seatCamera() {
     const R = skyd.ride, c = R.craft, hip = c.seatWorld(R.seat);
+    if (R.atDoor) {camera.position.copy(c.doorEyeWorld());camera.quaternion.copy(c.q).multiply(new T.Quaternion().setFromEuler(new T.Euler(player.lookPitch, Math.PI / 2 + player.lookYaw, 0, 'YXZ')));return hip;}
     camera.position.copy(hip).add(new T.Vector3(0, .78, 0).applyQuaternion(c.q));
     camera.quaternion.copy(c.q).multiply(new T.Quaternion().setFromEuler(new T.Euler(player.lookPitch, Math.PI + player.lookYaw, 0, 'YXZ')));
     return hip;
   }
-  // Out of the door: the jumper starts with the plane's speed and falls; the plane keeps flying.
+  // Out of the door: the jumper starts with the plane's speed and falls; the plane keeps flying. Any height (issue #165):
+  // below 300 m the canopy may not open in time (the landing code then gives a hard landing or a crash, and you get up).
   function jump() {
-    const R = skyd.ride, c = R.craft, d = c.doorWorld(), v = c.vel;
+    const R = skyd.ride, c = R.craft, d = c.doorWorld(), v = c.vel, agl = c.pos.y - heightAt(c.pos.x, c.pos.z);
     skyd.jumper = new SKY.Jumper({x: d.x, y: d.y, z: d.z, vx: v.x, vy: v.y, vz: v.z, yaw: new T.Euler().setFromQuaternion(c.q, 'YXZ').y + Math.PI / 2});// out of the left door, facing away from the plane
-    skyd.ride = null;skyd.beeps = {};player.mode = 'skydive';skyd.chase = false;skyd.chaseCam = null;audio.sfx('throw');
+    skyd.ride = null;skyd.beeps = {};player.mode = 'skydive';skyd.chase = false;skyd.chaseCam = null;audio.sfx('throw');audio.rush(0);
     if (!skyd.canopy) {const av = window.GameAvatars.create({T, lib});skyd.canopy = SKY.canopy(T, av.SLOT_COLORS[mySeat() % 12]);skyd.canopy.visible = false;scene.add(skyd.canopy);
       skyd.body = av.avatar(mySeat(), '');skyd.body.group.visible = false;scene.add(skyd.body.group);}// your own body, seen in the outside view
+    if (SKY.tooLow(agl)) {notice(`Too low (${Math.round(agl)} m): the parachute may not open in time – pull now: ✕ / Space!`, 4);return;}
     notice('Freefall! W / stick ↑ lean forward and track, S / ↓ lean back, A/D turn · tricks: □ / E front loop, ○ / C back loop, △ / F barrel roll · ✕ / Space pulls at about 1000 m · R3 / V outside view', 8);
   }
   function updateSkydive(dt, input, dl) {
@@ -1980,8 +2034,8 @@
     else if (c) c.visible = false;
   }
   // ---------- The game's pilot in the Caravan (1 Nov 2026, the user's wish) ----------
-  // Called from a jump seat (△), or handed the controls by the player flying it (△; ✕ above 300 m hands over and jumps at
-  // once). The computer that calls it holds the Caravan's driver seat for the pilot and sends the plane's position, as a
+  // Called from a jump seat (△), or handed the controls by the player flying it (△; ✕ in the air hands over and takes you to
+  // the jump door). The computer that calls it holds the Caravan's driver seat for the pilot and sends the plane's position, as a
   // player flying it would; everybody sees a pilot in the left seat. If the plane has no pilot in the air, a jumper's
   // computer takes over. With nobody aboard it is called off on the ground, or flies home after 30 s in the air.
   let gp = null, noPilotT = 0, pilotAv = null;
@@ -2018,17 +2072,17 @@
     if (!caravan.grounded) return;// in the air the pilot takes over by itself
     mp.claim(i, 'd').then(r => {
       if (!meAboard() || gp) {if (r.ok && !gp) mp.release(i, 'd');return;}
-      if (r.ok) {startGamePilot();notice("The game's pilot takes off in 10 s (others can still board) and climbs to 3000 m. Jump with ✕ / Space above 300 m – best at the green light.", 7);}
+      if (r.ok) {startGamePilot();notice("The game's pilot takes off in 10 s (others can still board) and climbs to 3000 m. In the air: ✕ / Space to the door, □ / E opens it, ✕ / Space jumps – best at the green light.", 7);}
       else notice(r.timeout ? 'No answer from the lobby – try again.' : `${mp.nameOf(r.by)} just took the controls.`, 3);
     });
   }
   // The player flying the Caravan hands it to the game's pilot and goes back to the jump seats (△), or jumps at once (✕).
-  function handOver(jumpNow) {
+  function handOver(toDoor) {
     const c = caravan;c.exit();player.mode = 'jumpseat';player.vehicle = null;player.lookYaw = 0;player.lookPitch = 0;
-    skyd.ride = {craft: c, auto: false, seat: mySeat()};for (const [, w] of vehicleWorlds) collision.setDynamic(w, []);updateDynamic();
+    skyd.ride = {craft: c, auto: false, seat: mySeat(), atDoor: false, lowWarned: false};for (const [, w] of vehicleWorlds) collision.setDynamic(w, []);updateDynamic();
     startGamePilot();
-    if (jumpNow) jump();
-    else notice(c.grounded ? "The game's pilot takes the controls and takes off in 10 s. You are in the back: jump with ✕ / Space above 300 m." : "The game's pilot takes the controls and circles. You are in the back: ✕ / Space jumps.", 6);
+    if (toDoor) {goToDoor(skyd.ride);notice(`The game's pilot takes the controls and circles. You are at the jump door: ${doorOf(c).open ? '✕ / Space jumps' : '□ / E opens it, then ✕ / Space jumps'}.`, 6);}
+    else notice(c.grounded ? "The game's pilot takes the controls and takes off in 10 s. You are in the back: once in the air, ✕ / Space goes to the door, □ / E opens it, ✕ / Space jumps." : "The game's pilot takes the controls and circles. You are in the back: ✕ / Space goes to the door, □ / E opens it, ✕ / Space jumps.", 6);
   }
   function updateGamePilot(dt) {
     const c = caravan, i = caravanIndex();
@@ -2062,13 +2116,14 @@
     const r = remotePilot();return r ? {ph: r.st.gp, left: r.st.gl || 0, green: !!r.st.gg} : null;
   }
   function pilotHud(agl, c) {
-    const ps = pilotStatus(), m = Math.round(agl), mmss = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`, jumpHint = canJump() ? '✕ / Space: JUMP' : 'you can jump above 300 m';
+    const ps = pilotStatus(), m = Math.round(agl), mmss = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`, R = skyd.ride, D = doorOf(c);
+    const jumpHint = c.grounded ? 'jump once in the air' : !R || !R.atDoor ? '✕ go to the door' : D.open ? '✕ / Space: JUMP' : '□ open the door';
     if (!ps) return c.grounded && !mp.occupant(caravanIndex(), 'd') ? "Jumper in the Caravan · no pilot · △ / F: the game's pilot flies you up · □ get off" : `Jumper in the Caravan · ${m} m · ${jumpHint}`;
     if (ps.ph === 'wait') return `The game's pilot · taxis in ${mmss(ps.left)} (others can board) · □ get off`;
     if (ps.ph === 'taxi') return "The game's pilot · taxiing onto the strip";
     if (ps.ph === 'hold') return `The game's pilot · holding: the jump flight ahead is on the strip · ${mmss(ps.left)} · □ get off`;
     if (ps.ph === 'roll') return "The game's pilot · take-off";
-    if (ps.green) return `GREEN LIGHT · ${m} m · ✕ / Space: JUMP`;
+    if (ps.green) return `GREEN LIGHT · ${m} m · ${jumpHint}`;
     return `The game's pilot · ${ps.ph === 'run' ? 'jump run, door open' : ps.ph === 'orbit' ? 'circling' : ps.ph === 'away' ? 'flying home' : 'climbing (sped up)'} · ${m} m · ${jumpHint}`;
   }
   let gear = null, gearLast = 0;const GEAR = ['camera', 'binoculars', 'drone'];// the gear menu's items, in #gearMenu's order (data-i)
@@ -2365,7 +2420,7 @@
   mp = window.GameMultiplayer.create({T, lib, scene, camera, vehicles, fireDecayS: fire.DECAY_S, fireMax: fire.MAX, localState, notice, audioContext: () => audio.context,
     drivingIndex: () => player.mode === 'vehicle' && player.vehicle ? vehicles.indexOf(player.vehicle) : gp ? caravanIndex() : -1,
     listener: () => ({x: player.x, y: player.feet + 1.5, z: player.z}), applyDoor, onChat: chatLine, onStatus: () => {renderMp();onLobbyChange();friends.lobby(mp.net.online ? mp.net.code : null, mp.net.players.size, mp.net.max);},
-    applyObj: (id, v) => {if (living) living.apply(id, v, true);},
+    applyObj: (id, v) => {if (/^skydoor[01]$/.test(id)) applySkyDoor(id, v);else if (living) living.apply(id, v, true);},
     // Joining a lobby: alone in a lobby that has nothing stored, what you did offline is sent up; otherwise the lobby's state wins.
     resetObjs: m => {if (!living) return;if (m.players.length <= 1 && !Object.keys(m.objs || {}).length) living.publish();else living.reset();},
     onRemoteWood: r => fire.throwLog({x: r.pos.x, y: r.pos.y + 1.3, z: r.pos.z}), holdsMarker: id => (!!paintball && paintball.rules.memberPlaying(id)) || (!!phRules && phRules.holdsMarker(id)),
@@ -2506,7 +2561,7 @@
       const r = storgata.pick(a.pick);if (!r) return;const f = storgata.finds[a.pick], q = SG.QUESTS.find(x => x.id === r.quest);
       audio.sfx(r.pickup.kind === 'harmonica' ? 'harmonica' : 'mushroom');if (f) fx.burst({x: f.at.x, y: f.at.y + .3, z: f.at.z}, 0xffe38a, 40, 1.6);
       questWaypoint(r.quest);
-      notice(r.ready ? `${cap(r.pickup.name.en)}${r.need > 1 ? ` – that is all ${r.need}` : ''}! Take ${r.need > 1 ? 'them' : 'it'} to ${SG.PEOPLE[q.who].name} outside Kiwi Storgata (the waypoint shows the way).` : `${cap(r.pickup.name.en)}: ${r.count} of ${r.need}. The waypoint shows the next one.`, 5);
+      notice(r.ready ? `${cap(r.pickup.name.en)}${r.need > 1 ? ` – that is all ${r.need}` : ''}! Take ${r.need > 1 ? 'them' : 'it'} to ${SG.PEOPLE[q.who].name} outside Kniwi Storgata (the waypoint shows the way).` : `${cap(r.pickup.name.en)}: ${r.count} of ${r.need}. The waypoint shows the next one.`, 5);
     }
   }
   // Our own waypoint for a quest: the next thing to find, Rolf, the church, or back to the one who asked.

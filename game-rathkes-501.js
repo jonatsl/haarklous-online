@@ -135,17 +135,57 @@
   // A piece of furniture's own frame (x across, z = its front, as drawn) -> wing coordinates: [a, b].
   const placeOf = f => f.at || [(f.rect[0] + f.rect[2]) / 2, (f.rect[1] + f.rect[3]) / 2];
   function pieceToWing(f, x, z) {const [a, b] = placeOf(f), r = (f.rot || 0) * Math.PI / 2, c = Math.cos(r), s = Math.sin(r);return [a + x * c + z * s, b - x * s + z * c];}
+  // The teak wall system of the living room (issue #166, the owner's photos), in the piece's own frame: x across (bay 0 at -x,
+  // by the TV corner), y up from the floor, z out from the wall (the wall face is z = WU_Z). Four bays between five uprights;
+  // modules {id, kind, bay, x0, x1, y0, y1, z0, z1} hang in them, and the things that stand on them {name, on, x, z, w, d, h, y}
+  // (y = the top of the module they stand on) – the record player and the lava lamp among them. Rails: two rows high on the wall.
+  const WU_Z = -.175;
+  function wallUnitLayout(f) {
+    const w = f.w, bw = w / 4, up = .015, Z = WU_Z, mods = [], things = [];
+    const bay = i => [-w / 2 + i * bw + up, -w / 2 + (i + 1) * bw - up];
+    const mod = (id, kind, i, y0, y1, d) => {const [x0, x1] = bay(i), m = {id, kind, bay: i, x0, x1, y0, y1, z0: Z, z1: Z + d};mods.push(m);return m;};
+    const on = (m, name, x, z, tw, td, h, more) => {const t = {name, on: m.id, x, z: Z + z, w: tw, d: td, h, y: m.y1, ...more};things.push(t);return t;};
+    const X = (i, u) => -w / 2 + i * bw + u * bw;// a place across bay i (u 0..1)
+    // Bay 0: the wall cabinet with two sliding patterned glass doors; the shelf with the red table lamp and books; the low desk
+    // with the receiver and a small plant.
+    mod('glassCab', 'glassCab', 0, 1.55, 1.95, .34);
+    const s0 = mod('shelf0', 'shelf', 0, 1.06, 1.085, .3), desk = mod('desk', 'desk', 0, .52, .63, .45);
+    on(s0, 'red table lamp', X(0, .19), .14, .24, .24, .4);on(s0, 'books', X(0, .62), .12, .44, .2, .22);
+    on(desk, 'receiver', X(0, .6), .2, .43, .32, .15);on(desk, 'small plant', X(0, .14), .14, .14, .14, .34);
+    // Bay 1: the top shelf (a flat book, the trailing plant); the two-drawer unit with the records on show and the LAVA LAMP
+    // standing free beside them; the three-drawer chest with the record player.
+    const t1 = mod('top1', 'shelf', 1, 1.9, 1.925, .3), two = mod('twoDrawer', 'drawers2', 1, 1.22, 1.44, .4), chest = mod('chest', 'drawers3', 1, .3, .8, .45);
+    on(t1, 'flat book', X(1, .3), .15, .3, .22, .04);on(t1, 'trailing plant', X(1, .84), .18, .12, .12, .1);
+    on(two, 'records on show', X(1, .25), .12, .32, .12, .33);
+    on(two, 'lava lamp', X(1, .66), .2, .12, .12, .4);
+    on(chest, 'record player', X(1, .5), .22, .38, .32, .16);
+    // Bay 2: the top shelf (two mountain books lying flat, three small succulents); the shelf with a plant in a white pot and
+    // books; the low closed cabinet with a pillar candle and a small clock.
+    const t2 = mod('top2', 'shelf', 2, 1.78, 1.805, .3), m2 = mod('mid2', 'shelf', 2, 1.3, 1.325, .3), cab = mod('cabinet', 'cabinet', 2, .3, .78, .45);
+    on(t2, 'mountain books', X(2, .27), .14, .3, .2, .1);for (const u of [.6, .75, .9]) on(t2, 'succulent', X(2, u), .15, .07, .07, .1);
+    on(m2, 'plant in a white pot', X(2, .15), .15, .16, .16, .42);on(m2, 'books', X(2, .63), .12, .56, .2, .26);
+    on(cab, 'pillar candle', X(2, .38), .22, .12, .12, .16);on(cab, 'clock', X(2, .82), .15, .1, .05, .08);
+    // Bay 3: the wide cabinet with two wooden sliding doors and the table lamp with a woven shade on it; the narrow ledge with two
+    // record covers on show; the low shelf with the lamp with the terracotta shade.
+    const sc = mod('slidingCab', 'slidingCab', 3, 1.36, 1.9, .4), ledge = mod('ledge', 'shelf', 3, .97, .99, .1), low = mod('low3', 'shelf', 3, .55, .58, .4);
+    on(sc, 'woven lamp', X(3, .5), .2, .32, .32, .62);
+    on(ledge, 'record cover', X(3, .25), .05, .315, .05, .315);on(ledge, 'record cover', X(3, .67), .05, .315, .05, .315);
+    on(low, 'terracotta lamp', X(3, .81), .26, .26, .26, .42);
+    const get = n => things.find(t => t.name === n);
+    return {bays: [0, 1, 2, 3].map(bay), uprights: [0, 1, 2, 3, 4].map(i => -w / 2 + i * bw), rails: [[1.99, 2.05], [2.1, 2.16]], top: 2.2, Z, modules: mods, things, lava: get('lava lamp'), record: get('record player')};
+  }
   // Collision boxes of each kind of furniture in its own frame: [w, h, d, x, y (centre), z] (y defaults to h / 2).
   const SOLIDS = {
     wardrobe: f => [[f.w, f.h, f.d]], box: f => [[f.w, f.h, f.d]], dryingRack: f => [[f.w, f.h, f.d]], extinguisher: () => [[.15, .5, .15]],
     coatRail: f => [[f.w, .95, .3, 0, 1.25, .15]], bed: f => [[f.w, .6, f.d + .05]], daybed: f => [[f.w, .6, f.d]], nightstand: f => [[f.w, f.h, f.d]],
     basket: () => [[.4, .45, .4]], desk: f => [[f.w, .76, f.d]], mirrorWardrobe: f => [[f.w, f.h, f.d]], builtIn: (f, data) => [[f.w, data.ceiling, f.d]],
     floorLamp: () => [[.3, 1.6, .3]], trolley: () => [[.48, .8, .38]], dresser: f => [[f.w, f.h, f.d]],
-    kitchen: f => [[f.rect[3] - f.rect[1], .9, f.rect[2] - f.rect[0]]], pipe: f => [[.12, f.h, .12]], sideboard: f => [[f.w, f.h + .4, f.d]],
+    kitchen: f => [[f.rect[3] - f.rect[1], .9, f.rect[2] - f.rect[0]]], pipe: f => [[.12, f.h, .12]], coffeeCabinet: f => [[f.w, f.h + .4, f.d]],
     // The dining table: its top and four legs (chairs tuck in under the top).
     diningTable: f => [[f.w, .06, f.d, 0, .73, 0], ...[-1, 1].flatMap(sx => [-1, 1].map(sz => [.05, .7, .05, sx * (f.w / 2 - .06), .35, sz * (f.d / 2 - .08)]))],
     sofa: f => [[f.w, .85, f.d]], coffeeTable: f => [[f.w, f.h, f.d]], wallUnit: f => [[f.w, .85, .45, 0, .425, .05]],
-    tv: () => [[1.3, 1.25, .35]], guitar: () => [[.35, 1.2, .15]], plant: f => [[.35, f.h, .35]], shoeRack: () => [[.82, .5, .3]]
+    tvBench: f => [[f.w, f.h, f.d]], tv: f => [[1.45, .86, .12, 0, (f.y || 0) + .45, -.02]], speaker: f => [[f.w, f.h, f.d]], globeLamp: () => [[.22, 1.75, .22]],
+    guitar: () => [[.35, 1.2, .15]], plant: f => [[.35, f.h, .35]], shoeRack: () => [[.82, .5, .3]]
   };
   // The furniture's collision boxes in wing coordinates: {pts: [[a, b] x 4], minY, maxY, kind}. Movable pieces are left out.
   function furnitureSolids(data, FL = 0) {
@@ -176,7 +216,7 @@
     const plaster = mat('plaster', () => lib.plaster(0xf2f0ea)), ceilingM = mat('ceiling', () => {const m = lib.plaster(0xfbfaf6);m.emissive = new T.Color(0x8c887f);return m;}), brick = mat('brick', () => {const m = lib.brick();m.color.setScalar(.8);return m;});
     const plinthM = mat('plinth', () => lib.concrete(0x8e8a82)), roofM = mat('roof', () => lib.roof()), pine = mat('pine', () => tint(lib.woodFloor(), 0xffe2b2));
     const trim = {pal: 0xf4f3ee}, glass = mat('glass', () => lib.glass()), dark = mat('dark', () => new T.MeshStandardMaterial({color: 0x161b20, roughness: .9, metalness: 0}));
-    const carpet = mat('carpet', () => lib.fabric(0x5d4636)), tilesW = mat('tilesW', () => lib.wallTiles()), tilesF = mat('tilesF', () => lib.floorTiles()), chrome = mat('chrome', () => lib.chrome());
+    const carpet = mat('carpet', () => lib.fabric(0x5d4636)), chrome = mat('chrome', () => lib.chrome());
     const oak = mat('oak', () => lib.wood(0xb98552, .5)), teak = mat('teak', () => lib.wood(0x8d4f27, .42)), birch = {pal: 0xd8b47c}, rail = {pal: 0x4a2014};
     const lino = {pal: 0x6b4434}, sofaM = {pal: 0x3b4249}, ceramic = {pal: 0xf7f7f5};
     const glow = {glow: 0xfff1d8}, glowOrange = {glow: 0xff9a4a};
@@ -229,6 +269,33 @@
       });
     })}));
     const rugUV = f => {const i = rugList.indexOf(f), x = (i % 3) / 3, y = Math.floor(i / 3) / 2;return [x, 1 - y - .5, x + 1 / 3, 1 - y];};
+    // Issue #166/#167: the TV bench's glossy oxblood tiles (4 x 4 tiles of 10 cm with grout, each a little different), the
+    // bathroom's white wall boards and blue-grey vinyl floor, and the pattern of the wall cabinet's sliding glass (art cell 15).
+    const tilesRed = mat('tilesRed', () => new T.MeshStandardMaterial({roughness: .14, metalness: 0, map: canvasTex(256, 256, (g) => {
+      g.fillStyle = '#4a3029';g.fillRect(0, 0, 256, 256);let s = 166;const r = () => {s = (s * 16807) % 2147483647;return s / 2147483647;};
+      for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) {const k = .86 + r() * .26, x = i * 64 + 2, y = j * 64 + 2, gr = g.createLinearGradient(x, y, x + 60, y + 60);
+        gr.addColorStop(0, `rgb(${Math.round(94 * k)},${Math.round(27 * k)},${Math.round(21 * k)})`);gr.addColorStop(1, `rgb(${Math.round(72 * k)},${Math.round(19 * k)},${Math.round(15 * k)})`);g.fillStyle = gr;g.fillRect(x, y, 60, 60);}
+    }, [2.5, 2.5])}));
+    const boards = mat('boards', () => new T.MeshStandardMaterial({roughness: .5, map: canvasTex(128, 16, (g) => {g.fillStyle = '#f3f2ec';g.fillRect(0, 0, 128, 16);g.fillStyle = '#c9c8c0';g.fillRect(0, 0, 2, 16);g.fillStyle = '#ffffff';g.fillRect(2, 0, 1, 16);}, [1 / .3, 1])}));
+    const vinyl = mat('vinyl', () => new T.MeshStandardMaterial({color: 0x8496aa, roughness: .42, metalness: 0}));
+    art.save();art.translate(768, 768);art.fillStyle = '#3b3d38';art.fillRect(0, 0, 256, 256);art.strokeStyle = '#8d8f86';art.lineWidth = 7;
+    for (let y = 0; y < 256; y += 42) for (let x = 0; x < 256; x += 32) {const o = (y / 42) % 2 ? 16 : 0;art.strokeRect(x + o + 4, y + 6, 20, 30);art.beginPath();art.moveTo(x + o + 14, y + 36);art.lineTo(x + o + 14, y + 48);art.stroke();}
+    art.restore();artTex.needsUpdate = true;
+    // The owner's photos (rathkes-501-images.js): the ten LP covers and the canvas print, shown as they are.
+    const IMG = typeof window !== 'undefined' && window.RATHKES_501_IMAGES;
+    const photoTex = src => {const t = new T.TextureLoader().load(src);t.colorSpace = T.SRGBColorSpace;t.anisotropy = 8;return t;};
+    const coversM = IMG && IMG.covers ? mat('covers', () => new T.MeshStandardMaterial({map: photoTex(IMG.covers.src), roughness: .55, metalness: 0})) : null;
+    const printM = IMG && IMG.print ? mat('print', () => {const t = photoTex(IMG.print.src);return new T.MeshStandardMaterial({map: t, emissiveMap: t, emissive: 0xffffff, emissiveIntensity: .18, roughness: .9, metalness: 0});}) : null;
+    // A thin box that shows one picture (uv rect [u0, v0, u1, v1]) on its front and the picture's edges round its sides, as a
+    // stretched canvas print does.
+    function wrapUV(geo, [u0, v0, u1, v1], k = .02) {
+      const uv = geo.attributes.uv, U = s => u0 + (u1 - u0) * s, V = s => v0 + (v1 - v0) * s;
+      for (let i = 0; i < uv.count; i++) {
+        const f = Math.floor(i / 4), u = uv.getX(i), v = uv.getY(i);
+        if (f === 0) uv.setXY(i, U(1 - k + k * u), V(v));else if (f === 1) uv.setXY(i, U(k * u), V(v));else if (f === 2) uv.setXY(i, U(u), V(1 - k + k * v));else if (f === 3) uv.setXY(i, U(u), V(k * v));else uv.setXY(i, U(u), V(v));
+      }
+      return geo;
+    }
     // ---- Geometry helpers (wing coordinates: x = a, z = b, y absolute).
     const mesh = (geo, m, parent) => {if (m && m.pal !== undefined) {paint(geo, m.pal);m = palette;} else if (m && m.glow !== undefined) {paint(geo, m.glow);m = glowPal;}const o = new T.Mesh(geo, m);o.castShadow = o.receiveShadow = true;parent.add(o);return o;};
     function box(parent, a0, b0, a1, b1, y0, y1, m) {
@@ -419,7 +486,7 @@
 
     // ---------- The flat ----------
     for (const r of data.rooms) {
-      const [a0, b0, a1, b1] = r.rect;box(inner, a0, b0, a1, b1, FL - .03, FL, r.floor === 'tile' ? tilesF : pine);
+      const [a0, b0, a1, b1] = r.rect;box(inner, a0, b0, a1, b1, FL - .03, FL, r.floor === 'tile' ? vinyl : pine);
       const c = plane(inner, a1 - a0, b1 - b0, ceilingM);c.rotation.x = Math.PI / 2;c.position.set((a0 + a1) / 2, FL + CEIL, (b0 + b1) / 2);c.receiveShadow = true;
     }
     for (const f of flatFloors(data, lv)) if (f.name !== 'Bathroom' && !data.rooms.some(r => r.rect === f.rect)) box(inner, f.rect[0], f.rect[1], f.rect[2], f.rect[3], FL - .03, FL, pine);
@@ -438,8 +505,11 @@
     };
     for (const r of data.rooms) if (r.id !== 'bath') {const [a0, b0, a1, b1] = r.rect;skirt('b', b0, a0, a1, true, 1);skirt('b', b1, a0, a1, true, -1);skirt('a', a0, b0 + .012, b1 - .012, false, 1);skirt('a', a1, b0 + .012, b1 - .012, false, -1);}
     {const [a0, b0, a1, b1] = data.rooms.find(r => r.id === 'bath').rect, t = .012, door = data.walls.find(w => w.openings && w.openings.some(o => o.door && o.door.id === 'bath')).openings[0].at;
-      box(inner, a0 + t, b0, a1 - t, b0 + t, FL, FL + CEIL - .01, tilesW);box(inner, a0 + t, b1 - t, a1 - t, b1, FL, FL + CEIL - .01, tilesW);box(inner, a1 - t, b0, a1, b1, FL, FL + CEIL - .01, tilesW);
-      holed(inner, a0, b0, a0 + t, b1, FL, FL + CEIL - .01, [{a0: door[0], a1: door[1], y0: FL - .01, y1: FL + 2.07}], tilesW);}
+      box(inner, a0 + t, b0, a1 - t, b0 + t, FL, FL + CEIL - .01, boards);box(inner, a0 + t, b1 - t, a1 - t, b1, FL, FL + CEIL - .01, boards);box(inner, a1 - t, b0, a1, b1, FL, FL + CEIL - .01, boards);
+      holed(inner, a0, b0, a0 + t, b1, FL, FL + CEIL - .01, [{a0: door[0], a1: door[1], y0: FL - .01, y1: FL + 2.07}], boards);
+      // The oak trim under the ceiling (issue #167).
+      const y0 = FL + CEIL - .07, y1 = FL + CEIL - .012, k = t + .02;
+      box(inner, a0 + t, b0 + t, a1 - t, b0 + k, y0, y1, oak);box(inner, a0 + t, b1 - k, a1 - t, b1 - t, y0, y1, oak);box(inner, a0 + t, b0 + k, a0 + k, b1 - k, y0, y1, oak);box(inner, a1 - k, b0 + k, a1 - t, b1 - k, y0, y1, oak);}
     // The hall's soffit box.
     {const s = data.soffit;box(inner, s[0], s[1], s[2], s[3], FL + s[4], FL + CEIL, plaster);}
 
@@ -517,8 +587,6 @@
         
       },
       pipe(g, f) {pcyl(g, .05, .05, f.h, 0, f.h / 2, 0, 0x9da3a6, 10);},
-      sideboard(g, f) {pbox(g, f.w, .03, f.d, 0, f.h, 0, 0x1a1a1a);pbox(g, f.w - .04, f.h - .2, f.d - .04, 0, (f.h - .2) / 2 + .18, 0, 0xc8a26a);for (let i = 0; i < 18; i++) pbox(g, .012, f.h - .22, .006, -f.w / 2 + .05 + i * (f.w - .1) / 17, (f.h - .2) / 2 + .18, f.d / 2 - .015, 0x9a7444);for (const x of [-f.w / 2 + .05, f.w / 2 - .05]) for (const z of [-f.d / 2 + .05, f.d / 2 - .05]) pbox(g, .02, .18, .02, x, .09, z, 0x111111);pbox(g, .3, .36, .4, -.15, f.h + .2, -.02, 0xb9bec1);pbox(g, .18, .2, .2, -.15, f.h + .3, .2, 0x2a2a2a);pcyl(g, .06, .06, .3, .3, f.h + .15, 0, 0x222222);},
-      records(g, f) {const s = .31;for (let i = 0; i < 9; i++) {const p = plane(g, s, s, artM, cellUV(4 + i));p.position.set(-s - .02 + (i % 3) * (s + .02), f.y + s / 2 + Math.floor(i / 3) * (s + .02), .006);}},
       diningTable(g, f) {
         pbox(g, f.w, .04, f.d, 0, .74, 0, 0x151515);for (const x of [-f.w / 2 + .06, f.w / 2 - .06]) for (const z of [-f.d / 2 + .08, f.d / 2 - .08]) pbox(g, .05, .72, .05, x, .36, z, 0x151515);
         // Its six chairs are movable pieces of their own (data 'diningChair', game-rathkes-living.js).
@@ -531,21 +599,92 @@
         
       },
       coffeeTable(g, f) {box(g, -f.w / 2, -f.d / 2, f.w / 2, f.d / 2, f.h - .035, f.h, teak);for (const x of [-f.w / 2 + .05, f.w / 2 - .05]) for (const z of [-f.d / 2 + .05, f.d / 2 - .05]) pbox(g, .04, f.h - .035, .04, x, (f.h - .035) / 2, z, 0x6a3a1e);pbox(g, .3, .02, .22, -.2, f.h + .01, 0, 0xd8d0c0);},
-      wallUnit(g, f) {
-        const w = f.w, z0 = -.175;for (let i = 0; i <= 4; i++) box(g, -w / 2 + i * w / 4 - .015, z0 - .02, -w / 2 + i * w / 4 + .015, z0 + .02, 0, 2.15, teak);
-        const T2 = (x0, x1, y0, y1, d) => box(g, x0, z0, x1, z0 + d, y0, y1, teak);
-        T2(-w / 2, -w / 4, .25, .8, .45);T2(-w / 4, 0, .7, .74, .45);T2(0, w / 4, .3, .85, .42);T2(w / 4, w / 2, .3, .85, .42);
-        for (const [a0, a1, y] of [[-w / 2, 0, 1.15], [-w / 2, w / 2, 1.5], [0, w / 2, 1.18], [-w / 2, -w / 4, 1.92], [0, w / 2, 1.95]]) T2(a0, a1, y, y + .025, .3);T2(-w / 4, 0, 1.6, 2.0, .35);
-        for (let i = 0; i < 3; i++) pbox(g, w / 4 - .04, .005, .01, -w * 3 / 8, .42 + i * .16, z0 + .455, 0x4a2a14);
-        const bk = [0x8c2f28, 0x2f4d6b, 0xd8cdb2, 0x3d5a3a, 0x1f1f22, 0xc9a24a, 0x6b4a7a, 0xe6e1d6];for (const [x0, y, n] of [[-w / 2 + .05, 1.175, 22], [.05, 1.205, 18], [-w / 2 + .1, 1.525, 14]]) for (let i = 0; i < n; i++) pbox(g, .028, .2 + (i % 3) * .02, .2, x0 + i * .032, y + .11, z0 + .12, bk[(i * 5) % bk.length]);
-        // The record player's plinth (its platter and tonearm, and the lava lamp on the shelf above, move: game-rathkes-living.js).
-        const rp = f.record || [w / 4 + .3, z0 + .2];pbox(g, .38, .1, .32, rp[0], .9, rp[1], 0xb9bec1);pbox(g, .05, .012, .05, rp[0] + .14, .956, rp[1] - .1, 0x2a2a2a);
-        const sh = mesh(new T.CylinderGeometry(.09, .12, .14, 14, 1, true), glowOrange, g);sh.position.set(-w / 8, .92, z0 + .25);sh.castShadow = false;pcyl(g, .06, .07, .15, -w / 8, .82, z0 + .25, 0x1a1a1a);
-        const wl = mesh(new T.CylinderGeometry(.1, .13, .16, 14, 1, true), glowOrange, g);wl.position.set(-w / 2 + .5, 2.1, z0 + .2);wl.castShadow = false;
-        
+      // The small black cabinet under the record wall (issue #166): thin legs, open compartments on the left, a tambour door of
+      // vertical wooden slats on the right; the steel espresso machine and the grinder on top.
+      coffeeCabinet(g, f) {
+        const {w, d, h} = f, L = .18, B = 0x161617, mid = (h + L) / 2, ih = h - L - .04;
+        for (const x of [-w / 2 + .03, w / 2 - .03]) for (const z of [-d / 2 + .03, d / 2 - .03]) pbox(g, .016, L, .016, x, L / 2, z, B);
+        pbox(g, w, .02, d, 0, h - .01, 0, B);pbox(g, w, .02, d, 0, L + .01, 0, B);for (const x of [-w / 2 + .01, w / 2 - .01]) pbox(g, .02, ih, d, x, mid, 0, B);
+        pbox(g, w - .04, ih, .012, 0, mid, -d / 2 + .006, B);pbox(g, .016, ih, d - .012, 0, mid, .006, B);pbox(g, .014, ih, d - .03, -w / 4, mid, 0, B);pbox(g, w / 2 - .03, .014, d - .03, -w / 4, mid, 0, B);
+        const n = 16, sw = (w / 2 - .03) / n;for (let i = 0; i < n; i++) pbox(g, sw - .004, ih, .014, .008 + sw / 2 + i * sw, mid, d / 2 - .007, i % 3 ? 0xc99a62 : 0xbf8f58);
+        [[-.33, .1, .22, 0x6a4a2a], [-.27, .07, .16, 0xe8e2d4], [-.13, .09, .12, 0xc0392b], [-.08, .1, .14, 0x9aa0a4]].forEach(([x, r, hh, c], i) => pcyl(g, r / 2, r / 2, hh, x, (i < 2 ? L + .02 : mid + .007) + hh / 2, .04, c, 10));
+        box(g, .05, -.17, .31, .17, h, h + .38, chrome);pbox(g, .2, .012, .14, .18, h + .1, .19, 0x2a2a2a);pcyl(g, .03, .03, .05, .18, h + .2, .12, 0x9aa0a4, 12);pbox(g, .03, .02, .14, .18, h + .17, .24, 0x111111);
+        pbox(g, .13, .22, .17, -.2, h + .11, -.02, 0x1a1a1c);pcyl(g, .06, .045, .11, -.2, h + .275, -.02, 0x8a8d90, 14);
       },
-      // The screen (a picture when it is on) is game-rathkes-living.js's.
-      tv(g) {pbox(g, .35, .5, .3, 0, .25, 0, 0x1b1b1b);pbox(g, 1.25, .74, .05, 0, .87, 0, 0x0c0c0c);pbox(g, .25, .45, .25, .85, .225, -.05, 0x5a3a24);},
+      // The ten LP covers (cut from the owner's photo, one atlas cell each), each a thin box a little off the wall and tipped
+      // forward at the top; the galvanised conduit along the top of the wall.
+      records(g, f) {
+        if (coversM) f.covers.forEach(([x, y], i) => {const col = i % 4, row = Math.floor(i / 4), geo = wrapUV(new T.BoxGeometry(.315, .315, .004), [col / 4, 1 - (row + 1) / 3, (col + 1) / 4, 1 - row / 3], .015);const m = mesh(geo, coversM, g);m.position.set(x, y, .022);m.rotation.x = .07;m.castShadow = false;});
+        pcyl(g, .012, .012, 3.1, -.2, 2.86, .03, 0x9da3a6, 8).rotation.z = Math.PI / 2;
+      },
+      // The canvas print above the living-room table (the owner's photo, shown as it is): the picture wraps round its edges.
+      canvasPrint(g, f) {
+        if (!printM) return;
+        const I = IMG.print, h = f.w * I.h / I.w, m = mesh(wrapUV(new T.BoxGeometry(f.w, h, .02), [0, 0, 1, 1], .012), printM, g);m.position.set(0, f.y, .014);m.castShadow = false;
+      },
+      // The teak wall system (issue #166): uprights that lean out at the foot, two rows of rails, and the modules and things of
+      // wallUnitLayout (the record player's platter and arm and the lava lamp move: game-rathkes-living.js).
+      wallUnit(g, f) {
+        const L = wallUnitLayout(f), Z = L.Z, w = f.w, t = (x0, x1, y0, y1, z0, z1) => box(g, x0, z0, x1, z1, y0, y1, teak), D = 0x3a1e0e, line = (x0, x1, y, z) => pbox(g, x1 - x0, .006, .01, (x0 + x1) / 2, y, z + .003, D);
+        const legLen = Math.hypot(.5, .42);
+        for (const x of L.uprights) {t(x - .015, x + .015, .5, L.top, Z, Z + .035);const leg = mesh(new T.BoxGeometry(.03, legLen, .035), teak, g);leg.position.set(x, .25, Z + .0175 + .21);leg.rotation.x = -Math.atan2(.42, .5);}
+        for (const [y0, y1] of L.rails) t(-w / 2 - .02, w / 2 + .02, y0, y1, Z, Z + .02);
+        const legs = m => {for (const x of [m.x0 + .04, m.x1 - .04]) for (const z of [m.z0 + .05, m.z1 - .05]) pbox(g, .03, m.y0, .03, x, m.y0 / 2, z, 0x6a3a1e);};
+        for (const m of L.modules) {
+          const {x0, x1, y0, y1, z0, z1} = m, cx = (x0 + x1) / 2;
+          if (m.kind === 'shelf') t(x0, x1, y0, y1, z0, z1);
+          else if (m.kind === 'glassCab') {
+            t(x0, x1, y1 - .02, y1, z0, z1);t(x0, x1, y0, y0 + .02, z0, z1);t(x0, x0 + .02, y0 + .02, y1 - .02, z0, z1);t(x1 - .02, x1, y0 + .02, y1 - .02, z0, z1);t(x0 + .02, x1 - .02, y0 + .02, y1 - .02, z0, z1 - .03);
+            const dw = (x1 - x0 - .04) / 2 + .02, hh = y1 - y0 - .04;
+            for (const [s, dz] of [[-1, .022], [1, .012]]) {const p = plane(g, dw, hh, artM, cellUV(15));p.position.set(cx + s * (dw / 2 - .01), (y0 + y1) / 2, z1 - dz);}
+          } else if (m.kind === 'desk') {t(x0, x1, y1 - .03, y1, z0, z1);t(x0 + .05, x1 - .05, y0, y1 - .03, z0 + .03, z1 - .03);line(x0 + .05, x1 - .05, y0 + .02, z1 - .03);pbox(g, .12, .02, .01, cx, y0 + .045, z1 - .025, D);legs(m);}
+          else {
+            t(x0, x1, y0, y1, z0, z1);
+            const k = m.kind === 'drawers2' ? 2 : m.kind === 'drawers3' ? 3 : 0;
+            for (let i = 1; i < k; i++) line(x0 + .01, x1 - .01, y0 + i * (y1 - y0) / k, z1);
+            for (let i = 0; i < k; i++) pbox(g, .14, .018, .01, cx, y0 + (i + 1) * (y1 - y0) / k - .03, z1 + .003, D);
+            if (m.kind === 'cabinet' || m.kind === 'slidingCab') {pbox(g, .006, y1 - y0 - .02, .01, cx, (y0 + y1) / 2, z1 + .003, D);for (const s of [-1, 1]) pbox(g, .012, .1, .01, cx + s * .05, (y0 + y1) / 2, z1 + .003, D);}
+            if (y0 > .1 && y0 < .6) legs(m);
+          }
+        }
+        const bk = [0x8c2f28, 0x2f4d6b, 0xd8cdb2, 0x3d5a3a, 0x1f1f22, 0xc9a24a, 0x6b4a7a, 0xe6e1d6, 0x2a6f6c, 0xb5643a];
+        const pot = (t0, r, h, c) => pcyl(g, r, r * .82, h, t0.x, t0.y + h / 2, t0.z, c, 12);
+        const leaves = (x, y, z, n, s, cols) => {for (let i = 0; i < n; i++) {const l = pbox(g, s, .012, s * .6, x + Math.cos(i * 2.4) * s * .4, y + (i / n) * s * 1.6, z + Math.sin(i * 2.4) * s * .4, cols[i % cols.length]);l.rotation.y = i * 2.4;l.rotation.z = .35;}};
+        for (const th of L.things) {
+          const {x, y, z} = th;
+          if (th.name === 'books') {let u = x - th.w / 2, i = 0;while (u < x + th.w / 2 - .03) {const bw = .022 + (i * 7 % 5) * .004, bh = th.h - (i * 5 % 4) * .02;pbox(g, bw - .002, bh, th.d - (i % 3) * .02, u + bw / 2, y + bh / 2, z, bk[(i * 3) % bk.length]);u += bw;i++;}}
+          else if (th.name === 'red table lamp') {pcyl(g, .05, .1, .2, x, y + .1, z, 0x24262a, 16);const s = mesh(new T.CylinderGeometry(.09, .12, .17, 16, 1, true), {glow: 0xd0483a}, g);s.position.set(x, y + .3, z);s.castShadow = false;}
+          else if (th.name === 'receiver') {pbox(g, th.w, th.h, th.d, x, y + th.h / 2, z, 0xb9bec1);pbox(g, .18, .03, .01, x - .05, y + .08, z + th.d / 2 + .003, 0x1a1a1a);pcyl(g, .03, .03, .02, x + .14, y + .075, z + th.d / 2 + .008, 0xd0d4d6, 12).rotation.x = Math.PI / 2;}
+          else if (th.name === 'small plant' || th.name === 'plant in a white pot') {const small = th.name === 'small plant', ph = small ? .12 : .14;pot(th, th.w / 2, ph, 0xf3f1eb);leaves(x, y + ph, z, 7, small ? .12 : .16, [0x2f6b2f, 0x3f8a3a]);}
+          else if (th.name === 'flat book') pbox(g, th.w, th.h, th.d, x, y + th.h / 2, z, 0x6b4a2e);
+          else if (th.name === 'trailing plant') {pot(th, .05, .1, 0xe8e2d4);for (let i = 0; i < 16; i++) {const l = pbox(g, .03, .022, .005, x + ((i * 5) % 7 - 3) * .012, y - .02 - i * .019, .135 + (i % 2) * .008, i % 3 ? 0x2a4f2c : 0x8fa684);l.rotation.z = i * .7;}}
+          else if (th.name === 'records on show') {pbox(g, th.w, .02, th.d, x, y + .01, z, 0x8a5a32);for (let i = 0; i < 7; i++) {const r = pbox(g, .31, .31, .005, x, y + .02 + .15, z - .045 + i * .014, bk[(i * 3 + 1) % bk.length]);r.rotation.x = -.22;}const p = plane(g, .31, .31, artM, cellUV(7));p.position.set(x, y + .02 + .15, z + .056);p.rotation.x = -.22;}
+          else if (th.name === 'record player') {pbox(g, .38, .1, .32, x, y + .05, z, 0xb9bec1);pbox(g, .05, .012, .05, x + .14, y + .106, z - .1, 0x2a2a2a);}
+          else if (th.name === 'mountain books') {pbox(g, th.w, .05, th.d, x, y + .025, z, 0x1f3a5a);pbox(g, th.w - .01, .05, th.d - .01, x, y + .075, z, 0x24466a);}
+          else if (th.name === 'succulent') {pot(th, .035, .05, 0xf4f2ee);pcyl(g, 0, .03, .05, x, y + .075, z, 0x4f8a4a, 6);}
+          else if (th.name === 'pillar candle') {pcyl(g, .06, .06, .01, x, y + .005, z, 0xe8e8e8, 16);pcyl(g, .035, .035, .14, x, y + .08, z, 0xf6f2e6, 14);}
+          else if (th.name === 'clock') pbox(g, th.w, th.h, th.d, x, y + th.h / 2, z, 0x2a2c30);
+          else if (th.name === 'woven lamp') {pcyl(g, .06, .07, .03, x, y + .015, z, 0xd8d8d4, 14);pcyl(g, .008, .008, .36, x, y + .21, z, 0xd8d8d4, 6);const s = mesh(new T.CylinderGeometry(.13, .16, .26, 18, 1, true), {glow: 0xf0a860}, g);s.position.set(x, y + .49, z);s.castShadow = false;}
+          else if (th.name === 'record cover') {const p = plane(g, .31, .31, artM, cellUV(x < 1.2 ? 8 : 9));p.position.set(x, y + .155, z);p.rotation.x = -.12;}
+          else if (th.name === 'terracotta lamp') {pcyl(g, .07, .1, .2, x, y + .1, z, 0x1c1c1e, 14);pcyl(g, .1, .13, .2, x, y + .32, z, 0xb5643a, 18);}
+        }
+      },
+      // The TV bench of glossy oxblood tiles (issue #166): thick top, base and ends, open through the middle; a small tiled
+      // upright at the right end makes a compartment with two books.
+      tvBench(g, f) {
+        const {w, d, h} = f, X = w / 2, e = .14, base = .13, top = h - .14, T2 = (x0, x1, y0, y1) => box(g, x0, -d / 2, x1, d / 2, y0, y1, tilesRed);
+        T2(-X, X, 0, base);T2(-X, X, top, h);T2(-X, -X + e, base, top);T2(X - e, X, base, top);T2(X - e - .33, X - e - .25, base, top);
+        pbox(g, .13, .17, .025, X - e - .15, base + .085, .1, 0xe0782a);pbox(g, .025, .17, .13, X - e - .045, base + .085, .03, 0x8fd3c0);
+      },
+      // The big flat TV on its low, wide foot (the screen and its picture are game-rathkes-living.js's).
+      tv(g, f) {const y = f.y || 0;pbox(g, .9, .02, .24, 0, y + .01, -.03, 0x1a1a1c);pbox(g, .3, .05, .05, 0, y + .045, -.03, 0x1a1a1c);pbox(g, 1.45, .84, .045, 0, y + .49, 0, 0x0c0c0c);},
+      // A tall wooden speaker with a dark woven front; the left one carries the variegated monstera.
+      speaker(g, f) {
+        pbox(g, f.w, f.h, f.d, 0, f.h / 2, 0, 0x6e4426);pbox(g, f.w - .04, f.h - .06, .01, 0, f.h / 2 + .01, f.d / 2, 0x2b2a26);
+        if (f.plant) {pcyl(g, .11, .09, .2, 0, f.h + .1, 0, 0x1c1c1e, 14);for (let i = 0; i < 9; i++) {const l = pbox(g, .26, .015, .16, Math.cos(i * 2.4) * .13, f.h + .25 + (i % 4) * .09, Math.sin(i * 2.4) * .13, i % 2 ? 0xdcd8bc : 0x3f7a3a);l.rotation.y = i * 2.4;l.rotation.z = .4;}}
+      },
+      // The thin brass floor lamp with a bare globe bulb.
+      globeLamp(g) {pcyl(g, .1, .1, .02, 0, .01, 0, 0xb08040, 16);pcyl(g, .008, .008, 1.5, 0, .77, 0, 0xc8964a, 8);pcyl(g, .025, .025, .06, 0, 1.55, 0, 0xc8964a, 10);const b = mesh(new T.SphereGeometry(.09, 14, 10), {glow: 0xffd08a}, g);b.position.y = 1.67;b.castShadow = false;},
       guitar(g) {const b = pcyl(g, .17, .17, .1, 0, .3, 0, 0xc98a4a, 16);b.rotation.x = Math.PI / 2;b.rotation.z = .12;pcyl(g, .13, .13, .1, 0, .58, 0, 0xc98a4a, 16).rotation.x = Math.PI / 2;pbox(g, .05, .55, .03, -.04, .95, 0, 0x3a2414);},
       plant(g, f) {pcyl(g, .14, .11, .25, 0, .125, 0, 0x2b2b2b, 14);for (let i = 0; i < 7; i++) {const l = pbox(g, .28, .02, .14, Math.cos(i) * .12, .3 + (i / 7) * f.h * .7, Math.sin(i * 2) * .12, i % 2 ? 0x2f6b2f : 0x3f8a3a);l.rotation.y = i * .9;l.rotation.z = .3;}},
       shoeRack(g) {for (const y of [.08, .26, .44]) {pbox(g, .8, .012, .012, 0, y, -.1, 0x1b1b1b);pbox(g, .8, .012, .012, 0, y + .03, .1, 0x1b1b1b);}for (const x of [-.4, .4]) pbox(g, .015, .5, .25, x, .25, 0, 0x1b1b1b);[0xf0a020, 0x6a6a6a, 0xd94a2a, 0x2a2a2a, 0x8a7a6a, 0x3a5a8a].forEach((c, i) => pbox(g, .11, .08, .26, -.3 + (i % 3) * .28, .12 + Math.floor(i / 3) * .2, 0, c));}
@@ -559,19 +698,57 @@
     const lampKinds = {hall: 'flush', bed1: 'globe', bed2: 'cone', bed3: 'flush', bed4: 'drum', living: 'cone', bath: 'flush'};
     for (const r of data.rooms) for (const [a, b, kind] of r.lamps) {
       const k = kind || lampKinds[r.id];if (k === 'none') continue;const g = new T.Group();g.position.set(a, FL + CEIL, b);inner.add(g);
-      if (k === 'flush') {const s = mesh(new T.SphereGeometry(.16, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), glow, g);s.rotation.x = Math.PI;s.castShadow = false;}
+      if (k === 'egg') {pcyl(g, .045, .055, .05, 0, -.025, 0, 0xf4f4f2, 14);const s = mesh(new T.SphereGeometry(.075, 16, 12), glow, g);s.scale.y = 1.4;s.position.y = -.15;s.castShadow = false;}
+      else if (k === 'flush') {const s = mesh(new T.SphereGeometry(.16, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), glow, g);s.rotation.x = Math.PI;s.castShadow = false;}
       else {pcyl(g, .006, .006, .55, 0, -.27, 0, 0x222222, 6);const sh = k === 'globe' ? new T.SphereGeometry(.2, 16, 12) : k === 'drum' ? new T.CylinderGeometry(.22, .22, .24, 18, 1, true) : new T.ConeGeometry(.18, .2, 16, 1, false);const s = mesh(sh, k === 'cone' ? palette : k === 'drum' ? glowOrange : glow, g);s.position.y = k === 'globe' ? -.75 : -.62;s.castShadow = false;if (k === 'cone') {paint(s.geometry, r.id === 'bed2' ? 0x1f3a2a : 0x1a1a1a);const bulb = mesh(new T.SphereGeometry(.05, 10, 8), glow, g);bulb.position.y = -.74;bulb.castShadow = false;} else if (k === 'drum') {const bulb = mesh(new T.SphereGeometry(.06, 10, 8), glow, g);bulb.position.y = -.66;bulb.castShadow = false;}}
     }
-    // The bathroom (not in the video): vanity and basin with a mirror cabinet, wall-hung toilet, shower corner, washer, towel radiator.
+    // The bathroom (issue #167, the owner's two photos): oak vanity with a white basin and an oak mirror cabinet with a lit edge,
+    // the towel ladder, the rounded glass corner shower cabin, the toilet with a black seat and the washing machine by the door
+    // with the dehumidifier and two woven baskets on it (its light, hum and switch: game-rathkes-living.js), the mat.
     {
-      const B = data.bathroom, y = FL;
-      const v = new T.Group();v.position.set(B.vanity[0], y, B.vanity[1]);inner.add(v);pbox(v, .6, .45, .46, 0, .6, .23, 0xf4f4f2);box(v, -.3, 0, .3, .48, .83, .86, ceramic);pcyl(v, .012, .012, .14, 0, .93, .07, 0xd8dcde, 8);pbox(v, .6, .6, .14, 0, 1.6, .07, 0xf4f4f2);const mr = box(v, -.29, .14, .29, .146, 1.32, 1.88, chrome);if (mr) mr.castShadow = false;const lb = mesh(new T.BoxGeometry(.5, .04, .06), glow, v);lb.position.set(0, 1.95, .1);
-      const t = new T.Group();t.position.set(B.toilet[0], y, B.toilet[1]);inner.add(t);pbox(t, .5, 1.1, .2, 0, .55, .1, 0xf1f1ef);box(t, -.18, .2, .18, .72, .3, .42, ceramic);box(t, -.17, .2, .17, .7, .42, .45, ceramic);pbox(t, .2, .14, .01, 0, 1.0, .205, 0xd8dcde);
-      const [s0, sb0, s1, sb1] = B.shower;const sc = box(inner, s0 - .005, sb0, s0 + .005, sb1, y, y + 2.0, glass);if (sc) sc.castShadow = false;pcyl(inner, .012, .012, 1.0, s1 - .06, y + 1.4, (sb0 + sb1) / 2, 0xd8dcde, 8);pcyl(inner, .1, .1, .015, s1 - .3, y + 2.05, (sb0 + sb1) / 2, 0xd8dcde, 16);pbox(inner, .12, .004, .12, (s0 + s1) / 2, y + .002, (sb0 + sb1) / 2, 0x2a2a2a);
-      const wm = new T.Group();wm.position.set(B.washer[0], y, B.washer[1]);wm.rotation.y = Math.PI;inner.add(wm);pbox(wm, .6, .85, .58, 0, .425, .29, 0xf6f6f4);pcyl(wm, .17, .17, .02, 0, .5, .59, 0x30363a, 20).rotation.x = Math.PI / 2;
-      const tr = new T.Group();tr.position.set(B.towels[0], y, B.towels[1]);tr.rotation.y = Math.PI;inner.add(tr);for (let i = 0; i < 9; i++) pbox(tr, .5, .02, .02, 0, .7 + i * .11, .06, 0xd8dcde);for (const x of [-.25, .25]) pbox(tr, .025, 1.0, .025, x, 1.15, .06, 0xd8dcde);pbox(tr, .45, .5, .03, 0, 1.2, .09, 0x6f9ab0);
+      const B = data.bathroom, y = FL, t = .012, white = 0xf4f4f2;
+      const grp = (a, b, rot) => {const g = new T.Group();g.position.set(a, y, b);g.rotation.y = rot;inner.add(g);return g;};
+      // Vanity (on the hall-side wall, facing into the room) and the mirror cabinet above it.
+      const v = grp(B.vanity[0], B.vanity[1] + t, 0);
+      box(v, -.4, 0, .4, .45, .36, .82, oak);box(v, -.41, 0, .41, .48, .82, .9, ceramic);pbox(v, .56, .012, .3, 0, .9035, .25, 0xe2e6e8);pcyl(v, .02, .02, .006, 0, .9105, .25, 0x9aa0a4, 12);
+      pbox(v, .006, .44, .01, 0, .59, .452, 0x8a6a40);pcyl(v, .014, .014, .14, 0, .97, .07, 0xd8dcde, 10);pbox(v, .02, .02, .1, 0, 1.03, .12, 0xd8dcde);
+      box(v, -.4, 0, .4, .15, 1.25, 1.95, oak);const mr = box(v, -.37, .15, .37, .156, 1.29, 1.91, chrome);if (mr) mr.castShadow = false;
+      for (const [w, h, x, yy] of [[.016, .6, .385, 1.6], [.75, .016, 0, 1.27]]) {const s = mesh(new T.BoxGeometry(w, h, .008), glow, v);s.position.set(x, yy, .155);s.castShadow = false;}
+      // Towel ladder leaning on the far wall, two towels over its rungs.
+      {const [la, lb] = B.ladder, top = la - t - .02, foot = top - .28, len = Math.hypot(.28, 1.7), ang = Math.atan2(.28, 1.7);
+        for (const s of [-1, 1]) {const r = mesh(new T.BoxGeometry(.035, len, .025), oak, inner);r.position.set((top + foot) / 2, y + .85, lb + s * .22);r.rotation.z = -ang;}
+        for (let i = 1; i <= 5; i++) {const k = i / 5.5;pbox(inner, .022, .022, .44, foot + .28 * k - .01, y + 1.7 * k, lb, 0xd9b98a);}
+        pbox(inner, .03, .36, .3, foot + .28 * (3 / 5.5) - .03, y + 1.7 * (3 / 5.5) - .17, lb - .04, 0xeee8da);pbox(inner, .03, .3, .26, foot + .28 * (2 / 5.5) - .03, y + 1.7 * (2 / 5.5) - .14, lb + .05, 0x5f9a96);}
+      // The rounded glass corner shower cabin: a white quadrant tray, curved glass, a chrome rim and posts, the riser and head.
+      const [ca, cb] = B.shower.corner, r = B.shower.r, cx = ca - t, cz = cb - t, Q = [Math.PI, Math.PI / 2];
+      {const tr = mesh(paint(new T.CylinderGeometry(r + .02, r + .02, .14, 20, 1, false, ...Q), white), palette, inner);tr.position.set(cx, y + .07, cz);
+        const gl = mesh(new T.CylinderGeometry(r, r, 1.85, 20, 1, true, ...Q), glass, inner);gl.position.set(cx, y + .14 + .925, cz);gl.castShadow = false;
+        const rim = mesh(new T.CylinderGeometry(r + .006, r + .006, .03, 20, 1, true, ...Q), chrome, inner);rim.position.set(cx, y + 2.0, cz);
+        for (const a of [Math.PI + .02, Math.PI * 1.25, Math.PI * 1.5 - .02]) pcyl(inner, .012, .012, 1.85, cx + r * Math.sin(a), y + 1.065, cz + r * Math.cos(a), 0xd8dcde, 8);
+        pcyl(inner, .012, .012, 1.0, cx - .02, y + 1.4, cz - .4, 0xd8dcde, 8);pcyl(inner, .05, .05, .02, cx - .08, y + 1.92, cz - .4, 0xd8dcde, 14);}
+      // Toilet (back to the yard-side wall, facing into the room) with a black seat and its lid up; the roll stand and brush.
+      const tg = grp(B.toilet[0], B.toilet[1] - t, Math.PI);
+      box(tg, -.18, 0, .18, .19, .38, .8, ceramic);box(tg, -.11, .1, .11, .55, 0, .3, ceramic);box(tg, -.18, .12, .18, .64, .3, .41, ceramic);
+      pcyl(tg, .19, .19, .025, 0, .4225, .4, 0x121212, 20).scale.z = 1.22;{const ld = pcyl(tg, .18, .18, .025, 0, .65, .2125, 0x121212, 20);ld.rotation.x = Math.PI / 2;ld.scale.z = 1.2;}pcyl(tg, .025, .025, .012, 0, .806, .09, 0xd8dcde, 12);
+      {const [ra, rb] = B.roll;pcyl(inner, .09, .09, .012, ra, y + .006, rb, 0xc8ccce, 16);pcyl(inner, .008, .008, .62, ra, y + .32, rb, 0xc8ccce, 8);pcyl(inner, .055, .055, .1, ra, y + .66, rb, 0xf6f6f4, 14).rotation.z = Math.PI / 2;
+        pcyl(inner, .05, .045, .15, ra + .16, y + .075, rb + .05, white, 12);pcyl(inner, .006, .006, .3, ra + .16, y + .3, rb + .05, white, 6);}
+      // The front-loading washing machine, and on it the dehumidifier (cream, rounded top, perforated front, black lower part) and
+      // two small round woven baskets.
+      const wg = grp(B.washer[0], B.washer[1] - t, Math.PI), WT = B.washerTop;
+      pbox(wg, .6, WT, .58, 0, WT / 2, .29, white);pcyl(wg, .17, .17, .03, 0, .45, .59, 0xa8adb2, 24).rotation.x = Math.PI / 2;pcyl(wg, .13, .13, .012, 0, .45, .603, 0x22282c, 24).rotation.x = Math.PI / 2;
+      pbox(wg, .1, .03, .01, .12, .78, .582, 0x1a1a1a);pcyl(wg, .025, .025, .02, -.15, .78, .585, 0xd8dcde, 12).rotation.x = Math.PI / 2;
+      const dg = grp(B.dehumidifier[0], B.dehumidifier[1], Math.PI);dg.position.y = y + WT;
+      pbox(dg, .27, .14, .2, 0, .07, 0, 0x1b1b1d);pbox(dg, .27, .22, .2, 0, .25, 0, 0xefe8d6);pcyl(dg, .1, .1, .27, 0, .36, 0, 0xefe8d6, 16).rotation.z = Math.PI / 2;
+      for (let i = 0; i < 6; i++) for (let j = 0; j < 5; j++) pbox(dg, .012, .012, .006, -.09 + i * .036, .19 + j * .036, .1, 0xb3ab96);
+      {const [ba, bb] = B.baskets;pcyl(inner, .1, .09, .09, ba, y + WT + .045, bb, 0xd8cfb4, 16);pcyl(inner, .085, .08, .08, ba, y + WT + .13, bb, 0xc9d3b0, 16);pcyl(inner, .088, .088, .012, ba, y + WT + .176, bb, 0xc4cea8, 16);}
+      // The dark green mat; the extractor fan.
+      {const [ma, mb, mw, md] = B.mat;pbox(inner, mw, .014, md, ma, y + .007, mb, 0x24453a);}
       pcyl(inner, .07, .07, .02, 12.9, y + CEIL - .01, 6.6, 0xe9e9e6, 14);
-      solids.push(...[[B.vanity[0] - .3, B.vanity[1], B.vanity[0] + .3, B.vanity[1] + .48, .9], [B.toilet[0] - .2, B.toilet[1], B.toilet[0] + .2, B.toilet[1] + .72, .5], [B.washer[0] - .3, B.washer[1] - .58, B.washer[0] + .3, B.washer[1], .85], [s0 - .01, sb0, s0 + .01, sb1, 2.0]].map(([a0, b0, a1, b1, h]) => ({pts: [[a0, b0], [a1, b0], [a1, b1], [a0, b1]], minY: y, maxY: y + h})));
+      // Collision: vanity, toilet, washer (with what stands on it), the ladder and the shower cabin (its quadrant).
+      const sq = (a0, b0, a1, b1, h) => ({pts: [[a0, b0], [a1, b0], [a1, b1], [a0, b1]], minY: y, maxY: y + h});
+      const [va, vb] = B.vanity, [ta, tb] = B.toilet, [wa, wb] = B.washer, [la, lb] = B.ladder;
+      solids.push(sq(va - .41, vb, va + .41, vb + t + .48, .9), sq(ta - .19, tb - t - .65, ta + .19, tb, .85), sq(wa - .3, wb - t - .6, wa + .3, wb, WT + .48), sq(la - .34, lb - .25, la, lb + .25, 1.7));
+      solids.push({pts: [[cx, cz], ...[0, 1, 2, 3, 4, 5, 6].map(k => {const a = Math.PI + k / 6 * Math.PI / 2;return [cx + (r + .02) * Math.sin(a), cz + (r + .02) * Math.cos(a)];})], minY: y, maxY: y + 2.0});
     }
 
     // ---------- Bake: one mesh per material (doors and look targets stay separate) ----------
@@ -606,5 +783,5 @@
       spawn: {flat: toW(5.05, 5.7), stairTop: toW(5.6, 7.1), FL}};
   }
 
-  return {frame, cut, levels, stairFloors, flatFloors, obstacles, where, lampAt, turnHeight, clipHalf, area, pieceToWing, furnitureSolids, SOLIDS, build};
+  return {frame, cut, levels, stairFloors, flatFloors, obstacles, where, lampAt, turnHeight, clipHalf, area, pieceToWing, furnitureSolids, SOLIDS, wallUnitLayout, WU_Z, build};
 });

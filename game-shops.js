@@ -17,9 +17,9 @@
   const SHOPS = [
     {id: 'joker', name: 'Joker Torshov', brand: 'JOKER', osm: 1506608498, building: 888, edge: 6, t0: .08, t1: .92, depth: 10, sign: {bg: '#ffd200', fg: '#d0021b'}, shirt: 0xd0021b, hours: 'Åpent man–fre 07–24 · lør 08–24 · søn 09–24', priceFactor: 1},
     {id: 'kiwi', name: 'Kiwi Torshov', brand: 'KIWI', osm: 2476542841, building: 156, edge: 20, t0: .04, t1: .40, depth: 10, sign: {bg: '#2e9a3f', fg: '#ffffff'}, shirt: 0x2e9a3f, hours: 'Åpent man–lør 07–23', priceFactor: .95},
-    // Kiwi Storgata 33 (issue #65): OSM node 3111431401 (opening_hours "Mo-Sa 07:00-23:00") inside office building way 112233122
+    // Kniwi Storgata 33 (issue #65; the real shop is Kiwi Storgata 33, renamed KNIWI in the game at the owner's wish, 23 Nov 2026): OSM node 3111431401 (opening_hours "Mo-Sa 07:00-23:00") inside office building way 112233122
     // (9 storeys, 'modern' in the patch); edge 6 is its 52 m front on Storgata. Deliveries stay in the old square (no JOBB sign).
-    {id: 'kiwi-storgata', name: 'Kiwi Storgata 33', brand: 'KIWI', osm: 3111431401, district: 'gamle-oslo', building: 'w112233122', edge: 6, t0: .32, t1: .60, depth: 10,
+    {id: 'kiwi-storgata', name: 'Kniwi Storgata 33', brand: 'KNIWI', osm: 3111431401, district: 'gamle-oslo', building: 'w112233122', edge: 6, t0: .32, t1: .60, depth: 10,
       sign: {bg: '#2e9a3f', fg: '#ffffff'}, shirt: 0x2e9a3f, hours: 'Åpent man–lør 07–23', priceFactor: .95, counter: true, jobs: false}
   ];
   // Prices in kroner (Joker; Kiwi is about 5 % cheaper). where: fridge (back wall), shelf (gondolas), floor (by the door).

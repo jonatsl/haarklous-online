@@ -19,6 +19,7 @@
   function create({T, lib, audio, heightAt, collision, worldFor}) {
     const V3 = (x = 0, y = 0, z = 0) => new T.Vector3(x, y, z), G = 9.81, RHO = 1.225;
     const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+    const AC_SKY = () => (typeof window !== 'undefined' ? window : globalThis).GameSkydive;// the jump door's track (game-skydive.js)
     const mesh = (parent, geo, mat, x = 0, y = 0, z = 0) => {const m = new T.Mesh(geo, mat);m.position.set(x, y, z);m.castShadow = true;m.receiveShadow = true;parent.add(m);return m;};
     const box = (p, w, h, d, x, y, z, mat) => mesh(p, new T.BoxGeometry(w, h, d), mat, x, y, z);
     const rod = (parent, a, b, r, mat, seg = 10) => {const A = V3(...a), B = V3(...b), d = B.clone().sub(A), m = mesh(parent, new T.CylinderGeometry(r, r, d.length(), seg), mat);m.position.copy(A).add(B).multiplyScalar(.5);m.quaternion.setFromUnitVectors(V3(0, 1, 0), d.normalize());return m;};
@@ -332,31 +333,54 @@
         // Jumpers sit on two benches along the cabin, facing the tail; place n = n-th player in the lobby.
         this.jumpSeats = [];for (let k = 0; k < 6; k++) for (const sx of [-1, 1]) this.jumpSeats.push(V3(sx * .42, -.32, -2.3 + k * .82));
         for (let i = 0; i < 12; i++) this.hips['j' + i] = {pos: this.jumpSeats[i], yaw: Math.PI};
-        this.door = V3(-1.05, .0, 1.55);// just outside the roll-up door
+        this.door = V3(-1.05, .0, this.doorZ);// just outside the roll-up door
+        this.doorEye = V3(-.5, .28, this.doorZ);// kneeling inside the open door, looking out (issue #165)
         this.gearH = 1.55;this.reset();
       }
       hipAnchor(seat) {const h = this.hips[seat];return h ? {obj: this.group, pos: h.pos, stance: 'sit', yaw: h.yaw || 0} : null;}// jumpers face the tail
       doorWorld() {this.group.updateMatrixWorld(true);return this.door.clone().applyMatrix4(this.group.matrixWorld);}
+      doorEyeWorld() {this.group.updateMatrixWorld(true);return this.doorEye.clone().applyMatrix4(this.group.matrixWorld);}
+      // The roll-up door: k 0 = closed, 1 = open (the slats run up the wall and along under the roof).
+      setDoor(k) {
+        k = clamp(k, 0, 1);if (Math.abs(k - this.doorK) < 1e-4) return;this.doorK = k;
+        const SK = AC_SKY(), DR = SK.DOOR, n = this.doorSlats.count, h = DR.h / n, m = new T.Matrix4(), r = new T.Matrix4();
+        for (let i = 0; i < n; i++) {const p = SK.doorTrack(k * DR.h + (i + .5) * h);m.makeTranslation(p.x, p.y, this.doorZ).multiply(r.makeRotationZ(p.rot));this.doorSlats.setMatrixAt(i, m);}
+        this.doorSlats.instanceMatrix.needsUpdate = true;
+      }
       seatWorld(i) {this.group.updateMatrixWorld(true);return this.jumpSeats[i % 12].clone().applyMatrix4(this.group.matrixWorld);}
       build() {
         const g = this.group, white = paintMat(0xf2f3f1), blue = paintMat(0x1f4f9a), red = paintMat(0xc8322c), glass = glassMat(), shell = paintMat(0xf2f3f1);shell.side = T.DoubleSide;
         const inner = new T.MeshStandardMaterial({color: 0x5a5f66, roughness: .85, side: T.DoubleSide}), floorM = new T.MeshStandardMaterial({color: 0x3a3d42, roughness: .9});
-        // Cabin: a squarish tube 1.64 x 1.6 m, open at the door; nose cone with the engine cowling; tail cone rising to the fin.
-        const cabin = (z0, z1, sideOpen) => {
-          const L = z1 - z0, zc = (z0 + z1) / 2;
-          box(g, 1.64, .06, L, 0, -.62, zc, floorM);box(g, 1.64, .06, L, 0, .98, zc, shell);
-          box(g, .05, 1.6, L, .82, .18, zc, shell);
-          if (!sideOpen) box(g, .05, 1.6, L, -.82, .18, zc, shell);
-          else {box(g, .05, 1.6, 1.1, -.82, .18, z0 + .55, shell);box(g, .05, .3, L - 1.1, -.82, .83, (z0 + 1.1 + z1) / 2, shell);}
-        };
-        cabin(-4.3, .9, false);cabin(.9, 2.25, true);// the door opening: 1.35 m wide, 1.3 m high, left side behind the wing
+        // Cabin: a squarish tube 1.64 x 1.6 m; nose cone with the engine cowling; tail cone rising to the fin.
+        // The side walls (issue #165) are built round real openings: the cockpit side windows, a row of low cabin windows you
+        // see out of from the benches (eye height about 0.46 m over the model origin) and the 1.2 x 1.27 m jump door on the left
+        // behind the wing. Each opening has a glass pane (left out at the door), a little larger than the hole so its edges sit
+        // inside the wall (no gaps, no coplanar faces).
+        const Z0 = -4.3, Z1 = 2.25, Y0 = -.66, Y1 = .98, WIN = [.14, .58];
+        box(g, 1.64, .06, Z1 - Z0, 0, -.62, (Z0 + Z1) / 2, floorM);box(g, 1.64, .06, Z1 - Z0, 0, .98, (Z0 + Z1) / 2, shell);
+        const cockpitWin = [-4.05, -3.25, .1, .62], cabinWin = zc => [zc - .25, zc + .25, WIN[0], WIN[1]];
+        const DR = AC_SKY().DOOR, doorHole = [1.0, 2.2, DR.y0, DR.y0 + DR.h];this.doorZ = 1.6;
+        const holes = {
+          [-1]: [cockpitWin, ...[-2.3, -1.45, -.6, .25].map(cabinWin), doorHole],
+          [1]: [cockpitWin, ...[-2.3, -1.45, -.6, .25, 1.1, 1.85].map(cabinWin)]};
+        for (const sx of [-1, 1]) {
+          const H = holes[sx], cuts = [...new Set([Z0, Z1, ...H.flatMap(h => [h[0], h[1]])])].sort((a, b) => a - b), x = sx * .82;
+          for (let i = 0; i + 1 < cuts.length; i++) {
+            const a = cuts[i], b = cuts[i + 1], h = H.find(o => o[0] <= a + 1e-6 && o[1] >= b - 1e-6), zc = (a + b) / 2, L = b - a;
+            if (!h) {box(g, .05, Y1 - Y0, L, x, (Y0 + Y1) / 2, zc, shell);continue;}
+            box(g, .05, h[2] - Y0, L, x, (Y0 + h[2]) / 2, zc, shell);box(g, .05, Y1 - h[3], L, x, (h[3] + Y1) / 2, zc, shell);
+            if (h !== doorHole) box(g, .015, h[3] - h[2] + .02, L + .02, x, (h[2] + h[3]) / 2, zc, glass);
+          }
+        }
         box(g, 1.62, 1.56, .04, 0, .18, 2.27, inner);// cabin back wall
-        for (let k = 0; k < 4; k++) for (const sx of [-1, 1]) box(g, .02, .32, .38, sx * .845, .45, -2.2 + k * .95, glass);// windows
         const prof = (pts, z, mat, sc = [1, 1]) => {const l = new T.LatheGeometry(pts.map(([r, y]) => new T.Vector2(r, y)), 20);l.rotateX(Math.PI / 2);l.translate(0, 0, z);const m = mesh(g, l, mat);m.scale.set(sc[0], sc[1], 1);return m;};
         prof([[0, 0], [.22, .15], [.5, .7], [.62, 1.5], [.68, 2.0]], -6.3, white, [1.2, 1.2]);// nose and cowling, at -6.3 .. -4.3
         prof([[.95, 0], [.86, 1.4], [.55, 2.8], [.3, 3.9], [.12, 4.15]], 2.25, white, [.86, .9]).position.y = .2;// tail cone
-        box(g, 1.7, .08, 9.2, 0, -.5, -1.6, blue);// belly stripe
-        box(g, .02, .14, 6.6, .84, .32, -.9, red);box(g, .02, .14, 6.6, -.84, .32, -1.5, red);// cheat lines
+        box(g, 1.72, .08, 9.2, 0, -.71, -1.6, blue);// belly stripe (under the cabin floor)
+        box(g, .02, .12, 6.4, .86, -.08, -1.0, red);box(g, .02, .12, 5.1, -.86, -.08, -1.65, red);// cheat lines, under the windows (the left one stops at the door)
+        // The roll-up jump door: six slats on a track up the wall and under the roof, one draw call; setDoor(k) moves them.
+        {const DR = AC_SKY().DOOR, n = 6;this.doorSlats = new T.InstancedMesh(new T.BoxGeometry(.03, DR.h / n - .004, 1.24), paintMat(0xe9eae7), n);
+          this.doorSlats.castShadow = true;this.doorSlats.frustumCulled = false;this.doorSlats.userData.noMerge = true;g.add(this.doorSlats);this.doorK = -1;this.setDoor(0);}
         // Windscreen and cockpit.
         const ws = box(g, 1.5, .55, .05, 0, .65, -4.25, glass);ws.rotation.x = -.6;
         box(g, 1.3, .3, .1, 0, .2, -3.95, dark);for (let i = 0; i < 6; i++) {const gg = mesh(g, new T.CylinderGeometry(.04, .04, .01, 16), gaugeM, -.5 + i * .2, .24, -3.89);gg.rotation.x = Math.PI / 2;}
