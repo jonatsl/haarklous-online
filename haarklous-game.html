@@ -336,7 +336,7 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
           <dt>R3 / V</dt><dd>In any vehicle (car, lorry, motorcycle, bike, e-scooter, excavator, kayak, drone, aircraft, as a passenger too): first person ↔ third person, the camera behind you and you in the seat · right stick / mouse turns the camera round (mouse only where the right stick works a tool) · the view you choose stays for the next vehicle</dd>
           <dt>L2 / R2 · mouse buttons</dt><dd>Climbing at Klatreverket: hold to grip with the left / right hand, let go and look at the next hold to reach it</dd>
           <dt>L1 / Q</dt><dd>Torch on / off in the catacombs (□ too, where it is dark)</dd>
-          <dt>R1 / X · D-pad ← / ←</dt><dd>Magic, once Sopp-Sigvald at Kiwi Storgata has taught you: cast the chosen power (hold for levitation) · choose the power · keyboard 1–4 cast one directly</dd>
+          <dt>R1 / X · D-pad ← / ←</dt><dd>Magic, once Sopp-Sigvald at Kniwi Storgata has taught you: cast the chosen power (hold for levitation) · choose the power · keyboard 1–4 cast one directly</dd>
           <dt>Options / Esc</dt><dd>Pause and settings · R1 / B there: badges, the photo hunt and your best scores · L1 / N: friends</dd>
         </dl>
         <button id="startButton">Click or press ✕ to start</button>
@@ -8049,9 +8049,9 @@ window.BRIDGES = {"attribution":"Map data © OpenStreetMap contributors (ODbL)."
   const SHOPS = [
     {id: 'joker', name: 'Joker Torshov', brand: 'JOKER', osm: 1506608498, building: 888, edge: 6, t0: .08, t1: .92, depth: 10, sign: {bg: '#ffd200', fg: '#d0021b'}, shirt: 0xd0021b, hours: 'Åpent man–fre 07–24 · lør 08–24 · søn 09–24', priceFactor: 1},
     {id: 'kiwi', name: 'Kiwi Torshov', brand: 'KIWI', osm: 2476542841, building: 156, edge: 20, t0: .04, t1: .40, depth: 10, sign: {bg: '#2e9a3f', fg: '#ffffff'}, shirt: 0x2e9a3f, hours: 'Åpent man–lør 07–23', priceFactor: .95},
-    // Kiwi Storgata 33 (issue #65): OSM node 3111431401 (opening_hours "Mo-Sa 07:00-23:00") inside office building way 112233122
+    // Kniwi Storgata 33 (issue #65; the real shop is Kiwi Storgata 33, renamed KNIWI in the game at the owner's wish, 23 Nov 2026): OSM node 3111431401 (opening_hours "Mo-Sa 07:00-23:00") inside office building way 112233122
     // (9 storeys, 'modern' in the patch); edge 6 is its 52 m front on Storgata. Deliveries stay in the old square (no JOBB sign).
-    {id: 'kiwi-storgata', name: 'Kiwi Storgata 33', brand: 'KIWI', osm: 3111431401, district: 'gamle-oslo', building: 'w112233122', edge: 6, t0: .32, t1: .60, depth: 10,
+    {id: 'kiwi-storgata', name: 'Kniwi Storgata 33', brand: 'KNIWI', osm: 3111431401, district: 'gamle-oslo', building: 'w112233122', edge: 6, t0: .32, t1: .60, depth: 10,
       sign: {bg: '#2e9a3f', fg: '#ffffff'}, shirt: 0x2e9a3f, hours: 'Åpent man–lør 07–23', priceFactor: .95, counter: true, jobs: false}
   ];
   // Prices in kroner (Joker; Kiwi is about 5 % cheaper). where: fridge (back wall), shelf (gondolas), floor (by the door).
@@ -16011,7 +16011,7 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
     {id: 'airborne', icon: '🚁', name: 'Airborne', how: 'Fly the helicopter or the plane 50 m above the ground.', kr: 100, test: f => !!f.records.marks?.airborne},
     {id: 'hunter', icon: '📷', name: 'Photo hunter', how: 'Find and photograph every place in the photo hunt.', kr: 300, test: f => SPOTS.every(s => f.got[s.id])},
     // KIWI Storgata (issue #65): the regulars' quests and Sopp-Sigvald's four lessons.
-    {id: 'storgata', icon: '🛒', name: 'Friend of Storgata', how: 'Help all five regulars outside Kiwi Storgata 33.', kr: 200,
+    {id: 'storgata', icon: '🛒', name: 'Friend of Storgata', how: 'Help all five regulars outside Kniwi Storgata 33.', kr: 200,
       test: f => ['kjell', 'bente', 'tore', 'mona', 'even'].every(id => ((f.storgata || {}).q || {})[id]?.s === 'done')},
     {id: 'wizard', icon: '🍄', name: 'Mushroom apprentice', how: 'Learn all four magic powers from Sopp-Sigvald, the mushroom wizard in Storgata.', kr: 250,
       test: f => ['levitate', 'blink', 'gust', 'orb'].every(id => ((f.storgata || {}).powers || {})[id])},
@@ -25967,7 +25967,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     const q = quest(id), s = status(st, id);
     if (s === 'ready') return L(`Gå tilbake til ${PEOPLE[q.who].name} i Storgata`, `Go back to ${PEOPLE[q.who].name} in Storgata`);
     if (q.kind === 'pant') {const n = Math.min(q.need, ctx.pant || 0);return n >= q.need ? L('Gi Kjell-Arne ti tomflasker', 'Give Kjell-Arne ten empty bottles') : L(`Tomflasker: ${n} av ${q.need}`, `Empty bottles: ${n} of ${q.need} (□ on bottles round Storgata, or drink a soda)`);}
-    if (q.kind === 'buy') {const m = missing(q, ctx.bag);return m.length ? L(`Kjøp ${m.map(i => PRODUCT_NO[i]).join(' og ')} på Kiwi`, `Buy ${m.map(i => PRODUCT_EN[i]).join(' and ')} at the Kiwi counter`) : L('Gi Tore kaffen og pølsa', 'Give Tore the coffee and the hot dog');}
+    if (q.kind === 'buy') {const m = missing(q, ctx.bag);return m.length ? L(`Kjøp ${m.map(i => PRODUCT_NO[i]).join(' og ')} på Kniwi`, `Buy ${m.map(i => PRODUCT_EN[i]).join(' and ')} at the Kniwi counter`) : L('Gi Tore kaffen og pølsa', 'Give Tore the coffee and the hot dog');}
     if (q.kind === 'deliver') return L('Gi Monas lapp til Rolf på Schous plass', "Give Mona's note to Rolf at Schous plass");
     if (q.kind === 'photo') return L('Ta et bilde av Grønland kirke (hele tårnet)', 'Take a photo of Grønland kirke (the whole tower) with the camera');
     if (id === 'bente') return L('Finn munnspillet på Operataket', 'Find the harmonica at the top of the Opera roof');
@@ -26006,7 +26006,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
   const OFFER = {
     kjell: [L('Ryggen min er ikke hva den var. Kan du samle ti tomflasker for meg? Folk slenger dem rundt her i Storgata.', "My back isn't what it was. Could you collect ten empty bottles for me? People leave them all over Storgata."), L('Klart, jeg finner dem!', "Sure, I'll find them!")],
     bente: [L('I går sang jeg på Operataket, og der glemte jeg munnspillet etter min Arvid. Bakkene er for bratte for knærne mine i dag. Kan du hente det?', "Yesterday I sang on the Opera roof, and I left my Arvid's harmonica up there. The slopes are too steep for my knees today. Could you fetch it?"), L('Jeg henter det!', "I'll fetch it!")],
-    tore: [L('Det er kaldt i dag. Kan du kjøpe en kaffe til meg og en pølse i lompe til Laika? Det er en disk ved vinduet inne på Kiwi. Pølsa er til Laika. Ærlig talt.', "It's cold today. Could you buy me a coffee and a hot dog for Laika? There's a counter by the window inside the Kiwi. The hot dog is for Laika. Honestly."), L('Kaffe og pølse, kommer straks!', 'Coffee and a hot dog, coming right up!')],
+    tore: [L('Det er kaldt i dag. Kan du kjøpe en kaffe til meg og en pølse i lompe til Laika? Det er en disk ved vinduet inne på Kniwi. Pølsa er til Laika. Ærlig talt.', "It's cold today. Could you buy me a coffee and a hot dog for Laika? There's a counter by the window inside the Kniwi. The hot dog is for Laika. Honestly."), L('Kaffe og pølse, kommer straks!', 'Coffee and a hot dog, coming right up!')],
     mona: [L('Broren min Rolf mater duene på Schous plass hver dag. Vi har ikke snakket sammen siden en dum krangel om en fiskestang. Kan du gi ham denne lappen?', "My brother Rolf feeds the pigeons at Schous plass every day. We haven't spoken since a silly row about a fishing rod. Could you give him this note?"), L('Jeg leverer den!', "I'll deliver it!")],
     even: [L('Jeg giftet meg i Grønland kirke i 1981. Knærne mine klarer ikke turen dit lenger. Vil du ta et bilde av kirken for meg? Hele tårnet, takk.', "I got married in Grønland kirke in 1981. My knees can't manage the walk any more. Would you take a picture of the church for me? The whole tower, please."), L('Jeg tar bildet!', "I'll take the picture!")],
     w1: [L('Folk i Storgata sier du er snill. Godt! I Torshovdalen gløder tre stjernesopper. Hent dem, så lærer jeg deg å sveve.', 'People in Storgata say you are kind. Good! Three star mushrooms glow in Torshovdalen. Bring them to me and I will teach you to float.'), L('Jeg finner soppene!', "I'll find the mushrooms!")],
@@ -26063,7 +26063,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     else if (s === 'done') out.lines.push(pickLine(IDLE[who], seed));
     else if (ready(st, who, ctx)) {out.lines.push(L('Å! Har du det?', 'Oh! Have you got it?'));out.options.push({...READY[who], act: 'complete', quest: who});}
     else if (q.kind === 'pant') out.lines.push(L(`Du har ${Math.min(ctx.pant || 0, q.need)} av ti. Se langs fortauene – og en brus gir også en flaske!`, `You have ${Math.min(ctx.pant || 0, q.need)} of ten. Look along the pavements – and a soda gives you a bottle too!`));
-    else if (q.kind === 'buy') {const m = missing(q, ctx.bag);out.lines.push(L(`Kaffe og pølse i lompe fra disken ved vinduet inne på Kiwi. Du mangler: ${m.map(i => PRODUCT_NO[i]).join(' og ')}. Laika ser på deg.`, `Coffee and a hot dog from the counter by the window inside the Kiwi. Still missing: ${m.map(i => PRODUCT_EN[i]).join(' and ')}. Laika is watching you.`));}
+    else if (q.kind === 'buy') {const m = missing(q, ctx.bag);out.lines.push(L(`Kaffe og pølse i lompe fra disken ved vinduet inne på Kniwi. Du mangler: ${m.map(i => PRODUCT_NO[i]).join(' og ')}. Laika ser på deg.`, `Coffee and a hot dog from the counter by the window inside the Kniwi. Still missing: ${m.map(i => PRODUCT_EN[i]).join(' and ')}. Laika is watching you.`));}
     else out.lines.push(ACTIVE[who]);
     out.options.push(BYE);return out;
   }
@@ -29516,7 +29516,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
       const r = storgata.pick(a.pick);if (!r) return;const f = storgata.finds[a.pick], q = SG.QUESTS.find(x => x.id === r.quest);
       audio.sfx(r.pickup.kind === 'harmonica' ? 'harmonica' : 'mushroom');if (f) fx.burst({x: f.at.x, y: f.at.y + .3, z: f.at.z}, 0xffe38a, 40, 1.6);
       questWaypoint(r.quest);
-      notice(r.ready ? `${cap(r.pickup.name.en)}${r.need > 1 ? ` – that is all ${r.need}` : ''}! Take ${r.need > 1 ? 'them' : 'it'} to ${SG.PEOPLE[q.who].name} outside Kiwi Storgata (the waypoint shows the way).` : `${cap(r.pickup.name.en)}: ${r.count} of ${r.need}. The waypoint shows the next one.`, 5);
+      notice(r.ready ? `${cap(r.pickup.name.en)}${r.need > 1 ? ` – that is all ${r.need}` : ''}! Take ${r.need > 1 ? 'them' : 'it'} to ${SG.PEOPLE[q.who].name} outside Kniwi Storgata (the waypoint shows the way).` : `${cap(r.pickup.name.en)}: ${r.count} of ${r.need}. The waypoint shows the next one.`, 5);
     }
   }
   // Our own waypoint for a quest: the next thing to find, Rolf, the church, or back to the one who asked.
