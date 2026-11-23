@@ -223,6 +223,7 @@
   const RB = world.bridges;if (RB) {walkFloors.unshift(...RB.floors);staticObstacles.push(...RB.obstacles);}
   const walkWorld = collision.createWorld({floors: walkFloors, obstacles: staticObstacles, radius: .18, clearance: .08});
   const vehicleWorlds = new Map();
+  let mp = null;// the lobby (GameMultiplayer, made further down); declared here because updateDynamic() reads it at start-up
   let vehicleBlockers = null, fleet = null;// the other vehicles' footprints from the last updateDynamic(); the parked vehicles (issue #113)
   function worldFor(r) {
     const key = r.toFixed(2);
@@ -442,8 +443,15 @@
   });
 
   // ---------- HUD ----------
+  // The shared disc golf scorecard (issue #148): everyone in your round, throws per hole and the total against par; away = throws next.
+  function discCard(s) {
+    if (!s.card) return '';
+    const rel = v => v === 0 ? 'E' : v > 0 ? `+${v}` : `${v}`, head = s.pars.map((p, i) => `<th>${i + 1}</th>`).join('');
+    const rows = s.card.map(r => `<tr class="${r.me ? 'me' : ''}"><td><i style="background:${r.me ? '#fff' : window.GameAvatars.slotCss(r.slot)}"></i>${esc(r.name)}${r.w === 2 ? ' ✓' : ''}</td>${r.s.map((x, i) => `<td>${x || (i === r.h && r.w === 0 && r.n ? `<em>${r.n}</em>` : '·')}</td>`).join('')}<td><b>${rel(r.rel)}</b></td></tr>`).join('');
+    return `<table class="dgcard"><tr><th></th>${head}<th>±</th></tr>${rows}</table>${s.away ? `<small>${s.away === 'You' ? 'You are' : esc(s.away) + ' is'} away (furthest from the basket) – nobody has to wait.</small>` : ''}`;
+  }
   const hud = {
-    discgolf(s) {const el = $('discHud');if (!s) {el.hidden = true;return;}el.hidden = false;el.innerHTML = `<b>${s.course} · Hull ${s.hole}/${s.holes} · Par ${s.par}</b><span>Throws: ${s.strokes.map((n, i) => `H${i + 1} ${n}`).join(' · ')}</span><span>${s.distance} m to the ${s.walk ? 'tee' : 'basket'}</span><i class="meter"><u style="width:${Math.round(s.charge * 100)}%"></u></i><small>${s.message}</small><small>${s.walk ? 'Walk or run to the tee · □ straight there · ○ quit' : 'Hold R2 / left mouse, release to throw · left stick ←/→ hyzer · ○ quit'}</small>`;},
+    discgolf(s) {const el = $('discHud');el.classList.toggle('wide', !!(s && s.card));if (!s) {el.hidden = true;return;}el.hidden = false;el.innerHTML = `<b>${s.course} · Hull ${s.hole}/${s.holes} · Par ${s.par}</b><span>Throws: ${s.strokes.map((n, i) => `H${i + 1} ${n}`).join(' · ')}</span><span>${s.distance} m to the ${s.walk ? 'tee' : 'basket'}</span><i class="meter"><u style="width:${Math.round(s.charge * 100)}%"></u></i><small>${s.message}</small>${discCard(s)}<small>${s.walk ? 'Walk or run to the tee · □ straight there · ○ quit' : 'Hold R2 / left mouse, release to throw · left stick ←/→ hyzer · ○ quit'}</small>`;},
     petanque(s) {
       const el = $('petanqueHud'), marks = $('markers');if (!s) {el.hidden = true;marks.replaceChildren();return;}el.hidden = false;
       el.innerHTML = `<b>Petanque · You ${s.score.you} – ${s.score.npc} ${s.npcName}</b><span>Mène ${s.mene} · Boules left: you ${s.you}, ${s.npcName} ${s.npc}</span><span>${s.hold ? (s.hold === 'you' ? `You hold the point by ${s.margin.toFixed(2)} m` : `${s.npcName} holds the point by ${s.margin.toFixed(2)} m`) : 'Nobody holds the point'}</span><span>${s.turn === 'you' ? `Your turn: ${s.aim === 'jack' ? 'throw the jack (6–10 m)' : (s.shoot ? 'shoot (L2 held)' : 'point (hold L2 to shoot)')}` : s.turn === 'npc' ? `${s.npcName} is throwing…` : ''}</span><i class="meter"><u style="width:${Math.round(s.charge * 100)}%"></u></i><small>${s.message}</small><small>Hold R2 / left mouse for power, release to throw · ○ quit</small>`;
@@ -514,16 +522,26 @@
     if (living) list.push(...living.dynamic());// the chairs in flat 501 can be moved
     collision.setDynamic(walkWorld, list);
     // Other vehicles block the one being driven; it must never collide with its own (parked) footprint.
-    const vlist = vehicles.filter(v => v !== player.vehicle && !v.pushed && !(v.lazy && !v.built)).flatMap(v => [].concat(v.footprint()));
+    // The ones other players drive are not here: they move every frame, so transitDynamic() gives them as moving solids (issue #145).
+    const vlist = vehicles.filter((v, i) => v !== player.vehicle && !v.pushed && !(v.lazy && !v.built) && !(mp && mp.remoteDriven(i))).flatMap(v => [].concat(v.footprint()));
     vehicleBlockers = vlist;vehicleWorlds.forEach(w => collision.setDynamic(w, vlist));
     if (fleet) fleet.applyLayer([walkWorld, ...vehicleWorlds.values()]);
   }
-  let transitSolidsOn = false;
+  let transitSolidsOn = false, remoteSolidsOn = false, remoteKey = 0;const remoteSolids = [];
   // The trams, buses and metro trains near you are moving solids for walkers and cars (issue #111): a short list of their own
   // (setMoving), so the hashed dynamic list and the parked fleet's layer are left as they are.
+  // The vehicles other players drive are moving solids for your vehicle too, refreshed every frame (issue #145: they were
+  // in the hashed list, refreshed every 0.4 s, so a car driving at you jumped metres into yours and both were stuck).
   function transitDynamic() {
-    const t = [...(transit ? transit.footprints() : []), ...(prophunt ? prophunt.solids() : [])];if (!t.length && !transitSolidsOn) return;transitSolidsOn = t.length > 0;if (!transit) {collision.setMoving(walkWorld, t);return;}
-    collision.setMoving(walkWorld, t);vehicleWorlds.forEach(w => collision.setMoving(w, t));
+    remoteSolids.length = 0;let key = 0;
+    if (mp) vehicles.forEach((v, i) => {if (v !== player.vehicle && mp.remoteDriven(i)) {key = (key * 31 + i + 1) % 1e9;remoteSolids.push(...[].concat(v.footprint()));}});
+    // Somebody got in or out: the hashed list takes the car out or back (it stands still again).
+    if (key !== remoteKey) {remoteKey = key;updateDynamic();}
+    const t = [...(transit ? transit.footprints() : []), ...(prophunt ? prophunt.solids() : [])];
+    if (!t.length && !transitSolidsOn && !remoteSolids.length && !remoteSolidsOn) return;
+    transitSolidsOn = t.length > 0;remoteSolidsOn = remoteSolids.length > 0;
+    const vt = transit ? (remoteSolids.length ? t.concat(remoteSolids) : t) : remoteSolids;
+    collision.setMoving(walkWorld, t);vehicleWorlds.forEach(w => collision.setMoving(w, vt));if (!transit) return;
     // A tram or bus that comes up against you pushes you aside (it does not stop for you).
     if (player.mode === 'foot') {const p = transit.pushOut(player.x, player.z, player.feet, .3);if (p) {player.x = p.x;player.z = p.z;}}
     if (player.mode === 'vehicle' && player.vehicle && !player.vehicle.aircraft) {const v = player.vehicle, p = transit.pushOut(v.x, v.z, v.y, (v.width || 1.8) / 2 + .2);if (p) {v.x = p.x;v.z = p.z;v.speed *= .5;}}
@@ -551,14 +569,17 @@
 
   // ---------- Minigames, photo camera, map ----------
   const mini = window.GameMinigames.create({T, lib, audio, heightAt, toWorld, toLocal: world.toLocal, data: D, hud, trees: world.trees, reward: (v, why) => earn(v, why), muselunden: window.MUSELUNDEN,
-    onEvent: (kind, data) => badges.record(kind, data)});
+    onEvent: (kind, data) => badges.record(kind, data),
+    // Disc golf together (issue #148): the others in the lobby who send a round (st.dg), and the lobby clock.
+    net: {peers: () => mp && mp.net.online ? [...mp.remotes.values()].filter(r => r.st && r.st.dg).map(r => ({id: r.id, name: r.name, slot: r.slot, dg: r.st.dg})) : [],
+      now: () => mp && mp.net.online ? mp.net.serverNow() : Date.now(), you: () => mp && mp.net.online ? mp.net.you : 0}});
   const discCourses = [mini.discgolf, mini.muselunden].filter(Boolean);
-  scene.add(...discCourses.map(g => g.group), mini.petanque.group);
+  scene.add(...discCourses.map(g => g.group), mini.petanque.group, mini.remoteGroup);
   const photo = window.GameCamera.create({T, lib, audio, root: view, notice});
   const overlayScene = new T.Scene(), overlayCamera = new T.PerspectiveCamera(55, 1, .01, 5);overlayScene.add(new T.HemisphereLight(0xf1f5ff, 0x4a4540, 2.2));
   const ovSun = new T.DirectionalLight(0xffffff, 1.8);ovSun.position.set(.6, 1, .5);overlayScene.add(ovSun);overlayScene.environment = lib.environment();
   overlayScene.add(photo.model);photo.model.position.set(.08, -.13, -.32);photo.model.rotation.set(.1, -.15, 0);
-  const homeLocal = world.toLocal(2.8, 5), caseLocal = D.vehicles.missionStart;let mp = null;
+  const homeLocal = world.toLocal(2.8, 5), caseLocal = D.vehicles.missionStart;
   // The Ensjø -> Rathkes gate run (issue #38): any way you like; best time kept in this browser.
   const routeData = DISTRICTS.map(d => d.route).find(Boolean);
   const route = routeData && window.GameRoute ? window.GameRoute.create({T, lib, route: routeData, toWorld, heightAt, root: view, sound: n => audio.sfx(n),
@@ -1524,7 +1545,7 @@
     // The jump planes move first, so a jumper's seat (and camera) is where the plane is this frame.
     updateJumpFlight(dt);updateGamePilot(dt);
     licExaminer(input);
-    if (transit) transit.tick(dt, {camera, player});if (transit || prophunt) transitDynamic();
+    if (transit) transit.tick(dt, {camera, player});transitDynamic();
     if (player.mode === 'vehicle') updateVehicle(dt, input, dl);
     else if (player.mode === 'transit') transit.updateRide(dt, input, camera, dl);
     else if (player.mode === 'passenger') updatePassenger(dt, input, dl);
@@ -1569,7 +1590,7 @@
     ambienceTimer -= dt;if (ambienceTimer <= 0) {ambienceTimer = .25;updateAmbience();if (audio.context) music.attach(audio.context, audio.output);music.play(musicTrack());}
     // Adaptive resolution keeps the frame rate in the 20–30+ fps range on slower PCs.
     if (fpsAvg < 22) {if (++lowFrames > 90 && pixelRatio > .6) {pixelRatio = Math.max(.6, pixelRatio - .1);renderer.setPixelRatio(pixelRatio);resize();lowFrames = 0;}} else lowFrames = 0;
-    updateGuide(dt);
+    updateGuide(dt);mini.netTick();// others' discs that left; the bonus for winning a disc golf round together (issue #148)
     magicFx(dt);
     renderFrame(dt, t);
   }
@@ -2090,6 +2111,7 @@
     if (magic.orb) s.mg = 1;// the light orb (issue #65): others see it by your shoulder
     // Minigolf (issue #114): which course and hole, and where your ball is, so others see it on the lane.
     if (player.mode === 'minigame' && player.minigame && player.minigame.net) {const g = player.minigame.net();if (g) s.golf = g;}
+    {const dg = mini.dgNet();if (dg) s.dg = dg;}// disc golf (issue #148): your round, hole, lie, card and latest throw
     // Skydiving: a jump seat in the flown Caravan (a vehicle seat 'j0'..'j11'), in the scheduled flight (ja), or in the air.
     if (player.mode === 'jumpseat' && skyd.ride) {if (skyd.ride.auto) s.ja = skyd.ride.seat;else {s.v = vehicles.indexOf(caravan);s.s = 'j' + skyd.ride.seat;}}
     if (player.mode === 'skydive' && skyd.jumper) {const J = skyd.jumper;s.p = [r(J.pos.x), r(J.pos.y), r(J.pos.z)];s.y = r(J.yaw);s.sky = J.state === 'freefall' ? 'f' : 'c';if (J.pose.pitch || J.pose.roll) s.sk = [r(J.pose.pitch), r(J.pose.roll)];}
@@ -2337,7 +2359,7 @@
     // Joining a lobby: alone in a lobby that has nothing stored, what you did offline is sent up; otherwise the lobby's state wins.
     resetObjs: m => {if (!living) return;if (m.players.length <= 1 && !Object.keys(m.objs || {}).length) living.publish();else living.reset();},
     onRemoteWood: r => fire.throwLog({x: r.pos.x, y: r.pos.y + 1.3, z: r.pos.z}), holdsMarker: id => (!!paintball && paintball.rules.memberPlaying(id)) || (!!phRules && phRules.holdsMarker(id)),
-    autoAnchor: seat => autoPlane.hipAnchor('j' + seat), skyPose: (r, st, g) => {skyPose(r, st, g);kayakPose(r, st, g);orbPose(r, st, g);if (transit) transit.pose(r, st, g);golfPose(r, st);if (phRules && phRules.concealed(r.id)) g.visible = false;},
+    autoAnchor: seat => autoPlane.hipAnchor('j' + seat), skyPose: (r, st, g) => {skyPose(r, st, g);kayakPose(r, st, g);orbPose(r, st, g);if (transit) transit.pose(r, st, g);golfPose(r, st);mini.remotePose(r.id, st.dg, window.GameAvatars.slotCss(r.slot), r.pos);if (phRules && phRules.concealed(r.id)) g.visible = false;},
     // In a paintball game you see your team-mates' names, not your opponents' (issue #25).
     showTag: id => !paintball || !paintball.rules.inGame() || !paintball.rules.memberPlaying(id) || paintball.rules.teamOfMember(id) === paintball.rules.myTeam()});
   // Flat 501's living room (issue #116): its record player, TV, lava lamp and chairs are shared through the lobby.
