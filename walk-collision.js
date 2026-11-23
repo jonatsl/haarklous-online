@@ -8,7 +8,8 @@
  * Every query takes the person's feet height y (default 0), so stacked storeys do not interfere.
  * supportAt(world, point, y) -> {floor, y} the walkable surface under the feet, or null
  * canStand(world, point, eyeHeight, y=0) -> boolean
- * hitsSolid(world, point, y0, y1, owner) -> boolean (a solid between y0 and y1; solids with o.owner === owner are skipped)
+ * hitsSolid(world, point, y0, y1, owner, staticOnly) -> boolean (a solid between y0 and y1; solids with o.owner === owner are skipped)
+ * overlapDepth(world, point, y0, y1, n, owner) -> metres the circle round point is inside moving solids (vehicles); adds the push-out direction to n
  * move(world, point, delta, eyeHeight, y=0) -> {x,z,y} (swept/substepped, with sliding; y follows ramps)
  * findSafeSpawn(world, requested, eyeHeight, {maxDistance=20,step=.08,y=0}={}) -> {x,z,y}|null
  * ceilingAt(world, point, y=0) -> lowest clearance above the feet touched by the person's footprint
@@ -225,9 +226,38 @@
   }
   // Flying objects: does any solid (building, tree, wall, vehicle) come within the world's radius of p between heights y0 and y1?
   // owner (optional): skip the solids marked with this owner (a vehicle's own parked footprint, issue #97).
-  function hitsSolid(world,p,y0,y1,owner) {
+  function hitsSolid(world,p,y0,y1,owner,staticOnly=false) {
     if (!Number.isFinite(p.x) || !Number.isFinite(p.z)) return true;
-    return solidsNear(world,p).some(o=>o.maxY>y0 && o.minY<y1 && (!owner || o.owner!==owner) && nearBounds(p,o.bounds,world.radius) && !hollow(o,p,y0) && (inside(p,o.points) || distanceToPolygon(p,o.points)<world.radius-EPS));
+    return solidsNear(world,p,staticOnly).some(o=>o.maxY>y0 && o.minY<y1 && (!owner || o.owner!==owner) && nearBounds(p,o.bounds,world.radius) && !hollow(o,p,y0) && (inside(p,o.points) || distanceToPolygon(p,o.points)<world.radius-EPS));
+  }
+  // How deep the circle of the world's radius round p is in the solids that move (vehicles, trams: the dynamic, parked and
+  // moving lists, never the static ones) between heights y0 and y1, in metres (0 = not touching). The push-out direction,
+  // weighted by depth, is added to n ({x, z}). Solids with o.owner === owner are skipped. Issue #145: a car that is already
+  // in another car may always drive in a direction that does not make this deeper, and is pushed out along n.
+  function depthIn(list,p,y0,y1,n,owner,r) {
+    let total=0;
+    for (const o of list) {
+      if (!(o.maxY>y0 && o.minY<y1) || (owner && o.owner===owner) || !nearBounds(p,o.bounds,r)) continue;
+      const pts=o.points;let best=Infinity,qx=0,qz=0,isIn=false;
+      for (let i=0,j=pts.length-1;i<pts.length;j=i++) {
+        const a=pts[j],b=pts[i],dx=b.x-a.x,dz=b.z-a.z,L=dx*dx+dz*dz,t=L ? Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.z-a.z)*dz)/L)) : 0;
+        const cx=a.x+dx*t,cz=a.z+dz*t,d=Math.hypot(p.x-cx,p.z-cz);if (d<best) {best=d;qx=cx;qz=cz;}
+        if ((a.z>p.z)!==(b.z>p.z) && p.x<(b.x-a.x)*(p.z-a.z)/(b.z-a.z)+a.x) isIn=!isIn;
+      }
+      const depth=r-(isIn ? -best : best);if (depth<=EPS) continue;
+      // Out of the solid: away from its nearest edge (from its middle when p sits on the edge).
+      let ux=isIn ? qx-p.x : p.x-qx,uz=isIn ? qz-p.z : p.z-qz,len=Math.hypot(ux,uz);
+      if (len<1e-6) {ux=p.x-(o.bounds.minX+o.bounds.maxX)/2;uz=p.z-(o.bounds.minZ+o.bounds.maxZ)/2;len=Math.hypot(ux,uz) || 1;}
+      n.x+=ux/len*depth;n.z+=uz/len*depth;total+=depth;
+    }
+    return total;
+  }
+  function overlapDepth(world,p,y0,y1,n,owner) {
+    if (!Number.isFinite(p.x) || !Number.isFinite(p.z)) return 0;
+    const key=Math.floor(p.x/CELL)+','+Math.floor(p.z/CELL), r=world.radius;
+    const dyn=!world.dynamic || !world.dynamic.length ? NONE : world.dynamicCells ? world.dynamicCells.get(key) || NONE : world.dynamicPrepared || (world.dynamicPrepared=prepared(world.dynamic));
+    const park=world.parkedCells ? world.parkedCells.get(key) || NONE : NONE, mov=world.moving || NONE;
+    return depthIn(dyn,p,y0,y1,n,owner,r)+depthIn(park,p,y0,y1,n,owner,r)+depthIn(mov,p,y0,y1,n,owner,r);
   }
   function move(world,position,delta,eyeHeight,y=0) {
     const start=supportAt(world,position,y);
@@ -287,5 +317,5 @@
     }
     return null;
   }
-  return {createWorld,supportAt,canStand,hitsSolid,move,findSafeSpawn,ceilingAt,roofAt,floorAt,clampEyeHeight,setDynamic,setMoving,parkedLayer,setParked,STEP};
+  return {createWorld,supportAt,canStand,hitsSolid,overlapDepth,move,findSafeSpawn,ceilingAt,roofAt,floorAt,clampEyeHeight,setDynamic,setMoving,parkedLayer,setParked,STEP};
 });

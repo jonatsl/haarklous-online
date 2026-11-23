@@ -8,10 +8,11 @@ Live game: https://haarklous-online.server-smoke.workers.dev · Source: https://
 
 ## Features (what the game has now)
 
-In pull requests (not merged yet):
-- Real bridges where car streets cross over roads, railways and water (issue #139, PR #155): a deck of their own with room under it, ramps up to it, parapets and piers; walk and drive on it or under it (Storo, Sinsenkrysset, Trondheimsveien over the railway, Østre Aker vei, Ulven, Kværner, Nylandsveien and the rest).
+In pull requests (not merged yet): none.
 
 On `main`:
+- Cars that crash no longer get stuck in each other (issue #145, PR #PRNUM; live once merged): you can always back away or drive off from a car you are in; your car is pushed gently out of another one; a crash still bounces you back with the sound; the same for motorcycles, parked cars and site machines.
+- Real bridges where car streets cross over roads, railways and water (issue #139, PR #155; live once merged): a deck of their own with room under it, ramps up to it, parapets and piers; walk and drive on it or under it (Storo, Sinsenkrysset, Trondheimsveien over the railway, Østre Aker vei, Ulven, Kværner, Nylandsveien and the rest).
 - Walk through the tram, the bus and the metro (issue #142, PR #154; live once merged): on board, move the left stick / WASD to stand up and walk the whole length of the tram while it drives – through open gangways with a floor and bellows between the sections, also in curves; the same in the articulated buses and inside each three-car metro set; □ by a free seat sits you down, □ when the doors open gets you off through the nearest door; others online see you standing where you are.
 - The police on Grønland (issue #140, PR #152; live once merged): Oslo politihus at its real place (Grønlandsleiret 44) with a POLITI sign – walk in to the reception (an officer at the desk, a queue-ticket machine) and through the steel door to the arrest with eight glattceller (bare concrete, a thin mattress, a drain, a steel door with a hatch that opens); Oslo fengsel (Botsen) right behind it with its high walls, two sliding gates and the OSLO FENGSEL sign, the yard and cell wing A (a prison officer, cells with bed, table, toilet and a barred window); 13 police cars (white with POLITI and black and yellow fields, a blue light bar) outside the police station and round the city – drive them with class B, L3 / H for blue lights and siren, which other players see and hear; both places on the map.
 - Oslo S and Jernbanetorget (issue #141, PR #153; live once merged): Tigeren, the 4.5 m bronze tiger, at its real place on a paved Jernbanetorget; Østbanehallen as a plastered 14 m station with OSLO S over the doors and clocks on the Trafikanten tower; eleven people who hang around there (stone seats, the station wall, the tiger), and one who asks for a few kroner (□ gives him 10 kr).
@@ -72,6 +73,17 @@ On `main`:
 Live site: runs `main` (Worker version 3766909d, deployed 23 Nov 2026 after PR #138; `main` builds byte-for-byte to the live page), so everything above is online. Account emails (issue #55) wait for the user's Brevo key.
 
 ## Log
+
+### 2026-11-23 · Cars that crash no longer get stuck in each other (issue #145)
+- **What:**
+  - When your car is inside another car (after a crash, or because the other player's car is drawn a little late), you can always back away or drive off: any move that does not take you deeper is allowed.
+  - If you are inside another vehicle, your own vehicle is gently pushed out (up to 3 m/s), never through a wall. Each player's game moves only their own car, so both cars come apart.
+  - A crash into another car still feels like one: the crash sound, most of the speed is lost and the car bounces back a little. Walls, buildings, trees, bridge piers and parapets stop you as before; you cannot drive through a car at speed.
+  - The cars other players drive are now solids that follow them every frame (before: every 0.4 s, so their car jumped metres into yours).
+  - The same for motorcycles, parked cars, police cars, e-scooters and bikes, the excavator and the construction-site machines.
+- **Why:** the user reported: "Når man krasjer med en annen bil, så noen andre kjører, så setter de seg fast i hverandre. Og da er det ikke mulig å kjøre og komme seg løs." **Cause:** a vehicle could only move to a place free of every solid (a yes/no test), so once two cars overlapped, every move in every direction was blocked and both froze; and another player's car was a solid only refreshed every 0.4 s, so it jumped into yours while driving.
+- **Where:** `game-vehicles.js` (`Vehicle.clear(x, z, staticOnly)`, `overlap`, `blockedAt`, `unstick`, `crash`, `move`; footprints carry `owner`), `walk-collision.js` (`overlapDepth`, `hitsSolid(..., staticOnly)`), `game-main.js` (remote-driven vehicles as moving solids every frame in `transitDynamic`), `game-site.js` (wheel loader and dump trucks), `tests/vehicle-crash.test.cjs`.
+- **Status:** PR #PRNUM; live once merged. 323 Node tests pass. Not checked in the browser (the user's instruction: build and deploy, he says if something does not work).
 
 ### 2026-11-23 · Walk between the tram's sections (issue #142)
 - **What:**

@@ -512,16 +512,26 @@
     if (living) list.push(...living.dynamic());// the chairs in flat 501 can be moved
     collision.setDynamic(walkWorld, list);
     // Other vehicles block the one being driven; it must never collide with its own (parked) footprint.
-    const vlist = vehicles.filter(v => v !== player.vehicle && !v.pushed && !(v.lazy && !v.built)).flatMap(v => [].concat(v.footprint()));
+    // The ones other players drive are not here: they move every frame, so transitDynamic() gives them as moving solids (issue #145).
+    const vlist = vehicles.filter((v, i) => v !== player.vehicle && !v.pushed && !(v.lazy && !v.built) && !(mp && mp.remoteDriven(i))).flatMap(v => [].concat(v.footprint()));
     vehicleBlockers = vlist;vehicleWorlds.forEach(w => collision.setDynamic(w, vlist));
     if (fleet) fleet.applyLayer([walkWorld, ...vehicleWorlds.values()]);
   }
-  let transitSolidsOn = false;
+  let transitSolidsOn = false, remoteSolidsOn = false, remoteKey = 0;const remoteSolids = [];
   // The trams, buses and metro trains near you are moving solids for walkers and cars (issue #111): a short list of their own
   // (setMoving), so the hashed dynamic list and the parked fleet's layer are left as they are.
+  // The vehicles other players drive are moving solids for your vehicle too, refreshed every frame (issue #145: they were
+  // in the hashed list, refreshed every 0.4 s, so a car driving at you jumped metres into yours and both were stuck).
   function transitDynamic() {
-    const t = [...(transit ? transit.footprints() : []), ...(prophunt ? prophunt.solids() : [])];if (!t.length && !transitSolidsOn) return;transitSolidsOn = t.length > 0;if (!transit) {collision.setMoving(walkWorld, t);return;}
-    collision.setMoving(walkWorld, t);vehicleWorlds.forEach(w => collision.setMoving(w, t));
+    remoteSolids.length = 0;let key = 0;
+    if (mp) vehicles.forEach((v, i) => {if (v !== player.vehicle && mp.remoteDriven(i)) {key = (key * 31 + i + 1) % 1e9;remoteSolids.push(...[].concat(v.footprint()));}});
+    // Somebody got in or out: the hashed list takes the car out or back (it stands still again).
+    if (key !== remoteKey) {remoteKey = key;updateDynamic();}
+    const t = [...(transit ? transit.footprints() : []), ...(prophunt ? prophunt.solids() : [])];
+    if (!t.length && !transitSolidsOn && !remoteSolids.length && !remoteSolidsOn) return;
+    transitSolidsOn = t.length > 0;remoteSolidsOn = remoteSolids.length > 0;
+    const vt = transit ? (remoteSolids.length ? t.concat(remoteSolids) : t) : remoteSolids;
+    collision.setMoving(walkWorld, t);vehicleWorlds.forEach(w => collision.setMoving(w, vt));if (!transit) return;
     // A tram or bus that comes up against you pushes you aside (it does not stop for you).
     if (player.mode === 'foot') {const p = transit.pushOut(player.x, player.z, player.feet, .3);if (p) {player.x = p.x;player.z = p.z;}}
     if (player.mode === 'vehicle' && player.vehicle && !player.vehicle.aircraft) {const v = player.vehicle, p = transit.pushOut(v.x, v.z, v.y, (v.width || 1.8) / 2 + .2);if (p) {v.x = p.x;v.z = p.z;v.speed *= .5;}}
@@ -1522,7 +1532,7 @@
     // The jump planes move first, so a jumper's seat (and camera) is where the plane is this frame.
     updateJumpFlight(dt);updateGamePilot(dt);
     licExaminer(input);
-    if (transit) transit.tick(dt, {camera, player});if (transit || prophunt) transitDynamic();
+    if (transit) transit.tick(dt, {camera, player});transitDynamic();
     if (player.mode === 'vehicle') updateVehicle(dt, input, dl);
     else if (player.mode === 'transit') transit.updateRide(dt, input, camera, dl);
     else if (player.mode === 'passenger') updatePassenger(dt, input, dl);

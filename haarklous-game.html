@@ -461,7 +461,8 @@ window.APARTMENT={"title":"Haarklous plass 17A · proposed kitchen + bedroom","c
  * Every query takes the person's feet height y (default 0), so stacked storeys do not interfere.
  * supportAt(world, point, y) -> {floor, y} the walkable surface under the feet, or null
  * canStand(world, point, eyeHeight, y=0) -> boolean
- * hitsSolid(world, point, y0, y1, owner) -> boolean (a solid between y0 and y1; solids with o.owner === owner are skipped)
+ * hitsSolid(world, point, y0, y1, owner, staticOnly) -> boolean (a solid between y0 and y1; solids with o.owner === owner are skipped)
+ * overlapDepth(world, point, y0, y1, n, owner) -> metres the circle round point is inside moving solids (vehicles); adds the push-out direction to n
  * move(world, point, delta, eyeHeight, y=0) -> {x,z,y} (swept/substepped, with sliding; y follows ramps)
  * findSafeSpawn(world, requested, eyeHeight, {maxDistance=20,step=.08,y=0}={}) -> {x,z,y}|null
  * ceilingAt(world, point, y=0) -> lowest clearance above the feet touched by the person's footprint
@@ -678,9 +679,38 @@ window.APARTMENT={"title":"Haarklous plass 17A · proposed kitchen + bedroom","c
   }
   // Flying objects: does any solid (building, tree, wall, vehicle) come within the world's radius of p between heights y0 and y1?
   // owner (optional): skip the solids marked with this owner (a vehicle's own parked footprint, issue #97).
-  function hitsSolid(world,p,y0,y1,owner) {
+  function hitsSolid(world,p,y0,y1,owner,staticOnly=false) {
     if (!Number.isFinite(p.x) || !Number.isFinite(p.z)) return true;
-    return solidsNear(world,p).some(o=>o.maxY>y0 && o.minY<y1 && (!owner || o.owner!==owner) && nearBounds(p,o.bounds,world.radius) && !hollow(o,p,y0) && (inside(p,o.points) || distanceToPolygon(p,o.points)<world.radius-EPS));
+    return solidsNear(world,p,staticOnly).some(o=>o.maxY>y0 && o.minY<y1 && (!owner || o.owner!==owner) && nearBounds(p,o.bounds,world.radius) && !hollow(o,p,y0) && (inside(p,o.points) || distanceToPolygon(p,o.points)<world.radius-EPS));
+  }
+  // How deep the circle of the world's radius round p is in the solids that move (vehicles, trams: the dynamic, parked and
+  // moving lists, never the static ones) between heights y0 and y1, in metres (0 = not touching). The push-out direction,
+  // weighted by depth, is added to n ({x, z}). Solids with o.owner === owner are skipped. Issue #145: a car that is already
+  // in another car may always drive in a direction that does not make this deeper, and is pushed out along n.
+  function depthIn(list,p,y0,y1,n,owner,r) {
+    let total=0;
+    for (const o of list) {
+      if (!(o.maxY>y0 && o.minY<y1) || (owner && o.owner===owner) || !nearBounds(p,o.bounds,r)) continue;
+      const pts=o.points;let best=Infinity,qx=0,qz=0,isIn=false;
+      for (let i=0,j=pts.length-1;i<pts.length;j=i++) {
+        const a=pts[j],b=pts[i],dx=b.x-a.x,dz=b.z-a.z,L=dx*dx+dz*dz,t=L ? Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.z-a.z)*dz)/L)) : 0;
+        const cx=a.x+dx*t,cz=a.z+dz*t,d=Math.hypot(p.x-cx,p.z-cz);if (d<best) {best=d;qx=cx;qz=cz;}
+        if ((a.z>p.z)!==(b.z>p.z) && p.x<(b.x-a.x)*(p.z-a.z)/(b.z-a.z)+a.x) isIn=!isIn;
+      }
+      const depth=r-(isIn ? -best : best);if (depth<=EPS) continue;
+      // Out of the solid: away from its nearest edge (from its middle when p sits on the edge).
+      let ux=isIn ? qx-p.x : p.x-qx,uz=isIn ? qz-p.z : p.z-qz,len=Math.hypot(ux,uz);
+      if (len<1e-6) {ux=p.x-(o.bounds.minX+o.bounds.maxX)/2;uz=p.z-(o.bounds.minZ+o.bounds.maxZ)/2;len=Math.hypot(ux,uz) || 1;}
+      n.x+=ux/len*depth;n.z+=uz/len*depth;total+=depth;
+    }
+    return total;
+  }
+  function overlapDepth(world,p,y0,y1,n,owner) {
+    if (!Number.isFinite(p.x) || !Number.isFinite(p.z)) return 0;
+    const key=Math.floor(p.x/CELL)+','+Math.floor(p.z/CELL), r=world.radius;
+    const dyn=!world.dynamic || !world.dynamic.length ? NONE : world.dynamicCells ? world.dynamicCells.get(key) || NONE : world.dynamicPrepared || (world.dynamicPrepared=prepared(world.dynamic));
+    const park=world.parkedCells ? world.parkedCells.get(key) || NONE : NONE, mov=world.moving || NONE;
+    return depthIn(dyn,p,y0,y1,n,owner,r)+depthIn(park,p,y0,y1,n,owner,r)+depthIn(mov,p,y0,y1,n,owner,r);
   }
   function move(world,position,delta,eyeHeight,y=0) {
     const start=supportAt(world,position,y);
@@ -740,7 +770,7 @@ window.APARTMENT={"title":"Haarklous plass 17A · proposed kitchen + bedroom","c
     }
     return null;
   }
-  return {createWorld,supportAt,canStand,hitsSolid,move,findSafeSpawn,ceilingAt,roofAt,floorAt,clampEyeHeight,setDynamic,setMoving,parkedLayer,setParked,STEP};
+  return {createWorld,supportAt,canStand,hitsSolid,overlapDepth,move,findSafeSpawn,ceilingAt,roofAt,floorAt,clampEyeHeight,setDynamic,setMoving,parkedLayer,setParked,STEP};
 });
 </script><script>/* Pure gamepad reading for the first-person walkthrough (PS4 DualShock 4 and
  * other controllers). No DOM access; app.js polls navigator.getGamepads().
@@ -5864,15 +5894,58 @@ window.BRIDGES = {"attribution":"Map data © OpenStreetMap contributors (ODbL)."
       }
       forward() {return {x: -Math.sin(this.yaw), z: -Math.cos(this.yaw)};}
       // Two circles (front and rear) must be clear of buildings, trees and hedges.
-      clear(x, z) {
+      // staticOnly: only what never moves counts (not other vehicles, trams or buses).
+      clear(x, z, staticOnly = false) {
         const w = worldFor(this.radius), f = {x: -Math.sin(this.yaw), z: -Math.cos(this.yaw)}, h = this.length / 2 - this.radius, y = heightAt(x, z, this.y);
         // In the air only solids at the vehicle's own height count (it can fly over a hedge); a slope face ahead stops it.
         if (this.airborne) {
-          for (const k of h > 0 ? [-h, h] : [0]) {const p = {x: x + f.x * k, z: z + f.z * k};if (collision.hitsSolid(w, p, this.y + .25, this.y + this.height) || heightAt(p.x, p.z, this.y) > this.y + .5) return false;}
+          for (const k of h > 0 ? [-h, h] : [0]) {const p = {x: x + f.x * k, z: z + f.z * k};if (collision.hitsSolid(w, p, this.y + .25, this.y + this.height, undefined, staticOnly) || heightAt(p.x, p.z, this.y) > this.y + .5) return false;}
           return true;
         }
-        for (const k of h > 0 ? [-h, h] : [0]) {const p = {x: x + f.x * k, z: z + f.z * k};if (!collision.canStand(w, p, 1.2, heightAt(p.x, p.z, this.y))) return false;}
+        for (const k of h > 0 ? [-h, h] : [0]) {const p = {x: x + f.x * k, z: z + f.z * k};if (!collision.canStand(w, p, 1.2, heightAt(p.x, p.z, this.y), staticOnly)) return false;}
         return Math.abs(y - this.y) < 1.5;
+      }
+      // How deep (metres, summed over the front and rear circles) the vehicle at (x, z, yaw) is inside other vehicles, trams or
+      // buses; the direction that pushes it out is left in this.outN. The same height band as clear() uses (issue #145).
+      overlap(x, z, yaw = this.yaw) {
+        const w = worldFor(this.radius), fx = -Math.sin(yaw), fz = -Math.cos(yaw), h = this.length / 2 - this.radius, n = this.outN || (this.outN = {x: 0, z: 0}), p = this.outP || (this.outP = {x: 0, z: 0});
+        n.x = n.z = 0;let d = 0;
+        for (let i = h > 0 ? 0 : 1; i < 2; i++) {
+          const k = h > 0 ? (i ? h : -h) : 0;p.x = x + fx * k;p.z = z + fz * k;
+          const y0 = this.airborne ? this.y + .25 : heightAt(p.x, p.z, this.y) + .04, y1 = this.airborne ? this.y + this.height : y0 + 1.26;
+          d += collision.overlapDepth(w, p, y0, y1, n, this);
+        }
+        return d;
+      }
+      // Can the vehicle go from (ox, oz, oyaw) to (nx, nz) at its present yaw? 0: yes; 1: a wall, building, tree or slope stops
+      // it; 2: another vehicle does. Issue #145 ("two cars that crash get stuck in each other"): a move that does not take
+      // the vehicle deeper into a vehicle it is already in is always allowed, so two cars that overlap (one is drawn a little
+      // late over the network) can always back away or drive apart; static solids still stop it as before.
+      blockedAt(nx, nz, ox = this.x, oz = this.z, oyaw = this.yaw) {
+        if (this.clear(nx, nz)) return 0;
+        if (!this.clear(nx, nz, true)) return 1;
+        const d0 = this.overlap(ox, oz, oyaw), d1 = this.overlap(nx, nz);// the last call leaves the contact normal in outN
+        return d0 > 0 && d1 <= d0 + 1e-4 ? 0 : 2;
+      }
+      // Already inside another vehicle (lag, or it drove into you while you stood still): your own vehicle is pushed out
+      // along the shortest way at up to 3 m/s, never through a wall. Only the vehicle you drive: each player moves only
+      // their own, so both sides of a crash separate.
+      unstick(dt) {
+        if (!this.active || dt <= 0) return;
+        const d = this.overlap(this.x, this.z);if (d < .005) return;
+        const n = this.outN, len = Math.hypot(n.x, n.z);if (len < 1e-6) return;
+        const s = Math.min(d, 3 * dt) / len, nx = this.x + n.x * s, nz = this.z + n.z * s;
+        if (this.clear(nx, nz, true)) {this.x = nx;this.z = nz;}
+      }
+      // A crash: the sound, and against another vehicle a small bounce back along the contact normal.
+      crash(kind) {
+        const v = Math.abs(this.speed);
+        if (v > 2.5) audio.sfx('hit', {gain: Math.min(1, v / 10)});if (this.onHit && v > .05) this.onHit(v);
+        if (kind === 2 && this.active && v > .5) {
+          this.speed = -Math.sign(this.speed) * Math.min(3, v * .2);
+          const n = this.outN, len = Math.hypot(n.x, n.z), k = Math.min(2.5, v * .15);
+          if (len > 1e-6) {this.knockX = n.x / len * k;this.knockZ = n.z / len * k;}
+        } else {this.speed = 0;this.knockX = this.knockZ = 0;}
       }
       settle(dt) {
         const f = this.forward(), r = {x: -f.z, z: f.x}, L = this.length * .4, W = .6;
@@ -5900,9 +5973,16 @@ window.BRIDGES = {"attribution":"Map data © OpenStreetMap contributors (ODbL)."
       // Touch-down: a thud and a short suspension dip, harder for a faster vertical impact (m/s).
       land(impact) {if (impact > 1) {audio.sfx('thud', {gain: Math.min(1, impact / 7)});if (impact > 5) audio.sfx('hit', {gain: Math.min(1, (impact - 5) / 6)});}this.squash = Math.min(.2, impact * .025);if (this.onLand) this.onLand(impact);}
       move(dt) {
-        const f = this.forward(), nx = this.x + f.x * this.speed * dt, nz = this.z + f.z * this.speed * dt;
-        if (Math.abs(this.speed) < .001 || this.clear(nx, nz)) {this.x = nx;this.z = nz;}
-        else {if (Math.abs(this.speed) > 2.5) audio.sfx('hit', {gain: Math.min(1, Math.abs(this.speed) / 10)});if (this.onHit) this.onHit(Math.abs(this.speed));this.speed = 0;}
+        this.unstick(dt);
+        // The bounce from a crash (m/s along the contact normal) dies away in about half a second.
+        let kx = this.knockX || 0, kz = this.knockZ || 0;
+        if (kx || kz) {const e = Math.exp(-dt * 5);this.knockX = Math.abs(kx * e) < .05 ? 0 : kx * e;this.knockZ = Math.abs(kz * e) < .05 ? 0 : kz * e;}
+        const f = this.forward(), nx = this.x + (f.x * this.speed + kx) * dt, nz = this.z + (f.z * this.speed + kz) * dt;
+        if (Math.abs(this.speed) < .001 && !kx && !kz) {this.x = nx;this.z = nz;return;}
+        const b = this.blockedAt(nx, nz);
+        if (!b) {this.x = nx;this.z = nz;}
+        else if (kx || kz) {this.knockX = this.knockZ = 0;const sx = this.x + f.x * this.speed * dt, sz = this.z + f.z * this.speed * dt, b2 = Math.abs(this.speed) < .001 ? 0 : this.blockedAt(sx, sz);if (!b2) {this.x = sx;this.z = sz;} else this.crash(b2);}
+        else this.crash(b);
       }
       // ---- Multiplayer: the driver's client sends netGet(); everybody else poses the vehicle with netSet() + netAnimate(). ----
       netGet() {return [this.x, this.y, this.z, this.yaw, this.pitch, this.roll || 0, this.speed, ...this.netExtra()].map(v => Math.round(v * 1000) / 1000);}
@@ -5914,7 +5994,7 @@ window.BRIDGES = {"attribution":"Map data © OpenStreetMap contributors (ODbL)."
       hipAnchor(seat) {const h = this.hips[seat];return h ? {obj: h.obj || this.group, pos: h.pos, stance: h.stance} : null;}
       footprint() {
         const f = this.forward(), r = {x: -f.z, z: f.x}, hl = this.length / 2, hw = this.width / 2;
-        return {points: [[hl, hw], [hl, -hw], [-hl, -hw], [-hl, hw]].map(([a, b]) => ({x: this.x + f.x * a + r.x * b, z: this.z + f.z * a + r.z * b})), minY: this.y - .2, maxY: this.y + this.height, kind: 'vehicle'};
+        return {points: [[hl, hw], [hl, -hw], [-hl, -hw], [-hl, hw]].map(([a, b]) => ({x: this.x + f.x * a + r.x * b, z: this.z + f.z * a + r.z * b})), minY: this.y - .2, maxY: this.y + this.height, kind: 'vehicle', owner: this};
       }
       exitPoint(side = -1) {const f = this.forward(), r = {x: -f.z, z: f.x}, d = this.width / 2 + .55;return {x: this.x + r.x * d * side, z: this.z + r.z * d * side};}
       place() {this.group.position.set(this.x, this.y, this.z);this.group.rotation.set(0, 0, 0);this.group.rotateY(this.yaw);this.group.rotateX(this.pitch);this.group.rotateZ(this.roll || 0);}
@@ -13130,9 +13210,10 @@ window.SITE={"rect":{"x0":-160.0,"s0":368.0,"w":144.0,"d":96.0},"fence":{"x0":-1
         }
         this.drive(dt, fwd, back, resist);
         // Articulated motion of the two frames; the root is the rear frame at the hinge.
+        {const ux = this.x, uz = this.z;this.unstick(dt);if (this.x !== ux || this.z !== uz) this.art.init(this.x, this.z, this.yaw, this.art.phi);}// out of another vehicle (issue #145)
         this.art.step(this.speed * dt, phiT);const h = this.art.hinge(), ox = this.x, oz = this.z, oyaw = this.yaw;
         this.x = h.x;this.z = h.z;this.yaw = this.art.yawB;
-        if (Math.abs(this.speed) > .001 && !this.clear(this.x, this.z)) {this.x = ox;this.z = oz;this.yaw = oyaw;this.art.init(this.x, this.z, this.yaw, this.art.phi);if (Math.abs(this.speed) > 2.5) sfx('hit');this.speed = 0;}
+        if (Math.abs(this.speed) > .001 && this.blockedAt(this.x, this.z, ox, oz, oyaw)) {this.x = ox;this.z = oz;this.yaw = oyaw;this.art.init(this.x, this.z, this.yaw, this.art.phi);if (Math.abs(this.speed) > 2.5) sfx('hit');this.speed = 0;}
         this.settleBig(dt);this.spin += this.speed * dt;this.spinWheels(this.wheels, .8, dt);this.place();
         this.engineSound(this.active ? this.rpm + resist * 300 : 0, this.active ? Math.max(this.engineLoad, resist) : 0);
       }
@@ -13180,6 +13261,7 @@ window.SITE={"rect":{"x0":-160.0,"s0":368.0,"w":144.0,"d":96.0},"fence":{"x0":-1
         if (this.payload > 0 && this.tip > .42) {const out = Math.min(this.payload, (this.tip - .42) * 6 * dt);this.payload -= out;this.group.updateMatrixWorld(true);this.pourSoil(this.bed.localToWorld(V3(0, 0, 1.2)), out, 1.1);}
         if (this.tip > .05) fwd *= .25;// a raised body: only creep
         this.drive(dt, fwd, back);
+        {const ux = this.x, uz = this.z;this.unstick(dt);if (this.art_ && (this.x !== ux || this.z !== uz)) this.art.init(this.x, this.z, this.yaw - this.art.phi, this.art.phi);}// out of another vehicle (issue #145)
         const ox = this.x, oz = this.z, oyaw = this.yaw;
         if (this.art_) {
           const phiT = this.active ? clamp(this.art.phi - (input.steer || 0) * .5 * dt, -.75, .75) : this.art.phi;
@@ -13189,7 +13271,7 @@ window.SITE={"rect":{"x0":-160.0,"s0":368.0,"w":144.0,"d":96.0},"fence":{"x0":-1
           this.steerA += ((this.active ? input.steer || 0 : 0) * max - this.steerA) * Math.min(1, dt * 2.5);
           this.yaw -= this.speed * Math.tan(this.steerA) / this.wheelBase * dt;const f = this.forward();this.x += f.x * this.speed * dt;this.z += f.z * this.speed * dt;
         }
-        if (Math.abs(this.speed) > .001 && !this.clear(this.x, this.z)) {
+        if (Math.abs(this.speed) > .001 && this.blockedAt(this.x, this.z, ox, oz, oyaw)) {
           this.x = ox;this.z = oz;this.yaw = oyaw;if (this.art_) this.art.init(this.x, this.z, this.yaw - this.art.phi, this.art.phi);
           if (Math.abs(this.speed) > 2.5) sfx('hit');this.speed = 0;
         }
@@ -26775,16 +26857,26 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     if (living) list.push(...living.dynamic());// the chairs in flat 501 can be moved
     collision.setDynamic(walkWorld, list);
     // Other vehicles block the one being driven; it must never collide with its own (parked) footprint.
-    const vlist = vehicles.filter(v => v !== player.vehicle && !v.pushed && !(v.lazy && !v.built)).flatMap(v => [].concat(v.footprint()));
+    // The ones other players drive are not here: they move every frame, so transitDynamic() gives them as moving solids (issue #145).
+    const vlist = vehicles.filter((v, i) => v !== player.vehicle && !v.pushed && !(v.lazy && !v.built) && !(mp && mp.remoteDriven(i))).flatMap(v => [].concat(v.footprint()));
     vehicleBlockers = vlist;vehicleWorlds.forEach(w => collision.setDynamic(w, vlist));
     if (fleet) fleet.applyLayer([walkWorld, ...vehicleWorlds.values()]);
   }
-  let transitSolidsOn = false;
+  let transitSolidsOn = false, remoteSolidsOn = false, remoteKey = 0;const remoteSolids = [];
   // The trams, buses and metro trains near you are moving solids for walkers and cars (issue #111): a short list of their own
   // (setMoving), so the hashed dynamic list and the parked fleet's layer are left as they are.
+  // The vehicles other players drive are moving solids for your vehicle too, refreshed every frame (issue #145: they were
+  // in the hashed list, refreshed every 0.4 s, so a car driving at you jumped metres into yours and both were stuck).
   function transitDynamic() {
-    const t = [...(transit ? transit.footprints() : []), ...(prophunt ? prophunt.solids() : [])];if (!t.length && !transitSolidsOn) return;transitSolidsOn = t.length > 0;if (!transit) {collision.setMoving(walkWorld, t);return;}
-    collision.setMoving(walkWorld, t);vehicleWorlds.forEach(w => collision.setMoving(w, t));
+    remoteSolids.length = 0;let key = 0;
+    if (mp) vehicles.forEach((v, i) => {if (v !== player.vehicle && mp.remoteDriven(i)) {key = (key * 31 + i + 1) % 1e9;remoteSolids.push(...[].concat(v.footprint()));}});
+    // Somebody got in or out: the hashed list takes the car out or back (it stands still again).
+    if (key !== remoteKey) {remoteKey = key;updateDynamic();}
+    const t = [...(transit ? transit.footprints() : []), ...(prophunt ? prophunt.solids() : [])];
+    if (!t.length && !transitSolidsOn && !remoteSolids.length && !remoteSolidsOn) return;
+    transitSolidsOn = t.length > 0;remoteSolidsOn = remoteSolids.length > 0;
+    const vt = transit ? (remoteSolids.length ? t.concat(remoteSolids) : t) : remoteSolids;
+    collision.setMoving(walkWorld, t);vehicleWorlds.forEach(w => collision.setMoving(w, vt));if (!transit) return;
     // A tram or bus that comes up against you pushes you aside (it does not stop for you).
     if (player.mode === 'foot') {const p = transit.pushOut(player.x, player.z, player.feet, .3);if (p) {player.x = p.x;player.z = p.z;}}
     if (player.mode === 'vehicle' && player.vehicle && !player.vehicle.aircraft) {const v = player.vehicle, p = transit.pushOut(v.x, v.z, v.y, (v.width || 1.8) / 2 + .2);if (p) {v.x = p.x;v.z = p.z;v.speed *= .5;}}
@@ -27785,7 +27877,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     // The jump planes move first, so a jumper's seat (and camera) is where the plane is this frame.
     updateJumpFlight(dt);updateGamePilot(dt);
     licExaminer(input);
-    if (transit) transit.tick(dt, {camera, player});if (transit || prophunt) transitDynamic();
+    if (transit) transit.tick(dt, {camera, player});transitDynamic();
     if (player.mode === 'vehicle') updateVehicle(dt, input, dl);
     else if (player.mode === 'transit') transit.updateRide(dt, input, camera, dl);
     else if (player.mode === 'passenger') updatePassenger(dt, input, dl);
