@@ -79,7 +79,7 @@
   const kayak = window.GameKayak && window.AKERSELVA ? window.GameKayak.create({T, lib, data: window.AKERSELVA, world, audio, districts: DISTRICTS}) : null;
   const cc = CC_DATA ? window.GameConstructionCity.create({T, lib, world, data: CC_DATA, ground: world.heightWorld}) : null;if (cc) farScene.add(cc.far);
   // Metro, bus and tram (issue #111): Ruter's real lines and stops on a timetable that is a function of the shared clock.
-  const transit = window.GameTransit && window.TRANSIT && window.TransitTimetable ? window.GameTransit.create({T, lib, world, data: window.TRANSIT, root: view, ground: (x, z) => groundAt(x, z),
+  const transit = window.GameTransit && window.TRANSIT && window.TransitTimetable ? window.GameTransit.create({T, lib, world, data: window.TRANSIT, root: view, ground: (x, z, hx, hz) => {if (hx !== undefined && world.bridges) {const y = world.bridges.alongAt(x, z, hx, hz);if (y !== null) return y;}return groundAt(x, z);},// on a road bridge when heading along it (issue #139)
     clock: () => mp && mp.net.online ? mp.net.serverNow() : Date.now(), rects: window.Surroundings.walkRects(D.terrain.half, world.playHalf, DISTRICTS),
     get player() {return player;}, get wallet() {return wallet;}, kr: v => KR(v), notice: (t, s) => notice(t, s), audio, sens: () => sensitivity, onFoot: () => player.mode === 'foot',
     remotes: () => mp ? [...mp.remotes.values()] : [], onPaid: () => {walletT = 6;},
@@ -171,6 +171,7 @@
   function groundAt(x, z, y) {
     if (cc && y !== undefined) {const g = cc.groundAt(x, z, y);if (g !== null) return g;}// Construction City's garage floors and ramps (vehicles give their height)
     if (kayak) {const y = kayak.groundAt(x, z);if (y !== null) return y;}// bridge decks over Akerselva
+    if (world.bridges && y !== undefined) {const g = world.bridges.groundAt(x, z, y);if (g !== null) return g;}// road bridges (issue #139): on the deck or under it, by the height given
     return terrainAt(x, z);
   }
   // The ground without the bridge decks: walking has the decks as floors of their own, so you also walk under them (issue #64).
@@ -217,13 +218,16 @@
   const staticObstacles = [...apt.obstacles, ...towers.flatMap(towerObstacles), ...worldSolids(), ...(homes ? homes.obstacles : []), ...fire.obstacles, ...stash.obstacles, ...shops.obstacles, ...sculpture.obstacles, ...oksen.obstacles, ...gym.obstacles, ...extraObstacles, ...landmarks.obstacles];
   const walkFloors = [...apt.floors, ...towers.flatMap(towerFloors), ...(homes ? homes.floors : []), ...shops.floors, ...sculpture.floors, ...oksen.floors, ...landmarks.floors, ...gym.floors, ...(catacomb ? catacomb.floors : []), ...walkGroundFloors];
   staticObstacles.push(...grl.flatMap(m => m.obstacles || []));walkFloors.unshift(...grl.flatMap(m => m.floors || []), ...(kayak ? kayak.bridges.map(b => b.floor) : []));
+  // Road bridges (issue #139): each deck is a floor of its own over the ground (you walk on it and under it); its parapets, its
+  // underside and its piers are solids, for vehicles too.
+  const RB = world.bridges;if (RB) {walkFloors.unshift(...RB.floors);staticObstacles.push(...RB.obstacles);}
   const walkWorld = collision.createWorld({floors: walkFloors, obstacles: staticObstacles, radius: .18, clearance: .08});
   const vehicleWorlds = new Map();
   let vehicleBlockers = null, fleet = null;// the other vehicles' footprints from the last updateDynamic(); the parked vehicles (issue #113)
   function worldFor(r) {
     const key = r.toFixed(2);
     if (!vehicleWorlds.has(key)) {
-      const w = collision.createWorld({floors: cc ? [...cc.vehicleFloors, ...groundFloors] : groundFloors, obstacles: [...grl.flatMap(m => m.obstacles || []), ...landmarks.obstacles, ...landmarks.vehicleObstacles, ...world.obstacles(), ...towers.flatMap(towerObstacles), ...fire.obstacles, ...shops.obstacles, ...sculpture.obstacles, ...oksen.obstacles, ...gym.obstacles, ...extraObstacles, ...(catacomb ? catacomb.vehicleObstacles : [])], radius: r, clearance: .08});
+      const w = collision.createWorld({floors: [...(cc ? cc.vehicleFloors : []), ...(RB ? RB.floors : []), ...groundFloors], obstacles: [...(RB ? RB.obstacles : []), ...grl.flatMap(m => m.obstacles || []), ...landmarks.obstacles, ...landmarks.vehicleObstacles, ...world.obstacles(), ...towers.flatMap(towerObstacles), ...fire.obstacles, ...shops.obstacles, ...sculpture.obstacles, ...oksen.obstacles, ...gym.obstacles, ...extraObstacles, ...(catacomb ? catacomb.vehicleObstacles : [])], radius: r, clearance: .08});
       // A world made during play (e.g. the bike's on its first ride) gets the other vehicles at once, not one update later.
       if (vehicleBlockers) collision.setDynamic(w, vehicleBlockers);
       if (fleet) fleet.applyLayer([w]);
@@ -365,7 +369,7 @@
       water: [...areas.filter(a => a.k === 'water').map(a => a.o), ...PLAN_DISTRICTS.flatMap(d => d.sea)], rects: window.Surroundings.walkRects(D.terrain.half, world.playHalf, PLAN_DISTRICTS), clear,
       ok: c => {
         const p = toWorld(c.x, c.s), h = heightAt(p.x, p.z), yaw = localHeadingToYaw(c.heading), f = {x: -Math.sin(yaw), z: -Math.cos(yaw)};c.at = p;c.yaw = yaw;
-        if (cc && cc.cutsGround(p.x, p.z)) return false;
+        if ((cc && cc.cutsGround(p.x, p.z)) || (RB && RB.over(p.x, p.z))) return false;// (not on or under a road bridge, issue #139)
         if (Math.abs(heightAt(p.x + f.x * 2, p.z + f.z * 2) - heightAt(p.x - f.x * 2, p.z - f.z * 2)) > .9) return false;
         return [0, 1.6, -1.6].every(k => collision.canStand(w, {x: p.x + f.x * k, z: p.z + f.z * k}, 1.4, h));
       }});
@@ -397,7 +401,7 @@
     // The game's own check when a place first comes in sight: not in Construction City, not too steep, room round it between the
     // static solids (a car that fails keeps its number but is never drawn or in the way).
     fleet = window.GameFleet.create({T, lib, VH, scene, collision, plan, toWorld, localHeadingToYaw, heightAt, ok: q => {
-      if (cc && cc.cutsGround(q.x, q.z)) return false;
+      if ((cc && cc.cutsGround(q.x, q.z)) || (RB && RB.over(q.x, q.z))) return false;// (not on or under a road bridge, issue #139)
       // not in a bus or tram lane (issue #111): the bus's swept path and the car's half width (a refused place keeps its number)
       if (transit && !q.small && transit.keepClear(q.x, q.z, (q.W || 1.8) / 2, .15)) {transit.parked.fleet = (transit.parked.fleet || 0) + 1;return false;}
       const f = {x: -Math.sin(q.yaw), z: -Math.cos(q.yaw)}, r = {x: -f.z, z: f.x}, h = heightAt(q.x, q.z), a = q.L * .45, b = q.W * .45;

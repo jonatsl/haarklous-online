@@ -28,6 +28,12 @@
     unclassified: 2, residential: 2, living_street: 1.5, service: .15};
   const EDGE_LINE = {motorway: 1, trunk: 1, motorway_link: 1, trunk_link: 1};
   const KERB_H = .12, KERB_W = .18, VERGE = 0, LINE_IN = .2, LINE_W = .15;
+  // Bridges (issue #139): the deck's depth under the road surface, the parapets' thickness, and the room a bridge leaves over
+  // what passes under it.
+  const DECK = .9, PARAPET = .35;
+  const WATER_UNDER = new Set(['river', 'canal', 'stream', 'ditch', 'drain', 'water']);
+  const PATHS = new Set(['footway', 'path', 'cycleway', 'steps', 'pedestrian', 'track', 'bridleway']);
+  const clearanceOver = k => k === 'river' ? 1.8 : WATER_UNDER.has(k) ? 1 : PATHS.has(k) ? 2.6 : 4.7;
   const C = {OTHER: 0, ROAD: 1};
   const SIGMA = 8, DS = 2, LAMBDA = 3, MASK = 6, PIN = 30;
   const smooth = (a, b, x) => {const t = Math.max(0, Math.min(1, (x - a) / (b - a)));return t * t * (3 - 2 * t);};
@@ -116,17 +122,18 @@
     return {segs, get: (x, s) => map.get((Math.floor(x / cell) + 32768) * 65536 + Math.floor(s / cell) + 32768)};
   }
 
-  function create({natural, grids = [], gridFor = () => null, sets = [], slabsAt = null, sigma = SIGMA}) {
-    const chains = chainsOf(sets, slabsAt), t0 = Date.now();
+  function create({natural, grids = [], gridFor = () => null, sets = [], slabsAt = null, sigma = SIGMA, bridges = []}) {
+    const all = chainsOf(sets, slabsAt), t0 = Date.now();
+    let chains = all;
     // Reach: how far from a street's centre line it still matters at a grid corner (its bands within one cell's diagonal, the
     // ground easing back to the real terrain over two cells).
     const maxStep = Math.max(4, ...grids.map(g => g.step));
     for (const c of chains) c.reach = Math.max(c.hw + c.sw + 2 * maxStep, 1.42 * (c.hw + c.sw) + maxStep * Math.SQRT2) + 1;
-    const H = makeHash(chains, 16, c => c.reach), Hin = makeHash(chains, 16, c => c.hw + 1.5);
+    let H = makeHash(chains, 16, c => c.reach), Hin = makeHash(chains, 16, c => c.hw + 1.5);
 
     // Nearest point of each chain within its reach: {c, d (distance to the centre line), y (signed offset), t (along)}.
     // Ties (a corner on the outside of a bend is as near to both segments) go to the lower segment, so every query agrees.
-    const stamp = new Int32Array(chains.length).fill(-1), best = new Float64Array(chains.length), bestK = new Int32Array(chains.length), slot = new Int32Array(chains.length);let call = 0;
+    let stamp = new Int32Array(chains.length).fill(-1), best = new Float64Array(chains.length), bestK = new Int32Array(chains.length), slot = new Int32Array(chains.length);let call = 0;
     const worse = (d2, k, b2, bk) => d2 > b2 + 1e-9 || (d2 >= b2 - 1e-9 && k >= bk);
     function nearBy(hash, x, s, out, reach) {
       out.length = 0;const list = hash.get(x, s);if (!list) return out;call++;
@@ -179,15 +186,87 @@
     }
 
     const tA = Date.now();
+    // ---------- Bridges (issue #139): which stretches of which streets are bridge decks, and what passes under them ----------
+    // A street segment is on a bridge when both its ends are consecutive points of an OpenStreetMap bridge way of the same kind
+    // (bridges-data.js keeps the very points of the map data). The real ground (Kartverket's terrain model) has no bridges: under
+    // a bridge it is the ground below (or, where the model filled the gap, a hump across the road or railway under it).
+    const BR = bridges.filter(b => b.layered).map((b, i) => ({...b, i, deckOf: []}));
+    {
+      // (the patches' street lines are simplified: a segment is on a bridge when both its ends lie on the bridge's line and its
+      // middle within 1.5 m of it)
+      const cells = new Map(), cell = (x, s) => (Math.floor(x / 16) + 32768) * 65536 + Math.floor(s / 16) + 32768;
+      BR.forEach(b => {for (let v = 0; v + 1 < b.p.length / 2; v++) {
+        const x0 = Math.min(b.p[v * 2], b.p[v * 2 + 2]) - 2, x1 = Math.max(b.p[v * 2], b.p[v * 2 + 2]) + 2, s0 = Math.min(b.p[v * 2 + 1], b.p[v * 2 + 3]) - 2, s1 = Math.max(b.p[v * 2 + 1], b.p[v * 2 + 3]) + 2;
+        for (let i = Math.floor(x0 / 16); i <= Math.floor(x1 / 16); i++) for (let j = Math.floor(s0 / 16); j <= Math.floor(s1 / 16); j++) {const k = (i + 32768) * 65536 + j + 32768;if (!cells.has(k)) cells.set(k, new Set());cells.get(k).add(b.i);}
+      }});
+      const off = (b, x, s) => {let m = Infinity;for (let v = 0; v + 1 < b.p.length / 2; v++) {const ax = b.p[v * 2], as = b.p[v * 2 + 1], dx = b.p[v * 2 + 2] - ax, ds = b.p[v * 2 + 3] - as, f = Math.max(0, Math.min(1, ((x - ax) * dx + (s - as) * ds) / (dx * dx + ds * ds || 1)));m = Math.min(m, Math.hypot(x - ax - f * dx, s - as - f * ds));}return m;};
+      for (const c of chains) {
+        const n = c.p.length / 2;c.br = new Int32Array(Math.max(1, n - 1)).fill(-1);
+        for (let k = 0; k + 1 < n; k++) {
+          const ax = c.p[k * 2], as = c.p[k * 2 + 1], bx = c.p[k * 2 + 2], bs = c.p[k * 2 + 3], set = cells.get(cell(ax, as));if (!set) continue;
+          for (const bi of set) {const b = BR[bi];if (b.k === c.k && off(b, ax, as) < .15 && off(b, bx, bs) < .15 && off(b, (ax + bx) / 2, (as + bs) / 2) < 1.5) {c.br[k] = bi;break;}}
+        }
+        c.bridged = c.br.some(v => v >= 0);
+      }
+    }
+    // The level of what passes under a bridge at the crossing: the real ground there, or lower where the terrain model filled the
+    // gap (the line between the ground on either side of the bridge, along the way under it). Roads, paths, railways and streams
+    // under a bridge get a trench along their line under the deck down to that level (natC), so they pass under it with room.
+    const corridors = [];
+    for (const b of BR) {
+      const half = b.w / 2 + (SIDEWALK[b.k] || .5) + 1;
+      b.cross = [];
+      for (const u of b.under) {
+        if (u.tun || (!u.dx && !u.ds)) continue;
+        // the bridge's direction at the crossing
+        let bd = Infinity, bx = 1, bs = 0;
+        for (let v = 0; v + 1 < b.p.length / 2; v++) {
+          const ax = b.p[v * 2], as = b.p[v * 2 + 1], dx = b.p[v * 2 + 2] - ax, ds = b.p[v * 2 + 3] - as, L2 = dx * dx + ds * ds || 1, f = Math.max(0, Math.min(1, ((u.x - ax) * dx + (u.s - as) * ds) / L2)), d = Math.hypot(u.x - ax - f * dx, u.s - as - f * ds);
+          if (d < bd) {bd = d;const l = Math.sqrt(L2);bx = dx / l;bs = ds / l;}
+        }
+        const sin = Math.max(.3, Math.abs(bx * u.ds - bs * u.dx)), A = Math.min(60, half / sin + 3), water = WATER_UNDER.has(u.k);
+        const hA = natural(u.x - u.dx * (A + 3), u.s - u.ds * (A + 3)), hB = natural(u.x + u.dx * (A + 3), u.s + u.ds * (A + 3)), h0 = natural(u.x, u.s);
+        let level = Math.min(h0, (hA + hB) / 2);
+        if (water) for (let q = -A; q <= A; q += 2) level = Math.min(level, natural(u.x + u.dx * q, u.s + u.ds * q));
+        b.cross.push({u, level, clear: clearanceOver(u.k)});
+        // (a stream's bed is its lowest ground under the bridge: its trench is flat at that level; the trench's floor is at least a
+        // ground cell wide each side of the line, so the ground's triangles take it)
+        const g = gridFor(u.x, u.s), hw = Math.max(u.w / 2 + 1, g ? g.step : 4);
+        corridors.push(water ? {x: u.x, s: u.s, dx: u.dx, ds: u.ds, A, hA: level, hB: level, hw} : {x: u.x, s: u.s, dx: u.dx, ds: u.ds, A, hA, hB, hw});
+      }
+    }
+    const CC = new Map(), ccell = (i, j) => i * 65536 + j;
+    corridors.forEach(q => {const r = q.A + 40;for (let i = Math.floor((q.x - r) / 32); i <= Math.floor((q.x + r) / 32); i++) for (let j = Math.floor((q.s - r) / 32); j <= Math.floor((q.s + r) / 32); j++) {const k = ccell(i + 32768, j + 32768);if (!CC.has(k)) CC.set(k, []);CC.get(k).push(q);}});
+    // The ground with the trenches under the bridges.
+    function trench(x, s, h) {
+      const list = CC.get(ccell(Math.floor(x / 32) + 32768, Math.floor(s / 32) + 32768));if (!list) return h;
+      for (const q of list) {
+        const ex = x - q.x, es = s - q.s, u = ex * q.dx + es * q.ds;if (Math.abs(u) > q.A) continue;
+        const v = Math.abs(es * q.dx - ex * q.ds), lim = q.hA + (q.hB - q.hA) * (u + q.A) / (2 * q.A) + Math.max(0, v - q.hw) + Math.max(0, Math.abs(u) - (q.A - 4)) * 2;
+        if (lim < h) h = lim;
+      }
+      return h;
+    }
+    const natC = corridors.length ? (x, s) => trench(x, s, natural(x, s)) : natural;
+
     // ---------- Profiles: the real ground along the centre line, smoothed ----------
     for (const c of chains) {
       const n = Math.max(2, Math.ceil(c.L / DS) + 1), ds = c.L / (n - 1), ext = Math.ceil(3 * sigma / ds), N = new Float64Array(n + 2 * ext);
       const p = c.p, m = p.length / 2, d0 = [p[0] - p[2], p[1] - p[3]], d1 = [p[m * 2 - 2] - p[m * 2 - 4], p[m * 2 - 1] - p[m * 2 - 3]];
       const l0 = Math.hypot(...d0) || 1, l1 = Math.hypot(...d1) || 1;
+      c.bs = new Int32Array(n).fill(-1);
       for (let k = 0; k < N.length; k++) {
         const t = (k - ext) * ds;let x, s;
-        if (t < 0) {x = p[0] + d0[0] / l0 * -t;s = p[1] + d0[1] / l0 * -t;} else if (t > c.L) {x = p[m * 2 - 2] + d1[0] / l1 * (t - c.L);s = p[m * 2 - 1] + d1[1] / l1 * (t - c.L);} else [x, s] = pointAt(c, t);
-        N[k] = natural(x, s);
+        if (t < 0) {x = p[0] + d0[0] / l0 * -t;s = p[1] + d0[1] / l0 * -t;} else if (t > c.L) {x = p[m * 2 - 2] + d1[0] / l1 * (t - c.L);s = p[m * 2 - 1] + d1[1] / l1 * (t - c.L);} else {const q = pointAt(c, t);x = q[0];s = q[1];if (c.bridged && k >= ext && k < ext + n) c.bs[k - ext] = c.br[Math.min(c.br.length - 1, q[2])];}
+        N[k] = natC(x, s);
+      }
+      // On a bridge the street's ground is the line between the ground at its two ends (the terrain model has the ground under it).
+      if (c.bridged) for (let k = 0; k < n;) {
+        if (c.bs[k] < 0) {k++;continue;}
+        let e = k;while (e < n && c.bs[e] >= 0) e++;
+        const a = k + ext - 1, b = e + ext;// the samples just off the bridge (the padding beyond a chain's end continues its line)
+        for (let j = k; j < e; j++) N[j + ext] = N[a] + (N[b] - N[a]) * (j + ext - a) / (b - a);
+        k = e;
       }
       // Robust smoothing: samples far off the smooth line (a ravine under a bridge, a pit) get no say, three rounds.
       const sg = sigma / ds, rad = Math.ceil(3 * sg), kern = new Float64Array(2 * rad + 1);for (let k = -rad; k <= rad; k++) kern[k + rad] = Math.exp(-k * k / (2 * sg * sg));
@@ -196,9 +275,68 @@
         for (let k = 0; k < N.length; k++) {let a = 0, b = 0;for (let q = -rad; q <= rad; q++) {const i = k + q;if (i < 0 || i >= N.length) continue;const w = kern[q + rad] * wt[i];a += w * N[i];b += w;}R[k] = b > 1e-9 ? a / b : N[k];}
         for (let k = 0; k < N.length; k++) wt[k] = 1 - smooth(.5, 1.2, Math.abs(N[k] - R[k]));
       }
-      c.ds = ds;c.nat = N.slice(ext, ext + n);c.prof = R.slice(ext, ext + n);
+      c.ds = ds;c.nat = N.slice(ext, ext + n);c.prof = R.slice(ext, ext + n);c.lift = new Float64Array(n);
     }
-    const profAt = (c, t, arr = c.prof) => {const f = Math.max(0, Math.min(c.prof.length - 1.000001, t / c.ds)), i = Math.floor(f), u = f - i;return arr[i] * (1 - u) + arr[i + 1] * u;};
+    for (const c of chains) if (c.bridged) liftDeck(c);
+    // A street that rises to a bridge raises the streets it meets at its ends (a roundabout or a slip road on the bridge's level),
+    // and those the streets they meet, as long as the rise reaches them (not the roads the bridge passes over).
+    {
+      const seen = new Set(), list = [];
+      // (the streets that pass under a bridge are never raised this way)
+      for (const b of BR) for (const x of b.cross) for (const o of nearIn(x.u.x, x.u.s, list)) {const c = chains[o.c];if (c.k === x.u.k && (c.n || '') === (x.u.n || '') && Math.abs(o.y) < c.hw && !c.bridged) c.passesUnder = true;}
+      for (let round = 0; round < 6; round++) {
+        const extra = new Map();
+        for (const m of chains) {
+          if (!m.lifted) continue;const n = m.prof.length;
+          for (const e of [0, 1]) {
+            const k = e ? n - 1 : 0;if (m.lift[k] < .05 || seen.has(m.id * 2 + e)) continue;seen.add(m.id * 2 + e);
+            const [x, s] = pointAt(m, e ? m.L : 0), y = m.prof[k], under = m.under || new Set();
+            for (const o of nearIn(x, s, list)) {
+              const c = chains[o.c];if (c === m || c.passesUnder || Math.abs(o.y) > c.hw + .3 || o.t < -c.eC0 || o.t > c.L + c.eC1 || under.has(c.k + '|' + c.n)) continue;
+              if (!extra.has(c)) extra.set(c, []);extra.get(c).push({t: Math.max(0, Math.min(c.L, o.t)), y, off: 0});
+            }
+          }
+        }
+        if (!extra.size) break;
+        for (const [c, need] of extra) liftDeck(c, need);
+      }
+    }
+    // A bridge clears what passes under it: road and railway 4.7 m, a path 2.6 m, a river 1.8 m (plus the deck itself under the
+    // road surface). Where the line between its ends is too low, the street rises to the deck in a smooth crest at no more than
+    // 5 % (up to 12 % if the street is too short for that), which may start before the bridge (an embankment ramp).
+    function liftDeck(c, extra = []) {
+      const P = c.prof, n = P.length, need = extra.slice();
+      // Every crossing under a bridge of the same layer within 40 m of this street's deck counts: its own, the ones under the
+      // other carriageway beside it, and the ones just past a junction on the bridge (so streets that meet on a bridge rise alike).
+      const ks = [];for (let k = 0; k < n; k++) if (c.bs[k] >= 0) ks.push(k);
+      const pts = ks.map(k => pointAt(c, k * c.ds)), layers = new Set(ks.map(k => BR[c.bs[k]].L));
+      for (const b of BR) if (layers.has(b.L)) for (const x of b.cross) {
+        if (x.u.n && x.u.n === c.n && x.u.k === c.k) continue;// its own street (a slip road of the same name is another kind)
+        let bt = 0, bd = Infinity;
+        for (let q = 0; q < ks.length; q++) {const d = Math.hypot(pts[q][0] - x.u.x, pts[q][1] - x.u.s);if (d < bd) {bd = d;bt = ks[q] * c.ds;}}
+        if (bd > 40) continue;
+        for (let t = Math.max(0, bt - c.ds); t <= Math.min(c.L, bt + c.ds); t += .25) {const [px, ps] = pointAt(c, t), d = Math.hypot(px - x.u.x, ps - x.u.s);if (d < bd) {bd = d;bt = t;}}
+        need.push({t: bt, y: x.level + x.clear + DECK, off: Math.max(0, bd - c.hw - 2), b});
+        if (!c.under) c.under = new Set();c.under.add(x.u.k + '|' + x.u.n);
+      }
+      if (!need.length) return;
+      const RR = 12, cone = (d, G) => d < RR ? G * d * d / (2 * RR) : G * (d - RR / 2);
+      let lift = null;
+      for (const G of [.05, .07, .09, .12]) {
+        lift = new Float64Array(n);
+        for (let k = 0; k < n; k++) {let top = -Infinity;for (const q of need) top = Math.max(top, q.y - cone(Math.abs(k * c.ds - q.t) + q.off, G));lift[k] = Math.max(0, top - P[k]);}
+        if ((lift[0] < .05 || c.ends[0] !== 'D') && (lift[n - 1] < .05 || c.ends[1] !== 'D')) break;
+      }
+      // ease the foot of each ramp (a light smoothing that only adds height), keeping the crest exact
+      const sg = 3 / c.ds, rad = Math.ceil(3 * sg), Q = new Float64Array(n);
+      const near = new Uint8Array(n);for (let k = 0; k < n; k++) if (lift[k] > 0) for (let q = Math.max(0, k - rad); q <= Math.min(n - 1, k + rad); q++) near[q] = 1;
+      for (let k = 0; k < n; k++) {if (!near[k]) {Q[k] = P[k];continue;}let a = 0, w = 0;for (let q = -rad; q <= rad; q++) {const i = Math.max(0, Math.min(n - 1, k + q)), g = Math.exp(-q * q / (2 * sg * sg));a += g * (P[i] + lift[i]);w += g;}Q[k] = Math.max(P[k] + lift[k], a / w);}
+      for (let k = 0; k < n; k++) {if (Q[k] - P[k] > .005) {c.lift[k] += Q[k] - P[k];c.lifted = true;}P[k] = Q[k];}
+      c.need = (c.need || []).concat(need);
+    }
+    const profAt = (c, t, arr = c.prof) => {const f = Math.max(0, Math.min(arr.length - 1.000001, (t + (c.t0 || 0)) / c.ds)), i = Math.floor(f), u = f - i;return arr[i] * (1 - u) + arr[i + 1] * u;};
+    // The layer at a point along a full chain: the bridge's OpenStreetMap layer on a deck, else 0 (the ground).
+    const layerAt = (c, t) => {if (!c.bridged) return 0;const k = Math.max(0, Math.min(c.bs.length - 1, Math.round(t / c.ds)));return c.bs[k] >= 0 ? Math.max(1, BR[c.bs[k]].L) : 0;};
 
     const tB = Date.now();
     // ---------- Junctions: the minor street bends to meet the major one ----------
@@ -212,7 +350,9 @@
         const P = c.prof, n = P.length, d = new Float64Array(n).fill(NaN);let any = false;
         for (let k = 0; k < n; k++) {
           const [x, s] = pointAt(c, k * c.ds);let top = null;
-          for (const o of nearIn(x, s, list)) {const m = chains[o.c];if (m.pri <= c.pri || Math.abs(o.y) > m.hw + .3 || o.t < -m.eC0 || o.t > m.L + m.eC1) continue;if (!top || m.pri > top.m.pri) top = {m, t: o.t};}
+          // (a street meets another only on the same level: not the road under a bridge and the bridge over it, nor a street raised
+          // toward a bridge and a road it passes beside or over, issue #139)
+          for (const o of nearIn(x, s, list)) {const m = chains[o.c];if (m.pri <= c.pri || Math.abs(o.y) > m.hw + .3 || o.t < -m.eC0 || o.t > m.L + m.eC1 || layerAt(m, o.t) !== layerAt(c, k * c.ds) || (c.lift[k] > .3 && Math.abs(profAt(m, o.t) - P[k]) > 1.5)) continue;if (!top || m.pri > top.m.pri) top = {m, t: o.t};}
           if (top) {d[k] = profAt(top.m, top.t) - P[k];any = true;}
         }
         if (!any) continue;
@@ -242,9 +382,119 @@
         }
         for (let k = 0; k < n; k++) P[k] = NP[k];
       }
-      // Where the real ground is far below the smooth line (a ravine under a bridge) the street keeps the real ground: bridges
-      // have their own decks (game-kayak.js).
-      for (const c of chains) {const P = c.prof, Nn = c.nat;for (let k = 0; k < P.length; k++) {const dh = P[k] - Nn[k], a = 1 - smooth(.9, 1.6, Math.abs(dh));P[k] = Nn[k] + dh * a;}}
+      // Where the real ground is far below the smooth line (a ravine under a bridge) the street keeps the real ground: Akerselva's
+      // bridges have their own decks (game-kayak.js), the other bridges are decks of their own here (not on the ground, issue #139).
+      for (const c of chains) {const P = c.prof, Nn = c.nat;for (let k = 0; k < P.length; k++) {if (c.lift[k] > 0 || (c.bridged && c.bs[k] >= 0)) continue;const dh = P[k] - Nn[k], a = 1 - smooth(.9, 1.6, Math.abs(dh));P[k] = Nn[k] + dh * a;}}
+    }
+
+    // ---------- Split: the streets on the ground, and the bridge decks ----------
+    // Each street is cut where it goes onto a bridge and where it comes off: the pieces on the ground make the ground surface
+    // (their ends at a bridge are cut square, 'B'), the pieces on a bridge are decks (drawn and walked on by road-bridges.js).
+    // Both keep the whole street's profile (t0: where the piece starts along it), so they meet at the same level.
+    const decks = [];
+    {
+      const ground = [];
+      const piece = (c, k0, k1, deck) => {// the chain's points k0..k1 (inclusive)
+        let p = c.p.slice(k0 * 2, k1 * 2 + 2);
+        // A deck's end line is square to its end segment and the street's to its own: where the line bends at the split, the
+        // deck starts (ends) with 0.5 m in the street's direction, so the two end lines are the same line (no notch between them).
+        if (deck && k1 - k0 >= 1) {
+          const N = c.p.length / 2, dir = k => {const dx = c.p[k * 2 + 2] - c.p[k * 2], ds = c.p[k * 2 + 3] - c.p[k * 2 + 1], l = Math.hypot(dx, ds) || 1;return [dx / l, ds / l];};
+          const len = c.cum[k1] - c.cum[k0], bend = (a, b) => a[0] * b[1] - a[1] * b[0];
+          if (k1 < N - 1 && len > 1.5) {const g = dir(k1), d = dir(k1 - 1);if (Math.abs(bend(g, d)) > 1e-4) p.splice(p.length - 2, 0, p[p.length - 2] - g[0] * .5, p[p.length - 1] - g[1] * .5);}
+          if (k0 > 0 && len > 1.5) {const g = dir(k0 - 1), d = dir(k0);if (Math.abs(bend(g, d)) > 1e-4) p.splice(2, 0, p[0] + g[0] * .5, p[1] + g[1] * .5);}
+        }
+        const n = p.length / 2, cum = new Float64Array(n);
+        for (let k = 1; k < n; k++) cum[k] = cum[k - 1] + Math.hypot(p[k * 2] - p[k * 2 - 2], p[k * 2 + 1] - p[k * 2 - 1]);
+        const first = k0 === 0, last = k1 === c.p.length / 2 - 1, ends = [first ? c.ends[0] : 'B', last ? c.ends[1] : 'B'];
+        const q = {...c, p, cum, L: cum[n - 1], t0: c.cum[k0], ends, parent: c, deck};
+        delete q.br;delete q.bs;
+        const ext = kind => kind === 'J' ? [c.hw, c.hw + KERB_W, c.hw + c.sw] : kind === 'T' || kind === 'B' ? [0, 0, 0] : [0, KERB_W, c.sw];
+        [q.eC0, q.eX0, q.eP0] = ext(ends[0]);[q.eC1, q.eX1, q.eP1] = ext(ends[1]);
+        return q;
+      };
+      for (const c of chains) {
+        if (!c.bridged) {ground.push(c);continue;}
+        const n = c.p.length / 2;let k = 0;
+        while (k < n - 1) {
+          const on = c.br[k] >= 0;let e = k;while (e < n - 1 && (c.br[e] >= 0) === on) e++;
+          const q = piece(c, k, e, on);
+          if (on) {q.bridges = [...new Set(Array.from(c.br.slice(k, e)))].map(i => BR[i]);q.layer = Math.max(1, ...q.bridges.map(b => b.L));q.bridges.forEach(b => b.deckOf.push(q));decks.push(q);} else ground.push(q);
+          k = e;
+        }
+      }
+      // Two decks that go on from each other (a street split at a junction on a bridge) share one end line: each ends with 0.3 m
+      // square to the line between their directions, so there is no notch between them where the line bends.
+      {
+        const endsAt = decks.flatMap(d => [0, 1].map(e => {const n = d.p.length / 2, i = e ? n - 1 : 0, j = e ? n - 2 : 1, dx = d.p[i * 2] - d.p[j * 2], ds = d.p[i * 2 + 1] - d.p[j * 2 + 1], l = Math.hypot(dx, ds) || 1;return {d, e, x: d.p[i * 2], s: d.p[i * 2 + 1], ax: dx / l, as: ds / l};}));
+        for (const A of endsAt) {
+          if (A.done) continue;
+          // (at a fork, the two that go on most straight)
+          const at = endsAt.filter(B => B !== A && !B.done && B.d !== A.d && Math.hypot(B.x - A.x, B.s - A.s) < .3).sort((P, Q) => (P.ax * A.ax + P.as * A.as) - (Q.ax * A.ax + Q.as * A.as));
+          if (!at.length) continue;const B = at[0];
+          if (A.ax * B.ax + A.as * B.as > -.85 || A.d.L < 1.5 || B.d.L < 1.5) continue;// (not going on from each other)
+          let nx = A.ax - B.ax, ns = A.as - B.as;const l = Math.hypot(nx, ns) || 1;nx /= l;ns /= l;
+          for (const [E, sg] of [[A, 1], [B, -1]]) {
+            if (Math.abs(E.ax * ns * sg - E.as * nx * sg) < 1e-4) continue;// already square
+            const p = E.d.p, n = p.length / 2, ix = sg * nx * .3, is = sg * ns * .3;
+            if (E.e) p.splice(n * 2 - 2, 0, p[n * 2 - 2] - ix, p[n * 2 - 1] - is);else p.splice(2, 0, p[0] - ix, p[1] - is);
+            const m = p.length / 2, cum = new Float64Array(m);for (let k = 1; k < m; k++) cum[k] = cum[k - 1] + Math.hypot(p[k * 2] - p[k * 2 - 2], p[k * 2 + 1] - p[k * 2 - 1]);
+            E.d.cum = cum;E.d.L = cum[m - 1];
+          }
+          A.done = B.done = true;
+        }
+      }
+      ground.forEach((c, id) => {c.id = id;});decks.forEach((c, id) => {c.id = id;});
+      chains = ground;
+      H = makeHash(chains, 16, c => c.reach);Hin = makeHash(chains, 16, c => c.hw + 1.5);
+      stamp = new Int32Array(chains.length).fill(-1);best = new Float64Array(chains.length);bestK = new Int32Array(chains.length);slot = new Int32Array(chains.length);
+    }
+    // ---------- Decks: where they are, and their top ----------
+    // A deck is flat across: the carriageway at the street's level, the pavements a kerb above it (a deck with no pavement has a
+    // 0.6 m strip to its parapet). Near each end its top eases (over 8 m) to the ground surface at the end line exactly
+    // (corr, set at the end of create()), so the deck and the street meet with no step anywhere across.
+    const deckHalf = d => d.hw + (d.sw || .6);
+    for (const d of decks) {d.W = deckHalf(d);d.corr = [null, null];}
+    const Hd = makeHash(decks, 16, d => d.W + PARAPET + .5);
+    const corrAt = (d, e, y) => {const a = d.corr[e];if (!a) return 0;const f = Math.max(0, Math.min(a.length - 1.000001, (Math.max(-d.W, Math.min(d.W, y)) + d.W) / d.corrStep)), i = Math.floor(f);return a[i] + (a[i + 1] - a[i]) * (f - i);};
+    function deckTop(d, t, y) {
+      const ay = Math.abs(y), F = Math.min(8, d.L / 2);
+      let h = profAt(d, Math.max(0, Math.min(d.L, t))) + (d.sw && ay > d.hw ? KERB_H : 0);
+      if (t < F) h += corrAt(d, 0, y) * (1 - smooth(0, F, t));
+      if (d.L - t < F) h += corrAt(d, 1, y) * (1 - smooth(0, F, d.L - t));
+      return h;
+    }
+    // The decks over (x, s): [{d, y (signed offset), t (along)}] (inside its outline to the parapets' outer faces, not on its
+    // end lines).
+    function decksAt(x, s, out = []) {
+      out.length = 0;const list = Hd.get(x, s);if (!list) return out;
+      for (const id of list) {
+        const d = decks[Hd.segs[id * 2]], k = Hd.segs[id * 2 + 1], p = d.p;
+        const ax = p[k * 2], as = p[k * 2 + 1], dx = p[k * 2 + 2] - ax, ds = p[k * 2 + 3] - as, L2 = dx * dx + ds * ds, L = Math.sqrt(L2);
+        const u = ((x - ax) * dx + (s - as) * ds) / L2, uc = u < 0 ? 0 : u > 1 ? 1 : u, dd = Math.hypot(x - ax - uc * dx, s - as - uc * ds);
+        if (dd > d.W + PARAPET) continue;
+        const t = d.cum[k] + u * L, o = out.find(q => q.d === d), y = (dx * (s - as) - ds * (x - ax)) / L;
+        if (!o) out.push({d, y, t, dd});else if (dd < o.dd) {o.y = y;o.t = t;o.dd = dd;}
+      }
+      // Not behind its end lines (each square to its end segment, whichever segment is nearest).
+      for (let i = out.length - 1; i >= 0; i--) {
+        const {d} = out[i], p = d.p, m = p.length / 2;
+        const a0 = ((x - p[0]) * (p[2] - p[0]) + (s - p[1]) * (p[3] - p[1])) / (d.cum[1] || 1);
+        const a1 = ((x - p[m * 2 - 2]) * (p[m * 2 - 4] - p[m * 2 - 2]) + (s - p[m * 2 - 1]) * (p[m * 2 - 3] - p[m * 2 - 1])) / ((d.cum[m - 1] - d.cum[m - 2]) || 1);
+        if (a0 <= .02 || a1 <= .02 || out[i].t <= .02 || out[i].t >= d.L - .02) out.splice(i, 1);
+      }
+      return out;
+    }
+    // Under a deck the ground stays at least 0.3 m below its top at the end lines and DECK + 0.5 m below it 1.8 m in: no ground
+    // surface is drawn through a deck, nor flush under it (flicker), and the deck's end face meets the ground.
+    const dScratch = [], dScratch2 = [];
+    function underDeck(x, s, h) {
+      if (!decks.length) return h;
+      const list = decksAt(x, s, dScratch);
+      // (and under a deck, in a trench under the bridge, the ground is the trench, whatever street is near: not eased up to it)
+      if (list.length && corridors.length) h = trench(x, s, h);
+      for (const {d, y, t} of list) {const lim = deckTop(d, t, y) - Math.min(DECK + .5, .3 + .5 * Math.min(t, d.L - t));if (lim < h) h = lim;}
+      return h;
     }
 
     const tC = Date.now();
@@ -253,12 +503,19 @@
     // its carriageway (beside it, or past its end); a street also fades out where the point is inside a major street's carriageway
     // (so the major street keeps its own level through a junction). e: [{c, Y (|offset|), T (along)}].
     const blendW = new Float64Array(64);
+    // Past the end of a street where it goes onto a bridge, the street has no say in the ground: under the deck the ground is
+    // the real ground (issue #139).
+    const beyondB = (c, T) => (T < -.01 && c.ends[0] === 'B') || (T > c.L + .01 && c.ends[1] === 'B');
     function level(e, fallback) {
       const n = Math.min(64, e.length);let a = 0, w = 0;
-      for (let i = 0; i < n; i++) {const {c, Y, T} = e[i], oy = Math.max(0, Y - c.hw), ot = Math.max(0, -T, T - c.L);blendW[i] = (oy * oy + ot * ot) / (LAMBDA * LAMBDA);}
+      // On the carriageway or pavement of a street raised toward a bridge (over 0.3 m), only the streets on its level count: a road it passes
+      // beside or over keeps its own level (the step between them is a wall), issue #139.
+      let up = null;
+      if (decks.length) for (let i = 0; i < n; i++) {const {c, Y, T} = e[i];if (c.lifted && Y < c.hw + c.sw + .2 && T >= 0 && T <= c.L && profAt(c, T, c.lift) > .3) {const h = profAt(c, T);if (up === null || h > up) up = h;}}
+      for (let i = 0; i < n; i++) {const {c, Y, T} = e[i], oy = Math.max(0, Y - c.hw), ot = Math.max(0, -T, T - c.L);blendW[i] = beyondB(c, T) || (up !== null && Math.abs(profAt(c, T) - up) > 1) ? Infinity : (oy * oy + ot * ot) / (LAMBDA * LAMBDA);}
       for (let i = 0; i < n; i++) {
         const c = e[i].c;if (blendW[i] > 60) continue;let k = c.rank * Math.exp(-blendW[i]);
-        for (let j = 0; j < n; j++) if (j !== i && e[j].c.pri > c.pri) {const o = Math.sqrt(blendW[j]) * LAMBDA / MASK;if (o < 1) k *= o * o * (3 - 2 * o);}
+        for (let j = 0; j < n; j++) if (j !== i && e[j].c.pri > c.pri && blendW[j] !== Infinity) {const o = Math.sqrt(blendW[j]) * LAMBDA / MASK;if (o < 1) k *= o * o * (3 - 2 * o);}
         a += k * profAt(c, e[i].T);w += k;
       }
       return w > 1e-12 ? a / w : fallback;
@@ -269,23 +526,28 @@
     function side(e, R, nat, g) {
       let dP = Infinity, dR = Infinity, ed = 99, slab = 0, line = 0, deep = -Infinity, inside = 0;
       for (const {c, Y, T} of e) {
+        if (beyondB(c, T)) continue;
         const inC = Math.max(Y - c.hw, -T - c.eC0, T - c.L - c.eC1);ed = Math.min(ed, inC);
         if (inC < 0) {inside++;if (c.pri > deep) {deep = c.pri;line = c.line ? 1 : 0;}}
         if (c.sw) {const v = Math.max(Y - c.hw - c.sw, -T - c.eP0, T - c.L - c.eP1);if (v < dP) {dP = v;slab = c.slabs ? 1 : 0;}} else dR = Math.min(dR, inC);
       }
       const dS = Math.min(dP, dR), S = R + (dP <= dR ? KERB_H : -VERGE);
       // (the white edge line stops where carriageways overlap: junctions, slip roads)
-      return {h: Number.isNaN(R) ? nat : S + (nat - S) * smooth(.5 * g.step, 2 * g.step, dS), ed, pd: Math.min(99, dP), slab, line: inside === 1 ? line : 0};
+      return {h: Number.isNaN(R) ? nat : S + (nat - S) * smooth(.5 * g.step, 2 * g.step, dS), ed, pd: Math.min(99, dP), slab, line: inside === 1 ? line : 0, dS};
     }
     const entriesOf = list => list.map(o => ({c: chains[o.c], Y: Math.abs(o.y), T: o.t}));
     function fieldsAt(x, s, nat, g, list = near(x, s, [])) {
-      if (!list.length) return {list, R: NaN, out: nat};
+      if (!list.length) return {list, R: NaN, out: nat, dS: Infinity};
       const e = entriesOf(list);
       // Far from every street's carriageway the weights all vanish: the nearest street's level.
       let R = level(e, NaN);
       if (Number.isNaN(R)) {const o = list.reduce((m, q) => q.d - chains[q.c].hw < m.d - chains[m.c].hw ? q : m);R = profAt(chains[o.c], o.t);}
-      return {list, R, out: side(e, R, nat, g).h};
+      const sd = side(e, R, nat, g);
+      return {list, R, out: sd.h, dS: sd.dS};
     }
+    // The ground beside the streets (not on a road or a pavement) in a trench under a bridge is the trench: not eased up to a
+    // street near it (issue #139).
+    const besideTrench = (x, s, q) => corridors.length && !(q.dS < .3) ? trench(x, s, q.h) : q.h;
 
     // ---------- One triangle, cut along the carriageway edges ----------
     // cn: the corners [{x, s, nat, R, out, list}] in the mesh's order. Returns {simple, cls, h} for a whole triangle, else
@@ -302,15 +564,29 @@
         // Does its carriageway strip reach the triangle? (not if all three corners are on one side of it, or past one end)
         if (!((o0.y > c.hw && o1.y > c.hw && o2.y > c.hw) || (o0.y < -c.hw && o1.y < -c.hw && o2.y < -c.hw) || (o0.t < -c.eC0 && o1.t < -c.eC0 && o2.t < -c.eC0) || (o0.t > c.L + c.eC1 && o1.t > c.L + c.eC1 && o2.t > c.L + c.eC1))) touch = true;
       }
-      if (!touch) return {simple: true, cls: C.OTHER, h: [cn[0].out, cn[1].out, cn[2].out], at: cand.length ? b => cand.map(({c, y, t}) => ({c, Y: Math.abs(b[0] * y[0] + b[1] * y[1] + b[2] * y[2]), T: b[0] * t[0] + b[1] * t[1] + b[2] * t[2]})) : () => []};
-      cand.sort((p, q) => p.c.id - q.c.id);
-      // The carriageway edges (both sides, value <= 0 inside) and ends, only where they bound the carriageway in this triangle.
-      const lines = [];
       const cross = (v, f) => {// where line v crosses the triangle: f (another linear function) at the two crossing points
         const out = [];for (const [i, j] of [[0, 1], [1, 2], [2, 0]]) if ((v[i] < 0 && v[j] > 0) || (v[i] > 0 && v[j] < 0)) {const u = v[i] / (v[i] - v[j]);out.push(f[i] + (f[j] - f[i]) * u);}
         return out;
       };
       const crosses = v => (v[0] > EPS || v[1] > EPS || v[2] > EPS) && (v[0] < -EPS || v[1] < -EPS || v[2] < -EPS);
+      // A bridge deck's sides (just inside its parapets' outer faces) cut the ground too: under the deck the ground is held
+      // below it, beside it the ground keeps its height, and the step between them is hidden in the parapet (issue #139).
+      const dlines = [];
+      if (decks.length) {
+        const seen = new Set();for (const q of cn) {const l = Hd.get(q.x, q.s);if (l) for (const id of l) seen.add(Hd.segs[id * 2]);}
+        const cx = (cn[0].x + cn[1].x + cn[2].x) / 3, cs = (cn[0].s + cn[1].s + cn[2].s) / 3;
+        for (const di of seen) {
+          const d = decks[di], p = d.p;let bk = 0, bd = Infinity;
+          for (let k = 0; k + 1 < p.length / 2; k++) {const ax = p[k * 2], as = p[k * 2 + 1], dx = p[k * 2 + 2] - ax, ds = p[k * 2 + 3] - as, f = Math.max(0, Math.min(1, ((cx - ax) * dx + (cs - as) * ds) / (dx * dx + ds * ds || 1))), dd = Math.hypot(cx - ax - f * dx, cs - as - f * ds);if (dd < bd) {bd = dd;bk = k;}}
+          const ax = p[bk * 2], as = p[bk * 2 + 1], dx = p[bk * 2 + 2] - ax, ds = p[bk * 2 + 3] - as, L = Math.hypot(dx, ds) || 1;
+          const y = cn.map(q => (dx * (q.s - as) - ds * (q.x - ax)) / L), t = cn.map(q => d.cum[bk] + ((q.x - ax) * dx + (q.s - as) * ds) / L), E = d.W + PARAPET - .05;
+          for (const sg of [1, -1]) {const v = y.map(q => sg * q - E);if (!crosses(v)) continue;const tt = cross(v, t);if (tt.length < 2 || Math.max(...tt) < 0 || Math.min(...tt) > d.L) continue;dlines.push(v);}
+        }
+      }
+      if (!touch && !dlines.length) return {simple: true, cls: C.OTHER, h: [cn[0].out, cn[1].out, cn[2].out], at: cand.length ? b => cand.map(({c, y, t}) => ({c, Y: Math.abs(b[0] * y[0] + b[1] * y[1] + b[2] * y[2]), T: b[0] * t[0] + b[1] * t[1] + b[2] * t[2]})) : () => []};
+      cand.sort((p, q) => p.c.id - q.c.id);
+      // The carriageway edges (both sides, value <= 0 inside) and ends, only where they bound the carriageway in this triangle.
+      const lines = dlines.slice();
       for (const {c, y, t} of cand) {
         // (a road with a white edge line is also cut 1 m inside each edge, so the line's distance is exact in its pieces)
         for (const [sg, hw] of c.line ? [[1, c.hw], [-1, c.hw], [1, c.hw - 1], [-1, c.hw - 1]] : [[1, c.hw], [-1, c.hw]]) {
@@ -318,10 +594,12 @@
           const tt = cross(v, t);if (tt.length < 2 || Math.max(...tt) < -c.eC0 || Math.min(...tt) > c.L + c.eC1) continue;
           lines.push(v);
         }
-        for (const v of [t.map(q => -q - c.eC0), t.map(q => q - c.L - c.eC1)]) {
-          if (!crosses(v)) continue;const yy = cross(v, y);if (yy.length < 2 || Math.min(...yy) > c.hw || Math.max(...yy) < -c.hw) continue;
+        // (an end at a bridge is cut across the pavements too: the deck's end line, issue #139)
+        [t.map(q => -q - c.eC0), t.map(q => q - c.L - c.eC1)].forEach((v, e) => {
+          const w = c.ends[e] === 'B' ? c.hw + c.sw + PARAPET + 1 : c.hw;
+          if (!crosses(v)) return;const yy = cross(v, y);if (yy.length < 2 || Math.min(...yy) > w || Math.max(...yy) < -w) return;
           lines.push(v);
-        }
+        });
       }
       const at = b => cand.map(({c, y, t}) => ({c, Y: Math.abs(b[0] * y[0] + b[1] * y[1] + b[2] * y[2]), T: b[0] * t[0] + b[1] * t[1] + b[2] * t[2]}));
       const classOf = b => {for (const {c, Y, T} of at(b)) if (Y < c.hw && T >= -c.eC0 && T <= c.L + c.eC1) return C.ROAD;return C.OTHER;};
@@ -331,7 +609,7 @@
       const natB = b => b[0] * cn[0].nat + b[1] * cn[1].nat + b[2] * cn[2].nat;
       if (!lines.length) {
         const cls = classOf([1 / 3, 1 / 3, 1 / 3]);
-        return cls === C.ROAD ? {simple: true, cls, h: [Rb([1, 0, 0]), Rb([0, 1, 0]), Rb([0, 0, 1])], at} : {simple: true, cls, h: [cn[0].out, cn[1].out, cn[2].out], at};
+        return cls === C.ROAD ? {simple: true, cls, h: [0, 1, 2].map(i => underDeck(cn[i].x, cn[i].s, Rb([+(i === 0), +(i === 1), +(i === 2)]))), at} : {simple: true, cls, h: [cn[0].out, cn[1].out, cn[2].out], at};
       }
       const verts = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];let polys = [[0, 1, 2]];
       for (const L of lines) {
@@ -363,7 +641,11 @@
         if (Math.abs(area) < 1e-8) continue;// a sliver
         out.push({cls: classOf(cb), ids: P});
       }
-      for (const pc of out) pc.h = pc.ids.map(vi => pc.cls === C.ROAD ? Rat(vi) : vi < 3 ? cn[vi].out : side(at(verts[vi]), Rat(vi), natB(verts[vi]), g).h);
+      const xyB = b => [b[0] * cn[0].x + b[1] * cn[1].x + b[2] * cn[2].x, b[0] * cn[0].s + b[1] * cn[1].s + b[2] * cn[2].s];
+      // (a piece beside a deck keeps the ground's height on the deck's side line; a piece under it is held below it)
+      const inDeck = pc => {if (!dlines.length) return true;let c = [0, 0, 0];for (const vi of pc.ids) for (let a = 0; a < 3; a++) c[a] += verts[vi][a] / pc.ids.length;const q = xyB(c);return decksAt(q[0], q[1], dScratch2).some(o => Math.abs(o.y) < o.d.W + PARAPET - .05);};
+      let clampCut = true;const under = (vi, h) => {if (vi < 3 || !decks.length || !clampCut) return h;const q = xyB(verts[vi]);return underDeck(q[0], q[1], h);};// (the corners' out is already)
+      for (const pc of out) clampCut = inDeck(pc), pc.h = pc.ids.map(vi => under(vi, pc.cls === C.ROAD ? (vi < 3 ? underDeck(cn[vi].x, cn[vi].s, Rat(vi)) : Rat(vi)) : vi < 3 ? cn[vi].out : (() => {const q = xyB(verts[vi]);return besideTrench(q[0], q[1], side(at(verts[vi]), Rat(vi), natB(verts[vi]), g));})()));
       return {simple: false, verts, pieces: out, at};
     }
 
@@ -372,7 +654,7 @@
     function vertex(g, i, j, keepList) {
       const k = j * g.nx + i, x = g.x0 + i * g.step, s = g.s0 + j * g.step, given = g.lists.get(k);
       if (g.done[k]) return {x, s, nat: g.N[k], R: g.R[k], out: g.out[k], list: given || near(x, s, [])};
-      const nat = g.nat(i, j, x, s), f = fieldsAt(x, s, nat, g, given);g.N[k] = nat;g.R[k] = f.R;g.out[k] = f.out;g.done[k] = 1;if (keepList && !given) g.lists.set(k, f.list);
+      const nat = corridors.length ? trench(x, s, g.nat(i, j, x, s)) : g.nat(i, j, x, s), f = fieldsAt(x, s, nat, g, given);g.N[k] = nat;g.R[k] = f.R;g.out[k] = underDeck(x, s, besideTrench(x, s, {h: f.out, dS: f.dS}));g.done[k] = 1;if (keepList && !given) g.lists.set(k, f.list);
       return {x, s, nat, R: f.R, out: f.out, list: f.list};
     }
     // The street lists of a block of grid vertices at once (inclusive range): each segment near the block is measured against
@@ -521,10 +803,36 @@
       g.lists.clear();
       return {pos: new Float32Array(pos), nor: new Float32Array(nor), street: new Float32Array(str), index: pos.length / 3 > 65535 ? new Uint32Array(index) : new Uint16Array(index)};
     }
-    const stats = {chains: chains.length, ms: Date.now() - t0, ends: tA - t0, profiles: tB - tA, junctions: tC - tB};
+    // Each deck's top at its two end lines: the ground surface just off the deck (the street it continues, its kerbs, a junction
+    // there), so walking and driving on and off is seamless. The caches are cleared after, as the ground under the decks depends
+    // on their tops.
+    // (three rounds: a deck's top also lowers the ground under it, which may be where another deck's end meets the ground)
+    for (let round = 0; round < (decks.length ? 3 : 0); round++) {
+    for (const d of decks.slice().sort((a, b) => b.pri - a.pri || b.id - a.id)) for (const e of [0, 1]) {
+      const n = d.p.length / 2, i = e ? n - 1 : 0, j = e ? n - 2 : 1, x = d.p[i * 2], s = d.p[i * 2 + 1], dx = d.p[j * 2] - x, ds = d.p[j * 2 + 1] - s, l = Math.hypot(dx, ds) || 1;
+      const fx = dx / l, fs = ds / l, sg = e ? -1 : 1, a = [], top0 = profAt(d, e ? d.L : 0);// (fx, fs) points into the deck
+      const m = Math.ceil(2 * d.W / .4) + 1;d.corrStep = 2 * d.W / (m - 1);
+      for (let q = 0; q < m; q++) {
+        let y = Math.max(-d.W + .02, Math.min(d.W - .02, -d.W + q * d.corrStep));
+        if (d.sw && Math.abs(Math.abs(y) - d.hw) < .06) y = Math.sign(y) * (d.hw + (Math.abs(y) > d.hw ? .06 : -.06));// not on a kerb line
+        // (dx, ds) from end 1 points back along the deck: its offsets turn the other way
+        const yy = y * sg, px = x - fx * .05 - fs * yy, ps = s - fs * .05 + fx * yy;
+        // What it meets there: a more major deck (streets meeting on a bridge), else the ground, if within 1.5 m (else nothing:
+        // the end stays as it is).
+        const own = top0 + (d.sw && Math.abs(y) > d.hw ? KERB_H : 0);let to = null;
+        for (const o of decksAt(px, ps, [])) if (o.d !== d && (o.d.pri > d.pri || (o.d.pri === d.pri && o.d.id > d.id))) {const h = deckTop(o.d, o.t, o.y);if (Math.abs(h - own) < 1.5 && (to === null || Math.abs(h - own) < Math.abs(to - own))) to = h;}
+        if (to === null) {const h = height(px, ps);if (Math.abs(h - own) < 1.5) to = h;}
+        a.push(to === null ? 0 : to - own);
+      }
+      d.corr[e] = a;
+    }
+    cache.clear();for (const g of grids) g.done.fill(0);
+    }
+    for (const d of decks) d.top = (t, y) => deckTop(d, t, y);
+    const stats = {chains: chains.length, decks: decks.length, ms: Date.now() - t0, ends: tA - t0, profiles: tB - tA, junctions: tC - tB};
     // After the meshes are built the per-vertex street lists are no longer needed (the height query keeps its own cache).
     const release = () => {for (const g of grids) g.lists.clear();};
-    return {height, classAt, tile, release, chains, near, profAt, stats, C, KERB_H, KERB_W, LINE_IN, LINE_W};
+    return {height, classAt, tile, release, chains, near, profAt, stats, decks, decksAt, deckTop, bridges: BR, natural: natC, C, KERB_H, KERB_W, LINE_IN, LINE_W, DECK, PARAPET};
   }
   // The game world's ground as Surroundings uses it: the real ground (the old ±800 m square's 4 m grid, then the district patches'
   // 8 m grids, else the nearest data edge), the grids that are drawn (the old square within ±playHalf, the patches elsewhere) and
@@ -554,5 +862,24 @@
     const sets = [{roads: square.roads || [], owns: inSquare}, ...districts.map(d => ({roads: d.roads, owns: (x, s) => DZ.covers(d, x, s) && !inSquare(x, s)}))];
     return {natural, grids, gridFor, sets, old};
   }
-  return {create, world, SIDEWALK, RANK, C, KERB_H, KERB_W, LINE_IN, LINE_W};
+  // The bridges of bridges-data.js (tools/make-bridges.py) as objects: {id, k, n (name), L (layer), w, p, under: [{k, n, L, tun,
+  // x, s, dx, ds, w}], car, kayak, layered}. A car street's bridge becomes a deck here (layered), except Akerselva's bridges,
+  // which game-kayak.js has built since issue #64 (kayak: the river runs under it within 20 m of one of the kayak data's bridges).
+  function bridgesOf(raw, {kayak = null} = {}) {
+    const ways = ((raw && raw.ways) || []).map(([id, k, n, L, w, p, under]) => ({id, k, n, L, w, p, under: under.map(([k, n, L, tun, x, s, dx, ds, w]) => ({k, n, L, tun: !!tun, x, s, dx, ds, w}))}));
+    const kp = kayak && kayak.bridges ? kayak.bridges.map(b => {const i = Math.min(kayak.pts.length / 2 - 1, Math.round(b.t / kayak.step));return [kayak.pts[i * 2], kayak.pts[i * 2 + 1]];}) : [];
+    const dist = (p, x, s) => {let m = Infinity;for (let v = 0; v + 1 < p.length / 2; v++) {const ax = p[v * 2], as = p[v * 2 + 1], dx = p[v * 2 + 2] - ax, ds = p[v * 2 + 3] - as, f = Math.max(0, Math.min(1, ((x - ax) * dx + (s - as) * ds) / (dx * dx + ds * ds || 1)));m = Math.min(m, Math.hypot(x - ax - f * dx, s - as - f * ds));}return m;};
+    const SMALL = new Set(['stream', 'ditch', 'drain', 'water']);
+    for (const b of ways) {
+      b.car = !!RANK[b.k];
+      b.kayak = b.under.some(u => u.n === 'Akerselva' && !u.tun) && kp.some(([x, s]) => dist(b.p, x, s) < 20);
+      // A short bridge over nothing but a brook (Hovinbekken's) stays on the ground: the brook is not drawn, and the street's
+      // own line between its ends is the bridge (culvert).
+      let len = 0;for (let v = 0; v + 1 < b.p.length / 2; v++) len += Math.hypot(b.p[v * 2 + 2] - b.p[v * 2], b.p[v * 2 + 3] - b.p[v * 2 + 1]);
+      b.culvert = len < 15 && b.under.length > 0 && b.under.every(u => SMALL.has(u.k));
+      b.layered = b.car && !b.kayak && !b.culvert;
+    }
+    return ways;
+  }
+  return {create, world, bridgesOf, SIDEWALK, RANK, C, KERB_H, KERB_W, LINE_IN, LINE_W, DECK, PARAPET, clearanceOver};
 });
