@@ -8,12 +8,14 @@ Live game: https://haarklous-online.server-smoke.workers.dev · Source: https://
 
 ## Features (what the game has now)
 
-In pull requests (not merged yet):
+In pull requests (not merged yet): none.
 
 On `main`:
 - Grey Volvo V70s (issue #149, PR #PRNUM; live once merged): about 750 of the parked estate cars are now grey, dark grey or silver Volvo V70s (the 2000–2007 model), all over the city like in Oslo, one by Haarklous plass; drive them like the other cars.
+- Cars that crash no longer get stuck in each other (issue #145, PR #159; live once merged): you can always back away or drive off from a car you are in; your car is pushed gently out of another one; a crash still bounces you back with the sound; the same for motorcycles, parked cars and site machines.
+- Jumping (issue #144, PR #157; live once merged): a real jump with gravity – tap ✕ / Space for a small hop, hold it for about 1 m; you keep your speed in the air and steer a little; you land on benches, crates, walls and car roofs (and walk off their edges); fences and railings up to about 1.2 m you jump over; jump at a ledge up to chest height (1.6 m) and you pull yourself up; a landing dip and sounds; other players see you jump.
 - Paddle faster (issue #146, PR #156; live once merged): the kayak cruises about 25 % faster, and holding R2 / Shift while paddling forward sprints at about twice the old top speed (about 15 km/h through the water), with quicker strokes, louder splashes and SPRINT on the HUD; it still turns well at sprint speed.
-- Real bridges where car streets cross over roads, railways and water (issue #139, PR #155): a deck of their own with room under it, ramps up to it, parapets and piers; walk and drive on it or under it (Storo, Sinsenkrysset, Trondheimsveien over the railway, Østre Aker vei, Ulven, Kværner, Nylandsveien and the rest).
+- Real bridges where car streets cross over roads, railways and water (issue #139, PR #155; live once merged): a deck of their own with room under it, ramps up to it, parapets and piers; walk and drive on it or under it (Storo, Sinsenkrysset, Trondheimsveien over the railway, Østre Aker vei, Ulven, Kværner, Nylandsveien and the rest).
 - Walk through the tram, the bus and the metro (issue #142, PR #154; live once merged): on board, move the left stick / WASD to stand up and walk the whole length of the tram while it drives – through open gangways with a floor and bellows between the sections, also in curves; the same in the articulated buses and inside each three-car metro set; □ by a free seat sits you down, □ when the doors open gets you off through the nearest door; others online see you standing where you are.
 - The police on Grønland (issue #140, PR #152; live once merged): Oslo politihus at its real place (Grønlandsleiret 44) with a POLITI sign – walk in to the reception (an officer at the desk, a queue-ticket machine) and through the steel door to the arrest with eight glattceller (bare concrete, a thin mattress, a drain, a steel door with a hatch that opens); Oslo fengsel (Botsen) right behind it with its high walls, two sliding gates and the OSLO FENGSEL sign, the yard and cell wing A (a prison officer, cells with bed, table, toilet and a barred window); 13 police cars (white with POLITI and black and yellow fields, a blue light bar) outside the police station and round the city – drive them with class B, L3 / H for blue lights and siren, which other players see and hear; both places on the map.
 - Oslo S and Jernbanetorget (issue #141, PR #153; live once merged): Tigeren, the 4.5 m bronze tiger, at its real place on a paved Jernbanetorget; Østbanehallen as a plastered 14 m station with OSLO S over the doors and clocks on the Trafikanten tower; eleven people who hang around there (stone seats, the station wall, the tiger), and one who asks for a few kroner (□ gives him 10 kr).
@@ -85,6 +87,32 @@ Live site: runs `main` (Worker version 3766909d, deployed 23 Nov 2026 after PR #
 - **Why:** the user asked (Norwegian): "Få inn grå Volvo V70er." (Add grey Volvo V70s.) They should be common, like in Oslo.
 - **Where:** `game-parking.js` (type `v70`, the colour dark grey, the V70 colour weights, `V70` share, the pass at the end of `plan`), `game-fleet.js` (`SHAPES.v70` and the V70's parts in `carBody`), `parking-data.js` (made again), `tests/city-cars.test.cjs`, `docs/HANDOFF.md`.
 - **Status:** PR #PRNUM; live once merged. Node tests pass. Not checked in the browser (the user's instruction: build and deploy, he says if something does not work). Nothing new is sent online.
+
+### 2026-11-23 · Cars that crash no longer get stuck in each other (issue #145)
+- **What:**
+  - When your car is inside another car (after a crash, or because the other player's car is drawn a little late), you can always back away or drive off: any move that does not take you deeper is allowed.
+  - If you are inside another vehicle, your own vehicle is gently pushed out (up to 3 m/s), never through a wall. Each player's game moves only their own car, so both cars come apart.
+  - A crash into another car still feels like one: the crash sound, most of the speed is lost and the car bounces back a little. Walls, buildings, trees, bridge piers and parapets stop you as before; you cannot drive through a car at speed.
+  - The cars other players drive are now solids that follow them every frame (before: every 0.4 s, so their car jumped metres into yours).
+  - The same for motorcycles, parked cars, police cars, e-scooters and bikes, the excavator and the construction-site machines.
+- **Why:** the user reported: "Når man krasjer med en annen bil, så noen andre kjører, så setter de seg fast i hverandre. Og da er det ikke mulig å kjøre og komme seg løs." **Cause:** a vehicle could only move to a place free of every solid (a yes/no test), so once two cars overlapped, every move in every direction was blocked and both froze; and another player's car was a solid only refreshed every 0.4 s, so it jumped into yours while driving.
+- **Where:** `game-vehicles.js` (`Vehicle.clear(x, z, staticOnly)`, `overlap`, `blockedAt`, `unstick`, `crash`, `move`; footprints carry `owner`), `walk-collision.js` (`overlapDepth`, `hitsSolid(..., staticOnly)`), `game-main.js` (remote-driven vehicles as moving solids every frame in `transitDynamic`), `game-site.js` (wheel loader and dump trucks), `tests/vehicle-crash.test.cjs`.
+- **Status:** PR #159; live once merged. 331 Node tests pass. Not checked in the browser (the user's instruction: build and deploy, he says if something does not work).
+### 2026-11-23 · Jumping: higher, onto ledges and over fences (issue #144)
+- **What:**
+  - The jump is real now: before, it only lifted the camera, so you could not land on anything. Now your feet go up with gravity (9.81 m/s²). A tap of ✕ / Space lifts you about 0.5 m, holding it (up to 0.2 s) about 1.0 m. The stash's 3× jump boost still works (about 3 m).
+  - In the air you keep the speed you had (a running jump goes about 5 m) and can steer a little.
+  - You land on whatever is under you: floors, and the tops of solid things – benches, crates, low walls, car roofs, tables. You can walk on them, and walking off the edge drops you down. Walking into a low thing still stops you as before; you jump onto it.
+  - Fences, railings and hedges up to about 1.2 m: you jump over them (a short vault when the jump alone is not high enough).
+  - A ledge up to chest height (1.6 m over your feet when you jumped) that you cannot jump onto: jump at it and you pull yourself up in half a second, if there is room to stand on top and no low ceiling over you.
+  - Over a railing you can drop to the ground below, but only when there is ground within 6 m: high balconies and roofs stay closed, and walking (not jumping) still never takes you over an edge.
+  - Clearer: a soft whoosh when you jump, a thud and a small dip of the view when you land (bigger after a bigger fall). Other players see you rise and fall, with a jump pose (knees up, arms up).
+  - Places that stay closed: the till and the hot-food counter in the shops, the police reception desk, the minigolf bar's counter, the water (they are marked `noJump`); walls higher than your reach (the prison, the paintball net, buildings, locked doors).
+- **Why:** the user asked (Norwegian): make jumping clearer, jump higher and better, and be able to jump up onto edges and over fences.
+- **Where:** `walk-collision.js` (solid tops as support, `groundBelow`, `headroom`, `canPass`, `airMove`, `climbAt`, `startJump`, `stepAir`, `walk`), `game-main.js` (`startAir`, `airStep`, falling when nothing is under you, the landing dip, `st.j`), `game-avatars.js` (jump pose), `game-multiplayer.js`, `game-audio.js` (`jump`, `jumpLand`), `game-shops.js`, `game-police.js`, `game-minigolf.js` (`noJump` counters), `index.html` (start and pause screens), `tests/jumping.test.cjs` (new).
+- **Online:** your height was already sent; a new flag `j: 1` while you are in the air gives the jump pose (older clients ignore it). No Worker change.
+- **Checked:** `node --test` (all pass; new tests: tap and full height, the boost, landing on a 0.5 m ledge and walking off it, clearing a 1.1 m fence, stopped by a 2 m wall, climbing a 1.5 m ledge, no climb under a low ceiling or onto 1.9 m, vaulting a 1.2 m railing, a `noJump` counter, dropping over a railing but not off a 10 m deck). A short headless run of the built game: no page errors, a full jump rises about 1 m, walking and running jumps work. Not checked: how it looks and feels, landing on real benches and cars, climbing, the sounds by ear, two players.
+- **Status:** branch `feat/jumping`, PR #157 (https://github.com/jonatsl/haarklous-online/pull/157); live once merged.
 
 ### 2026-11-23 · Kayak: paddle faster and sprint (issue #146)
 - **What:**

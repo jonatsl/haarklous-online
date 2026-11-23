@@ -205,13 +205,13 @@
         const rollM = new T.MeshStandardMaterial({color: 0xb5472f, roughness: .5}), cupM = new T.MeshStandardMaterial({color: 0xf4efe6, roughness: .7});
         for (let k = 0; k < 5; k++) {const r = new T.Mesh(new T.CylinderGeometry(.022, .022, .34, 8), rollM);r.rotation.z = Math.PI / 2;r.position.set(6.05, 1.085, .32 + k * .05);g.add(r);}
         for (let k = 0; k < 3; k++) {const cup = new T.Mesh(new T.CylinderGeometry(.04, .032, .11, 10), cupM);cup.position.set(5.62, 1.015, .3 + k * .09);g.add(cup);}
-        obstacles.push(rect(a0, a1, .08, b1 + .02, -.2, 1.0));
+        obstacles.push({...rect(a0, a1, .08, b1 + .02, -.2, 1.0), noJump: true});// counters are not jumped over (issue #144)
         PRODUCTS.filter(p => p.where === 'counter').forEach((p, k) => spots.push({p, x: k ? 6.05 : 5.4, y: 1.15, z: .45, w: .55, h: .5, d: .5, tag: [k ? 6.05 : 5.4, .8, b1 + .025], face: 'in'}));
       }
       // Till: counter with belt, register and card terminal; the cashier stands between the counter and the window.
       box(g, 2.4, .9, .65, 2.4, .45, 1.32, lib.wood(0x6b4b33, .6));box(g, 1.6, .04, .45, 2.0, .92, 1.32, darkM);box(g, .4, .28, .34, 3.2, 1.06, 1.2, darkM);box(g, .14, .1, .2, 2.95, .98, 1.6, darkM);
       const screen = box(g, .3, .2, .02, 3.2, 1.3, 1.05, new T.MeshStandardMaterial({color: 0x0b1a10, emissive: 0x1c5a2a, emissiveIntensity: .9}));screen.rotation.x = -.2;
-      obstacles.push(rect(1.18, 3.62, 1.0, 1.65, -.2, 1.0));
+      obstacles.push({...rect(1.18, 3.62, 1.0, 1.65, -.2, 1.0), noJump: true});// nobody jumps over the till to the cashier (issue #144)
       const tillHit = new T.Mesh(new T.BoxGeometry(2.4, .6, .8), hitM);tillHit.position.set(2.4, 1.1, 1.4);tillHit.userData = {shopTill: s, noMerge: true};g.add(tillHit);hitboxes.push(tillHit);
       // Bottle-return machine ("pant") against the right wall.
       const mach = new T.Group();mach.position.set(W - .38, 0, 1.55);mach.rotation.y = -Math.PI / 2;g.add(mach);
