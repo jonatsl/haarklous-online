@@ -193,7 +193,11 @@ test('#113 the real map: thousands of vehicles in every part of town, many kinds
     'Grønland and the centre': [-1560, 2500, -200, 3960, 250], 'Ensjø': [700, 1700, 1752, 2700, 150], 'Sinsen / Løren': [760, -360, 1752, 520, 100], 'Økern / Ulven': [1832, -360, 2264, 1608, 150]};
   for (const [name, [x0, s0, x1, s1, min]] of Object.entries(parts)) {const n = cars.filter(c => c.x > x0 && c.x < x1 && c.s > s0 && c.s < s1).length;assert.ok(n >= min, `${name}: ${n} vehicles`);}
   const by = {};for (const c of cars) by[c.type] = (by[c.type] || 0) + 1;
-  for (const t of ['small', 'hatch', 'sedan', 'estate', 'suv', 'van', 'pickup', 'taxi', 'lorry', 'motorcycle']) assert.ok(by[t] >= (t === 'lorry' ? 10 : 30), `${t}: ${by[t]}`);
+  for (const t of ['small', 'hatch', 'sedan', 'estate', 'suv', 'van', 'pickup', 'taxi', 'lorry', 'motorcycle', 'v70']) assert.ok(by[t] >= (t === 'lorry' ? 10 : 30), `${t}: ${by[t]}`);
+  // Grey Volvo V70s (issue #149): common, greys and silver only, and one within 80 m of home.
+  const v70 = cars.filter(c => c.type === 'v70');
+  assert.ok(v70.length > by.estate && v70.every(c => ['grey', 'silver', 'dark grey'].includes(GP.COLOURS[c.colour][0])), `${v70.length} V70s`);
+  assert.ok(v70.some(c => Math.hypot(c.x, c.s) < 80 && GP.COLOURS[c.colour][0] === 'grey'), 'a grey V70 near Haarklous plass');
   assert.ok(cars.filter(c => c.where === 'lot').length >= 500, 'car parks are filled too');
   assert.deepEqual(GP.plan(TOOL.planArgs(OSM)), realFleet(), 'the same every time');
 });

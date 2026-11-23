@@ -11,6 +11,7 @@ Live game: https://haarklous-online.server-smoke.workers.dev · Source: https://
 In pull requests (not merged yet): none.
 
 On `main`:
+- Grey Volvo V70s (issue #149, PR #160; live once merged): about 750 of the parked estate cars are now grey, dark grey or silver Volvo V70s (the 2000–2007 model), all over the city like in Oslo, one by Haarklous plass; drive them like the other cars.
 - Cars that crash no longer get stuck in each other (issue #145, PR #159; live once merged): you can always back away or drive off from a car you are in; your car is pushed gently out of another one; a crash still bounces you back with the sound; the same for motorcycles, parked cars and site machines.
 - Jumping (issue #144, PR #157; live once merged): a real jump with gravity – tap ✕ / Space for a small hop, hold it for about 1 m; you keep your speed in the air and steer a little; you land on benches, crates, walls and car roofs (and walk off their edges); fences and railings up to about 1.2 m you jump over; jump at a ledge up to chest height (1.6 m) and you pull yourself up; a landing dip and sounds; other players see you jump.
 - Paddle faster (issue #146, PR #156; live once merged): the kayak cruises about 25 % faster, and holding R2 / Shift while paddling forward sprints at about twice the old top speed (about 15 km/h through the water), with quicker strokes, louder splashes and SPRINT on the HUD; it still turns well at sprint speed.
@@ -75,6 +76,17 @@ On `main`:
 Live site: runs `main` (Worker version 3766909d, deployed 23 Nov 2026 after PR #138; `main` builds byte-for-byte to the live page), so everything above is online. Account emails (issue #55) wait for the user's Brevo key.
 
 ## Log
+
+### 2026-11-23 · Grey Volvo V70s (issue #149)
+- **What:**
+  - A new parked car: the Volvo V70 estate (the 2000–2007 "P2", 4.71 × 1.80 × 1.49 m), in mid grey, dark grey metallic or silver only (three in four grey).
+  - Its own model, near and far: a long flat roof, a nearly upright tailgate, the tall rear lights running up the D pillars, the shoulder line along the sides, roof rails, and the grille with its diagonal bar and badge.
+  - About 754 of the 7,609 parked vehicles are V70s (60 % of the estate cars in the city, 50 % in Økern / Ulven / Løren / Ensjø; 547 ordinary estates are left). One grey V70 always stands about 31 m from 17A (on Haarklous plass), another dark grey one about 42 m away.
+  - Drive it like the other cars (class B); its name is "grey Volvo V70" (or dark grey / silver) where a car's name is shown.
+  - No other parked vehicle moved or changed, and the number of vehicles is the same, so the vehicle numbers online stay as they were (a V70 stands up to 2 cm nearer the kerb than the estate it replaced).
+- **Why:** the user asked (Norwegian): "Få inn grå Volvo V70er." (Add grey Volvo V70s.) They should be common, like in Oslo.
+- **Where:** `game-parking.js` (type `v70`, the colour dark grey, the V70 colour weights, `V70` share, the pass at the end of `plan`), `game-fleet.js` (`SHAPES.v70` and the V70's parts in `carBody`), `parking-data.js` (made again), `tests/city-cars.test.cjs`, `docs/HANDOFF.md`.
+- **Status:** PR #160; live once merged. Node tests pass. Not checked in the browser (the user's instruction: build and deploy, he says if something does not work). Nothing new is sent online.
 
 ### 2026-11-23 · Cars that crash no longer get stuck in each other (issue #145)
 - **What:**
