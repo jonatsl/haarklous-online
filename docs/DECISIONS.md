@@ -9,7 +9,7 @@ Live game: https://haarklous-online.server-smoke.workers.dev · Source: https://
 ## Features (what the game has now)
 
 In pull requests (not merged yet):
-- Walk up to every floor of Klatreverket Torshov (issue #137, PR pending): the stairs from the ground floor to Discorommet, the inner bouldering room and the training room, and sloped mat edges onto the crash mats, so every wall upstairs can be climbed.
+- Walk up to every floor of Klatreverket Torshov (issue #137, PR #138): the stairs from the ground floor to Discorommet, the inner bouldering room and the training room, and sloped mat edges onto the crash mats, so every wall upstairs can be climbed.
 
 On `main`:
 - Smooth rides with other players (issue #135, PR #136, live since 23 Nov 2026): as a passenger (car, motorcycle back seat, aircraft) the ride and the view are smooth, and other players' vehicles move smoothly when you watch them, also when an update is lost on the way.
@@ -82,7 +82,7 @@ Live site: runs `main` (Worker version d2c8f0f7, deployed 23 Nov 2026 after PR #
 - **Other players:** are already drawn at the height they send (their feet), so they show on the right floor; nothing changed there.
 - **Galleriet:** in the game it is a 10 m top-rope wall in the hall on the ground floor, reached as before.
 - **Checked:** `node --test` (303 pass). The flood fill reached a standing spot in front of every lane of all 25 walls (hall and all four floors), and walking back from the training room reaches the street. Not checked in the browser (the user asked to skip browser tests for this run).
-- **Status:** branch `fix/gym-floors`, PR pending.
+- **Status:** branch `fix/gym-floors`, PR #138 (https://github.com/jonatsl/haarklous-online/pull/138), not merged yet.
 
 ### 2026-11-23 · Passenger in a car: a smooth ride (issue #135)
 - **What:**
