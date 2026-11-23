@@ -18,11 +18,13 @@
   'use strict';
   // ---------- Kinds (pure numbers, also used by the collision footprints and the seats) ----------
   const KINDS = {
-    tram: {width: 2.65, height: 3.55, floor: .35, sections: [{len: 8.4}, {len: 5.2}, {len: 6.8}, {len: 5.2}, {len: 8.4}], gap: .35, doors: [[0, [-1.2]], [1, [0]], [2, [-1.8, 1.8]], [3, [0]], [4, [1.2]]], both: true, cabs: [0, 4]},
-    bus: {width: 2.55, height: 3.05, floor: .34, sections: [{len: 12}], gap: 0, doors: [[0, [-4.6, .4, 4.5]]], both: false, cabs: [0]},
-    artic: {width: 2.55, height: 3.05, floor: .34, sections: [{len: 11.2}, {len: 6.4}], gap: .5, doors: [[0, [-4.2, 1.2]], [1, [-.6]]], both: false, cabs: [0]},
-    metro: {width: 3.16, height: 3.65, floor: 1.1, sections: Array.from({length: 6}, () => ({len: 17.7})), gap: .45, doors: Array.from({length: 6}, (_, i) => [i, [-5.3, 0, 5.3]]), both: true, cabs: [0, 5]}
+    tram: {width: 2.65, height: 3.55, floor: .35, sections: [{len: 8.4}, {len: 5.2}, {len: 6.8}, {len: 5.2}, {len: 8.4}], gap: .35, doors: [[0, [-1.2]], [1, [0]], [2, [-1.8, 1.8]], [3, [0]], [4, [1.2]]], both: true, cabs: [0, 4], pass: .8, cab: 1.5},
+    bus: {width: 2.55, height: 3.05, floor: .34, sections: [{len: 12}], gap: 0, doors: [[0, [-4.6, .4, 4.5]]], both: false, cabs: [0], pass: .75, cab: .9},
+    artic: {width: 2.55, height: 3.05, floor: .34, sections: [{len: 11.2}, {len: 6.4}], gap: .5, doors: [[0, [-4.2, 1.2]], [1, [-.6]]], both: false, cabs: [0], pass: .75, cab: .9},
+    // two three-car MX3000 sets coupled: open gangways inside a set, none between the sets (joint 2 is closed)
+    metro: {width: 3.16, height: 3.65, floor: 1.1, sections: Array.from({length: 6}, () => ({len: 17.7})), gap: .45, doors: Array.from({length: 6}, (_, i) => [i, [-5.3, 0, 5.3]]), both: true, cabs: [0, 5], pass: .7, cab: 1.5, closed: [2]}
   };
+  // pass = half the width of a gangway between two sections, cab = the driver's cab (no walking) at a cab end.
   for (const k of Object.values(KINDS)) k.length = k.sections.reduce((a, s) => a + s.len, 0) + k.gap * (k.sections.length - 1);
   const DOOR_W = {tram: 1.3, bus: 1.2, artic: 1.2, metro: 1.4};
   // Seats in a section's frame: [x, z, facing (+1 forward, -1 back)] for the riders (the player and others in the lobby).
@@ -44,6 +46,76 @@
     for (const [si, zs] of K.doors) for (const z of zs) {out.push({section: si, z, side: -1});if (K.both) out.push({section: si, z, side: 1});}
     return out;
   }
+  // ---------- Walking inside (issue #142; pure, tests/transit.test.cjs) ----------
+  // A rider who stands is at (u, x): u = metres from the vehicle's front along its centre line (K.length at the back), x = the
+  // section frame's x. Joint j is the gap between section j and j + 1: open (a gangway with a floor and bellows) unless K.closed
+  // lists it. pointAt maps (u, x) through the sections' poses (sectionsAt in game-transit), and in a joint it blends the two
+  // section ends, so the walkable strip follows the bent vehicle in a curve.
+  const WALK_R = .22, plans = new Map();
+  function walkPlan(kind) {
+    let P = plans.get(kind);if (P) return P;
+    const K = KINDS[kind], starts = [], all = seats(kind);let u = 0;
+    for (const S of K.sections) {starts.push(u);u += S.len + K.gap;}
+    P = {K, starts, open: K.sections.slice(1).map((_, j) => !(K.closed || []).includes(j)), u0: K.cab, u1: K.length - (K.cabs.length > 1 ? K.cab : .35),
+      side: K.width / 2 - .06, seats: K.sections.map((_, si) => all.filter(s => s.section === si))};
+    plans.set(kind, P);return P;
+  }
+  // Which section (or joint) u is in: {sec, z (in that section's frame; beyond its end in a joint), joint (-1 or j), t (0..1 across it)}.
+  function locate(kind, u, out = {}) {
+    const P = walkPlan(kind), S = P.K.sections, n = S.length;
+    for (let i = 0; i < n; i++) {
+      const a = P.starts[i], b = a + S[i].len;
+      if (i > 0 && u < a) {const g = P.K.gap, t = Math.max(0, Math.min(1, (u - (a - g)) / g)), sec = t < .5 ? i - 1 : i;out.sec = sec;out.z = S[sec].len / 2 - (u - P.starts[sec]);out.joint = i - 1;out.t = t;return out;}
+      if (u <= b || i === n - 1) {out.sec = i;out.z = S[i].len / 2 - (u - a);out.joint = -1;out.t = 0;return out;}
+    }
+    return out;
+  }
+  const locW = {}, locP = {};
+  // Can a rider (radius r) stand at (u, x)? Inside the walls, out of the cabs and the seats, through open gangways only.
+  function walkable(kind, u, x, r = WALK_R) {
+    const P = walkPlan(kind), K = P.K;
+    if (u < P.u0 || u > P.u1) return false;
+    const L = locate(kind, u, locW), hl = K.sections[L.sec].len / 2, n = K.sections.length, ax = Math.abs(x);
+    if (L.joint >= 0) return P.open[L.joint] && ax <= K.pass - r;
+    if (ax > P.side - r) return false;
+    if (L.z > hl - r - .03 && L.sec > 0 && (!P.open[L.sec - 1] || ax > K.pass - r)) return false;// the gangway's portal (or a closed end)
+    if (L.z < -hl + r + .03 && L.sec < n - 1 && (!P.open[L.sec] || ax > K.pass - r)) return false;
+    for (const s of P.seats[L.sec]) if (Math.abs(x - s.x) < .23 + r && Math.abs(L.z - s.z) < .27 + r) return false;
+    return true;
+  }
+  // Move a standing rider {u, x} by (du, dx), sliding along walls and seats; near a gangway it steers you into the opening.
+  function walkMove(kind, pos, du, dx, r = WALK_R) {
+    const K = KINDS[kind], u = pos.u + du, x = pos.x + dx;
+    if (walkable(kind, u, x, r)) {pos.u = u;pos.x = x;return pos;}
+    if (du && walkable(kind, u, pos.x, r)) {pos.u = u;return pos;}
+    if (du) {// blocked by a gangway's portal a little off the middle: slide towards the opening
+      const px = Math.sign(pos.x) * (K.pass - r - .01), off = Math.abs(pos.x) - Math.abs(px);
+      if (off > 0 && off < .45 && walkable(kind, u, px, r)) {
+        const nx = pos.x + Math.sign(px - pos.x) * Math.min(off, Math.abs(du) * 1.5);
+        if (walkable(kind, pos.u, nx, r)) {pos.x = nx;return pos;}
+      }
+    }
+    if (dx && walkable(kind, pos.u, x, r)) pos.x = x;
+    return pos;
+  }
+  // A point in a section's frame (z forward, x, y up) -> the world, the way three.js poses the section (rotation YXZ = pitch, yaw).
+  function secPoint(s, z, x, y, out) {
+    const cp = Math.cos(s.pitch), sp = Math.sin(s.pitch), h = y * sp + z * cp;
+    out.x = s.x + s.fx * h + s.fz * x;out.z = s.z + s.fz * h - s.fx * x;out.y = s.y + y * cp - z * sp;return out;
+  }
+  const endA = {}, endB = {};
+  // Where (u, x) at height y over the sections' origin is in the world: {x, y, z, yaw, pitch, sec}.
+  function pointAt(kind, secs, u, x, y, out = {}) {
+    const L = locate(kind, u, locP);
+    if (L.joint < 0) {const s = secs[L.sec];secPoint(s, L.z, x, y, out);out.yaw = s.yaw;out.pitch = s.pitch;out.sec = L.sec;return out;}
+    const A = secs[L.joint], B = secs[L.joint + 1], t = L.t;
+    secPoint(A, -A.len / 2, x, y, endA);secPoint(B, B.len / 2, x, y, endB);
+    let dy = B.yaw - A.yaw;dy -= Math.round(dy / (2 * Math.PI)) * 2 * Math.PI;
+    out.x = endA.x + (endB.x - endA.x) * t;out.y = endA.y + (endB.y - endA.y) * t;out.z = endA.z + (endB.z - endA.z) * t;
+    out.yaw = A.yaw + dy * t;out.pitch = A.pitch + (B.pitch - A.pitch) * t;out.sec = L.sec;return out;
+  }
+  // The seat's spot in walk coordinates (the aisle beside it).
+  const seatU = (kind, s) => walkPlan(kind).starts[s.section] + KINDS[kind].sections[s.section].len / 2 - s.z;
   function create({T}) {
     // ---------- A tiny vertex-coloured geometry builder ----------
     function Builder() {
@@ -85,7 +157,8 @@
       body: new T.MeshStandardMaterial({vertexColors: true, roughness: .45, metalness: .15}),
       glass: new T.MeshStandardMaterial({color: 0x1c2833, roughness: .08, metalness: .3, transparent: true, opacity: .55, depthWrite: false}),
       interior: new T.MeshStandardMaterial({vertexColors: true, roughness: .7, side: T.DoubleSide, emissive: 0x2a2620, emissiveIntensity: .6}),
-      door: new T.MeshStandardMaterial({vertexColors: true, roughness: .3, metalness: .2})
+      door: new T.MeshStandardMaterial({vertexColors: true, roughness: .3, metalness: .2}),
+      bellows: new T.MeshStandardMaterial({vertexColors: true, roughness: .85, side: T.DoubleSide})
     };
     // ---------- Section geometry per kind ----------
     const LOOK = {
@@ -130,7 +203,16 @@
       if (kind === 'tram' && si % 2 === 0) body.box(-.7, H, -hl * .6, .7, H + .32, hl * .6, 0x9aa0a6);// roof equipment
       if (kind !== 'tram' && si === 0) body.box(-.9, H, hl - 5.5, .9, H + .28, hl - 1.5, 0xc4c8cc);// bus: AC unit / metro: roof cover
       if (kind === 'tram' && si === 2) {body.box(-.03, H + .32, -.2, .03, H + 1.25, .2, 0x2b2f33);body.box(-.9, H + 1.2, -.12, .9, H + 1.26, .12, 0x2b2f33);}// pantograph
+      const n = K.sections.length, P = walkPlan(kind), pass = K.pass;
       const endFace = (z, sgn, cab) => {
+        if (!cab && (sgn > 0 ? si > 0 && P.open[si - 1] : si < n - 1 && P.open[si])) {
+          // An open gangway (issue #142): the end wall with a walk-through opening; the bellows (setJoints) close the gap outside.
+          const z0 = Math.min(z, z - sgn * .02), z1 = Math.max(z, z - sgn * .02);
+          body.box(-hw + .1, bottom, z0, hw - .1, fl - .02, z1, 0x2b2f33);
+          for (const s of [-1, 1]) body.box(s > 0 ? pass : -hw + .1, fl - .02, z0, s > 0 ? hw - .1 : -pass, H - .1, z1, L.wall, 'ny');
+          body.box(-pass, top - .012, z0, pass, H - .1, z1, L.wall, 'pxnx');// a little under the ceiling (no coplanar faces)
+          return;
+        }
         if (cab) {
           // The cab: a sloped dark mask with the windscreen and the destination sign above it.
           body.box(-hw, bottom, z - sgn * .04, hw, sill - .1, z, L.body);
@@ -200,8 +282,41 @@
         if (si === 0) {const m = new T.Mesh(signGeo);m.scale.set(2.2, .28, 1);m.rotation.y = -Math.PI / 2;m.position.set(-K.width / 2 - .012, K.height - .38, hl - 2.6);g.add(m);signs.push(m);}// the side sign by the front door (on the right: a model faces +z, so its right is -x)
         return {group: g, len: S.len, body, glass, inside, doorR, doorL, signs};
       });
+      // The open gangways (issue #142): one small mesh per vehicle in world coordinates, rebuilt from the sections' poses every
+      // frame (setJoints), so the bellows and the floor between two sections follow the bend in a curve. Per joint 5 quads: the
+      // two sides, the roof, the underside and the floor, each quad with its own 4 corners (flat normals).
+      const P = walkPlan(kind), openJ = P.open.map((o, j) => o ? j : -1).filter(j => j >= 0);
+      let joints = null;
+      if (openJ.length) {
+        const L = lookOf(kind), hw = K.width / 2, bw = hw - .1, yb = (kind === 'metro' ? .55 : .18) + .04, yt = K.height - .14, ff = K.floor - .005;
+        // the ring at each end: [x, y, z-offset into the section]; the floor reaches back to where the section's own floor ends
+        const ring = [[-bw, yb, 0], [-bw, yt, 0], [bw, yt, 0], [bw, yb, 0], [-bw, ff, .05], [bw, ff, .05]];
+        const quads = [[0, 1, 0x2e3236], [1, 2, 0x34383c], [2, 3, 0x2e3236], [3, 0, 0x202326], [4, 5, L.floor]];
+        const nv = openJ.length * quads.length * 6, pos = new Float32Array(nv * 3), nor = new Float32Array(nv * 3), col = new Float32Array(nv * 3), c = new T.Color();
+        for (let k = 0, o = 0; k < openJ.length; k++) for (const q of quads) {c.setHex(q[2]);for (let i = 0; i < 6; i++, o += 3) {col[o] = c.r;col[o + 1] = c.g;col[o + 2] = c.b;}}
+        const geo = new T.BufferGeometry(), pa = new T.BufferAttribute(pos, 3), na = new T.BufferAttribute(nor, 3);
+        pa.setUsage(T.DynamicDrawUsage);na.setUsage(T.DynamicDrawUsage);geo.setAttribute('position', pa);geo.setAttribute('normal', na);geo.setAttribute('color', new T.BufferAttribute(col, 3));
+        const mesh = new T.Mesh(geo, M.bellows);mesh.name = 'Gangways';mesh.frustumCulled = false;mesh.receiveShadow = true;group.add(mesh);
+        const pts = new Float32Array(12 * 3), tmp = {};let o = 0, nx = 0, ny = 0, nz = 0;
+        const put = v => {pos[o] = pts[v];pos[o + 1] = pts[v + 1];pos[o + 2] = pts[v + 2];nor[o] = nx;nor[o + 1] = ny;nor[o + 2] = nz;o += 3;};
+        joints = function setJoints(secs) {
+          o = 0;
+          for (const j of openJ) {
+            const A = secs[j], B = secs[j + 1];if (!A || !B) return;
+            for (let e = 0; e < 2; e++) {const s = e ? B : A, zEnd = e ? s.len / 2 : -s.len / 2;
+              for (let i = 0; i < 6; i++) {const r = ring[i];secPoint(s, zEnd + (e ? -r[2] : r[2]), r[0], r[1], tmp);const p = (e * 6 + i) * 3;pts[p] = tmp.x;pts[p + 1] = tmp.y;pts[p + 2] = tmp.z;}}
+            for (const q of quads) {
+              const a = q[0] * 3, b = q[1] * 3, cc = (6 + q[1]) * 3, d = (6 + q[0]) * 3;
+              const ux = pts[b] - pts[a], uy = pts[b + 1] - pts[a + 1], uz = pts[b + 2] - pts[a + 2], vx = pts[d] - pts[a], vy = pts[d + 1] - pts[a + 1], vz = pts[d + 2] - pts[a + 2];
+              nx = uy * vz - uz * vy;ny = uz * vx - ux * vz;nz = ux * vy - uy * vx;const l = Math.hypot(nx, ny, nz) || 1;nx /= l;ny /= l;nz /= l;
+              put(a);put(b);put(cc);put(a);put(cc);put(d);
+            }
+          }
+          pa.needsUpdate = true;na.needsUpdate = true;
+        };
+      }
       let doorsNow = null, insideNow = false, signNow = null;
-      return {kind, K, group, sections,
+      return {kind, K, group, sections, setJoints: joints || (() => {}),
         setSign(mat) {if (mat === signNow) return;signNow = mat;for (const s of sections) for (const m of s.signs) m.material = mat;},
         // f 0..1 open; side +1 the right-hand doors, -1 the left-hand ones, 0 both
         setDoors(f, side = 1) {const key = f > .5 ? side : 9;if (key === doorsNow) return;doorsNow = key;for (const s of sections) {s.doorR.visible = !(f > .5 && side >= 0);if (s.doorL) s.doorL.visible = !(f > .5 && side <= 0);}},
@@ -273,5 +388,5 @@
     }
     return {KINDS, M, make, sign, stopModel, boardCanvas, stopMat, seats, doors};
   }
-  return {KINDS, seats, doors, create};
+  return {KINDS, seats, doors, walkPlan, locate, walkable, walkMove, secPoint, pointAt, seatU, WALK_R, create};
 });

@@ -273,6 +273,7 @@
         if (!a.veh) {a.veh = grab(a.kind);if (!a.veh) continue;a.veh.setSign(models.sign(a.dir.line.ref, a.dir.to, a.dir.line.colour, a.dir.line.mode));}
         const secs = sectionsAt(a.dir, st.d), v = a.veh;a.st = st;a.secs = secs;
         secs.forEach((s, i) => {const g = v.sections[i].group;g.position.set(s.x, s.y, s.z);g.rotation.order = 'YXZ';g.rotation.set(s.pitch, s.yaw, 0);});
+        v.setJoints(secs);// the gangways' bellows and floors between the sections (issue #142)
         if (a.lastDoors !== undefined && a.lastDoors > .5 && st.doors <= .5 && (ride && ride.key === key)) audio('ding');
         a.lastDoors = st.doors;v.setDoors(st.doors, st.dwelling ? stopSide(a.dir, st.stop) : 0);
         const near = Math.hypot(secs[0].x - camera.position.x, secs[0].z - camera.position.z) < 70 || (ride && ride.key === key);v.setInterior(!!near);
@@ -641,10 +642,10 @@
       const dw = TM.doors(a.kind).map(d => ({d, p: doorWorld(a, d)})).sort((p, q) => Math.hypot(p.p.x - ctx.player.x, p.p.z - ctx.player.z) - Math.hypot(q.p.x - ctx.player.x, q.p.z - ctx.player.z))[0];
       const order = seats.map((s, i) => ({s, i})).filter(o => !taken.has(o.i)).sort((p, q) => Math.abs(p.s.section - dw.d.section) * 20 + Math.abs(p.s.z - dw.d.z) - Math.abs(q.s.section - dw.d.section) * 20 - Math.abs(q.s.z - dw.d.z));
       if (!order.length) {ctx.notice('It is full – wait for the next one.', 3);return;}
-      ride = {key, a, dir, dep: a.dep, seat: order[0].i, s: order[0].s, lookYaw: 0, lookPitch: 0, lastStop: si, warned: false};
+      ride = {key, a, dir, dep: a.dep, seat: order[0].i, s: order[0].s, lookYaw: 0, lookPitch: 0, lastStop: si, warned: false, standing: false, u: 0, x: 0, yawRel: 0};
       engine = ctx.audio && ctx.audio.engine ? ctx.audio.engine('emotor') : null;
       const next = dir.stops[si + 1];
-      ctx.notice(`${MODE_NAME[dir.line.mode]} ${dir.line.ref} to ${dir.to} · next stop ${next ? next.name : ''} · □ / E gets you off when the doors open at a stop`, 6);
+      ctx.notice(`${MODE_NAME[dir.line.mode]} ${dir.line.ref} to ${dir.to} · next stop ${next ? next.name : ''} · move (left stick / WASD) to stand up and walk · □ / E gets you off when the doors open at a stop`, 6);
       if (ctx.onBoard) ctx.onBoard();
     }
     function seatPose(a, seatIdx) {
@@ -661,7 +662,7 @@
       if (a.secs) for (const d of openDoors(a)) {
         const p = doorWorld(a, d), q = {x: p.x + p.out.x * .8, z: p.z + p.out.z * .8}, spot = ctx.safeSpot(q.x, q.z, p.y - K.floor + (a.kind === 'metro' ? TS.PLAT_H : 0));
         if (!spot) continue;
-        const sc = Math.hypot(spot.x - q.x, spot.z - q.z) * 3 + Math.abs(spot.y - (p.y - (a.kind === 'metro' ? 0 : K.floor))) * 4 + Math.abs(d.section - ride.s.section) * 2 + Math.abs(d.z - ride.s.z) * .3;
+        const me = riderAt(a), sc = Math.hypot(spot.x - q.x, spot.z - q.z) * 3 + Math.abs(spot.y - (p.y - (a.kind === 'metro' ? 0 : K.floor))) * 4 + Math.abs(d.section - me.section) * 2 + Math.abs(d.z - me.z) * .3;
         if (!best || sc < best.sc) best = {sc, spot, yaw: Math.atan2(-p.out.x, -p.out.z)};// facing out, away from the door
       }
       if (engine) {engine.stop();engine = null;}
@@ -670,6 +671,27 @@
       if (ctx.onLeave) ctx.onLeave(best ? best.spot : null, best ? best.yaw : 0);
       if (reason) ctx.notice(reason, 5);else if (where) ctx.notice(`${where.name}.`, 2);
     }
+    // Where the rider is in the vehicle: {section, z} (the seat, or the nearest section to where you stand).
+    const riderTmp = {};
+    function riderAt(a) {
+      if (!ride || !ride.standing) return ride ? {section: ride.s.section, z: ride.s.z} : {section: 0, z: 0};
+      const L = TM.locate(a.kind, ride.u, riderTmp);return {section: L.sec, z: L.z};
+    }
+    // Standing and walking inside (issue #142): the place is kept in walk coordinates (u along the vehicle, x across), so it
+    // moves with the tram, and through the open gangways from one section to the next, also in curves.
+    const WALK_IN = 2.0, standTmp = {}, curve = v => Math.sign(v) * v * v;
+    function standUp(a) {
+      const s = ride.s, K = TM.KINDS[a.kind];let u = TM.seatU(a.kind, s), x = 0;
+      if (!TM.walkable(a.kind, u, x)) for (let d = .1; d < 3; d += .1) {if (TM.walkable(a.kind, u + d, 0)) {u += d;break;}if (TM.walkable(a.kind, u - d, 0)) {u -= d;break;}}
+      ride.standing = true;ride.u = Math.max(K.cab, Math.min(K.length - K.cab, u));ride.x = x;ride.yawRel = (s.face > 0 ? 0 : Math.PI) + ride.lookYaw;ride.seat = -1;
+    }
+    // The free seat within reach of where you stand (-1: none).
+    function seatNear(a) {
+      const L = TM.locate(a.kind, ride.u, riderTmp), taken = seatsTaken(ride.key);let best = -1, bd = 1.1;
+      TM.seats(a.kind).forEach((s, i) => {if (s.section !== L.sec || taken.has(i)) return;const d = Math.hypot(s.x - ride.x, s.z - L.z);if (d < bd) {bd = d;best = i;}});
+      return best;
+    }
+    function sitDown(i) {ride.seat = i;ride.s = TM.seats(ride.a.kind)[i];ride.standing = false;ride.lookYaw = 0;ride.stickFree = false;}
     function updateRide(dt, input, camera, dl) {
       if (!ride) return;
       const a = active.get(ride.key);
@@ -677,21 +699,55 @@
         const pr = parseKey(ride.key);if (!pr || !TT.at(pr.dir, (now() - pr.dep) / 1000)) {exitRide('The ride ended.');return;}
         return;
       }
-      ride.a = a;const st = a.st, dir = a.dir;
-      ride.lookYaw = Math.max(-2.8, Math.min(2.8, ride.lookYaw - input.mouse.dx * .0024 * (ctx.sens ? ctx.sens().mouse : 1) - input.look.x * 2.2 * dt));
-      ride.lookPitch = Math.max(-1.1, Math.min(1, ride.lookPitch - input.mouse.dy * .0024 * (ctx.sens ? ctx.sens().mouse : 1) - input.look.y * 1.6 * dt));
-      const p = seatPose(a, ride.seat);if (!p) return;
-      camera.position.set(p.x, p.y + .78, p.z);camera.rotation.order = 'YXZ';camera.rotation.set(ride.lookPitch - p.sec.pitch * (ride.s.face > 0 ? 1 : -1), p.yaw + Math.PI + ride.lookYaw, dl ? Math.sin(performance.now() / 1300) * .06 * dl : 0);
+      ride.a = a;const st = a.st, dir = a.dir, sm = .0024 * (ctx.sens ? ctx.sens().mouse : 1), K = TM.KINDS[a.kind];
+      const mx = input.move.x, my = input.move.y, mag = Math.hypot(mx, my);
+      if (mag < .2) ride.stickFree = true;// you only stand up after letting go of the stick you walked in with
+      if (!ride.standing && mag > .5 && ride.stickFree) standUp(a);
+      let p;
+      if (ride.standing) {
+        ride.yawRel -= input.mouse.dx * sm + curve(input.look.x) * 2.6 * dt;ride.yawRel -= Math.round(ride.yawRel / (2 * Math.PI)) * 2 * Math.PI;
+        ride.lookPitch = Math.max(-1.4, Math.min(1.4, ride.lookPitch - input.mouse.dy * sm - curve(input.look.y) * 1.8 * dt));
+        p = TM.pointAt(a.kind, a.secs, ride.u, ride.x, K.floor, standTmp);
+        if (mag > .05) {
+          const yaw = p.yaw + Math.PI + ride.yawRel, fwd = -my, right = mx, sp = WALK_IN * (1 - dl * .25) * dt;
+          const wx = (-Math.sin(yaw) * fwd + Math.cos(yaw) * right) * sp, wz = (-Math.cos(yaw) * fwd - Math.sin(yaw) * right) * sp;
+          // the world step in the vehicle's frame where you stand: forward = (sin yaw, cos yaw), x = (cos yaw, -sin yaw)
+          const sy = Math.sin(p.yaw), cy = Math.cos(p.yaw);
+          TM.walkMove(a.kind, ride, -(wx * sy + wz * cy), wx * cy - wz * sy);
+          p = TM.pointAt(a.kind, a.secs, ride.u, ride.x, K.floor, standTmp);
+        }
+        const eye = ctx.player.eye || 1.62, yaw = p.yaw + Math.PI + ride.yawRel;
+        camera.position.set(p.x, p.y + eye, p.z);camera.rotation.order = 'YXZ';camera.rotation.set(ride.lookPitch - p.pitch * Math.cos(ride.yawRel), yaw, dl ? Math.sin(performance.now() / 1300) * .08 * dl : 0);
+        ctx.player.x = p.x;ctx.player.z = p.z;ctx.player.feet = p.y;ctx.player.yaw = yaw;
+      } else {
+        ride.lookYaw = Math.max(-2.8, Math.min(2.8, ride.lookYaw - input.mouse.dx * sm - input.look.x * 2.2 * dt));
+        ride.lookPitch = Math.max(-1.1, Math.min(1, ride.lookPitch - input.mouse.dy * sm - input.look.y * 1.6 * dt));
+        p = seatPose(a, ride.seat);if (!p) return;
+        camera.position.set(p.x, p.y + .78, p.z);camera.rotation.order = 'YXZ';camera.rotation.set(ride.lookPitch - p.sec.pitch * (ride.s.face > 0 ? 1 : -1), p.yaw + Math.PI + ride.lookYaw, dl ? Math.sin(performance.now() / 1300) * .06 * dl : 0);
+        ctx.player.x = p.x;ctx.player.z = p.z;ctx.player.feet = p.y - .45;
+      }
       if (engine) engine.set(Math.min(1.3, st.v / 14), st.v > .2 && !st.dwelling ? .5 : 0);
-      ctx.player.x = p.x;ctx.player.z = p.z;ctx.player.feet = p.y - .45;
       // the stop you are at, the next one, and the end of the ride in the game's world
       const at = st.dwelling && st.stop < dir.stops.length && dir.stops[st.stop].k === st.k ? st.stop : -1;
       if (at >= 0 && !canRideOn(dir, at) && st.doors > .2 && !ride.warned) {ride.warned = true;ctx.notice(`Last stop in the game: ${dir.stops[at].name}. Please get off (the ${dir.line.mode === 'metro' ? 'train' : dir.line.mode} leaves the map).`, 6);}
       if (at >= 0 && !canRideOn(dir, at) && ride.warned && st.doors < .15 && !st.doors && (now() - a.dep) / 1000 > dir.TD[st.k] - 3) {exitRide(`You got off at ${dir.stops[at].name} – the line leaves the game's map here.`);return;}
       if (st.gone || (now() - a.dep) / 1000 > dir.run - 1) {exitRide('End of the line.');return;}
-      if (input.pressed.has('square')) {if (at >= 0 && st.doors > .5) exitRide();else ctx.notice('The doors open at the next stop.', 1.5);input.pressed.delete('square');}
-      renderHud(st, dir, at);
+      const open = at >= 0 && st.doors > .5;
+      if (input.pressed.has('square')) {
+        input.pressed.delete('square');
+        if (ride.standing) {// by a free seat: sit down (unless you stand at an open door); else out through the nearest open door
+          const seat = seatNear(a);
+          if (seat >= 0 && !(open && doorNear(a))) sitDown(seat);
+          else if (open) {exitRide();return;}
+          else ctx.notice('Walk to a free seat to sit down · the doors open at the next stop.', 1.8);
+        } else if (open) {exitRide();return;}
+        else ctx.notice('The doors open at the next stop.', 1.5);
+      }
+      if ((ride.hintT = (ride.hintT || 0) - dt) <= 0) {ride.hintT = .25;ride.hint = !ride.standing ? 'Move (left stick / WASD) to stand up and walk · look around with the right stick / mouse' : seatNear(a) >= 0 ? '□ / E sit down · walk with the left stick / WASD' : `Walk through the ${a.kind === 'metro' ? 'train' : a.kind === 'tram' ? 'tram' : 'bus'} with the left stick / WASD · □ / E by a free seat: sit down`;}
+      renderHud(st, dir, at, ride.hint);
     }
+    // An open door within reach of where you stand.
+    function doorNear(a) {for (const d of openDoors(a)) if (Math.abs(TM.seatU(a.kind, d) - ride.u) < 1.3) return true;return false;}
     // ---------- HUD and the timetable panel ----------
     const css = document.createElement('style');css.textContent = `
       #transitHud{position:absolute;right:16px;top:64px;min-width:260px;max-width:min(520px,92vw);padding:9px 14px;border-radius:10px;background:rgba(12,14,17,.8);color:#f2f2ee;font:14px/1.35 system-ui,Segoe UI,Arial,sans-serif;pointer-events:none;z-index:5}
@@ -709,12 +765,12 @@
     const hud = document.createElement('div');hud.id = 'transitHud';hud.hidden = true;ctx.root.appendChild(hud);
     const panelEl = document.createElement('div');panelEl.id = 'transitPanel';panelEl.hidden = true;ctx.root.appendChild(panelEl);
     let hudKey = '';
-    function renderHud(st, dir, at) {
+    function renderHud(st, dir, at, hint) {
       const ms = now(), nexts = [];
       for (let i = at >= 0 ? at + 1 : st.stop; i < dir.stops.length && nexts.length < 3; i++) {const s = dir.stops[i];if (!s.place) break;nexts.push(`${esc(s.name)} <span style="opacity:.7">${hhmm(ride.dep + dir.stopTimes[i] * 1000, TT)}</span>`);}
       const line = dir.line, head = `<b><span class="tl" style="background:${line.colour}">${line.ref}</span> ${MODE_NAME[line.mode]} to ${esc(dir.to)}</b>`;
       const now1 = at >= 0 ? `<small>${st.doors > .5 ? `Doors open at <b style="display:inline">${esc(dir.stops[at].name)}</b> · □ / E get off` : `At ${esc(dir.stops[at].name)}`}</small>` : `<small>Next: ${dir.stops[st.stop] ? esc(dir.stops[st.stop].name) : '–'} · ${Math.round(st.v * 3.6)} km/h</small>`;
-      const html = head + now1 + (nexts.length ? `<ol>${nexts.map(n => `<li>${n}</li>`).join('')}</ol>` : '') + `<small>Look around with the right stick / mouse · ticket valid until ${hhmm(ticketUntil, TT)}</small>`;
+      const html = head + now1 + (nexts.length ? `<ol>${nexts.map(n => `<li>${n}</li>`).join('')}</ol>` : '') + `<small>${hint} · ticket valid until ${hhmm(ticketUntil, TT)}</small>`;
       if (html !== hudKey) {hud.innerHTML = html;hudKey = html;}
       hud.hidden = false;
     }
@@ -855,7 +911,7 @@
       under = c.y < g - 2.6 && (inSt || (ride && ride.dir.line.mode === 'metro'));
       deep = under;
       updateTunnels(camera, under || api.showTunnels || (ride && ride.dir.line.mode === 'metro' && ride.a.st && ride.dir.tunnel[ride.a.st.k]));
-      models.M.body.emissive.setHex(under ? 0x3a3d40 : 0x000000);
+      models.M.body.emissive.setHex(under ? 0x3a3d40 : 0x000000);models.M.bellows.emissive.setHex(under ? 0x3a3d40 : 0x000000);
       if (portals.dark) portals.dark.visible = !(ride && ride.dir.line.mode === 'metro');// riders see the tunnel itself
       if (!ride) hud.hidden = true;
     }
@@ -870,15 +926,22 @@
       }
       return null;
     }
-    function localState() {return ride ? {tr: [ride.key, ride.seat]} : null;}
-    // Other players aboard: on their seat in the same vehicle (worked out here from the shared clock).
+    // tr = [run key, seat] seated; [run key, -1, u, x, yaw relative to the vehicle] standing (issue #142).
+    const r2 = v => Math.round(v * 100) / 100;
+    function localState() {return ride ? {tr: ride.standing ? [ride.key, -1, r2(ride.u), r2(ride.x), r2(ride.yawRel)] : [ride.key, ride.seat]} : null;}
+    // Other players aboard: on their seat, or standing where they are, in the same vehicle (worked out here from the shared clock).
+    const poseTmp = {}, poseEuler = new T.Euler();
     function pose(r, st, g) {
       if (!st || !st.tr) return false;
       const pr = parseKey(st.tr[0]);if (!pr) return false;
       const a = active.get(st.tr[0]) || {dir: pr.dir, dep: pr.dep, kind: kindOf(pr.dir.line)};
       if (!a.secs) {const s = TT.at(pr.dir, (now() - pr.dep) / 1000);if (!s) return false;a.secs = sectionsAt(pr.dir, s.d);}
+      if ((st.tr[1] | 0) < 0 && st.tr.length >= 5) {
+        const p = TM.pointAt(a.kind, a.secs, +st.tr[2] || 0, +st.tr[3] || 0, TM.KINDS[a.kind].floor, poseTmp);
+        g.position.set(p.x, p.y, p.z);g.quaternion.setFromEuler(poseEuler.set(0, p.yaw + (+st.tr[4] || 0) + Math.PI, 0));r.pos.copy(g.position);return true;
+      }
       const p = seatPose(a, st.tr[1] | 0);if (!p) return false;
-      g.position.set(p.x, p.y - .45, p.z);g.quaternion.setFromEuler(new T.Euler(0, p.yaw + Math.PI, 0));r.pos.copy(g.position);return true;
+      g.position.set(p.x, p.y - .45, p.z);g.quaternion.setFromEuler(poseEuler.set(0, p.yaw + Math.PI, 0));r.pos.copy(g.position);return true;
     }
     const poi = () => [];
     const api = {showTunnels: false,// test handle: draw the tunnels round the camera wherever it is
