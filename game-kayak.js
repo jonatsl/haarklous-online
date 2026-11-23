@@ -11,7 +11,8 @@
  *     the grid corners that still hold the drawn ground above the water (sinkGrid, issue #63), in the old 4 m grid and the 8 m
  *     patch grids, and lets the walls of buildings by the river reach down to the lowered ground -> {changed, dry, walls}.
  *   waterStrip(R, k0, k1, opts, toW, yOf) builds a water surface (triangles facing up); waterSamples / sinkGrid are pure too.
- *   GameKayak.create({T, lib, data, world, audio, districts}) -> {group, obstacles, groundAt(x, z), racks, prompt(player),
+ *   GameKayak.layout(data, R, ground, {base}) -> the bridge decks in the local frame (also for tests/river-path.test.cjs).
+ *   GameKayak.create({T, lib, data, world, audio, districts}) -> {group, obstacles, groundAt(x, z, y), racks, prompt(player),
  *     farWater (the ribbon in the far pass, over its own sunk ground),
  *     start(i), update(dt, input, camera) -> {exit?, notice?}, exitPoint(), hud(), remoteBoat(), riverModel, boat, active}
  * Controls (the user's wish): left stick ↑ / W paddle forward, ↓ / S back-paddle, ←→ / A D turn, hold R2 / Shift to sprint
@@ -315,6 +316,23 @@
     const [eA, yA] = end(bankA, -1), [eB, yB] = end(bankB, 1), line = u => yA + (yB - yA) * (u + eA) / (eA + eB);
     return [[-eA, yA], [-bankA, Math.max(clear, line(-bankA))], [bankB, Math.max(clear, line(bankB))], [eB, yB]];
   }
+  // Every bridge's deck in the local frame (pure; the same for the game and tests/river-path.test.cjs): ground(x, s) the
+  // ground's height, base added to the data's relative heights (the world's ground level in the browser, 0 in Node).
+  // -> [{b, ax, as, bx, bs (end A, end B), len, ux, us (along A -> B), w, thick, prof [[p, y]] (p from end A), deckAt(p)}]
+  function layout(data, R, ground, {base = 0} = {}) {
+    const out = [];
+    for (const b of data.bridges || []) {
+      const c = R.at(b.t);let dx = b.dir[0], ds = b.dir[1];const l = Math.hypot(dx, ds) || 1;dx /= l;ds /= l;
+      const across = Math.max(.35, Math.abs(dx * -c.ds + ds * c.dx)), sgn = Math.sign(dx * -c.ds + ds * c.dx) || 1;
+      const at = u => [c.x + dx * u * sgn, c.s + ds * u * sgn], T = u => ground(...at(u));// u < 0: the left bank's side
+      const bankA = c.wl / across, bankB = c.wr / across, clear = base + c.level + (b.kind === 'foot' ? 1.8 : 2.2), D = Math.max(clear, b.deck === undefined ? -Infinity : base + b.deck);
+      const P = deckProfile(D, clear, bankA, bankB, Math.min(30, Math.max(6, l)), T);
+      const a = at(P[0][0]), e = at(P[3][0]), len = Math.hypot(e[0] - a[0], e[1] - a[1]) || 1, prof = P.map(([u, y]) => [u - P[0][0], y]);
+      const deckAt = p => {const q = Math.max(0, Math.min(len, p));for (let i = 0; i < 3; i++) if (q <= prof[i + 1][0] || i === 2) {const [p0, y0] = prof[i], [p1, y1] = prof[i + 1];return y0 + (y1 - y0) * (p1 > p0 ? Math.min(1, (q - p0) / (p1 - p0)) : 0);}};
+      out.push({b, t: b.t, ax: a[0], as: a[1], bx: e[0], bs: e[1], len, ux: (e[0] - a[0]) / len, us: (e[1] - a[1]) / len, w: Math.min(14, b.w), thick: b.kind === 'foot' ? .35 : .7, D, clear, prof, deckAt});
+    }
+    return out;
+  }
   // A box from p to q ([x, y, z]) with a w x h cross-section, `side` the horizontal direction across it ([x, z]), added to a
   // {pos, nor, idx} buffer with flat faces turned outward.
   function box(B, p, q, w, h, side) {
@@ -424,16 +442,12 @@
     // and its railings and underside are obstacles one 2 m piece at a time. All decks are one mesh, all railings another.
     const bridges = [], obstacles = [];
     const deckMat = lib.concrete(0x8d8a84), railMat = lib.metal(0x2f3437, .5), deckB = {pos: [], nor: [], idx: []}, railB = {pos: [], nor: [], idx: []};
-    for (const b of data.bridges || []) {
-      const c = R.at(b.t);let dx = b.dir[0], ds = b.dir[1];const l = Math.hypot(dx, ds) || 1;dx /= l;ds /= l;
-      const across = Math.max(.35, Math.abs(dx * -c.ds + ds * c.dx)), sgn = Math.sign(dx * -c.ds + ds * c.dx) || 1;
-      const at = u => toW(c.x + dx * u * sgn, c.s + ds * u * sgn), T = u => {const w = at(u);return world.heightWorld(w.x, w.z);};// u < 0: the left bank's side
-      const bankA = c.wl / across, bankB = c.wr / across, clear = yOf(c.level + (b.kind === 'foot' ? 1.8 : 2.2)), D = Math.max(clear, b.deck === undefined ? -Infinity : yOf(b.deck));
-      const thick = b.kind === 'foot' ? .35 : .7, w = Math.min(14, b.w);
-      const P = deckProfile(D, clear, bankA, bankB, Math.min(30, Math.max(6, l)), T);
-      const wa = at(P[0][0]), wb = at(P[3][0]), len = Math.hypot(wb.x - wa.x, wb.z - wa.z), ux = (wb.x - wa.x) / len, uz = (wb.z - wa.z) / len, vx = -uz, vz = ux;
-      const prof = P.map(([u, y]) => [u - P[0][0], y]);// metres from end A, deck height
-      const deckAt = p => {const q = Math.max(0, Math.min(len, p));for (let i = 0; i < 3; i++) if (q <= prof[i + 1][0] || i === 2) {const [p0, y0] = prof[i], [p1, y1] = prof[i + 1];return y0 + (y1 - y0) * (p1 > p0 ? Math.min(1, (q - p0) / (p1 - p0)) : 0);}};
+    // (on the ground as it is without Akerselva's turvei, issue #147: the path passes under some of the decks, and a deck never
+    // ends in its cutting)
+    const groundL = world.streets && world.streets.heightBase ? (x, s) => world.ground + world.streets.heightBase(x, s) : (x, s) => {const p = toW(x, s);return world.heightWorld(p.x, p.z);};
+    for (const lay of layout(data, R, groundL, {base: G})) {
+      const b = lay.b, thick = lay.thick, w = lay.w, prof = lay.prof, deckAt = lay.deckAt;// prof: metres from end A, deck height
+      const wa = toW(lay.ax, lay.as), wb = toW(lay.bx, lay.bs), len = Math.hypot(wb.x - wa.x, wb.z - wa.z), ux = (wb.x - wa.x) / len, uz = (wb.z - wa.z) / len, vx = -uz, vz = ux;
       const pt = (p, q, y) => [wa.x + ux * p + vx * q, y, wa.z + uz * p + vz * q];
       for (let i = 0; i < 3; i++) {
         const [p0, y0] = prof[i], [p1, y1] = prof[i + 1];if (p1 - p0 < .01) continue;
@@ -448,7 +462,7 @@
         for (const [d, Te] of [[p, prof[0][1]], [len - p, prof[3][1]]]) if (d < 1.5) y += (world.heightWorld(x, z) - Te) * (1 - Math.max(0, d) / 1.5);
         return y;
       };
-      const bridge = {name: b.name, kind: b.kind, wa, ux, uz, vx, vz, len, w, deckAt, surface, deck: D, ends: [prof[0][1], prof[3][1]],
+      const bridge = {name: b.name, kind: b.kind, wa, ux, uz, vx, vz, len, w, deckAt, surface, deck: lay.D, ends: [prof[0][1], prof[3][1]],
         floor: {name: `Bridge${b.name ? ' ' + b.name : ''}`, points: corners, height: p => surface(p.x, p.z), ceilingHeight: Infinity, surfaceKind: 'stone'}};
       bridges.push(bridge);
       // Pieces of at most 2 m: the railings (from the deck's underside to 1.1 m over it) and, away from the ends where it bends to
@@ -468,10 +482,12 @@
       const m = new T.Mesh(g, mat);m.castShadow = m.receiveShadow = true;m.name = name;group.add(m);
     }
     // The bridge deck under (x, z), or null: for vehicles and anything placed on the ground (walking uses the decks' floors).
-    function groundAt(x, z) {
+    // Given a height y (a vehicle's), a deck more than 1.5 m above it is not its ground: a bike on Akerselva's turvei rides on
+    // under the bridge (issue #147; vehicle worlds have the decks as floors of their own).
+    function groundAt(x, z, y) {
       for (const b of bridges) {
         const dx = x - b.wa.x, dz = z - b.wa.z, p = dx * b.ux + dz * b.uz, q = dx * b.vx + dz * b.vz;
-        if (p >= 0 && p <= b.len && Math.abs(q) <= b.w / 2) return b.surface(x, z);
+        if (p >= 0 && p <= b.len && Math.abs(q) <= b.w / 2) {const h = b.surface(x, z);if (y === undefined || y > h - 1.5) return h;}
       }
       return null;
     }
@@ -607,5 +623,5 @@
     return {group, obstacles, groundAt, racks, bridges, farWater, prompt, start, stop, update, hud, tick, exitPoint, remoteBoat: () => boatMesh(), poi, riverModel: R, boat, get active() {return active;}, get view() {return view;}, get pose() {return active ? pose : null;}, canExit, get best() {return best;}};
   }
 
-  return {river, Boat, bedQuads, lowerGrid, waterSamples, cellWeights, sinkGrid, waterStrip, deckProfile, box, prepare, create, HULL};
+  return {river, Boat, bedQuads, lowerGrid, waterSamples, cellWeights, sinkGrid, waterStrip, deckProfile, layout, box, prepare, create, HULL};
 });
