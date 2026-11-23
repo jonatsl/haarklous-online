@@ -9,7 +9,7 @@ Live game: https://haarklous-online.server-smoke.workers.dev · Source: https://
 ## Features (what the game has now)
 
 In pull requests (not merged yet):
-- Real bridges where car streets cross over roads, railways and water (issue #139): a deck of their own with room under it, ramps up to it, parapets and piers; walk and drive on it or under it (Storo, Sinsenkrysset, Trondheimsveien over the railway, Østre Aker vei, Ulven, Kværner, Nylandsveien and the rest).
+- Real bridges where car streets cross over roads, railways and water (issue #139, PR #155): a deck of their own with room under it, ramps up to it, parapets and piers; walk and drive on it or under it (Storo, Sinsenkrysset, Trondheimsveien over the railway, Østre Aker vei, Ulven, Kværner, Nylandsveien and the rest).
 
 On `main`:
 - The police on Grønland (issue #140, PR #152; live once merged): Oslo politihus at its real place (Grønlandsleiret 44) with a POLITI sign – walk in to the reception (an officer at the desk, a queue-ticket machine) and through the steel door to the arrest with eight glattceller (bare concrete, a thin mattress, a drain, a steel door with a hatch that opens); Oslo fengsel (Botsen) right behind it with its high walls, two sliding gates and the OSLO FENGSEL sign, the yard and cell wing A (a prison officer, cells with bed, table, toilet and a barred window); 13 police cars (white with POLITI and black and yellow fields, a blue light bar) outside the police station and round the city – drive them with class B, L3 / H for blue lights and siren, which other players see and hear; both places on the map.
@@ -84,7 +84,7 @@ Live site: runs `main` (Worker version 3766909d, deployed 23 Nov 2026 after PR #
 - **Where:** `tools/make-bridges.py` → `bridges-data.js` (new), `road-surface.js` (bridges marked on the streets, the rise to each deck, trenches under it, streets split into ground and decks, the ground held under the decks), `road-bridges.js` (new: the decks' meshes, floors and solids, `groundAt`, `alongAt`, `over`), `surroundings.js` (`world.bridges`), `game-main.js` (ground by height, walk and vehicle worlds, transit, parked cars), `game-transit.js` (heading to the ground query), `index.html` (two scripts), `tools/road-roughness.cjs` (loads like the game), `tests/bridges.test.cjs` (new), `docs/HANDOFF.md`.
 - **Checked:** `node --test`; a few screenshots in the browser (Storo, Sinsenkrysset, Trondheimsveien over the railway, Østre Aker vei) and a scripted car driven onto and over two decks (it follows the deck within 3 cm); draw calls and triangles at home are the same as before (3547 / 2.50 M vs 3596 / 2.51 M). Not played online.
 - **Not perfect (listed in the test):** a few short bridges whose crossing is next to an end where the street is at ground level have less room (Hasleveien, St. Halvards gate, Peter Møllers vei, Turbinveien, Fagerlia, Dronning Eufemias gate); in the big interchanges (Storo, Sinsenkrysset, Kværner, Bjørvika, Bryn, Ulven) some deck ends have a corner that does not join or a steep last metres.
-- **Status:** branch `fix/bridges`, pull request not merged yet.
+- **Status:** branch `fix/bridges`, PR #155 (https://github.com/jonatsl/haarklous-online/pull/155), not merged yet.
 
 ### 2026-11-23 · Oslo politihus, the glattceller, Oslo fengsel and police cars (issue #140)
 - **What:**
