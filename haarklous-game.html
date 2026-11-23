@@ -6651,9 +6651,125 @@ window.BUILDING_LOOKS = {"table":[[],["school"],["retail"],["apartments"],["apar
   }
   return {create, SLOT_CSS, slotCss};
 });
+</script><script>/* Smooth poses for vehicles driven by other players (issue #135). Pure (Node-tested in tests/netsmooth.test.cjs).
+ * The driver sends its vehicle's state about 12 times a second with its own time stamp (performance.now(), ms, appended to
+ * the state array). The receiver keeps the last few samples and shows the vehicle a short, adaptive delay in the past,
+ * interpolated between the two samples around that moment: the result moves smoothly whatever the network's jitter is.
+ * GameNetSmooth.layout(n, aircraft) -> a channel string for a state array of length n:
+ *   'l' linear, 'a' angle (wrapped), 'q' quaternion (4 channels, slerp), 's' step (never eased).
+ *   Ground vehicles: x y z, yaw pitch roll, speed, extras (steering, lean ...); aircraft: x y z, quaternion, speed spin throttle, grounded.
+ * new GameNetSmooth.Track(layout, opts)
+ *   push(sample, stamp, arrival): stamp = the driver's clock (s) or null (then the arrival time stands in); arrival = local s.
+ *   sample(now) -> reused array (the pose to show now, local s) or null before the first sample.
+ *   newest: the last raw sample (a copy) · count · delay (s) · reset().
+ * The render clock: the driver's clock maps to ours by `off` = the smallest (arrival − stamp) in the last `window` samples (the
+ * fastest trip); the render time is now − off − delay, where delay = the largest recent gap between samples + the largest
+ * recent extra trip time + `margin`, clamped to [minDelay, maxDelay]. The render clock runs at our frame time and is nudged
+ * toward that target by at most ±`slew` (10 %), so a new estimate never makes the vehicle jump. Past the newest sample it
+ * extrapolates with the last velocity for at most `extrapolate` s, then holds. A sample that changes the pose being shown
+ * (it came late, during extrapolation) does not snap it: the difference is eased out over `blend` s.
+ */
+(function (root, factory) {
+  const api = factory();
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  else root.GameNetSmooth = api;
+})(typeof window === 'undefined' ? globalThis : window, function () {
+  'use strict';
+  const DEFAULTS = {minDelay: .08, maxDelay: .18, margin: .02, extrapolate: .2, slew: .1, gain: 2, window: 24, size: 12, teleport: 25, blend: .12, pause: .5};
+  const wrap = a => Math.atan2(Math.sin(a), Math.cos(a));
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+  function layout(n, aircraft) {
+    if (aircraft) return ('lllqqqqlll' + 's'.repeat(Math.max(0, n - 10))).slice(0, n);
+    return ('lllaaal' + 'l'.repeat(Math.max(0, n - 7))).slice(0, n);
+  }
+
+  // Slerp of the quaternions at a[i..i+3] and b[i..i+3] into out[i..i+3] (shortest way, normalised).
+  function slerp(a, b, i, f, out) {
+    let ax = a[i], ay = a[i + 1], az = a[i + 2], aw = a[i + 3], bx = b[i], by = b[i + 1], bz = b[i + 2], bw = b[i + 3];
+    let d = ax * bx + ay * by + az * bz + aw * bw;if (d < 0) {d = -d;bx = -bx;by = -by;bz = -bz;bw = -bw;}
+    let ka = 1 - f, kb = f;
+    if (d < .9995) {const th = Math.acos(Math.min(1, d)), s = Math.sin(th);ka = Math.sin((1 - f) * th) / s;kb = Math.sin(f * th) / s;}
+    let x = ax * ka + bx * kb, y = ay * ka + by * kb, z = az * ka + bz * kb, w = aw * ka + bw * kb;const l = Math.hypot(x, y, z, w) || 1;
+    out[i] = x / l;out[i + 1] = y / l;out[i + 2] = z / l;out[i + 3] = w / l;
+  }
+
+  class Track {
+    constructor(lay, opts = {}) {
+      this.lay = lay;this.n = lay.length;this.o = Object.assign({}, DEFAULTS, opts);const N = this.o.size, W = this.o.window;
+      this.buf = Array.from({length: N}, () => new Float64Array(this.n));this.ts = new Float64Array(N);
+      this.gaps = new Float64Array(W);this.trips = new Float64Array(W);
+      this.out = new Array(this.n).fill(0);this.err = new Float64Array(this.n);this.tmpA = new Float64Array(this.n);this.tmpB = new Float64Array(this.n);
+      this.reset();
+    }
+    reset() {this.count = 0;this.head = -1;this.stats = 0;this.off = null;this.delay = this.o.minDelay + .04;this.renderT = null;this.lastNow = null;this.stamped = false;this.err.fill(0);}
+    idx(k) {return (this.head - k + this.o.size * 2) % this.o.size;}// k = 0 newest, 1 the one before, ...
+    get newest() {return this.count ? Array.from(this.buf[this.head]) : null;}
+    // The pose at render time t (no blend) into out.
+    evalAt(t, out) {
+      const lay = this.lay, n = this.n, N = this.buf[this.head];
+      if (t >= this.ts[this.head]) {
+        let e = 0, P = null, span = 0;
+        if (this.count > 1) {const p = this.idx(1);P = this.buf[p];span = this.ts[this.head] - this.ts[p];e = Math.min(t - this.ts[this.head], this.o.extrapolate);}
+        const go = P && span > 1e-4 && span < this.o.pause;
+        for (let j = 0; j < n; j++) {const c = lay[j];out[j] = go && (c === 'l' || c === 'a') ? N[j] + (c === 'a' ? wrap(N[j] - P[j]) : N[j] - P[j]) / span * e : N[j];}
+        return out;
+      }
+      let k = 1;for (; k < this.count; k++) if (this.ts[this.idx(k)] <= t) break;
+      if (k >= this.count) {const A = this.buf[this.idx(this.count - 1)];for (let j = 0; j < n; j++) out[j] = A[j];return out;}// older than all
+      const ia = this.idx(k), ib = this.idx(k - 1), A = this.buf[ia], B = this.buf[ib], f = (t - this.ts[ia]) / Math.max(1e-6, this.ts[ib] - this.ts[ia]);
+      for (let j = 0; j < n; j++) {
+        const c = lay[j];
+        if (c === 'l') out[j] = A[j] + (B[j] - A[j]) * f;
+        else if (c === 'a') out[j] = A[j] + wrap(B[j] - A[j]) * f;
+        else if (c === 'q') {slerp(A, B, j, f, out);j += 3;}
+        else out[j] = f < 1 ? A[j] : B[j];
+      }
+      return out;
+    }
+    push(sample, stamp, arrival) {
+      const o = this.o;
+      const own = stamp != null && isFinite(stamp);
+      if (!own) stamp = this.stamped && this.off != null ? arrival - this.off : arrival;// no stamp (an older game): where it would be
+      if (this.count) {
+        const last = this.ts[this.head], L = this.buf[this.head];
+        if (stamp <= last) {if (last - stamp > 1) this.reset();else stamp = last + .001;}// the driver's game restarted / same time
+        if (this.count && Math.hypot(sample[0] - L[0], sample[1] - L[1], sample[2] - L[2]) > o.teleport) this.reset();// a respawn or a new lobby
+      }
+      if (own) this.stamped = true;
+      // How the shown pose changes because of this sample (only while extrapolating): eased out, not snapped.
+      const blend = this.count && this.renderT != null && this.renderT > this.ts[this.head];
+      if (blend) this.evalAt(this.renderT, this.tmpA);
+      const gap = this.count ? stamp - this.ts[this.head] : 0;
+      this.head = (this.head + 1) % o.size;const B = this.buf[this.head];for (let j = 0; j < this.n; j++) B[j] = sample[j];this.ts[this.head] = stamp;this.count = Math.min(o.size, this.count + 1);
+      if (blend) {
+        this.evalAt(this.renderT, this.tmpB);const lay = this.lay;
+        for (let j = 0; j < this.n; j++) if (lay[j] === 'l') this.err[j] += this.tmpA[j] - this.tmpB[j];else if (lay[j] === 'a') this.err[j] = wrap(this.err[j] + this.tmpA[j] - this.tmpB[j]);
+        if (Math.hypot(this.err[0], this.err[1], this.err[2]) > o.teleport) this.err.fill(0);
+      }
+      // Clock mapping and delay from the last `window` samples.
+      const w = this.stats % o.window;this.trips[w] = arrival - stamp;this.gaps[w] = gap > 0 && gap < o.pause ? gap : 0;this.stats++;
+      const m = Math.min(this.stats, o.window);let off = Infinity, maxGap = 0, maxTrip = -Infinity;
+      for (let i = 0; i < m; i++) {off = Math.min(off, this.trips[i]);maxGap = Math.max(maxGap, this.gaps[i]);maxTrip = Math.max(maxTrip, this.trips[i]);}
+      this.off = off;this.delay = clamp(maxGap + (maxTrip - off) + o.margin, o.minDelay, o.maxDelay);
+    }
+    sample(now) {
+      if (!this.count) return null;
+      const o = this.o, target = now - this.off - this.delay, dt = this.lastNow == null ? 0 : clamp(now - this.lastNow, 0, .25);this.lastNow = now;
+      if (this.renderT == null) this.renderT = target;
+      else {this.renderT += dt;const e = target - this.renderT;if (Math.abs(e) > .5) this.renderT = target;else this.renderT += clamp(e * o.gain, -o.slew, o.slew) * dt;}
+      const out = this.evalAt(this.renderT, this.out), k = Math.exp(-dt / o.blend), lay = this.lay;
+      for (let j = 0; j < this.n; j++) if (lay[j] === 'l' || lay[j] === 'a') {out[j] += this.err[j];this.err[j] *= k;}
+      return out;
+    }
+  }
+  return {layout, Track, DEFAULTS, slerp};
+});
 </script><script>/* Multiplayer glue between the game and the lobby (game-net.js): remote players as avatars (on foot, on the firepit
  * benches, in vehicle seats, flying a drone), vehicles driven by other players (smoothed between their updates), seat
  * claims (one driver and one passenger per vehicle), chat, doors and the shared firepit level.
+ * Remote-driven vehicles (issue #135): the driver appends its clock (performance.now() ms) to each 'vs' state; here every such
+ * vehicle has a GameNetSmooth.Track and is posed only from it, once a frame (game-main skips its own physics for it).
  * GameMultiplayer.create(ctx) -> {net, voice, update(dt), claim(i, seat) -> Promise<{ok, by}>, release(i, seat, final),
  *   occupant(i, seat), remoteDriven(i), sendChat(text), sendDoor(id, open), sendObj(id, v), addWood(), fireLevel(), remotes, nameOf(id),
  *   sitTaken(spotId), setMic(on)}
@@ -6669,7 +6785,10 @@ window.BUILDING_LOOKS = {"table":[[],["school"],["retail"],["apartments"],["apar
     const remotes = new Map();// id -> {id, slot, name, st, av, pos, yaw, speed, drone}
     let occ = {}, fire = {level: 2, t: Date.now()}, sendT = 0, vehT = 0, lastLocal = null;
     const pending = new Map();// vehicle index -> resolve
-    const vehTargets = new Map();// index -> {a, prev, at, prevAt}
+    const NS = window.GameNetSmooth, tracks = new Map();// index -> {track, by (the driver's id), len (the state's own length)}
+    // A state with one number more than this vehicle's own netGet() carries the driver's clock (ms) at the end.
+    const netLen = v => v.netLen || (v.netLen = v.netGet().length);
+    const stamped = s => [...s, Math.round(performance.now())];
     const net = window.GameNet.create({onMessage, onStatus: () => ctx.onStatus()});
     const voice = window.GameVoice.create({send: (to, d) => net.send({t: 'rtc', to, d}), you: () => net.you});
     function remote(id) {
@@ -6684,7 +6803,7 @@ window.BUILDING_LOOKS = {"table":[[],["school"],["retail"],["apartments"],["apar
           for (const id of [...remotes.keys()]) drop(id);
           for (const p of m.players) if (p.id !== m.you) {remote(p.id);voice.peerJoined(p.id);}
           for (const [id, s] of Object.entries(m.states || {})) {const r = remote(+id);r.st = s;}
-          occ = m.occ || {};fire = m.fire || fire;vehTargets.clear();
+          occ = m.occ || {};fire = m.fire || fire;tracks.clear();
           for (const [i, s] of Object.entries(m.vehicles || {})) {const v = vehicles[+i];if (v && s) v.netSet(s);}
           for (const [id, open] of Object.entries(m.doors || {})) ctx.applyDoor(id, open, true);
           // Small shared things (flat 501's record player, TV, lava lamp, chairs): back to normal, then the lobby's state.
@@ -6697,10 +6816,18 @@ window.BUILDING_LOOKS = {"table":[[],["school"],["retail"],["apartments"],["apar
         case 'leave': {const r = remotes.get(m.id);if (r) ctx.onChat({name: r.name, text: 'left', slot: r.slot, sys: true}, false);drop(m.id);break;}
         case 'name': {const r = remotes.get(m.id);if (r) {r.name = m.name;r.av.setName(m.name);}break;}
         case 'st': {const r = remote(m.id);r.st = m.s;break;}
-        case 'vs': {const i = +m.v, v = vehicles[i];if (!v) break;const o = occ[i];if (o && o.d && o.d !== net.you) {const prev = vehTargets.get(i);vehTargets.set(i, {a: m.s, prev: prev ? prev.a : m.s, at: performance.now(), prevAt: prev ? prev.at : performance.now() - 100});} else if (ctx.drivingIndex() !== i) v.netSet(m.s);break;}
+        case 'vs': {
+          const i = +m.v, v = vehicles[i], s = m.s;if (!v || !Array.isArray(s)) break;const o = occ[i];
+          if (o && o.d && o.d !== net.you) {
+            let t = tracks.get(i);const len = netLen(v);
+            if (!t || t.by !== o.d) {t = {track: new NS.Track(NS.layout(len, !!v.aircraft)), by: o.d, len};tracks.set(i, t);}
+            t.track.push(s, s.length === len + 1 ? s[len] / 1000 : null, performance.now() / 1000);
+          } else if (ctx.drivingIndex() !== i) v.netSet(s);
+          break;
+        }
         case 'occ': {
           const before = occ;occ = m.occ || {};
-          // A driver got off: the vehicle stays where their last update put it (it used to stay where the smoothing had got to).
+          // A driver got off: the vehicle stays where their last update put it (not where the smoothing had got to).
           for (const [i, o] of Object.entries(before)) if (o.d && o.d !== net.you && !(occ[i] && occ[i].d === o.d)) settle(+i);
           break;
         }
@@ -6711,16 +6838,16 @@ window.BUILDING_LOOKS = {"table":[[],["school"],["retail"],["apartments"],["apar
         case 'fire': fire = m.fire;if (m.by && m.by !== net.you) {const r = remotes.get(m.by);if (r && ctx.onRemoteWood) ctx.onRemoteWood(r);}break;
         case 'rtc': voice.onSignal(m.from, m.d);break;
         case 'full': ctx.notice(`Lobby ${m.code || ''} is full (${net.max} players). Back in your own lobby.`, 5);break;
-        case 'reset': for (const id of [...remotes.keys()]) drop(id);occ = {};vehTargets.clear();for (const [, res] of pending) res({ok: true, offline: true});pending.clear();break;
+        case 'reset': for (const id of [...remotes.keys()]) drop(id);occ = {};tracks.clear();for (const [, res] of pending) res({ok: true, offline: true});pending.clear();break;
       }
     }
-    function settle(i) {const t = vehTargets.get(i), v = vehicles[i];if (t && v) {v.netSet(t.a);v.netCur = null;}vehTargets.delete(i);}
+    function settle(i) {const t = tracks.get(i), v = vehicles[i];if (t && v && t.track.count) v.netSet(t.track.newest);tracks.delete(i);}
     // Seats: online the lobby decides who gets a seat; offline every seat is yours.
     function claim(i, seat) {
       if (!net.online) return Promise.resolve({ok: true});
       return new Promise(res => {pending.set(i, res);net.send({t: 'claim', v: i, seat});setTimeout(() => {if (pending.get(i) === res) {pending.delete(i);res({ok: false, timeout: true});}}, 4000);});
     }
-    function release(i, seat, final) {if (net.online) net.send({t: 'release', v: i, seat, s: final});const o = occ[i];if (o && o[seat] === net.you) delete o[seat];}
+    function release(i, seat, final) {if (net.online) net.send({t: 'release', v: i, seat, s: final ? stamped(final) : final});const o = occ[i];if (o && o[seat] === net.you) delete o[seat];}
     const occupant = (i, seat) => {const o = occ[i];return o ? o[seat] || null : null;};
     const remoteDriven = i => {const d = occupant(i, 'd');return !!d && d !== net.you && remotes.has(d);};
     const nameOf = id => id === net.you ? net.name : (remotes.get(id) || {}).name || 'someone';
@@ -6731,30 +6858,18 @@ window.BUILDING_LOOKS = {"table":[[],["school"],["retail"],["apartments"],["apar
       if (net.online) net.send({t: 'fire'});
     }
     const angLerp = (a, b, k) => a + Math.atan2(Math.sin(b - a), Math.cos(b - a)) * k;
-    // Remote-driven vehicle: extrapolate the latest update a little and ease toward it.
-    function smoothVehicle(i, v, tgt, dt) {
-      const age = Math.min(.25, (performance.now() - tgt.at) / 1000), span = Math.max(.03, (tgt.at - tgt.prevAt) / 1000), a = tgt.a.slice(), k = 1 - Math.exp(-dt * 14);
-      for (let j = 0; j < 3; j++) a[j] += (tgt.a[j] - tgt.prev[j]) / span * age;
-      const cur = v.netCur || (v.netCur = tgt.a.slice()), out = cur;
-      if (v.aircraft) {
-        for (let j = 0; j < 3; j++) out[j] += (a[j] - out[j]) * k;
-        const q = new T.Quaternion(out[3], out[4], out[5], out[6]).slerp(new T.Quaternion(a[3], a[4], a[5], a[6]), k);out[3] = q.x;out[4] = q.y;out[5] = q.z;out[6] = q.w;
-        for (let j = 7; j < a.length; j++) out[j] = j >= 10 ? tgt.a[j] : out[j] + (a[j] - out[j]) * k;// 10: on the ground (a yes / no, never eased)
-      } else {
-        for (let j = 0; j < a.length; j++) out[j] = j >= 3 && j <= 5 ? angLerp(out[j], a[j], k) : out[j] + (a[j] - out[j]) * k;
-      }
-      v.netSet(out);v.netAnimate(dt);
-    }
+    // Remote-driven vehicle: the one pose it gets this frame, from its snapshot buffer (game-netsmooth.js).
+    function smoothVehicle(v, t, now, dt) {const a = t.track.sample(now);if (!a) return;v.netSet(a);v.netAnimate(dt);}
     function update(dt) {
       const now = performance.now(), cam = ctx.camera;
       // Send our own state ~10 Hz (only when somebody else is in the lobby).
       sendT -= dt;vehT -= dt;
       if (net.online && net.others > 0) {
         if (sendT <= 0) {sendT = .1;const s = ctx.localState();lastLocal = s;net.send({t: 'st', s});}
-        const di = ctx.drivingIndex();if (di >= 0 && vehT <= 0) {vehT = 1 / 12;net.send({t: 'vs', v: di, s: vehicles[di].netGet()});}
+        const di = ctx.drivingIndex();if (di >= 0 && vehT <= 0) {vehT = 1 / 12;net.send({t: 'vs', v: di, s: stamped(vehicles[di].netGet())});}
       }
       // Vehicles driven by others.
-      for (const [i, tgt] of vehTargets) {const v = vehicles[i];if (!v || !remoteDriven(i)) {settle(i);continue;}smoothVehicle(i, v, tgt, dt);}
+      const ns = now / 1000;for (const [i, t] of tracks) {const v = vehicles[i];if (!v || !remoteDriven(i)) {settle(i);continue;}smoothVehicle(v, t, ns, dt);}
       // Avatars.
       for (const r of remotes.values()) {
         const st = r.st;if (!st) {r.av.group.visible = false;continue;}
@@ -25198,6 +25313,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
   // After the vehicles and the lobby have moved this frame: your avatar in its seat, and the passenger's chase camera.
   function thirdPersonTick(dt) {
     const m = player.mode, v = player.vehicle, third = player.third;let g = null, stance = 'sit', speed = 0;
+    if (m === 'passenger' && v) {player.x = v.x;player.z = v.z;player.feet = v.y;player.yaw = v.yaw + (player.lookYaw || 0);if (!third) passengerView(v);}
     if (third && (m === 'vehicle' || m === 'passenger') && v) {
       const a = v.hipAnchor(m === 'vehicle' ? 'd' : 'p');
       if (a) {
@@ -25851,7 +25967,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
   function applyQuality() {sun.castShadow = quality > 0;sun.shadow.mapSize.set(quality > 1 ? 4096 : 2048, quality > 1 ? 4096 : 2048);if (sun.shadow.map) {sun.shadow.map.dispose();sun.shadow.map = null;}pixelRatio = Math.min(window.devicePixelRatio || 1, [.8, 1.25, 2][quality]);renderer.setPixelRatio(pixelRatio);resize();}
 
   // ---------- Frame update ----------
-  const clock = new T.Clock();let fpsAvg = 30, lowFrames = 0, ambienceTimer = 0, promptTimer = 0, cullT = 0, fireSoundT = 0;
+  const clock = new T.Clock();let fpsAvg = 30, lowFrames = 0, ambienceTimer = 0, promptTimer = 0, cullT = 0, remoteDyn = false, fireSoundT = 0;
   function resize() {const w = view.clientWidth, h = view.clientHeight;renderer.setSize(w, h, false);camera.aspect = w / h;camera.updateProjectionMatrix();overlayCamera.aspect = w / h;overlayCamera.updateProjectionMatrix();}
   new ResizeObserver(resize).observe(view);resize();
   function frame() {
@@ -25967,10 +26083,10 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     else if (player.mode === 'kayak') updateKayak(dt, input, dl);
     else updateFoot(dt, input, dl);
     // Other vehicles: parked ones idle (far ones are hidden and skipped), ones driven by other players are posed by the lobby.
-    cullT -= dt;if (cullT <= 0) {cullT = .4;for (const v of vehicles) {const near = Math.hypot(v.x - camera.position.x, v.z - camera.position.z) < (v.cullDistance || 170);v.group.visible = near || v === player.vehicle;}if (vehicles.some((v, i) => mp.remoteDriven(i))) updateDynamic();}
+    cullT -= dt;if (cullT <= 0) {cullT = .4;for (const v of vehicles) {const near = Math.hypot(v.x - camera.position.x, v.z - camera.position.z) < (v.cullDistance || 170);v.group.visible = near || v === player.vehicle;}remoteDyn = vehicles.some((v, i) => mp.remoteDriven(i));}
     vehicles.forEach((v, i) => {if (v === player.vehicle && player.mode === 'vehicle') return;if (mp.remoteDriven(i) || (gp && v === caravan)) return;if (!v.group.visible && Math.abs(v.speed || 0) < .01 && !v.aircraft) return;v.update(wdt, {});});
     if (fleet) fleet.tick(dt, camera, i => !!mp.occupant(i, 'd') || !!mp.occupant(i, 'p'), player.vehicle);
-    beerT = Math.max(0, beerT - dt);mp.update(dt);updatePilotAvatar(dt);thirdPersonTick(dt);if (player.mode === 'jumpseat' && skyd.ride) seatCamera();
+    beerT = Math.max(0, beerT - dt);mp.update(dt);if (remoteDyn) {remoteDyn = false;updateDynamic();}updatePilotAvatar(dt);thirdPersonTick(dt);if (player.mode === 'jumpseat' && skyd.ride) seatCamera();
     if (living) living.tick(dt, input, player, camera);// flat 501: chair in your hands, record player, TV, lava lamp, their sound
     if (rentals) rentals.tick(dt, player);jobs.tick(dt, {player, drunk: dl, camera});jobs.remoteTick(mp.remotes, vehicles, dt, camera);renderJobHud(crewTick());licTick(dt);if (jobs.phone.open) jobs.phone.render();
     if (site) site.update(wdt);
@@ -26431,18 +26547,21 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     const v = player.vehicle;
     if (input.pressed.has('square') && Math.abs(v.speed) < 3 && (!v.aircraft || v.grounded)) {exitPassenger();return;}
     if (viewPressed(input)) toggleThird();
-    if (player.third) orbitInput(input, dt, true);// the camera is placed in thirdPersonTick, once the lobby has moved the vehicle
-    else {
-      player.lookYaw = Math.max(-2.6, Math.min(2.6, (player.lookYaw || 0) - input.mouse.dx * .0024 * sensitivity.mouse - input.look.x * 2.2 * dt));player.lookPitch = Math.max(-1.2, Math.min(1, (player.lookPitch || 0) - input.mouse.dy * .0024 * sensitivity.mouse - input.look.y * 1.6 * dt));
-      v.group.updateMatrixWorld(true);camera.position.copy(v.group.localToWorld(v.passengerEye.clone()));
-      camera.quaternion.copy(v.group.getWorldQuaternion(new T.Quaternion())).multiply(new T.Quaternion().setFromEuler(new T.Euler(player.lookPitch - (v.kind === 'motorcycle' ? .1 : .05), player.lookYaw, 0, 'YXZ')));
-      if (dl) camera.rotateZ(Math.sin(performance.now() / 1300) * .08 * dl);
-      if (camera.fov !== 72) {camera.fov = 72;camera.updateProjectionMatrix();}
-    }
-    player.x = v.x;player.z = v.z;player.feet = v.y;player.yaw = v.yaw + player.lookYaw;
+    // Only the look input here: the camera (first and third person) is placed in passengerView / thirdPersonTick, after the
+    // lobby has posed the vehicle this frame (issue #135: placed here, the eye was one frame behind the car and the car jerked).
+    if (player.third) orbitInput(input, dt, true);
+    else {player.lookYaw = Math.max(-2.6, Math.min(2.6, (player.lookYaw || 0) - input.mouse.dx * .0024 * sensitivity.mouse - input.look.x * 2.2 * dt));player.lookPitch = Math.max(-1.2, Math.min(1, (player.lookPitch || 0) - input.mouse.dy * .0024 * sensitivity.mouse - input.look.y * 1.6 * dt));}
     const kmh = Math.abs(v.speed) * 3.6, drv = mp.occupant(vehicles.indexOf(v), 'd');
     if (passengerEngine) {if (v.kind === 'helicopter') passengerEngine.set(v.rpm, .5);else if (v.kind === 'plane') passengerEngine.set(v.prop || 700, v.throttle || 0);else if (v.kind === 'motorcycle') passengerEngine.set(1300 + (kmh % 50) / 50 * 8500, drv ? .5 : 0);else passengerEngine.set(800 + (kmh * 38) % 3600, drv ? .4 : 0);}
     const sp = $('speedo');sp.hidden = false;sp.classList.toggle('air', !!v.aircraft);sp.textContent = `Passenger${drv ? ' · ' + driverName(vehicles.indexOf(v)) + (v.aircraft ? ' flying' : ' driving') : ''} · ${Math.round(kmh)} km/h${v.aircraft ? ` · alt ${Math.max(0, v.y - heightAt(v.x, v.z)).toFixed(0)} m` : ''}`;
+  }
+  // The passenger's first-person eye in the vehicle's pose of this frame (called from thirdPersonTick, after mp.update).
+  const passQ = new T.Quaternion(), passE = new T.Euler(0, 0, 0, 'YXZ'), passLook = new T.Quaternion();
+  function passengerView(v) {
+    v.group.updateMatrixWorld(true);camera.position.copy(v.passengerEye);v.group.localToWorld(camera.position);
+    passE.set(player.lookPitch - (v.kind === 'motorcycle' ? .1 : .05), player.lookYaw, 0, 'YXZ');camera.quaternion.copy(v.group.getWorldQuaternion(passQ)).multiply(passLook.setFromEuler(passE));
+    const dl = drunkLevel();if (dl) camera.rotateZ(Math.sin(performance.now() / 1300) * .08 * dl);
+    if (camera.fov !== 72) {camera.fov = 72;camera.updateProjectionMatrix();}
   }
   function updateSit(dt, input, dl) {
     const sp = player.sitSpot;

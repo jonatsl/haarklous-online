@@ -731,6 +731,7 @@
   // After the vehicles and the lobby have moved this frame: your avatar in its seat, and the passenger's chase camera.
   function thirdPersonTick(dt) {
     const m = player.mode, v = player.vehicle, third = player.third;let g = null, stance = 'sit', speed = 0;
+    if (m === 'passenger' && v) {player.x = v.x;player.z = v.z;player.feet = v.y;player.yaw = v.yaw + (player.lookYaw || 0);if (!third) passengerView(v);}
     if (third && (m === 'vehicle' || m === 'passenger') && v) {
       const a = v.hipAnchor(m === 'vehicle' ? 'd' : 'p');
       if (a) {
@@ -1384,7 +1385,7 @@
   function applyQuality() {sun.castShadow = quality > 0;sun.shadow.mapSize.set(quality > 1 ? 4096 : 2048, quality > 1 ? 4096 : 2048);if (sun.shadow.map) {sun.shadow.map.dispose();sun.shadow.map = null;}pixelRatio = Math.min(window.devicePixelRatio || 1, [.8, 1.25, 2][quality]);renderer.setPixelRatio(pixelRatio);resize();}
 
   // ---------- Frame update ----------
-  const clock = new T.Clock();let fpsAvg = 30, lowFrames = 0, ambienceTimer = 0, promptTimer = 0, cullT = 0, fireSoundT = 0;
+  const clock = new T.Clock();let fpsAvg = 30, lowFrames = 0, ambienceTimer = 0, promptTimer = 0, cullT = 0, remoteDyn = false, fireSoundT = 0;
   function resize() {const w = view.clientWidth, h = view.clientHeight;renderer.setSize(w, h, false);camera.aspect = w / h;camera.updateProjectionMatrix();overlayCamera.aspect = w / h;overlayCamera.updateProjectionMatrix();}
   new ResizeObserver(resize).observe(view);resize();
   function frame() {
@@ -1500,10 +1501,10 @@
     else if (player.mode === 'kayak') updateKayak(dt, input, dl);
     else updateFoot(dt, input, dl);
     // Other vehicles: parked ones idle (far ones are hidden and skipped), ones driven by other players are posed by the lobby.
-    cullT -= dt;if (cullT <= 0) {cullT = .4;for (const v of vehicles) {const near = Math.hypot(v.x - camera.position.x, v.z - camera.position.z) < (v.cullDistance || 170);v.group.visible = near || v === player.vehicle;}if (vehicles.some((v, i) => mp.remoteDriven(i))) updateDynamic();}
+    cullT -= dt;if (cullT <= 0) {cullT = .4;for (const v of vehicles) {const near = Math.hypot(v.x - camera.position.x, v.z - camera.position.z) < (v.cullDistance || 170);v.group.visible = near || v === player.vehicle;}remoteDyn = vehicles.some((v, i) => mp.remoteDriven(i));}
     vehicles.forEach((v, i) => {if (v === player.vehicle && player.mode === 'vehicle') return;if (mp.remoteDriven(i) || (gp && v === caravan)) return;if (!v.group.visible && Math.abs(v.speed || 0) < .01 && !v.aircraft) return;v.update(wdt, {});});
     if (fleet) fleet.tick(dt, camera, i => !!mp.occupant(i, 'd') || !!mp.occupant(i, 'p'), player.vehicle);
-    beerT = Math.max(0, beerT - dt);mp.update(dt);updatePilotAvatar(dt);thirdPersonTick(dt);if (player.mode === 'jumpseat' && skyd.ride) seatCamera();
+    beerT = Math.max(0, beerT - dt);mp.update(dt);if (remoteDyn) {remoteDyn = false;updateDynamic();}updatePilotAvatar(dt);thirdPersonTick(dt);if (player.mode === 'jumpseat' && skyd.ride) seatCamera();
     if (living) living.tick(dt, input, player, camera);// flat 501: chair in your hands, record player, TV, lava lamp, their sound
     if (rentals) rentals.tick(dt, player);jobs.tick(dt, {player, drunk: dl, camera});jobs.remoteTick(mp.remotes, vehicles, dt, camera);renderJobHud(crewTick());licTick(dt);if (jobs.phone.open) jobs.phone.render();
     if (site) site.update(wdt);
@@ -1964,18 +1965,21 @@
     const v = player.vehicle;
     if (input.pressed.has('square') && Math.abs(v.speed) < 3 && (!v.aircraft || v.grounded)) {exitPassenger();return;}
     if (viewPressed(input)) toggleThird();
-    if (player.third) orbitInput(input, dt, true);// the camera is placed in thirdPersonTick, once the lobby has moved the vehicle
-    else {
-      player.lookYaw = Math.max(-2.6, Math.min(2.6, (player.lookYaw || 0) - input.mouse.dx * .0024 * sensitivity.mouse - input.look.x * 2.2 * dt));player.lookPitch = Math.max(-1.2, Math.min(1, (player.lookPitch || 0) - input.mouse.dy * .0024 * sensitivity.mouse - input.look.y * 1.6 * dt));
-      v.group.updateMatrixWorld(true);camera.position.copy(v.group.localToWorld(v.passengerEye.clone()));
-      camera.quaternion.copy(v.group.getWorldQuaternion(new T.Quaternion())).multiply(new T.Quaternion().setFromEuler(new T.Euler(player.lookPitch - (v.kind === 'motorcycle' ? .1 : .05), player.lookYaw, 0, 'YXZ')));
-      if (dl) camera.rotateZ(Math.sin(performance.now() / 1300) * .08 * dl);
-      if (camera.fov !== 72) {camera.fov = 72;camera.updateProjectionMatrix();}
-    }
-    player.x = v.x;player.z = v.z;player.feet = v.y;player.yaw = v.yaw + player.lookYaw;
+    // Only the look input here: the camera (first and third person) is placed in passengerView / thirdPersonTick, after the
+    // lobby has posed the vehicle this frame (issue #135: placed here, the eye was one frame behind the car and the car jerked).
+    if (player.third) orbitInput(input, dt, true);
+    else {player.lookYaw = Math.max(-2.6, Math.min(2.6, (player.lookYaw || 0) - input.mouse.dx * .0024 * sensitivity.mouse - input.look.x * 2.2 * dt));player.lookPitch = Math.max(-1.2, Math.min(1, (player.lookPitch || 0) - input.mouse.dy * .0024 * sensitivity.mouse - input.look.y * 1.6 * dt));}
     const kmh = Math.abs(v.speed) * 3.6, drv = mp.occupant(vehicles.indexOf(v), 'd');
     if (passengerEngine) {if (v.kind === 'helicopter') passengerEngine.set(v.rpm, .5);else if (v.kind === 'plane') passengerEngine.set(v.prop || 700, v.throttle || 0);else if (v.kind === 'motorcycle') passengerEngine.set(1300 + (kmh % 50) / 50 * 8500, drv ? .5 : 0);else passengerEngine.set(800 + (kmh * 38) % 3600, drv ? .4 : 0);}
     const sp = $('speedo');sp.hidden = false;sp.classList.toggle('air', !!v.aircraft);sp.textContent = `Passenger${drv ? ' · ' + driverName(vehicles.indexOf(v)) + (v.aircraft ? ' flying' : ' driving') : ''} · ${Math.round(kmh)} km/h${v.aircraft ? ` · alt ${Math.max(0, v.y - heightAt(v.x, v.z)).toFixed(0)} m` : ''}`;
+  }
+  // The passenger's first-person eye in the vehicle's pose of this frame (called from thirdPersonTick, after mp.update).
+  const passQ = new T.Quaternion(), passE = new T.Euler(0, 0, 0, 'YXZ'), passLook = new T.Quaternion();
+  function passengerView(v) {
+    v.group.updateMatrixWorld(true);camera.position.copy(v.passengerEye);v.group.localToWorld(camera.position);
+    passE.set(player.lookPitch - (v.kind === 'motorcycle' ? .1 : .05), player.lookYaw, 0, 'YXZ');camera.quaternion.copy(v.group.getWorldQuaternion(passQ)).multiply(passLook.setFromEuler(passE));
+    const dl = drunkLevel();if (dl) camera.rotateZ(Math.sin(performance.now() / 1300) * .08 * dl);
+    if (camera.fov !== 72) {camera.fov = 72;camera.updateProjectionMatrix();}
   }
   function updateSit(dt, input, dl) {
     const sp = player.sitSpot;
