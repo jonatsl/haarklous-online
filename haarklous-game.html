@@ -412,7 +412,7 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
           <dt>Paintball</dt><dd>Walk into the lobby outside the course gate (the first one there is the admin) · ↑↓ team · admin: ←→ game, △ paint / reball, hold ✕ start · in a game: R2 / left mouse fire, L2 / right mouse aim, □ / R reload, hold △ leave</dd>
           <dt>Helicopter</dt><dd>Mode 2: left stick ↑↓ collective (centre = hover; tilting takes lift, so add collective to keep your height), ←→ pedals · right stick pitch and roll · R3 / V chase camera · □ get out after landing · Keyboard + mouse (Battlefield): W/S collective, A/D pedals, mouse pitch and roll (mouse up = nose down), hold Shift or the right mouse button to look around</dd>
           <dt>Plane</dt><dd>Mode 2: left stick ↑↓ throttle (stays where you leave it), ←→ rudder and nose wheel · right stick pitch and roll (pull back to lift off at about 95 km/h) · L2 brakes · R3 / V view · Keyboard + mouse: W/S throttle, A/D rudder, mouse pitch and roll, hold Shift to look around</dd>
-          <dt>Skydiving</dt><dd>Jump flight from the airstrip every 8 minutes, or the Caravan (fly it yourself, or board and press △ / F for the game's pilot): □ at the plane to board or get off · ✕ / Space jumps (in the Caravan's cockpit: the game's pilot takes over) · freefall: left stick ↑ / W lean forward and track, ↓ / S lean back and back-slide, ←→ / A D turn, tricks □ / E front loop, ○ / C back loop, △ / F barrel roll, ✕ / Space pull at about 1000 m · canopy: ←→ / A D steer, ↑ / W both front risers (dive), L1 / Q or R1 / E one front riser (diving turn), ↓ / S flare just before landing (stronger after a dive) · R3 / V outside view</dd>
+          <dt>Skydiving</dt><dd>Jump flight from the airstrip every 8 minutes, or the Caravan (fly it yourself, or board and press △ / F for the game's pilot): □ at the plane to board or get off · in the air you may jump at any height (below 300 m the parachute may not open in time; the green light on the jump run is the best moment): ✕ / Space or □ / E go to the door, □ / E opens or closes the roll-up door, ✕ / Space jumps, ○ / C back to your seat, right stick / mouse look out of the windows (in the Caravan's cockpit ✕ / Space: the game's pilot takes over and you go to the door) · freefall: left stick ↑ / W lean forward and track, ↓ / S lean back and back-slide, ←→ / A D turn, tricks □ / E front loop, ○ / C back loop, △ / F barrel roll, ✕ / Space pull at about 1000 m · canopy: ←→ / A D steer, ↑ / W both front risers (dive), L1 / Q or R1 / E one front riser (diving turn), ↓ / S flare just before landing (stronger after a dive) · R3 / V outside view</dd>
           <dt>FPV drone</dt><dd>Hold △, pick the drone · left stick ↑↓ thrust, ←→ yaw · right stick tilt (angle) or rates (acro) – tilting costs height, so add thrust · L1 / Q angle ↔ acro · ✕ reset after a crash · ○ pack away · R3 / V FPV ↔ view from behind the drone · Keyboard + mouse: W/S thrust, A/D yaw, mouse tilt (up = nose down), hold Shift to look around (behind the drone: to turn the camera)</dd>
           <dt>Multiplayer</dt><dd>Up to twelve players per lobby (code above) · □ next to a vehicle someone is driving: ride along as passenger (motorcycle, cars, helicopter, plane; R3 / V first / third person) · Share / Enter: chat</dd>
           <dt>Firepit</dt><dd>In the park in front of the building: □ sit on a bench, R2 have a beer, □ at the woodpile throws a log on the fire</dd>
@@ -5115,7 +5115,7 @@ window.BRIDGES = {"attribution":"Map data © OpenStreetMap contributors (ODbL)."
  * Interaction sounds: footsteps per surface, doors, drinks, camera shutter, disc golf chains, boules, excavator.
  * Engines: inline-four motorcycle (CBF600), four-cylinder car, diesel excavator with hydraulics, helicopter (rotor slap
  * and turbine), light-aircraft piston engine and propeller, FPV drone motors.
- * GameAudio.create() -> {resume(), ambience(state), footstep(surface, inStair), sfx(name, opts), engine(kind), hydraulics(), water(level), siren(level, pan)}
+ * GameAudio.create() -> {resume(), ambience(state), footstep(surface, inStair), sfx(name, opts), engine(kind), hydraulics(), water(level), siren(level, pan), rush(level) (the wind at a jump plane's open door)}
  *   sfx opts: gain, reverb, pan (-1 left … 1 right: a sound from somewhere, e.g. a prop hunt whistle)
  *   output: the node every other sound in the game connects to (music, the catacomb, the flat's record and TV, the mission)
  *   ondevicechange: set by the game; called when a sound device was connected or removed (for a notice)
@@ -5282,6 +5282,15 @@ window.BRIDGES = {"attribution":"Map data © OpenStreetMap contributors (ODbL)."
       if (!ctx || ctx.state !== 'running') return;
       if (!waterNode) {const n = noise(), bp = ctx.createBiquadFilter(), lp = ctx.createBiquadFilter(), g = ctx.createGain();bp.type = 'highpass';bp.frequency.value = 300;lp.type = 'lowpass';lp.frequency.value = 1200;g.gain.value = 0;n.connect(bp).connect(lp).connect(g);out(g);n.start();waterNode = {g, lp};}
       level = fin(level);const t = now();glide(waterNode.g.gain, .07 * level, t, .3);glide(waterNode.lp.frequency, 900 + level * 2600, t, .3);
+    }
+
+    // The wind roaring in at a jump plane's open door (issue #165): a low, gusting rush; rush(level 0..1), 0 = silent.
+    let rushNode = null;
+    function rush(level) {
+      if (!ctx || ctx.state !== 'running') return;
+      level = Math.max(0, Math.min(1, fin(level)));
+      if (!rushNode) {if (!(level > 0)) return;const n = noise(), bp = ctx.createBiquadFilter(), lp = ctx.createBiquadFilter(), g = ctx.createGain();bp.type = 'highpass';bp.frequency.value = 90;lp.type = 'lowpass';lp.frequency.value = 700;g.gain.value = 0;n.connect(bp).connect(lp).connect(g);out(g);n.start();rushNode = {g, lp};}
+      const t = now(), gust = .85 + .15 * Math.sin(t * 1.7) * Math.sin(t * .63);glide(rushNode.g.gain, .16 * level * gust, t, .25);glide(rushNode.lp.frequency, 500 + 1500 * level * gust, t, .3);
     }
 
     // Police siren (issue #140): the two-tone of Norwegian emergency vehicles (about B♭4 / E♭5, 0.6 s each), one voice for the
@@ -5492,7 +5501,7 @@ window.BRIDGES = {"attribution":"Map data © OpenStreetMap contributors (ODbL)."
       if (!init()) return;if (!muffleF) {muffleF = ctx.createBiquadFilter();muffleF.type = 'lowpass';muffleF.frequency.value = 20000;master.disconnect();master.connect(muffleF).connect(bus);}
       muffleF.frequency.setTargetAtTime(on ? 700 : 20000, now(), .25);
     }
-    const api = {resume, ambience, footstep, sfx, engine, fire, water, siren, muffle, ondevicechange: null, get context() {return ctx;}, get output() {return bus || null;}};
+    const api = {resume, ambience, footstep, sfx, engine, fire, water, siren, rush, muffle, ondevicechange: null, get context() {return ctx;}, get output() {return bus || null;}};
     return api;
   }
   return {create};
@@ -9280,6 +9289,7 @@ window.KLATREVERKET={"attribution":"Building: OpenStreetMap way 1031709261 (ODbL
   function create({T, lib, audio, heightAt, collision, worldFor}) {
     const V3 = (x = 0, y = 0, z = 0) => new T.Vector3(x, y, z), G = 9.81, RHO = 1.225;
     const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+    const AC_SKY = () => (typeof window !== 'undefined' ? window : globalThis).GameSkydive;// the jump door's track (game-skydive.js)
     const mesh = (parent, geo, mat, x = 0, y = 0, z = 0) => {const m = new T.Mesh(geo, mat);m.position.set(x, y, z);m.castShadow = true;m.receiveShadow = true;parent.add(m);return m;};
     const box = (p, w, h, d, x, y, z, mat) => mesh(p, new T.BoxGeometry(w, h, d), mat, x, y, z);
     const rod = (parent, a, b, r, mat, seg = 10) => {const A = V3(...a), B = V3(...b), d = B.clone().sub(A), m = mesh(parent, new T.CylinderGeometry(r, r, d.length(), seg), mat);m.position.copy(A).add(B).multiplyScalar(.5);m.quaternion.setFromUnitVectors(V3(0, 1, 0), d.normalize());return m;};
@@ -9593,31 +9603,54 @@ window.KLATREVERKET={"attribution":"Building: OpenStreetMap way 1031709261 (ODbL
         // Jumpers sit on two benches along the cabin, facing the tail; place n = n-th player in the lobby.
         this.jumpSeats = [];for (let k = 0; k < 6; k++) for (const sx of [-1, 1]) this.jumpSeats.push(V3(sx * .42, -.32, -2.3 + k * .82));
         for (let i = 0; i < 12; i++) this.hips['j' + i] = {pos: this.jumpSeats[i], yaw: Math.PI};
-        this.door = V3(-1.05, .0, 1.55);// just outside the roll-up door
+        this.door = V3(-1.05, .0, this.doorZ);// just outside the roll-up door
+        this.doorEye = V3(-.5, .28, this.doorZ);// kneeling inside the open door, looking out (issue #165)
         this.gearH = 1.55;this.reset();
       }
       hipAnchor(seat) {const h = this.hips[seat];return h ? {obj: this.group, pos: h.pos, stance: 'sit', yaw: h.yaw || 0} : null;}// jumpers face the tail
       doorWorld() {this.group.updateMatrixWorld(true);return this.door.clone().applyMatrix4(this.group.matrixWorld);}
+      doorEyeWorld() {this.group.updateMatrixWorld(true);return this.doorEye.clone().applyMatrix4(this.group.matrixWorld);}
+      // The roll-up door: k 0 = closed, 1 = open (the slats run up the wall and along under the roof).
+      setDoor(k) {
+        k = clamp(k, 0, 1);if (Math.abs(k - this.doorK) < 1e-4) return;this.doorK = k;
+        const SK = AC_SKY(), DR = SK.DOOR, n = this.doorSlats.count, h = DR.h / n, m = new T.Matrix4(), r = new T.Matrix4();
+        for (let i = 0; i < n; i++) {const p = SK.doorTrack(k * DR.h + (i + .5) * h);m.makeTranslation(p.x, p.y, this.doorZ).multiply(r.makeRotationZ(p.rot));this.doorSlats.setMatrixAt(i, m);}
+        this.doorSlats.instanceMatrix.needsUpdate = true;
+      }
       seatWorld(i) {this.group.updateMatrixWorld(true);return this.jumpSeats[i % 12].clone().applyMatrix4(this.group.matrixWorld);}
       build() {
         const g = this.group, white = paintMat(0xf2f3f1), blue = paintMat(0x1f4f9a), red = paintMat(0xc8322c), glass = glassMat(), shell = paintMat(0xf2f3f1);shell.side = T.DoubleSide;
         const inner = new T.MeshStandardMaterial({color: 0x5a5f66, roughness: .85, side: T.DoubleSide}), floorM = new T.MeshStandardMaterial({color: 0x3a3d42, roughness: .9});
-        // Cabin: a squarish tube 1.64 x 1.6 m, open at the door; nose cone with the engine cowling; tail cone rising to the fin.
-        const cabin = (z0, z1, sideOpen) => {
-          const L = z1 - z0, zc = (z0 + z1) / 2;
-          box(g, 1.64, .06, L, 0, -.62, zc, floorM);box(g, 1.64, .06, L, 0, .98, zc, shell);
-          box(g, .05, 1.6, L, .82, .18, zc, shell);
-          if (!sideOpen) box(g, .05, 1.6, L, -.82, .18, zc, shell);
-          else {box(g, .05, 1.6, 1.1, -.82, .18, z0 + .55, shell);box(g, .05, .3, L - 1.1, -.82, .83, (z0 + 1.1 + z1) / 2, shell);}
-        };
-        cabin(-4.3, .9, false);cabin(.9, 2.25, true);// the door opening: 1.35 m wide, 1.3 m high, left side behind the wing
+        // Cabin: a squarish tube 1.64 x 1.6 m; nose cone with the engine cowling; tail cone rising to the fin.
+        // The side walls (issue #165) are built round real openings: the cockpit side windows, a row of low cabin windows you
+        // see out of from the benches (eye height about 0.46 m over the model origin) and the 1.2 x 1.27 m jump door on the left
+        // behind the wing. Each opening has a glass pane (left out at the door), a little larger than the hole so its edges sit
+        // inside the wall (no gaps, no coplanar faces).
+        const Z0 = -4.3, Z1 = 2.25, Y0 = -.66, Y1 = .98, WIN = [.14, .58];
+        box(g, 1.64, .06, Z1 - Z0, 0, -.62, (Z0 + Z1) / 2, floorM);box(g, 1.64, .06, Z1 - Z0, 0, .98, (Z0 + Z1) / 2, shell);
+        const cockpitWin = [-4.05, -3.25, .1, .62], cabinWin = zc => [zc - .25, zc + .25, WIN[0], WIN[1]];
+        const DR = AC_SKY().DOOR, doorHole = [1.0, 2.2, DR.y0, DR.y0 + DR.h];this.doorZ = 1.6;
+        const holes = {
+          [-1]: [cockpitWin, ...[-2.3, -1.45, -.6, .25].map(cabinWin), doorHole],
+          [1]: [cockpitWin, ...[-2.3, -1.45, -.6, .25, 1.1, 1.85].map(cabinWin)]};
+        for (const sx of [-1, 1]) {
+          const H = holes[sx], cuts = [...new Set([Z0, Z1, ...H.flatMap(h => [h[0], h[1]])])].sort((a, b) => a - b), x = sx * .82;
+          for (let i = 0; i + 1 < cuts.length; i++) {
+            const a = cuts[i], b = cuts[i + 1], h = H.find(o => o[0] <= a + 1e-6 && o[1] >= b - 1e-6), zc = (a + b) / 2, L = b - a;
+            if (!h) {box(g, .05, Y1 - Y0, L, x, (Y0 + Y1) / 2, zc, shell);continue;}
+            box(g, .05, h[2] - Y0, L, x, (Y0 + h[2]) / 2, zc, shell);box(g, .05, Y1 - h[3], L, x, (h[3] + Y1) / 2, zc, shell);
+            if (h !== doorHole) box(g, .015, h[3] - h[2] + .02, L + .02, x, (h[2] + h[3]) / 2, zc, glass);
+          }
+        }
         box(g, 1.62, 1.56, .04, 0, .18, 2.27, inner);// cabin back wall
-        for (let k = 0; k < 4; k++) for (const sx of [-1, 1]) box(g, .02, .32, .38, sx * .845, .45, -2.2 + k * .95, glass);// windows
         const prof = (pts, z, mat, sc = [1, 1]) => {const l = new T.LatheGeometry(pts.map(([r, y]) => new T.Vector2(r, y)), 20);l.rotateX(Math.PI / 2);l.translate(0, 0, z);const m = mesh(g, l, mat);m.scale.set(sc[0], sc[1], 1);return m;};
         prof([[0, 0], [.22, .15], [.5, .7], [.62, 1.5], [.68, 2.0]], -6.3, white, [1.2, 1.2]);// nose and cowling, at -6.3 .. -4.3
         prof([[.95, 0], [.86, 1.4], [.55, 2.8], [.3, 3.9], [.12, 4.15]], 2.25, white, [.86, .9]).position.y = .2;// tail cone
-        box(g, 1.7, .08, 9.2, 0, -.5, -1.6, blue);// belly stripe
-        box(g, .02, .14, 6.6, .84, .32, -.9, red);box(g, .02, .14, 6.6, -.84, .32, -1.5, red);// cheat lines
+        box(g, 1.72, .08, 9.2, 0, -.71, -1.6, blue);// belly stripe (under the cabin floor)
+        box(g, .02, .12, 6.4, .86, -.08, -1.0, red);box(g, .02, .12, 5.1, -.86, -.08, -1.65, red);// cheat lines, under the windows (the left one stops at the door)
+        // The roll-up jump door: six slats on a track up the wall and under the roof, one draw call; setDoor(k) moves them.
+        {const DR = AC_SKY().DOOR, n = 6;this.doorSlats = new T.InstancedMesh(new T.BoxGeometry(.03, DR.h / n - .004, 1.24), paintMat(0xe9eae7), n);
+          this.doorSlats.castShadow = true;this.doorSlats.frustumCulled = false;this.doorSlats.userData.noMerge = true;g.add(this.doorSlats);this.doorK = -1;this.setDoor(0);}
         // Windscreen and cockpit.
         const ws = box(g, 1.5, .55, .05, 0, .65, -4.25, glass);ws.rotation.x = -.6;
         box(g, 1.3, .3, .1, 0, .2, -3.95, dark);for (let i = 0; i < 6; i++) {const gg = mesh(g, new T.CylinderGeometry(.04, .04, .01, 16), gaugeM, -.5 + i * .2, .24, -3.89);gg.rotation.x = Math.PI / 2;}
@@ -16131,6 +16164,8 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
  * GameSkydive.canopy(T, color) -> Group (a ram-air canopy with lines; origin at the jumper's harness)
  * The game's pilot in the Caravan (pure): pilotGround({t0, from, hold, ground, gearH}) or pilotOrbit({t0, pos, yaw, pitch,
  *   roll, speed, vy, toward, ground}) -> G; pilotFlight(t, G) -> {phase, x, y, z, yaw, pitch, roll, speed, green, left}
+ * The jump door (issue #165, pure): riderAction(btn, {atDoor, doorOpen, inAir, stopped}), tooLow(agl), doorEncode /
+ *   doorDecode / doorOpenNow (the shared door state, a lobby obj), doorTrack(s) (the roll-up door's slats)
  */
 (function (root, factory) {
   const api = factory();
@@ -16306,6 +16341,38 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
     return f && f.visible ? f : {phase: 'done', visible: false};
   }
 
+  // ---------- The jump door and when you may jump (issue #165, pure) ----------
+  // You may jump at any height once the plane is in the air, from the door, with the door open. Below LOW_AGL the game
+  // warns you (the canopy may not open in time) but lets you go. On the ground with the plane stopped the door is the way out.
+  // btn 'cross' | 'square' | 'circle'; s {atDoor, doorOpen, inAir, stopped} -> 'getOff' | 'toDoor' | 'toSeat' | 'toggle' |
+  //   'jump' | 'openFirst' | 'wait' (moving on the ground) | null
+  const LOW_AGL = 300;
+  function riderAction(btn, {atDoor = false, doorOpen = false, inAir = false, stopped = false} = {}) {
+    if (btn === 'square') return stopped ? 'getOff' : atDoor ? 'toggle' : 'toDoor';
+    if (btn === 'circle') return atDoor && !stopped ? 'toSeat' : null;
+    if (btn !== 'cross') return null;
+    if (stopped) return atDoor ? 'getOff' : 'toDoor';
+    if (!atDoor) return 'toDoor';
+    if (!inAir) return 'wait';
+    return doorOpen ? 'jump' : 'openFirst';
+  }
+  const tooLow = agl => Number.isFinite(agl) && agl < LOW_AGL;
+  // The door's state is a lobby 'obj' (the Worker keeps it for players who join later; no Worker change): the last change,
+  // [t (lobby clock, s), open 0 | 1]. While the plane stands still on the ground the door is open (boarding); a change made
+  // before the last still moment no longer counts, so the door is closed for take-off and the climb until a rider opens it.
+  const doorEncode = r => r && Number.isFinite(r.t) ? [Math.round(r.t * 100) / 100, r.open ? 1 : 0] : null;
+  function doorDecode(v) {if (!Array.isArray(v) || v.length < 2) return null;const t = Number(v[0]);return Number.isFinite(t) ? {t, open: !!Number(v[1])} : null;}
+  const doorOpenNow = (still, rec, since = -Infinity) => still ? true : !!(rec && rec.t > since && rec.open);
+  // The roll-up door's slats along their track (model frame of the JumpPlane): up the side wall, round a bend and along
+  // under the cabin roof. s = metres from the door's bottom edge when closed -> {x, y, rot} (rot about z).
+  const DOOR = {x: -.82, y0: -.57, h: 1.27, top: .75, r: .15, roof: .9};
+  function doorTrack(s) {
+    const D = DOOR, Lv = D.top - D.y0, A = Math.PI / 2 * D.r;
+    if (s <= Lv) return {x: D.x, y: D.y0 + s, rot: 0};
+    if (s <= Lv + A) {const phi = (s - Lv) / D.r, th = Math.PI - phi;return {x: D.x + D.r + D.r * Math.cos(th), y: D.top + D.r * Math.sin(th), rot: -phi};}
+    return {x: D.x + D.r + (s - Lv - A), y: D.roof, rot: -Math.PI / 2};
+  }
+
   // A ram-air sport canopy: 9 cells in a gentle arch about 5.3 m wide and 2.4 m deep, 2.6 m above the harness, with lines.
   function canopy(T, color = 0xd23b2f) {
     const g = new T.Group(), top = new T.MeshStandardMaterial({color, roughness: .7, side: T.DoubleSide}), rib = new T.MeshStandardMaterial({color: 0x2b2b2b, roughness: .8, side: T.DoubleSide});
@@ -16320,7 +16387,8 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
     g.add(new T.LineSegments(lg, new T.LineBasicMaterial({color: 0xd8d8d8, transparent: true, opacity: .7})));g.userData.rib = rib;
     return g;
   }
-  return {Jumper, TRICKS, plan, flight, canopy, pilotGround, pilotOrbit, pilotFlight, clearToRoll, CYCLE, JUMP_AGL, AAD_ALT, PULL_HINT, VT, CANOPY, phases: {BOARD_FROM, ROLL, CLIMBOUT, SPIRAL, RUN, AWAY}};
+  return {Jumper, TRICKS, plan, flight, canopy, pilotGround, pilotOrbit, pilotFlight, clearToRoll, CYCLE, JUMP_AGL, AAD_ALT, PULL_HINT, VT, CANOPY, phases: {BOARD_FROM, ROLL, CLIMBOUT, SPIRAL, RUN, AWAY},
+    riderAction, tooLow, LOW_AGL, doorEncode, doorDecode, doorOpenNow, doorTrack, DOOR};
 });
 </script><script>/* Real weather (issue #23): MET Norway's forecast for Haarklous plass (Locationforecast 2.0 complete), fetched through the
  * game's own Cloudflare Worker (/weather adds the User-Agent MET asks for and caches the answer for everybody) when the game
@@ -27596,7 +27664,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
   const AIR_HELP = {
     helicopter: 'Helicopter (Mode 2) · left stick ↑↓ collective (centre = hover), ←→ pedals · right stick pitch/roll · R3 / V chase camera · Keyboard + mouse: W/S collective, A/D pedals, mouse pitch/roll (up = nose down), hold Shift to look around · the rotor needs a few seconds to spool up',
     plane: 'Plane (Mode 2) · left stick ↑ to add throttle (it stays), ←→ rudder/nose wheel · right stick pitch/roll · pull back at about 85 km/h · L2 brakes · R3 / V view · Keyboard + mouse: W/S throttle, A/D rudder, mouse pitch/roll (up = nose down), hold Shift to look around',
-    jumpplane: 'Caravan jump plane (Mode 2, flies like the plane) · left stick ↑ throttle (it stays), ←→ rudder/nose wheel · right stick pitch/roll · the flaps are automatic: pull back at about 110 km/h · L2 brakes · R3 / V view · others board at the door (□) and can jump above 300 m · △ / F: the game\'s pilot takes over (you go to the back) · ✕ / Space above 300 m: jump yourself (the game\'s pilot takes over) · Keyboard + mouse: W/S throttle, A/D rudder, mouse pitch/roll, hold Shift to look around'};
+    jumpplane: 'Caravan jump plane (Mode 2, flies like the plane) · left stick ↑ throttle (it stays), ←→ rudder/nose wheel · right stick pitch/roll · the flaps are automatic: pull back at about 110 km/h · L2 brakes · R3 / V view · others board at the door (□) and can jump any time in the air · △ / F: the game\'s pilot takes over (you go to the back) · ✕ / Space in the air: the game\'s pilot takes over and you go to the jump door (□ / E opens it, ✕ / Space jumps; below 300 m the parachute may not open in time) · Keyboard + mouse: W/S throttle, A/D rudder, mouse pitch/roll, hold Shift to look around'};
   function setClip(near, far) {if (camera.near !== near || camera.far !== far) {camera.near = near;camera.far = far;camera.updateProjectionMatrix();applyNearFog();}}
   // ---------- Third person in the vehicles (issue #129) ----------
   // R3 / V switches between first and third person in every vehicle you drive, ride, fly or paddle; the choice is kept while
@@ -28405,7 +28473,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     if (boost && (boost.t -= dt) <= 0) {boost = null;audio.muffle(false);notice('The boost wears off.', 2);}
     const wdt = dt * worldScale();stash.update(dt);shopsTick(dt);storgataTick(dt);gym.update(dt, player, camera);grunerTick(dt);homesTick(dt);if (route) route.tick(player, dt);world.update(camera.position);
     // The jump planes move first, so a jumper's seat (and camera) is where the plane is this frame.
-    updateJumpFlight(dt);updateGamePilot(dt);
+    updateJumpFlight(dt);updateGamePilot(dt);updateDoors(dt);
     licExaminer(input);
     if (transit) transit.tick(dt, {camera, player});transitDynamic();
     if (player.mode === 'vehicle') updateVehicle(dt, input, dl);
@@ -28645,9 +28713,10 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
   function updateAircraft(dt, input, dl) {
     const v = player.vehicle;
     if (input.pressed.has('square') && v.grounded && v.speed < 3) {exitVehicle();return;}
-    // The Caravan: △ hands it to the game's pilot (you go to the back); ✕ above 300 m hands it over and jumps.
+    // The Caravan: △ hands it to the game's pilot (you go to the back); ✕ in the air hands it over and takes you to the jump door
+    // (any height since issue #165; open the door with □ and jump with ✕).
     if (v === caravan && input.pressed.has('triangle')) {handOver(false);return;}
-    if (v === caravan && input.pressed.has('cross') && !v.grounded) {if (v.y - heightAt(v.x, v.z) > 300) {handOver(true);return;}notice('Climb above 300 m to jump.', 2);}
+    if (v === caravan && input.pressed.has('cross') && !v.grounded) {handOver(true);return;}
     if (viewPressed(input)) toggleThird();// the chase camera (issue #129: the same remembered choice as the other vehicles)
     v.update(dt, flightSticks(input, dl, dt));
     const pose = v.cameraPose(player.third, player.chaseCam);if (player.third) player.chaseCam = pose.position.clone();
@@ -28721,55 +28790,105 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     return null;
   }
   function enterSeat(craft, auto) {
-    watch.hide();if (photo.active) photo.toggle();player.mode = 'jumpseat';player.vehicle = null;skyd.ride = {craft, auto, seat: mySeat()};player.lookYaw = 0;player.lookPitch = 0;
-    setClip(.12, 1600);audio.sfx('doorClose');notice(auto ? 'You are on the jump flight. It climbs to 3000 m; at the green light press ✕ (Space) to jump. □ gets off before take-off.' : 'You are a jumper in the Caravan. When it is above 300 m, press ✕ (Space) to jump.', 6);
+    watch.hide();if (photo.active) photo.toggle();player.mode = 'jumpseat';player.vehicle = null;skyd.ride = {craft, auto, seat: mySeat(), atDoor: false, lowWarned: false};player.lookYaw = 0;player.lookPitch = 0;
+    setClip(.12, 1600);audio.sfx('doorClose');
+    notice((auto ? 'You are on the jump flight. It climbs to 3000 m (the green light on the jump run is the best moment).' : 'You are a jumper in the Caravan.') + ' Jump whenever the plane is in the air: ✕ / Space goes to the door, □ / E opens it, ✕ / Space jumps. □ gets off before take-off.', 7);
   }
   const boardAuto = () => enterSeat(autoPlane, true), boardCaravan = () => enterSeat(caravan, false);
-  function leaveSeat(where) {const p = where || skyd.ride.craft.doorWorld();skyd.ride = null;player.mode = 'foot';place(p.x, p.z, player.yaw);setClip(.05, 450);}
-  function canJump() {
-    const R = skyd.ride;if (!R) return false;const c = R.craft, agl = c.pos.y - heightAt(c.pos.x, c.pos.z);
-    return R.auto ? jumpFlight.green : !c.grounded && agl > 300;
+  function leaveSeat(where) {const p = where || skyd.ride.craft.doorWorld();skyd.ride = null;player.mode = 'foot';place(p.x, p.z, player.yaw);setClip(.05, 450);audio.rush(0);}
+  // ---- The jump door (issue #165): one door per jump plane, its last change a lobby obj ('skydoor0' the jump flight,
+  // 'skydoor1' the Caravan: [t, open], SKY.doorEncode), so the Worker keeps it for players who join later ----
+  // still = the plane stands on the ground (boarding: the door is open); a change made before the last still moment no longer
+  // counts, so the door is closed for take-off and the climb until a rider opens it. Anyone aboard may open or close it; the
+  // game's pilot never does.
+  skyd.doors = [{rec: null, still: -Infinity, open: true, k: 1}, {rec: null, still: -Infinity, open: true, k: 1}];
+  const doorOf = c => skyd.doors[c === caravan ? 1 : 0], planeStill = i => i ? caravan.grounded && caravan.speed < 3 : jumpFlight.phase === 'board';
+  const rideInAir = R => R.auto ? !['board', 'roll'].includes(jumpFlight.phase) : !R.craft.grounded;
+  const rideStopped = R => R.auto ? jumpFlight.phase === 'board' : R.craft.grounded && R.craft.speed < 3;
+  // Another player opened or closed a door (or the lobby's saved state on joining): riders in that plane hear it.
+  function applySkyDoor(id, v) {
+    const i = id === 'skydoor1' ? 1 : 0, D = skyd.doors[i], rec = SKY.doorDecode(v);if (!rec || (D.rec && rec.t <= D.rec.t)) return;
+    const was = D.open;D.rec = rec;D.open = SKY.doorOpenNow(planeStill(i), rec, D.still);
+    if (D.open !== was && player.mode === 'jumpseat' && skyd.ride && doorOf(skyd.ride.craft) === D) audio.sfx(D.open ? 'doorOpen' : 'doorClose');
+  }
+  function updateDoors(dt) {
+    const now = skyClock();
+    for (let i = 0; i < 2; i++) {
+      const D = skyd.doors[i], c = i ? caravan : autoPlane, still = planeStill(i);
+      if (still) D.still = now;
+      D.open = SKY.doorOpenNow(still, D.rec, D.still);
+      D.k = Math.max(0, Math.min(1, D.k + Math.sign((D.open ? 1 : 0) - D.k) * Math.min(Math.abs((D.open ? 1 : 0) - D.k), dt / 1.4)));
+      if (c.group.visible) c.setDoor(D.k);
+    }
+    // The wind at the open door (louder close to it and the faster the plane flies).
+    const R = skyd.ride;let wind = 0;
+    if (player.mode === 'jumpseat' && R) {const D = doorOf(R.craft);wind = D.k * (R.atDoor ? 1 : .55) * Math.min(1, R.craft.speed / 45);}
+    audio.rush(wind);
+  }
+  function toggleDoor(R) {
+    const D = doorOf(R.craft), open = !D.open;D.rec = {t: skyClock(), open};D.open = open;mp.sendObj(R.craft === caravan ? 'skydoor1' : 'skydoor0', SKY.doorEncode(D.rec));
+    audio.sfx(open ? 'doorOpen' : 'doorClose');notice(open ? 'Door open · ✕ / Space: jump · □ / E close it · ○ / C back to your seat' : 'Door closed · □ / E open it again · ○ / C back to your seat', 3);
   }
   function jumpseatPrompt() {
     const R = skyd.ride;if (!R) return null;
-    const onGround = R.auto ? jumpFlight.phase === 'board' : R.craft.grounded && R.craft.speed < 3;
-    if (onGround) return {text: '□ Get off the plane' + (!R.auto && !gamePilotFlies() && !mp.occupant(caravanIndex(), 'd') ? " · △ / F: the game's pilot flies you up" : ''), act: () => leaveSeat()};
-    return null;
+    if (rideStopped(R)) return {text: '□ Get off the plane' + (!R.auto && !gamePilotFlies() && !mp.occupant(caravanIndex(), 'd') ? " · △ / F: the game's pilot flies you up" : ''), act: () => leaveSeat()};
+    if (!R.atDoor) return {text: '✕ / Space or □ / E: go to the door', act: () => goToDoor(R)};
+    const open = doorOf(R.craft).open;
+    return {text: open ? (rideInAir(R) ? '✕ / Space: jump · □ / E close the door · ○ / C back to your seat' : 'Wait for take-off to jump · □ / E close the door · ○ / C back to your seat') : '□ / E open the door · ○ / C back to your seat', act: () => toggleDoor(R)};
   }
+  function goToDoor(R) {R.atDoor = true;player.lookYaw = 0;player.lookPitch = -.35;audio.footstep('metal', false, .6);}
   function updateJumpseat(dt, input, dl) {
-    const R = skyd.ride, c = R.craft, f = jumpFlight;
+    const R = skyd.ride, c = R.craft, f = jumpFlight, D = doorOf(c);
     // The scheduled flight: anybody still on board when it has flown off is brought back to the airstrip.
     if (R.auto && f.phase === 'away' && !f.visible) {leaveSeat(jumpStart);notice('The jump plane landed back at the airfield.', 4);return;}
     if (!R.auto && c.broken) {leaveSeat(c.exitPoint());return;}
-    if (input.pressed.has('cross') && canJump()) {jump();return;}
-    if (input.pressed.has('square')) {const p = jumpseatPrompt();if (p) {p.act();return;}}// get off while it stands still
+    const agl = c.pos.y - heightAt(c.pos.x, c.pos.z), inAir = rideInAir(R), st = {atDoor: R.atDoor, doorOpen: D.open, inAir, stopped: rideStopped(R)};
+    for (const btn of ['cross', 'square', 'circle']) {
+      if (!input.pressed.has(btn)) continue;const act = SKY.riderAction(btn, st);if (!act) continue;
+      if (act === 'jump') {jump();return;}
+      if (act === 'getOff') {leaveSeat();return;}
+      if (act === 'toDoor') goToDoor(R);
+      else if (act === 'toSeat') {R.atDoor = false;player.lookYaw = 0;player.lookPitch = 0;}
+      else if (act === 'toggle') toggleDoor(R);
+      else if (act === 'openFirst') notice('Open the door first: □ / E', 2);
+      else if (act === 'wait') notice('Wait until the plane is in the air.', 2);
+      break;
+    }
+    if (R.atDoor && inAir && SKY.tooLow(agl) && !R.lowWarned) {R.lowWarned = true;notice(`Too low (${Math.round(agl)} m): the parachute may not open in time. You can still jump.`, 4);}
+    // The green light (the scheduled flight's jump run, or the game's pilot's): a hint with a beep; you may jump before and after it.
+    {const ps = R.auto ? null : pilotStatus(), green = R.auto ? f.green : !!(ps && ps.green);if (green && !R.green) {audio.sfx('locked');notice('Green light: a good place to jump.' + (R.atDoor ? '' : ' ✕ go to the door'), 3);}R.green = green;}
     if (input.pressed.has('triangle') && !R.auto) callGamePilot();
     player.lookYaw = Math.max(-2.6, Math.min(2.6, (player.lookYaw || 0) - input.mouse.dx * .0024 * sensitivity.mouse - input.look.x * 2.2 * sensitivity.pad * dt));
-    player.lookPitch = Math.max(-1.1, Math.min(1, (player.lookPitch || 0) - input.mouse.dy * .0024 * sensitivity.mouse - input.look.y * 1.6 * sensitivity.pad * dt));
+    player.lookPitch = Math.max(-1.3, Math.min(1, (player.lookPitch || 0) - input.mouse.dy * .0024 * sensitivity.mouse - input.look.y * 1.6 * sensitivity.pad * dt));
     const hip = seatCamera();
     if (camera.fov !== 70) {camera.fov = 70;camera.updateProjectionMatrix();}
-    player.x = hip.x;player.z = hip.z;player.feet = hip.y;player.yaw = new T.Euler().setFromQuaternion(c.q, 'YXZ').y + Math.PI;// you face the tail
-    const agl = c.pos.y - heightAt(c.pos.x, c.pos.z), sp = $('speedo');sp.hidden = false;sp.classList.add('air');
+    player.x = hip.x;player.z = hip.z;player.feet = hip.y;player.yaw = new T.Euler().setFromQuaternion(c.q, 'YXZ').y + (R.atDoor ? Math.PI / 2 : Math.PI);// you face the tail (at the door: out of it)
+    const sp = $('speedo');sp.hidden = false;sp.classList.add('air');
     const m = Math.floor(Math.max(0, R.auto && f.phase === 'board' ? f.leavesIn : 0) / 60), ss = String(Math.floor(Math.max(0, R.auto ? f.leavesIn || 0 : 0) % 60)).padStart(2, '0');
-    sp.textContent = R.auto ? (f.phase === 'board' ? `JUMP FLIGHT · boarding · leaves in ${m}:${ss}` : f.green ? `GREEN LIGHT · ${Math.round(agl)} m · ✕ / Space: JUMP` : f.phase === 'run' ? `Jump run · ${Math.round(agl)} m · door open, wait for the green light` : `Climbing · ${Math.round(agl)} m${f.phase === 'climb' ? ' · the climb is sped up' : ''}`)
-      : pilotHud(agl, c);
+    const where = R.atDoor ? (D.open ? (inAir ? '✕ / Space: JUMP' : 'door open') : '□ open the door') : 'you can jump any time in the air (✕ go to the door)';
+    sp.textContent = (R.auto ? (f.phase === 'board' ? `JUMP FLIGHT · boarding · leaves in ${m}:${ss}` : f.green ? `GREEN LIGHT · ${Math.round(agl)} m · ${where}` : f.phase === 'run' ? `Jump run · ${Math.round(agl)} m · the green light comes soon · ${where}` : `Climbing · ${Math.round(agl)} m${f.phase === 'climb' ? ' (sped up)' : ''} · ${where}`)
+      : pilotHud(agl, c)) + (R.atDoor && inAir && SKY.tooLow(agl) ? ' · TOO LOW for a safe jump' : '');
     setClip(agl > 800 ? .4 : .12, Math.min(9000, Math.max(1600, agl * 2.5 + 1200)));
   }
-  // You sit facing the tail; looking round turns your head. Placed again at the end of the frame, after a plane flown on
-  // another computer has moved (else the camera trails it by a frame and can end up behind the cabin wall).
+  // You sit facing the tail (or kneel at the door, looking out of it); looking round turns your head. Placed again at the end
+  // of the frame, after a plane flown on another computer has moved (else the camera trails it by a frame and can end up
+  // behind the cabin wall).
   function seatCamera() {
     const R = skyd.ride, c = R.craft, hip = c.seatWorld(R.seat);
+    if (R.atDoor) {camera.position.copy(c.doorEyeWorld());camera.quaternion.copy(c.q).multiply(new T.Quaternion().setFromEuler(new T.Euler(player.lookPitch, Math.PI / 2 + player.lookYaw, 0, 'YXZ')));return hip;}
     camera.position.copy(hip).add(new T.Vector3(0, .78, 0).applyQuaternion(c.q));
     camera.quaternion.copy(c.q).multiply(new T.Quaternion().setFromEuler(new T.Euler(player.lookPitch, Math.PI + player.lookYaw, 0, 'YXZ')));
     return hip;
   }
-  // Out of the door: the jumper starts with the plane's speed and falls; the plane keeps flying.
+  // Out of the door: the jumper starts with the plane's speed and falls; the plane keeps flying. Any height (issue #165):
+  // below 300 m the canopy may not open in time (the landing code then gives a hard landing or a crash, and you get up).
   function jump() {
-    const R = skyd.ride, c = R.craft, d = c.doorWorld(), v = c.vel;
+    const R = skyd.ride, c = R.craft, d = c.doorWorld(), v = c.vel, agl = c.pos.y - heightAt(c.pos.x, c.pos.z);
     skyd.jumper = new SKY.Jumper({x: d.x, y: d.y, z: d.z, vx: v.x, vy: v.y, vz: v.z, yaw: new T.Euler().setFromQuaternion(c.q, 'YXZ').y + Math.PI / 2});// out of the left door, facing away from the plane
-    skyd.ride = null;skyd.beeps = {};player.mode = 'skydive';skyd.chase = false;skyd.chaseCam = null;audio.sfx('throw');
+    skyd.ride = null;skyd.beeps = {};player.mode = 'skydive';skyd.chase = false;skyd.chaseCam = null;audio.sfx('throw');audio.rush(0);
     if (!skyd.canopy) {const av = window.GameAvatars.create({T, lib});skyd.canopy = SKY.canopy(T, av.SLOT_COLORS[mySeat() % 12]);skyd.canopy.visible = false;scene.add(skyd.canopy);
       skyd.body = av.avatar(mySeat(), '');skyd.body.group.visible = false;scene.add(skyd.body.group);}// your own body, seen in the outside view
+    if (SKY.tooLow(agl)) {notice(`Too low (${Math.round(agl)} m): the parachute may not open in time – pull now: ✕ / Space!`, 4);return;}
     notice('Freefall! W / stick ↑ lean forward and track, S / ↓ lean back, A/D turn · tricks: □ / E front loop, ○ / C back loop, △ / F barrel roll · ✕ / Space pulls at about 1000 m · R3 / V outside view', 8);
   }
   function updateSkydive(dt, input, dl) {
@@ -28832,8 +28951,8 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     else if (c) c.visible = false;
   }
   // ---------- The game's pilot in the Caravan (1 Nov 2026, the user's wish) ----------
-  // Called from a jump seat (△), or handed the controls by the player flying it (△; ✕ above 300 m hands over and jumps at
-  // once). The computer that calls it holds the Caravan's driver seat for the pilot and sends the plane's position, as a
+  // Called from a jump seat (△), or handed the controls by the player flying it (△; ✕ in the air hands over and takes you to
+  // the jump door). The computer that calls it holds the Caravan's driver seat for the pilot and sends the plane's position, as a
   // player flying it would; everybody sees a pilot in the left seat. If the plane has no pilot in the air, a jumper's
   // computer takes over. With nobody aboard it is called off on the ground, or flies home after 30 s in the air.
   let gp = null, noPilotT = 0, pilotAv = null;
@@ -28870,17 +28989,17 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     if (!caravan.grounded) return;// in the air the pilot takes over by itself
     mp.claim(i, 'd').then(r => {
       if (!meAboard() || gp) {if (r.ok && !gp) mp.release(i, 'd');return;}
-      if (r.ok) {startGamePilot();notice("The game's pilot takes off in 10 s (others can still board) and climbs to 3000 m. Jump with ✕ / Space above 300 m – best at the green light.", 7);}
+      if (r.ok) {startGamePilot();notice("The game's pilot takes off in 10 s (others can still board) and climbs to 3000 m. In the air: ✕ / Space to the door, □ / E opens it, ✕ / Space jumps – best at the green light.", 7);}
       else notice(r.timeout ? 'No answer from the lobby – try again.' : `${mp.nameOf(r.by)} just took the controls.`, 3);
     });
   }
   // The player flying the Caravan hands it to the game's pilot and goes back to the jump seats (△), or jumps at once (✕).
-  function handOver(jumpNow) {
+  function handOver(toDoor) {
     const c = caravan;c.exit();player.mode = 'jumpseat';player.vehicle = null;player.lookYaw = 0;player.lookPitch = 0;
-    skyd.ride = {craft: c, auto: false, seat: mySeat()};for (const [, w] of vehicleWorlds) collision.setDynamic(w, []);updateDynamic();
+    skyd.ride = {craft: c, auto: false, seat: mySeat(), atDoor: false, lowWarned: false};for (const [, w] of vehicleWorlds) collision.setDynamic(w, []);updateDynamic();
     startGamePilot();
-    if (jumpNow) jump();
-    else notice(c.grounded ? "The game's pilot takes the controls and takes off in 10 s. You are in the back: jump with ✕ / Space above 300 m." : "The game's pilot takes the controls and circles. You are in the back: ✕ / Space jumps.", 6);
+    if (toDoor) {goToDoor(skyd.ride);notice(`The game's pilot takes the controls and circles. You are at the jump door: ${doorOf(c).open ? '✕ / Space jumps' : '□ / E opens it, then ✕ / Space jumps'}.`, 6);}
+    else notice(c.grounded ? "The game's pilot takes the controls and takes off in 10 s. You are in the back: once in the air, ✕ / Space goes to the door, □ / E opens it, ✕ / Space jumps." : "The game's pilot takes the controls and circles. You are in the back: ✕ / Space goes to the door, □ / E opens it, ✕ / Space jumps.", 6);
   }
   function updateGamePilot(dt) {
     const c = caravan, i = caravanIndex();
@@ -28914,13 +29033,14 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     const r = remotePilot();return r ? {ph: r.st.gp, left: r.st.gl || 0, green: !!r.st.gg} : null;
   }
   function pilotHud(agl, c) {
-    const ps = pilotStatus(), m = Math.round(agl), mmss = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`, jumpHint = canJump() ? '✕ / Space: JUMP' : 'you can jump above 300 m';
+    const ps = pilotStatus(), m = Math.round(agl), mmss = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`, R = skyd.ride, D = doorOf(c);
+    const jumpHint = c.grounded ? 'jump once in the air' : !R || !R.atDoor ? '✕ go to the door' : D.open ? '✕ / Space: JUMP' : '□ open the door';
     if (!ps) return c.grounded && !mp.occupant(caravanIndex(), 'd') ? "Jumper in the Caravan · no pilot · △ / F: the game's pilot flies you up · □ get off" : `Jumper in the Caravan · ${m} m · ${jumpHint}`;
     if (ps.ph === 'wait') return `The game's pilot · taxis in ${mmss(ps.left)} (others can board) · □ get off`;
     if (ps.ph === 'taxi') return "The game's pilot · taxiing onto the strip";
     if (ps.ph === 'hold') return `The game's pilot · holding: the jump flight ahead is on the strip · ${mmss(ps.left)} · □ get off`;
     if (ps.ph === 'roll') return "The game's pilot · take-off";
-    if (ps.green) return `GREEN LIGHT · ${m} m · ✕ / Space: JUMP`;
+    if (ps.green) return `GREEN LIGHT · ${m} m · ${jumpHint}`;
     return `The game's pilot · ${ps.ph === 'run' ? 'jump run, door open' : ps.ph === 'orbit' ? 'circling' : ps.ph === 'away' ? 'flying home' : 'climbing (sped up)'} · ${m} m · ${jumpHint}`;
   }
   let gear = null, gearLast = 0;const GEAR = ['camera', 'binoculars', 'drone'];// the gear menu's items, in #gearMenu's order (data-i)
@@ -29217,7 +29337,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
   mp = window.GameMultiplayer.create({T, lib, scene, camera, vehicles, fireDecayS: fire.DECAY_S, fireMax: fire.MAX, localState, notice, audioContext: () => audio.context,
     drivingIndex: () => player.mode === 'vehicle' && player.vehicle ? vehicles.indexOf(player.vehicle) : gp ? caravanIndex() : -1,
     listener: () => ({x: player.x, y: player.feet + 1.5, z: player.z}), applyDoor, onChat: chatLine, onStatus: () => {renderMp();onLobbyChange();friends.lobby(mp.net.online ? mp.net.code : null, mp.net.players.size, mp.net.max);},
-    applyObj: (id, v) => {if (living) living.apply(id, v, true);},
+    applyObj: (id, v) => {if (/^skydoor[01]$/.test(id)) applySkyDoor(id, v);else if (living) living.apply(id, v, true);},
     // Joining a lobby: alone in a lobby that has nothing stored, what you did offline is sent up; otherwise the lobby's state wins.
     resetObjs: m => {if (!living) return;if (m.players.length <= 1 && !Object.keys(m.objs || {}).length) living.publish();else living.reset();},
     onRemoteWood: r => fire.throwLog({x: r.pos.x, y: r.pos.y + 1.3, z: r.pos.z}), holdsMarker: id => (!!paintball && paintball.rules.memberPlaying(id)) || (!!phRules && phRules.holdsMarker(id)),

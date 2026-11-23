@@ -111,3 +111,60 @@ test('canopy: the front risers dive (nose down, about 12 m/s down), one riser tu
   const s = new S.Jumper({y: 150});s.state = 'canopy';s.air = {fwd: 10, sink: 5};run(s, 60, J => ({fwd: J.agl > 30 ? 1 : J.agl < 4 ? -1 : 0}));assert.equal(s.landing, 'soft', 'a swoop');
   const c = new S.Jumper({y: 150});c.state = 'canopy';c.air = {fwd: 10, sink: 5};run(c, 60, {fwd: 1});assert.equal(c.landing, 'crash', 'diving into the ground');
 });
+
+test('jump door (issue #165): jump any time in the air, only from the open door; on the ground the door is the way out', () => {
+  const air = {inAir: true, stopped: false};
+  assert.equal(S.riderAction('cross', {...air}), 'toDoor', 'from the seat ✕ takes you to the door');
+  assert.equal(S.riderAction('square', {...air}), 'toDoor');
+  assert.equal(S.riderAction('cross', {...air, atDoor: true}), 'openFirst', 'door closed');
+  assert.equal(S.riderAction('square', {...air, atDoor: true}), 'toggle');
+  assert.equal(S.riderAction('cross', {...air, atDoor: true, doorOpen: true}), 'jump');
+  assert.equal(S.riderAction('circle', {...air, atDoor: true}), 'toSeat');
+  assert.equal(S.riderAction('cross', {atDoor: true, doorOpen: true, inAir: false, stopped: false}), 'wait', 'rolling on the ground: no jump');
+  for (const atDoor of [false, true]) assert.equal(S.riderAction('square', {atDoor, stopped: true}), 'getOff');
+  assert.equal(S.riderAction('cross', {atDoor: true, stopped: true}), 'getOff');
+  assert.equal(S.riderAction('triangle', air), null);
+  assert.equal(S.tooLow(120), true);assert.equal(S.tooLow(S.LOW_AGL + 1), false);assert.equal(S.tooLow(NaN), false);
+});
+
+test('jump door: the shared state, closed for take-off after boarding, and the roll-up track', () => {
+  const rec = S.doorDecode(S.doorEncode({t: 1234.567, open: true}));
+  assert.deepEqual(rec, {t: 1234.57, open: true});
+  assert.equal(S.doorDecode('x'), null);assert.equal(S.doorDecode([NaN, 1]), null);assert.equal(S.doorEncode(null), null);
+  assert.equal(S.doorOpenNow(true, null), true, 'open while boarding');
+  assert.equal(S.doorOpenNow(false, null, 100), false, 'closed after take-off');
+  assert.equal(S.doorOpenNow(false, {t: 90, open: true}, 100), false, 'opened before the plane last stood still: no longer counts');
+  assert.equal(S.doorOpenNow(false, {t: 150, open: true}, 100), true);
+  assert.equal(S.doorOpenNow(false, {t: 160, open: false}, 100), false);
+  // The track is continuous: up the wall, round the bend, along under the roof.
+  const D = S.DOOR;let prev = S.doorTrack(0);
+  assert.deepEqual([prev.x, prev.y, prev.rot], [D.x, D.y0, 0]);
+  for (let s = .01; s <= 2 * D.h; s += .01) {const p = S.doorTrack(s);assert.ok(Math.hypot(p.x - prev.x, p.y - prev.y) < .0101 + 1e-9, `jump at ${s}`);prev = p;}
+  assert.equal(prev.y, D.roof);assert.ok(Math.abs(prev.rot + Math.PI / 2) < 1e-9);assert.ok(prev.x < .7, 'stays in the cabin');
+});
+
+test('a very low exit (30 m, 48 m/s): no NaN, the jumper reaches the ground, pulled or not', () => {
+  for (const pull of [false, true]) {
+    const j = new S.Jumper({y: 30, vx: 48, vy: 0, vz: 0});const ev = run(j, 20, J => ({pull: pull && J.state === 'freefall'}));
+    assert.equal(j.state, 'landed');assert.ok(ev.includes('land'));assert.ok(['soft', 'hard', 'crash'].includes(j.landing));
+    for (const v of [j.pos.x, j.pos.y, j.pos.z]) assert.ok(Number.isFinite(v));assert.equal(j.pos.y, 0);
+  }
+});
+
+test('the Caravan: see-through cabin windows and a roll-up door that opens', () => {
+  globalThis.window = globalThis;globalThis.GameSkydive = S;require('../game-aircraft.js');
+  const warn = console.warn;console.warn = () => {};const T = require('../vendor/three.min.js');console.warn = warn;
+  const lib = new Proxy({mergeStatic() {}}, {get: (o, k) => o[k] || (() => new T.MeshStandardMaterial())});
+  const AC = globalThis.GameAircraft.create({T, lib, audio: {sfx() {}, engine: () => ({set() {}, stop() {}})}, heightAt: () => 0, collision: {hitsSolid: () => false}, worldFor: () => null});
+  const c = new AC.JumpPlane(0, 0, 0), ray = new T.Raycaster(), solid = [];
+  c.group.updateMatrixWorld(true);c.group.traverse(o => {if (o.isMesh && !o.isInstancedMesh && !o.material.transparent) solid.push(o);});
+  // From a jumper's eye on the left bench (seat 4: hip + 0.78 m) out through the right-hand windows, and through the walls between them.
+  const eye = c.seatWorld(4).add(new T.Vector3(0, .78, 0));
+  const blocked = (z, y) => {const to = c.group.localToWorld(new T.Vector3(.9, y, z)).sub(eye).normalize();ray.set(eye, to);ray.far = 2;return ray.intersectObjects(solid, false).length > 0;};
+  assert.equal(blocked(-.6, .36), false, 'a window');assert.equal(blocked(-1.025, .36), true, 'the wall between two windows');
+  // The door: closed it fills the opening, open the slats are under the roof.
+  const slat = i => {const m = new T.Matrix4(), p = new T.Vector3();c.doorSlats.getMatrixAt(i, m);return p.setFromMatrixPosition(m);};
+  assert.ok(Math.abs(slat(0).x - S.DOOR.x) < 1e-6 && slat(0).y < 0, 'closed');
+  c.setDoor(1);for (let i = 0; i < 6; i++) assert.ok(slat(i).y > .8, `slat ${i} up`);
+  const d = c.doorWorld();assert.ok(d.x < -1 && Math.abs(d.z - 1.6) < 1e-6, 'the jump point is outside the door');
+});
