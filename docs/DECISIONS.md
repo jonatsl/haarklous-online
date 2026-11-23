@@ -11,6 +11,7 @@ Live game: https://haarklous-online.server-smoke.workers.dev · Source: https://
 In pull requests (not merged yet):
 
 On `main`:
+- Oslo S and Jernbanetorget (issue #141, PR #PRNUM; live once merged): Tigeren, the 4.5 m bronze tiger, at its real place on a paved Jernbanetorget; Østbanehallen as a plastered 14 m station with OSLO S over the doors and clocks on the Trafikanten tower; eleven people who hang around there (stone seats, the station wall, the tiger), and one who asks for a few kroner (□ gives him 10 kr).
 - Steadier sound (issue #150, PR #151; live once merged): the sound no longer crackles or drops out when the game runs slowly, comes back by itself after the browser or a new sound device (a PS4 controller on USB, a headset) paused it, and has one limiter for everything.
 - Walk up to every floor of Klatreverket Torshov (issue #137, PR #138): the stairs from the ground floor to Discorommet, the inner bouldering room and the training room, and sloped mat edges onto the crash mats, so every wall upstairs can be climbed.
 - Smooth rides with other players (issue #135, PR #136, live since 23 Nov 2026): as a passenger (car, motorcycle back seat, aircraft) the ride and the view are smooth, and other players' vehicles move smoothly when you watch them, also when an update is lost on the way.
@@ -68,6 +69,19 @@ On `main`:
 Live site: runs `main` (Worker version d2c8f0f7, deployed 23 Nov 2026 after PR #136; `main` builds byte-for-byte to the live page), so everything above is online. Account emails (issue #55) wait for the user's Brevo key.
 
 ## Log
+
+### 2026-11-23 · Oslo S: Tigeren and the people on Jernbanetorget (issue #141)
+- **What:**
+  - Tigeren (Elena Engelsen, 2000), the bronze tiger, stands at its real place on Jernbanetorget (OpenStreetMap node 3578576333): 4.5 m from nose to tail, mid-stride, walking north along the station front, on a low granite plinth (solid). On the map as "Tigeren"; Oslo S has its own 🚉 marker.
+  - The station front: Oslo Østbanestasjon and Østbanehallen were plain 9.5 m halls (brick look); now they are 14 m plastered station buildings, with a lit OSLO S sign over the middle bay, ØSTBANEHALLEN above glass doors, and four clock faces on the Trafikanten tower that show the real time.
+  - Jernbanetorget is paved (it was drawn as grass between the footpaths); the small water feature on it stays. The ring of stone seats south-west of the tiger is there (OSM benches).
+  - Eleven people who hang around there, as in real life: two on the stone seats with a can or a bottle and one standing with them, three sitting on the ground against the station wall (a backpack, a bedroll, a plastic bag, a bottle), two standing bent over and swaying slowly, one on the tiger's plinth with a can, one by the Trafikanten tower with a bottle, and one by the tiger who asks for a few kroner when you walk past ("Unnskyld, har du noen kroner?", with the English in the notice). □ / E gives him 10 kr and he thanks you. Two others say a short friendly line when you pass.
+  - They are ordinary people: plain names in the code, nothing mocking, they cannot be robbed and are not targets. They only sit, stand and sway; the same places for everyone in a lobby.
+- **Why:** the user's issue #141: "improve Oslo S, need the statue outside and alcoholics and narkomane".
+- **How it is cheap:** the people are the game's own avatar, posed once and merged (one set of meshes for the eight who do not move, one each for the three who sway); they are built the first time you come within 230 m and drawn only within 200 m. The tiger, plinth, seats, signs and clock rims are one merged group. Nothing new is coplanar (signs and doors stand 0.1–0.3 m off the wall, the clock faces 5 cm in front of their rims).
+- **Where:** `game-oslo-s.js` (new: places, `prepare` for the buildings and the paving, the tiger, the station front, the clocks, the people, the prompt and the map markers), `game-main.js` (prepare before the world is made; the module joins the Grünerløkka list for solids and map markers; its tick and □ prompt; the wallet), `index.html` (script tag; the Oslo S line in the controls list), `tests/oslo-s.test.cjs` (new).
+- **Checked:** `node --test`; the module was run in Node with three.js (builds, merges, the prompt pays 10 kr). Not checked in the browser (the user asked to skip browser tests): the look of the tiger, the facade and the people are not seen yet.
+- **Status:** branch `feat/oslo-s`, PR #PRNUM (https://github.com/jonatsl/haarklous-online/pull/PRNUM); live once merged.
 
 ### 2026-11-23 · Steadier sound: no drop-outs or crackle (issue #150)
 - **What:**

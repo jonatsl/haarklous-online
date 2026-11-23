@@ -60,6 +60,8 @@
   if (CC_DATA) window.GameConstructionCity.prepare(DISTRICTS, CC_DATA);
   // Metro, bus and tram (issue #111): the metro stations' entrances go down through the ground, so their holes are cut first.
   if (window.GameTransit && window.TRANSIT && DISTRICTS.length) window.GameTransit.prepare(DISTRICTS, window.TRANSIT, window.District.height, D.ground);
+  // Oslo S (issue #141): the old station on Jernbanetorget becomes a 14 m plastered building and the square is paved.
+  if (window.GameOsloS) window.GameOsloS.prepare(DISTRICTS);
   const world = window.Surroundings.create({T, lib, data: D, renderer, holes, districts: DISTRICTS, onStatus: t => {const el = $('imageryStatus');if (el) el.textContent = t;}});
   scene.add(world.near);farScene.add(world.far);world.setSun(sunDir);
   const landmarks = window.GameLandmarks ? window.GameLandmarks.create({T, lib, world}) : {obstacles: [], vehicleObstacles: [], floors: [], poi: []};
@@ -84,6 +86,10 @@
   const golfHooks = {};// filled in below, once the wallet, the menu and the lobby exist
   const mgl = MG_DATA ? window.GameMinigolf.create({T, lib, world, audio, avatars: window.GameAvatars.create({T, lib}), root: view, data: MG_DATA, now: () => golfHooks.now ? golfHooks.now() : Date.now() / 1000, hooks: golfHooks}) : null;
   const grl = [library, pingpong, rathkes, kayak, cc, transit, mgl].filter(Boolean);grl.forEach(m => {scene.add(m.group);m.group.updateMatrixWorld(true);});
+  // Oslo S (issue #141): Tigeren on Jernbanetorget, the station front, and the people round the square (□ gives 10 kr to the one who asks).
+  const oslos = window.GameOsloS && DISTRICTS.length ? window.GameOsloS.create({T, lib, world, avatars: window.GameAvatars.create({T, lib}), notice: (t, s) => notice(t, s),
+    give: kr => {if (!wallet.pay(kr)) return false;walletT = 6;audio.sfx('coin');return true;}}) : null;
+  if (oslos) {grl.push(oslos);scene.add(oslos.group);}
   let hushed = 0;// seconds the librarian's shush keeps you walking
   const apt = window.GameApartment.build({T, lib, data: window.APARTMENT});scene.add(apt.group);
   // Stair towers: ours (model coordinates) and one in each enterable neighbouring building.
@@ -1258,6 +1264,7 @@
   // ---------- Grünerløkka: library, Rathkes gate 1, table tennis, Akerselva (issues #44, #45, #47) ----------
   function grunerPrompt() {
     if (player.mode !== 'foot') return null;
+    {const op = oslos && oslos.prompt(player);if (op) return op;}// Oslo S: give 10 kr to the man asking for change (issue #141)
     const o = lookTarget();
     {const lp = living && living.prompt(o, player);if (lp) return lp;}
     for (const m of [library, rathkes]) {const p = m && m.prompt(o);if (p) return {text: p.text, act: () => {const r = p.act();if (r && r.notice) notice(r.notice, 5);if (r && r.sound) audio.sfx(r.sound);if (r && r.doors) r.doors.forEach(id => {const d = doors.find(x => x.id === id);if (d) toggleDoor(d);});}};}
@@ -1297,6 +1304,7 @@
     if (kayak) kayak.tick(dt);
     if (rathkes) rathkes.tick(camera);
     if (mgl) mgl.tick(dt, camera, player);
+    if (oslos) oslos.tick(dt, camera, player);
     for (const r of remoteKayaks) if (!mp.remotes.has(r.id)) {scene.remove(r.kayak);remoteKayaks.delete(r);}
     hushed = Math.max(0, hushed - dt);
     if (!library) return;
