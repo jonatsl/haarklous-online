@@ -21,6 +21,7 @@
  *   the next tee) fits; it and the big map draw the course outline, every hole's tee (with its number), basket and fairway line
  *   (the current hole bright, the others faded), your lie with the metres to the basket, and the way to the next tee.
  * map.overlay(g, {P, k, d, big}) (optional): draws over the map and inside the minimap's circle (the transit lines and stops, issue #111).
+ * map.snap(x, s, r) (optional) -> {x, s} | null: where a waypoint set at x, s (within r map metres) really goes (a metro entrance).
  * Pure helpers (Node-tested): edgePoint, screenSpot, toRim, distanceText, minimapRange, courseOutline, courseRange.
  */
 (function (root, factory) {
@@ -208,7 +209,8 @@
     map.zoom = f => {map.scale = Math.max(.5, Math.min(12, map.scale * f));};
     map.draw = draw;
     // Set the waypoint at a map point, or remove it when that point is on it (within 16 screen pixels).
-    function markAt(x, s) {if (map.layer) return;const wp = map.waypoint;map.waypoint = wp && Math.hypot(wp.x - x, wp.s - s) * map.scale < 16 ? null : {x, s};draw();}
+    // map.snap(x, s, r) (optional) moves the point to what it is on: a metro station's entrance (issue #143).
+    function markAt(x, s) {if (map.layer) return;const q = map.snap ? map.snap(x, s, 16 / map.scale) : null;if (q) {x = q.x;s = q.s;}const wp = map.waypoint;map.waypoint = wp && Math.hypot(wp.x - x, wp.s - s) * map.scale < 16 ? null : {x, s};draw();}
     map.markCentre = () => markAt(map.cx, map.cs);
     map.clearWaypoint = () => {map.waypoint = null;draw();};
     let drag = null;

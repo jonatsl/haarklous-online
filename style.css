@@ -15,6 +15,10 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
 #drunk{position:absolute;left:22px;top:18px;padding:5px 12px;border-radius:14px;background:#7a3b10cc;font-weight:700;pointer-events:none}
 .game-card{position:absolute;left:18px;bottom:18px;width:min(380px,calc(100% - 36px));display:grid;gap:3px;padding:12px 14px;border-radius:10px;background:var(--card);pointer-events:none;font-size:14px}
 .game-card b{font-size:16px;color:#fff}.game-card small{opacity:.8}
+#game #discHud.wide{width:min(460px,calc(100% - 36px))}#game.has-minimap #discHud.wide{width:min(460px,calc(100% - var(--mm) - 58px))}
+.dgcard{border-collapse:collapse;font:12px/1.35 ui-monospace,Consolas,monospace;margin:4px 0}.dgcard th,.dgcard td{padding:0 3px;text-align:center}.dgcard th{opacity:.6;font-weight:400}
+.dgcard td:first-child{text-align:left;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.dgcard td i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}
+.dgcard tr.me td{color:#fff}.dgcard td b{font-size:12px}.dgcard em{color:#ffd27a;font-style:normal}
 .meter{display:block;height:8px;border-radius:4px;background:#ffffff1f;overflow:hidden;margin:4px 0}.meter u{display:block;height:100%;background:linear-gradient(90deg,#9ff0a8,#ffd27a,#ff7a6b)}
 #markers{position:absolute;inset:0;pointer-events:none}
 .marker{position:absolute;transform:translate(-50%,-100%);padding:1px 6px;border-radius:8px;background:#000a;font:600 11px/1.4 ui-monospace,Consolas,monospace;white-space:nowrap}
