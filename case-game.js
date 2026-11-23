@@ -300,16 +300,18 @@
     // ---- Weapon.
     function sound(kind, distance = 1) {
       try {
-        audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+        // The game's own sound context and output (one context, through its limiter); a context of its own only when alone.
+        audio = audio || (ctx.audioContext && ctx.audioContext()) || new (window.AudioContext || window.webkitAudioContext)();
         if (audio.state === 'suspended') audio.resume();
+        const dest = (ctx.audioOutput && ctx.audioOutput()) || audio.destination;
         // A hostile shot reuses the pistol sound, darker and quieter with distance.
         const enemy = kind === 'enemy';if (enemy) kind = 'shot';
         const now = audio.currentTime, length = kind === 'shot' ? .32 : .05, buffer = audio.createBuffer(1, audio.sampleRate * length, audio.sampleRate), data = buffer.getChannelData(0);
         for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / data.length, kind === 'shot' ? 4 : 2);
         const src = audio.createBufferSource(), filter = audio.createBiquadFilter(), gain = audio.createGain();
         src.buffer = buffer;filter.type = 'lowpass';filter.frequency.setValueAtTime(enemy ? 1500 + 1200 / Math.max(1, distance) : kind === 'shot' ? 3200 : 5000, now);filter.frequency.exponentialRampToValueAtTime(kind === 'shot' ? 300 : 2000, now + length);
-        gain.gain.setValueAtTime(enemy ? Math.min(.8, 2.2 / Math.max(1, distance)) : kind === 'shot' ? .9 : .25, now);src.connect(filter).connect(gain).connect(audio.destination);src.start(now);
-        if (kind === 'shot') {const osc = audio.createOscillator(), g = audio.createGain();osc.frequency.setValueAtTime(140, now);osc.frequency.exponentialRampToValueAtTime(40, now + .18);g.gain.setValueAtTime(.7, now);g.gain.exponentialRampToValueAtTime(.001, now + .2);osc.connect(g).connect(audio.destination);osc.start(now);osc.stop(now + .2);}
+        gain.gain.setValueAtTime(enemy ? Math.min(.8, 2.2 / Math.max(1, distance)) : kind === 'shot' ? .9 : .25, now);src.connect(filter).connect(gain).connect(dest);src.start(now);
+        if (kind === 'shot') {const osc = audio.createOscillator(), g = audio.createGain();osc.frequency.setValueAtTime(140, now);osc.frequency.exponentialRampToValueAtTime(40, now + .18);g.gain.setValueAtTime(.7, now);g.gain.exponentialRampToValueAtTime(.001, now + .2);osc.connect(g).connect(dest);osc.start(now);osc.stop(now + .2);}
       } catch {}
     }
     function startReload() {

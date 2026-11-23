@@ -6,31 +6,99 @@
  * and turbine), light-aircraft piston engine and propeller, FPV drone motors.
  * GameAudio.create() -> {resume(), ambience(state), footstep(surface, inStair), sfx(name, opts), engine(kind), hydraulics(), water(level), siren(level, pan)}
  *   sfx opts: gain, reverb, pan (-1 left … 1 right: a sound from somewhere, e.g. a prop hunt whistle)
+ *   output: the node every other sound in the game connects to (music, the catacomb, the flat's record and TV, the mission)
+ *   ondevicechange: set by the game; called when a sound device was connected or removed (for a notice)
+ * Steady sound (issue #150): one context with a large output buffer ('playback'), one master limiter, at most MAX_VOICES
+ * one-shot sounds at once (the oldest gives way), engines glide (smoother when the frame rate is low) and only write a value
+ * that changed, nothing non-finite reaches an AudioParam, and the sound starts again by itself after the browser or a
+ * device change paused it.
  */
 (function (root, factory) {
   root.GameAudio = factory();
 })(typeof window === 'undefined' ? globalThis : window, function () {
   'use strict';
   function create() {
-    let ctx = null, master, dry, reverbSend, convolver, noiseBuf, amb = null;
+    let ctx = null, bus, master, dry, reverbSend, convolver, noiseBuf, amb = null;
     const rand = (a, b) => a + Math.random() * (b - a);
+    const fin = (v, d = 0) => Number.isFinite(v) ? v : d;// nothing non-finite ever goes to an AudioParam
     function init() {
       if (ctx) return true;
-      try {ctx = new (window.AudioContext || window.webkitAudioContext)();} catch {return false;}
-      master = ctx.createGain();master.gain.value = .8;master.connect(ctx.destination);
+      const AC = window.AudioContext || window.webkitAudioContext;if (!AC) return false;
+      // 'playback' = a larger output buffer: a slow frame on a busy PC no longer starves the sound card (crackle, drop-outs).
+      try {ctx = new AC({latencyHint: 'playback'});} catch {try {ctx = new AC();} catch {return false;}}
+      // One output for everything: bus -> limiter -> speakers. The limiter only works near full scale (no pumping); the
+      // bus gain cancels the compressor's built-in make-up gain (about +1.7 dB with these settings), so the level is as before.
+      const lim = ctx.createDynamicsCompressor();lim.threshold.value = -3;lim.knee.value = 0;lim.ratio.value = 20;lim.attack.value = .003;lim.release.value = .25;
+      bus = ctx.createGain();bus.gain.value = .82;bus.connect(lim).connect(ctx.destination);
+      master = ctx.createGain();master.gain.value = .8;master.connect(bus);
       dry = ctx.createGain();dry.connect(master);
       noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);const d = noiseBuf.getChannelData(0);for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
       // Stairwell/indoor echo: a generated decaying impulse response.
       convolver = ctx.createConvolver();const len = ctx.sampleRate * 1.8, ir = ctx.createBuffer(2, len, ctx.sampleRate);
       for (let c = 0; c < 2; c++) {const ch = ir.getChannelData(c);for (let i = 0; i < len; i++) ch[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3.2) * (i < 400 ? i / 400 : 1);}
       convolver.buffer = ir;reverbSend = ctx.createGain();reverbSend.gain.value = 0;reverbSend.connect(convolver);convolver.connect(master);
-      startAmbience();return true;
+      startAmbience();watch();return true;
     }
-    function resume() {if (!init()) return;if (ctx.state === 'suspended') ctx.resume();}
+    // ---------- Keeping the sound on ----------
+    // The browser can pause the context (no click yet, a hidden tab, a device change); every way back calls wake().
+    let wakeMs = -1e9, restarting = false, devTimer = 0;
+    function wake(force) {
+      if (!ctx || ctx.state === 'running' || ctx.state === 'closed' || restarting) return;
+      const ms = performance.now();if (!force && ms - wakeMs < 250) return;wakeMs = ms;
+      try {const r = ctx.resume();if (r && r.catch) r.catch(() => {});} catch {}
+    }
+    function resume() {if (!init()) return;wake();}
+    // A sound device came or went (a PS4 controller on USB has its own speaker; a Bluetooth headset changes to its
+    // hands-free mode when a microphone opens): stop and start the output, so it opens again on the device Windows uses now.
+    function restart() {
+      if (!ctx || ctx.state !== 'running' || restarting) return;restarting = true;
+      ctx.suspend().then(() => ctx.resume()).catch(() => {}).then(() => {restarting = false;if (ctx.state !== 'running') wake(true);});
+    }
+    function watch() {
+      ctx.onstatechange = () => {if (ctx.state !== 'running') wake(true);};
+      if (ctx.addEventListener) ctx.addEventListener('error', restart);// the output device failed (newer browsers)
+      document.addEventListener('visibilitychange', () => {if (!document.hidden) wake(true);});
+      for (const e of ['focus', 'pageshow', 'gamepadconnected']) window.addEventListener(e, () => wake(true));
+      for (const e of ['pointerdown', 'keydown', 'touchend']) window.addEventListener(e, () => wake(true), {capture: true, passive: true});
+      const md = navigator.mediaDevices;
+      if (md && md.addEventListener) md.addEventListener('devicechange', () => {clearTimeout(devTimer);devTimer = setTimeout(() => {restart();if (api.ondevicechange) try {api.ondevicechange();} catch {}}, 1200);});
+    }
     const now = () => ctx.currentTime;
     function noise(loop = true) {const s = ctx.createBufferSource();s.buffer = noiseBuf;s.loop = loop;s.loopStart = Math.random();return s;}
     function out(node, reverb = 0) {node.connect(dry);if (reverb) {const g = ctx.createGain();g.gain.value = reverb;node.connect(g);g.connect(reverbSend);}return node;}
-    function env(gainNode, t, peak, attack, decay) {gainNode.gain.setValueAtTime(0, t);gainNode.gain.linearRampToValueAtTime(peak, t + attack);gainNode.gain.exponentialRampToValueAtTime(.0001, t + attack + decay);}
+    function env(gainNode, t, peak, attack, decay) {peak = fin(peak);gainNode.gain.setValueAtTime(0, t);gainNode.gain.linearRampToValueAtTime(peak, t + attack);gainNode.gain.exponentialRampToValueAtTime(.0001, t + attack + decay);}
+    // Glide a parameter to v; skipped when v is not finite or (nearly) the value it already glides to, so a sound that
+    // is updated every frame does not pile up automation events.
+    function glide(param, v, t, tau) {
+      if (!Number.isFinite(v)) return;const last = param._to;
+      if (last !== undefined && Math.abs(v - last) <= 1e-4 + Math.abs(last) * 2e-3) return;
+      param._to = v;param.setTargetAtTime(v, t, tau);
+    }
+    // One-shot sounds are voices with their own gain. When more than MAX_VOICES play at once, the oldest fades out in
+    // 30 ms and its sources stop (a storm of paintballs or footsteps cannot overload the sound).
+    const MAX_VOICES = 40, voices = [];
+    function voice(pan, verb = 0) {
+      const g = ctx.createGain(), V = {g, w: null, p: null, src: [], end: 0};
+      if (pan != null && ctx.createStereoPanner) {const P = ctx.createStereoPanner();P.pan.value = Math.max(-1, Math.min(1, fin(pan)));g.connect(P);out(P, verb);V.p = P;}
+      else g.connect(dry);
+      return V;
+    }
+    // Into a voice: dry, plus `reverb` of it to the echo (with a pan, the panner already has the voice's echo).
+    function vsend(V, node, reverb = 0) {
+      node.connect(V.g);if (V.p || !reverb) return node;
+      if (!V.w) {V.w = ctx.createGain();V.w.connect(reverbSend);}
+      const r = ctx.createGain();r.gain.value = reverb;node.connect(r);r.connect(V.w);return node;
+    }
+    function play(V, src, at, end) {src.start(at);src.stop(end);V.src.push(src);if (end > V.end) V.end = end;}
+    function commit(V) {
+      const t = now();for (let i = voices.length - 1; i >= 0; i--) if (voices[i].end < t) voices.splice(i, 1);
+      voices.push(V);
+      while (voices.length > MAX_VOICES) {
+        const old = voices.shift();
+        for (const g of [old.g, old.w]) if (g) {const p = g.gain;p.cancelScheduledValues(t);p.setValueAtTime(p.value, t);p.linearRampToValueAtTime(0, t + .03);}
+        for (const s of old.src) try {s.stop(t + .04);} catch {}
+      }
+    }
 
     // ---------- Ambience ----------
     function startAmbience() {
@@ -41,20 +109,20 @@
       // Rain (real weather, issue #23): a soft hiss, louder in heavier rain, muffled indoors.
       const rain = noise(), rainF = ctx.createBiquadFilter(), rainG = ctx.createGain();rainF.type = 'bandpass';rainF.frequency.value = 2600;rainF.Q.value = .5;rainG.gain.value = 0;rain.connect(rainF).connect(rainG);out(rainG);rain.start();
       amb = {windG, windF, trafG, roomG, humG, rainG, rainF, state: {indoor: 0, green: .5, traffic: 0, height: 0, stair: false, kitchen: false, rain: 0, windSpeed: 4}, birdTimer: 0, carTimer: 3, last: now()};
-      setInterval(tickAmbience, 120);
+      setInterval(tickAmbience, 120);// a timer, not the frame loop: the ambience goes on at any frame rate
     }
     function ambience(state) {if (amb) Object.assign(amb.state, state);}
     function tickAmbience() {
       if (!amb || ctx.state !== 'running') return;
       const s = amb.state, t = now(), dt = Math.min(.5, t - amb.last);amb.last = t;const outdoors = 1 - s.indoor;
-      const set = (param, v) => param.setTargetAtTime(v, t, .4);
+      const set = (param, v) => glide(param, v, t, .4);
       const windK = Math.min(2.2, .45 + (s.windSpeed || 0) / 7);// the real wind speed (m/s) makes the wind louder or quieter
       set(amb.windG.gain, ((.012 + .03 * Math.min(1, s.height / 12)) * outdoors + .004 * s.indoor) * windK);
-      set(amb.rainG.gain, (s.rain || 0) * (.05 * outdoors + .012 * s.indoor));amb.rainF.frequency.setTargetAtTime(s.indoor > .5 ? 900 : 2600, t, .3);
+      set(amb.rainG.gain, (s.rain || 0) * (.05 * outdoors + .012 * s.indoor));glide(amb.rainF.frequency, s.indoor > .5 ? 900 : 2600, t, .3);
       amb.windF.frequency.setTargetAtTime(300 + 260 * (.5 + .5 * Math.sin(t * .23)) + 200 * Math.sin(t * .071), t, .8);
       const tr = Math.max(0, 1 - s.traffic / 70);set(amb.trafG.gain, (.012 + .05 * tr * tr) * (outdoors + .25 * s.indoor));
       set(amb.roomG.gain, .03 * s.indoor);set(amb.humG.gain, s.kitchen ? .006 : 0);
-      reverbSend.gain.setTargetAtTime(s.stair ? .6 : s.indoor * .12, t, .3);
+      glide(reverbSend.gain, s.stair ? .6 : s.indoor * .12, t, .3);
       // Birds: more frequent near trees and in the park, rare indoors.
       amb.birdTimer -= dt;
       // Indoors only an occasional faint, muffled call through the windows.
@@ -65,34 +133,36 @@
       if (amb.carTimer <= 0) {amb.carTimer = rand(3, 12);if (tr > .15 && outdoors > .3) passingCar(tr * outdoors);}
     }
     function bird(level, muffled = false) {
-      const t = now() + .05, pan = ctx.createStereoPanner();pan.pan.value = rand(-.9, .9);const g = ctx.createGain();g.gain.value = level * rand(.05, .12);
-      if (muffled) {const lp = ctx.createBiquadFilter();lp.type = 'lowpass';lp.frequency.value = 1400;pan.connect(lp).connect(g);out(g);} else {pan.connect(g);out(g, .15);}
+      const t = now() + .05, V = voice(), pan = ctx.createStereoPanner();pan.pan.value = rand(-.9, .9);const g = ctx.createGain();g.gain.value = fin(level) * rand(.05, .12);
+      if (muffled) {const lp = ctx.createBiquadFilter();lp.type = 'lowpass';lp.frequency.value = 1400;pan.connect(lp).connect(g);vsend(V, g);} else {pan.connect(g);vsend(V, g, .15);}
       const species = Math.floor(Math.random() * 4);
       if (species === 0) {// great tit "ti-ta ti-ta"
-        for (let i = 0; i < 4; i++) {const o = ctx.createOscillator(), e = ctx.createGain(), f = i % 2 ? 4200 : 5600, at = t + i * .16;o.frequency.setValueAtTime(f, at);o.frequency.exponentialRampToValueAtTime(f * .85, at + .08);o.connect(e).connect(pan);env(e, at, 1, .01, .09);o.start(at);o.stop(at + .12);}
+        for (let i = 0; i < 4; i++) {const o = ctx.createOscillator(), e = ctx.createGain(), f = i % 2 ? 4200 : 5600, at = t + i * .16;o.frequency.setValueAtTime(f, at);o.frequency.exponentialRampToValueAtTime(f * .85, at + .08);o.connect(e).connect(pan);env(e, at, 1, .01, .09);play(V, o, at, at + .12);}
       } else if (species === 1) {// blackbird warble
-        let at = t;for (let i = 0; i < 6; i++) {const o = ctx.createOscillator(), e = ctx.createGain(), f = rand(1600, 3200), d = rand(.08, .2);o.frequency.setValueAtTime(f, at);o.frequency.exponentialRampToValueAtTime(f * rand(.7, 1.4), at + d);o.connect(e).connect(pan);env(e, at, 1, .02, d);o.start(at);o.stop(at + d + .05);at += d * rand(.9, 1.3);}
+        let at = t;for (let i = 0; i < 6; i++) {const o = ctx.createOscillator(), e = ctx.createGain(), f = rand(1600, 3200), d = rand(.08, .2);o.frequency.setValueAtTime(f, at);o.frequency.exponentialRampToValueAtTime(f * rand(.7, 1.4), at + d);o.connect(e).connect(pan);env(e, at, 1, .02, d);play(V, o, at, at + d + .05);at += d * rand(.9, 1.3);}
       } else if (species === 2) {// sparrow chirps
-        for (let i = 0; i < 3 + Math.floor(Math.random() * 4); i++) {const o = ctx.createOscillator(), e = ctx.createGain(), at = t + i * rand(.12, .25), f = rand(3500, 4800);o.type = 'triangle';o.frequency.setValueAtTime(f, at);o.frequency.linearRampToValueAtTime(f * 1.2, at + .03);o.frequency.linearRampToValueAtTime(f * .8, at + .06);o.connect(e).connect(pan);env(e, at, 1, .005, .06);o.start(at);o.stop(at + .09);}
+        for (let i = 0; i < 3 + Math.floor(Math.random() * 4); i++) {const o = ctx.createOscillator(), e = ctx.createGain(), at = t + i * rand(.12, .25), f = rand(3500, 4800);o.type = 'triangle';o.frequency.setValueAtTime(f, at);o.frequency.linearRampToValueAtTime(f * 1.2, at + .03);o.frequency.linearRampToValueAtTime(f * .8, at + .06);o.connect(e).connect(pan);env(e, at, 1, .005, .06);play(V, o, at, at + .09);}
       } else {// magpie chatter: harsh noise bursts
-        for (let i = 0; i < 5; i++) {const n = noise(false), f = ctx.createBiquadFilter(), e = ctx.createGain(), at = t + i * .09;f.type = 'bandpass';f.frequency.value = rand(1800, 2600);f.Q.value = 3;n.connect(f).connect(e).connect(pan);env(e, at, 1.6, .004, .06);n.start(at);n.stop(at + .08);}
+        for (let i = 0; i < 5; i++) {const n = noise(false), f = ctx.createBiquadFilter(), e = ctx.createGain(), at = t + i * .09;f.type = 'bandpass';f.frequency.value = rand(1800, 2600);f.Q.value = 3;n.connect(f).connect(e).connect(pan);env(e, at, 1.6, .004, .06);play(V, n, at, at + .08);}
       }
+      commit(V);
     }
     // Campfire: a soft roar plus random crackles, louder for a bigger fire and closer to it. fire(level 0..6, gain 0..1)
-    let fireNode = null, fireState = {level: 0, gain: 0};
+    let fireNode = null;const fireState = {level: 0, gain: 0};
     function fire(level, gain) {
       if (!ctx || ctx.state !== 'running') return;
       if (!fireNode) {const n = noise(), lp = ctx.createBiquadFilter(), g = ctx.createGain();lp.type = 'lowpass';lp.frequency.value = 500;g.gain.value = 0;n.connect(lp).connect(g);out(g);n.start();fireNode = {g, lp};}
-      fireState = {level, gain};const t = now();fireNode.g.gain.setTargetAtTime(.05 * gain * Math.min(1.4, level / 3), t, .3);fireNode.lp.frequency.setTargetAtTime(320 + level * 110, t, .3);
+      level = fin(level);gain = fin(gain);fireState.level = level;fireState.gain = gain;const t = now();glide(fireNode.g.gain, .05 * gain * Math.min(1.4, level / 3), t, .3);glide(fireNode.lp.frequency, 320 + level * 110, t, .3);
     }
     function crackle(gain) {
-      const t = now() + Math.random() * .1;
-      for (let i = 0, n = 1 + Math.floor(Math.random() * 3); i < n; i++) {const s = noise(false), f = ctx.createBiquadFilter(), e = ctx.createGain(), at = t + i * rand(.01, .05);f.type = 'bandpass';f.frequency.value = rand(1800, 5200);f.Q.value = 2;s.connect(f).connect(e);out(e);env(e, at, rand(.08, .3) * gain, .001, rand(.02, .07));s.start(at);s.stop(at + .12);}
+      const t = now() + Math.random() * .1, V = voice();
+      for (let i = 0, n = 1 + Math.floor(Math.random() * 3); i < n; i++) {const s = noise(false), f = ctx.createBiquadFilter(), e = ctx.createGain(), at = t + i * rand(.01, .05);f.type = 'bandpass';f.frequency.value = rand(1800, 5200);f.Q.value = 2;s.connect(f).connect(e);vsend(V, e);env(e, at, rand(.08, .3) * gain, .001, rand(.02, .07));play(V, s, at, at + .12);}
+      commit(V);
     }
     function passingCar(level) {
-      const t = now(), n = noise(false), f = ctx.createBiquadFilter(), g = ctx.createGain(), pan = ctx.createStereoPanner();f.type = 'lowpass';f.frequency.setValueAtTime(300, t);f.frequency.linearRampToValueAtTime(900, t + 1.6);f.frequency.linearRampToValueAtTime(250, t + 3.4);
-      g.gain.setValueAtTime(0, t);g.gain.linearRampToValueAtTime(.09 * level, t + 1.6);g.gain.linearRampToValueAtTime(0, t + 3.5);pan.pan.setValueAtTime(-.8, t);pan.pan.linearRampToValueAtTime(.8, t + 3.4);
-      n.connect(f).connect(g).connect(pan);out(pan);n.start(t);n.stop(t + 3.6);
+      const t = now(), V = voice(), n = noise(false), f = ctx.createBiquadFilter(), g = ctx.createGain(), pan = ctx.createStereoPanner();f.type = 'lowpass';f.frequency.setValueAtTime(300, t);f.frequency.linearRampToValueAtTime(900, t + 1.6);f.frequency.linearRampToValueAtTime(250, t + 3.4);
+      g.gain.setValueAtTime(0, t);g.gain.linearRampToValueAtTime(.09 * fin(level), t + 1.6);g.gain.linearRampToValueAtTime(0, t + 3.5);pan.pan.setValueAtTime(-.8, t);pan.pan.linearRampToValueAtTime(.8, t + 3.4);
+      n.connect(f).connect(g).connect(pan);vsend(V, pan);play(V, n, t, t + 3.6);commit(V);
     }
 
     // Rushing water (Akerselva): a hiss that rises with the current; water(level 0..1), 0 = silent.
@@ -100,7 +170,7 @@
     function water(level) {
       if (!ctx || ctx.state !== 'running') return;
       if (!waterNode) {const n = noise(), bp = ctx.createBiquadFilter(), lp = ctx.createBiquadFilter(), g = ctx.createGain();bp.type = 'highpass';bp.frequency.value = 300;lp.type = 'lowpass';lp.frequency.value = 1200;g.gain.value = 0;n.connect(bp).connect(lp).connect(g);out(g);n.start();waterNode = {g, lp};}
-      const t = now();waterNode.g.gain.setTargetAtTime(.07 * level, t, .3);waterNode.lp.frequency.setTargetAtTime(900 + level * 2600, t, .3);
+      level = fin(level);const t = now();glide(waterNode.g.gain, .07 * level, t, .3);glide(waterNode.lp.frequency, 900 + level * 2600, t, .3);
     }
 
     // Police siren (issue #140): the two-tone of Norwegian emergency vehicles (about B♭4 / E♭5, 0.6 s each), one voice for the
@@ -114,30 +184,31 @@
         o.type = 'sawtooth';o2.type = 'square';m2.gain.value = .3;lp.type = 'lowpass';lp.frequency.value = 2400;g.gain.value = 0;
         o.connect(lp);o2.connect(m2).connect(lp);lp.connect(g);if (P) {g.connect(P);out(P);} else out(g);o.start();o2.start();sirenNode = {o, o2, lp, g, P};
       }
-      const t = now(), l = Math.max(0, Math.min(1, level || 0)), f = Math.floor(t / .6) % 2 ? 622 : 466;
-      sirenNode.o.frequency.setTargetAtTime(f, t, .012);sirenNode.o2.frequency.setTargetAtTime(f * 1.004, t, .012);
-      sirenNode.g.gain.setTargetAtTime(.075 * l, t, .08);sirenNode.lp.frequency.setTargetAtTime(900 + 2300 * l, t, .1);
-      if (sirenNode.P) sirenNode.P.pan.setTargetAtTime(Math.max(-1, Math.min(1, pan)), t, .05);
+      const t = now(), l = Math.max(0, Math.min(1, fin(level))), f = Math.floor(t / .6) % 2 ? 622 : 466;
+      glide(sirenNode.o.frequency, f, t, .012);glide(sirenNode.o2.frequency, f * 1.004, t, .012);
+      glide(sirenNode.g.gain, .075 * l, t, .08);glide(sirenNode.lp.frequency, 900 + 2300 * l, t, .1);
+      if (sirenNode.P) glide(sirenNode.P.pan, Math.max(-1, Math.min(1, fin(pan))), t, .05);
     }
 
     // ---------- Footsteps ----------
     const steps = {grass: [700, 1.5, .05, .1], gravel: [3800, 1.2, .1, .07], sand: [1600, 1, .06, .08], asphalt: [2200, 2, .07, .04], wood: [900, 2.5, .09, .05], tile: [3200, 4, .07, .03], stone: [2600, 3.5, .1, .04], metal: [1100, 8, .08, .09], terrain: [900, 1.2, .05, .08]};
     function footstep(surface, inStair = false, softness = 1) {
       if (!ctx || ctx.state !== 'running') return;
-      const [freq, q, gain, decay] = steps[surface] || steps.terrain, t = now();
-      const n = noise(false), f = ctx.createBiquadFilter(), e = ctx.createGain();f.type = 'bandpass';f.frequency.value = freq * rand(.85, 1.15);f.Q.value = q;n.connect(f).connect(e);out(e, inStair ? .9 : 0);env(e, t, gain * softness * rand(.8, 1.2), .004, decay);n.start(t);n.stop(t + decay + .05);
-      if (surface === 'gravel') for (let i = 1; i < 4; i++) {const n2 = noise(false), f2 = ctx.createBiquadFilter(), e2 = ctx.createGain(), at = t + i * .018;f2.type = 'highpass';f2.frequency.value = 4000;n2.connect(f2).connect(e2);out(e2);env(e2, at, gain * .6 * softness, .002, .02);n2.start(at);n2.stop(at + .04);}
-      if (surface === 'wood' || surface === 'stone' || surface === 'tile') {const o = ctx.createOscillator(), e3 = ctx.createGain();o.frequency.value = surface === 'wood' ? 120 : 180;o.connect(e3);out(e3, inStair ? .9 : 0);env(e3, t, .08 * softness, .003, .07);o.start(t);o.stop(t + .1);}
+      const [freq, q, gain, decay] = steps[surface] || steps.terrain, t = now(), V = voice();softness = fin(softness, 1);
+      const n = noise(false), f = ctx.createBiquadFilter(), e = ctx.createGain();f.type = 'bandpass';f.frequency.value = freq * rand(.85, 1.15);f.Q.value = q;n.connect(f).connect(e);vsend(V, e, inStair ? .9 : 0);env(e, t, gain * softness * rand(.8, 1.2), .004, decay);play(V, n, t, t + decay + .05);
+      if (surface === 'gravel') for (let i = 1; i < 4; i++) {const n2 = noise(false), f2 = ctx.createBiquadFilter(), e2 = ctx.createGain(), at = t + i * .018;f2.type = 'highpass';f2.frequency.value = 4000;n2.connect(f2).connect(e2);vsend(V, e2);env(e2, at, gain * .6 * softness, .002, .02);play(V, n2, at, at + .04);}
+      if (surface === 'wood' || surface === 'stone' || surface === 'tile') {const o = ctx.createOscillator(), e3 = ctx.createGain();o.frequency.value = surface === 'wood' ? 120 : 180;o.connect(e3);vsend(V, e3, inStair ? .9 : 0);env(e3, t, .08 * softness, .003, .07);play(V, o, t, t + .1);}
+      commit(V);
     }
 
     // ---------- One-shot effects ----------
     function sfx(name, opts = {}) {
       if (!ctx || ctx.state !== 'running') return;
-      const t = now(), level = opts.gain ?? 1, verb = opts.reverb ?? 0;
-      // From a direction: everything goes through one stereo panner.
-      const pan = opts.pan != null && ctx.createStereoPanner ? (() => {const P = ctx.createStereoPanner();P.pan.value = Math.max(-1, Math.min(1, opts.pan));out(P, verb);return P;})() : null, sink = e => pan ? e.connect(pan) : out(e, verb);
-      const burst = (freq, q, peak, attack, decay, type = 'bandpass', at = t) => {const n = noise(false), f = ctx.createBiquadFilter(), e = ctx.createGain();f.type = type;f.frequency.value = freq;f.Q.value = q;n.connect(f).connect(e);sink(e);env(e, at, peak * level, attack, decay);n.start(at);n.stop(at + attack + decay + .05);};
-      const tone = (f0, f1, peak, attack, decay, type = 'sine', at = t) => {const o = ctx.createOscillator(), e = ctx.createGain();o.type = type;o.frequency.setValueAtTime(f0, at);o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), at + attack + decay);o.connect(e);sink(e);env(e, at, peak * level, attack, decay);o.start(at);o.stop(at + attack + decay + .05);};
+      const t = now(), level = fin(opts.gain ?? 1, 1), verb = fin(opts.reverb ?? 0);
+      // One voice per effect; from a direction (opts.pan) everything goes through one stereo panner.
+      const V = voice(opts.pan, verb), sink = e => vsend(V, e, verb);
+      const burst = (freq, q, peak, attack, decay, type = 'bandpass', at = t) => {const n = noise(false), f = ctx.createBiquadFilter(), e = ctx.createGain();f.type = type;f.frequency.value = freq;f.Q.value = q;n.connect(f).connect(e);sink(e);env(e, at, peak * level, attack, decay);play(V, n, at, at + attack + decay + .05);};
+      const tone = (f0, f1, peak, attack, decay, type = 'sine', at = t) => {const o = ctx.createOscillator(), e = ctx.createGain();o.type = type;o.frequency.setValueAtTime(f0, at);o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), at + attack + decay);o.connect(e);sink(e);env(e, at, peak * level, attack, decay);play(V, o, at, at + attack + decay + .05);};
       switch (name) {
         case 'doorOpen': tone(320, 520, .03, .05, .35, 'sawtooth');burst(600, 1, .05, .01, .2);break;
         case 'doorClose': burst(160, .8, .5, .004, .25, 'lowpass');tone(90, 50, .3, .003, .2);break;
@@ -218,9 +289,13 @@
         case 'phGo': tone(1046, 1046, .1, .005, .2, 'square');tone(1568, 1568, .1, .005, .35, 'square', t + .22);break;
         case 'phEnd': [659, 523, 392, 523].forEach((f, i) => tone(f, f, .1, .01, .3, 'triangle', t + i * .2));break;
       }
+      if (V.src.length) commit(V);else V.g.disconnect();
     }
 
     // ---------- Engines ----------
+    // Engines are set from the frame loop. pace() is the time since the last set (s): a glide is never shorter than one
+    // frame, so at 20 fps or after a hitch the pitch slides instead of jumping in steps (at 60 fps it is as before).
+    function pacer() {let last = 0;return () => {const ms = performance.now(), s = last ? Math.min(.3, (ms - last) / 1000) : 0;last = ms;return s;};}
     function engine(kind) {
       if (!init()) return {set() {}, stop() {}};
       if (kind === 'heli') return heliEngine();
@@ -236,19 +311,20 @@
       const amOsc = ctx.createOscillator();amOsc.type = 'square';const amDepth = ctx.createGain();amDepth.gain.value = .5;amOsc.connect(amDepth).connect(am.gain);am.gain.value = .5;
       mix.connect(shaper).connect(lp).connect(g);out(g);
       [saw, sq, sub, amOsc].forEach(o => o.start(t));n.start(t);
-      let hyd = null;
+      let hyd = null;const pace = pacer();
       const api = {
         set(rpm, throttle = 0) {
-          const tt = now(), fire = rpm / 60 * spec.cyl / 2;
-          saw.frequency.setTargetAtTime(fire, tt, .03);sq.frequency.setTargetAtTime(fire * 2.01, tt, .03);sub.frequency.setTargetAtTime(fire * .5, tt, .03);amOsc.frequency.setTargetAtTime(fire, tt, .03);
-          lp.frequency.setTargetAtTime(300 + 2600 * spec.tone * (.25 + .75 * throttle) * Math.min(1, rpm / spec.max + .2), tt, .05);
-          g.gain.setTargetAtTime(spec.gain * (.35 + .65 * throttle) * (.7 + .3 * rpm / spec.max), tt, .05);
+          const tt = now(), k = pace(), fire = rpm / 60 * spec.cyl / 2, f = Math.max(.03, k), q = Math.max(.05, k);
+          glide(saw.frequency, fire, tt, f);glide(sq.frequency, fire * 2.01, tt, f);glide(sub.frequency, fire * .5, tt, f);glide(amOsc.frequency, fire, tt, f);
+          glide(lp.frequency, 300 + 2600 * spec.tone * (.25 + .75 * throttle) * Math.min(1, rpm / spec.max + .2), tt, q);
+          glide(g.gain, spec.gain * (.35 + .65 * throttle) * (.7 + .3 * rpm / spec.max), tt, q);
         },
         hydraulics(flow) {
-          if (!hyd) {const o = ctx.createOscillator(), hg = ctx.createGain(), hn = noise(), hf = ctx.createBiquadFilter();o.type = 'sawtooth';hf.type = 'bandpass';hf.frequency.value = 1400;hf.Q.value = 2;hg.gain.value = 0;o.connect(hg);hn.connect(hf).connect(hg);out(hg);o.start();hn.start();hyd = {o, hg};}
-          hyd.o.frequency.setTargetAtTime(380 + 260 * flow, now(), .05);hyd.hg.gain.setTargetAtTime(.05 * flow, now(), .08);
+          if (!hyd) {const o = ctx.createOscillator(), hg = ctx.createGain(), hn = noise(), hf = ctx.createBiquadFilter();o.type = 'sawtooth';hf.type = 'bandpass';hf.frequency.value = 1400;hf.Q.value = 2;hg.gain.value = 0;o.connect(hg);hn.connect(hf).connect(hg);out(hg);o.start();hn.start();hyd = {o, hn, hg};}
+          const tt = now();glide(hyd.o.frequency, 380 + 260 * flow, tt, .05);glide(hyd.hg.gain, .05 * flow, tt, .08);
         },
-        stop() {const tt = now();g.gain.setTargetAtTime(0, tt, .15);setTimeout(() => {[saw, sq, sub, amOsc, n].forEach(o => {try {o.stop();} catch {}});if (hyd) {hyd.hg.gain.value = 0;try {hyd.o.stop();} catch {}}}, 900);},
+        // Stop: fade out, then stop every source (the hydraulics' noise too: it used to run on, silent, for ever) and let go.
+        stop() {const tt = now();glide(g.gain, 0, tt, .15);if (hyd) glide(hyd.hg.gain, 0, tt, .08);setTimeout(() => {[saw, sq, sub, amOsc, n].forEach(o => {try {o.stop();} catch {}});if (hyd) {try {hyd.o.stop();hyd.hn.stop();} catch {}try {hyd.hg.disconnect();} catch {}}try {g.disconnect();} catch {}}, 900);},
         spec
       };
       return api;
@@ -262,16 +338,16 @@
       const rumble = noise(), rlp = ctx.createBiquadFilter(), rG = ctx.createGain();rlp.type = 'lowpass';rlp.frequency.value = 110;rG.gain.value = 0;rumble.connect(rlp).connect(rG);out(rG);
       const tur = ctx.createOscillator(), tur2 = ctx.createOscillator(), tG = ctx.createGain();tur.type = 'sine';tur2.type = 'triangle';tG.gain.value = 0;tur.connect(tG);tur2.connect(tG);out(tG);
       const tail = ctx.createOscillator(), tlp = ctx.createBiquadFilter(), tailG = ctx.createGain();tail.type = 'sawtooth';tlp.type = 'lowpass';tlp.frequency.value = 420;tailG.gain.value = 0;tail.connect(tlp).connect(tailG);out(tailG);
-      [lfo, tur, tur2, tail].forEach(o => o.start(t));n.start(t);rumble.start(t);
+      [lfo, tur, tur2, tail].forEach(o => o.start(t));n.start(t);rumble.start(t);const pace = pacer();
       return {
         set(rpm, load = 0) {
-          const tt = now(), blade = 3 * 6.4 * rpm;
-          lfo.frequency.setTargetAtTime(Math.max(.5, blade), tt, .1);tail.frequency.setTargetAtTime(30 + 85 * rpm, tt, .1);
-          tur.frequency.setTargetAtTime(500 + 1150 * rpm, tt, .2);tur2.frequency.setTargetAtTime(1000 + 2300 * rpm, tt, .2);
-          slapG.gain.setTargetAtTime(.32 * rpm * rpm * (.6 + .5 * load), tt, .1);rG.gain.setTargetAtTime(.22 * rpm * (.5 + .5 * load), tt, .1);
-          tG.gain.setTargetAtTime(.012 * rpm, tt, .2);tailG.gain.setTargetAtTime(.025 * rpm, tt, .1);
+          const tt = now(), k = pace(), a = Math.max(.1, k), b = Math.max(.2, k), blade = 3 * 6.4 * rpm;
+          glide(lfo.frequency, Math.max(.5, blade), tt, a);glide(tail.frequency, 30 + 85 * rpm, tt, a);
+          glide(tur.frequency, 500 + 1150 * rpm, tt, b);glide(tur2.frequency, 1000 + 2300 * rpm, tt, b);
+          glide(slapG.gain, .32 * rpm * rpm * (.6 + .5 * load), tt, a);glide(rG.gain, .22 * rpm * (.5 + .5 * load), tt, a);
+          glide(tG.gain, .012 * rpm, tt, b);glide(tailG.gain, .025 * rpm, tt, a);
         },
-        stop() {const tt = now();[slapG, rG, tG, tailG].forEach(g => g.gain.setTargetAtTime(0, tt, .4));setTimeout(() => {[lfo, tur, tur2, tail, n, rumble].forEach(o => {try {o.stop();} catch {}});}, 2500);}
+        stop() {const tt = now();[slapG, rG, tG, tailG].forEach(g => glide(g.gain, 0, tt, .4));setTimeout(() => {[lfo, tur, tur2, tail, n, rumble].forEach(o => {try {o.stop();} catch {}});[slapG, rG, tG, tailG].forEach(g => {try {g.disconnect();} catch {}});}, 2500);}
       };
     }
     // FPV quad: four slightly detuned motors (whine) plus propeller wash. set(thrust 0..1, level 0..1 = distance from the pilot)
@@ -280,27 +356,30 @@
       const t = now(), o = ctx.createOscillator(), o2 = ctx.createOscillator(), bp = ctx.createBiquadFilter(), g = ctx.createGain();o.type = 'triangle';o2.type = 'sine';bp.type = 'bandpass';bp.frequency.value = 900;bp.Q.value = 1.2;g.gain.value = 0;
       o.connect(bp);o2.connect(bp);bp.connect(g);out(g);o.start(t);o2.start(t);
       const hiss = noise(), hf = ctx.createBiquadFilter(), hG = ctx.createGain();hf.type = 'highpass';hf.frequency.value = 2500;hG.gain.value = 0;hiss.connect(hf).connect(hG);out(hG);hiss.start(t);
+      const pace = pacer();
       return {
-        set(level, power = 0) {const tt = now(), l = Math.max(0, Math.min(1.4, level));o.frequency.setTargetAtTime(180 + 900 * l, tt, .05);o2.frequency.setTargetAtTime(360 + 1800 * l, tt, .05);bp.frequency.setTargetAtTime(500 + 1400 * l, tt, .08);g.gain.setTargetAtTime((.004 + .03 * power) * Math.min(1, l * 3 + .2), tt, .06);hG.gain.setTargetAtTime(.012 * Math.min(1, l), tt, .1);},
-        stop() {const tt = now();g.gain.setTargetAtTime(0, tt, .1);hG.gain.setTargetAtTime(0, tt, .1);setTimeout(() => {try {o.stop();o2.stop();hiss.stop();} catch {}}, 800);}
+        set(level, power = 0) {const tt = now(), k = pace(), l = Math.max(0, Math.min(1.4, level));glide(o.frequency, 180 + 900 * l, tt, Math.max(.05, k));glide(o2.frequency, 360 + 1800 * l, tt, Math.max(.05, k));glide(bp.frequency, 500 + 1400 * l, tt, Math.max(.08, k));glide(g.gain, (.004 + .03 * power) * Math.min(1, l * 3 + .2), tt, Math.max(.06, k));glide(hG.gain, .012 * Math.min(1, l), tt, Math.max(.1, k));},
+        stop() {const tt = now();glide(g.gain, 0, tt, .1);glide(hG.gain, 0, tt, .1);setTimeout(() => {try {o.stop();o2.stop();hiss.stop();} catch {}try {g.disconnect();hG.disconnect();} catch {}}, 800);}
       };
     }
     function droneMotors() {
       const t = now(), bp = ctx.createBiquadFilter(), g = ctx.createGain();bp.type = 'bandpass';bp.frequency.value = 1400;bp.Q.value = .5;g.gain.value = 0;bp.connect(g);out(g);
       const motors = [1, 1.013, .987, 1.021].map(k => {const o = ctx.createOscillator();o.type = 'sawtooth';o.connect(bp);o.start(t);return {o, k};});
       const wash = noise(), wf = ctx.createBiquadFilter(), wG = ctx.createGain();wf.type = 'bandpass';wf.frequency.value = 2600;wf.Q.value = .6;wG.gain.value = 0;wash.connect(wf).connect(wG);out(wG);wash.start(t);
+      const pace = pacer();
       return {
-        set(thrust, level = 1) {const tt = now();motors.forEach(m => m.o.frequency.setTargetAtTime((150 + 560 * thrust) * m.k, tt, .04));g.gain.setTargetAtTime((.02 + .07 * thrust) * level, tt, .05);wG.gain.setTargetAtTime(.05 * thrust * level, tt, .05);},
-        stop() {const tt = now();g.gain.setTargetAtTime(0, tt, .1);wG.gain.setTargetAtTime(0, tt, .1);setTimeout(() => {motors.forEach(m => {try {m.o.stop();} catch {}});try {wash.stop();} catch {}}, 800);}
+        set(thrust, level = 1) {const tt = now(), k = pace(), f = Math.max(.04, k), q = Math.max(.05, k);for (let i = 0; i < motors.length; i++) glide(motors[i].o.frequency, (150 + 560 * thrust) * motors[i].k, tt, f);glide(g.gain, (.02 + .07 * thrust) * level, tt, q);glide(wG.gain, .05 * thrust * level, tt, q);},
+        stop() {const tt = now();glide(g.gain, 0, tt, .1);glide(wG.gain, 0, tt, .1);setTimeout(() => {motors.forEach(m => {try {m.o.stop();} catch {}});try {wash.stop();} catch {}try {g.disconnect();wG.disconnect();} catch {}}, 800);}
       };
     }
     // Bullet time: the world sounds muffled and low (a low-pass on everything except the music).
     let muffleF = null;
     function muffle(on) {
-      if (!init()) return;if (!muffleF) {muffleF = ctx.createBiquadFilter();muffleF.type = 'lowpass';muffleF.frequency.value = 20000;master.disconnect();master.connect(muffleF).connect(ctx.destination);}
+      if (!init()) return;if (!muffleF) {muffleF = ctx.createBiquadFilter();muffleF.type = 'lowpass';muffleF.frequency.value = 20000;master.disconnect();master.connect(muffleF).connect(bus);}
       muffleF.frequency.setTargetAtTime(on ? 700 : 20000, now(), .25);
     }
-    return {resume, ambience, footstep, sfx, engine, fire, water, siren, muffle, get context() {return ctx;}};
+    const api = {resume, ambience, footstep, sfx, engine, fire, water, siren, muffle, ondevicechange: null, get context() {return ctx;}, get output() {return bus || null;}};
+    return api;
   }
   return {create};
 });

@@ -4344,31 +4344,99 @@ window.BUILDING_LOOKS = {"table":[[],["school"],["retail"],["apartments"],["apar
  * and turbine), light-aircraft piston engine and propeller, FPV drone motors.
  * GameAudio.create() -> {resume(), ambience(state), footstep(surface, inStair), sfx(name, opts), engine(kind), hydraulics(), water(level), siren(level, pan)}
  *   sfx opts: gain, reverb, pan (-1 left … 1 right: a sound from somewhere, e.g. a prop hunt whistle)
+ *   output: the node every other sound in the game connects to (music, the catacomb, the flat's record and TV, the mission)
+ *   ondevicechange: set by the game; called when a sound device was connected or removed (for a notice)
+ * Steady sound (issue #150): one context with a large output buffer ('playback'), one master limiter, at most MAX_VOICES
+ * one-shot sounds at once (the oldest gives way), engines glide (smoother when the frame rate is low) and only write a value
+ * that changed, nothing non-finite reaches an AudioParam, and the sound starts again by itself after the browser or a
+ * device change paused it.
  */
 (function (root, factory) {
   root.GameAudio = factory();
 })(typeof window === 'undefined' ? globalThis : window, function () {
   'use strict';
   function create() {
-    let ctx = null, master, dry, reverbSend, convolver, noiseBuf, amb = null;
+    let ctx = null, bus, master, dry, reverbSend, convolver, noiseBuf, amb = null;
     const rand = (a, b) => a + Math.random() * (b - a);
+    const fin = (v, d = 0) => Number.isFinite(v) ? v : d;// nothing non-finite ever goes to an AudioParam
     function init() {
       if (ctx) return true;
-      try {ctx = new (window.AudioContext || window.webkitAudioContext)();} catch {return false;}
-      master = ctx.createGain();master.gain.value = .8;master.connect(ctx.destination);
+      const AC = window.AudioContext || window.webkitAudioContext;if (!AC) return false;
+      // 'playback' = a larger output buffer: a slow frame on a busy PC no longer starves the sound card (crackle, drop-outs).
+      try {ctx = new AC({latencyHint: 'playback'});} catch {try {ctx = new AC();} catch {return false;}}
+      // One output for everything: bus -> limiter -> speakers. The limiter only works near full scale (no pumping); the
+      // bus gain cancels the compressor's built-in make-up gain (about +1.7 dB with these settings), so the level is as before.
+      const lim = ctx.createDynamicsCompressor();lim.threshold.value = -3;lim.knee.value = 0;lim.ratio.value = 20;lim.attack.value = .003;lim.release.value = .25;
+      bus = ctx.createGain();bus.gain.value = .82;bus.connect(lim).connect(ctx.destination);
+      master = ctx.createGain();master.gain.value = .8;master.connect(bus);
       dry = ctx.createGain();dry.connect(master);
       noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);const d = noiseBuf.getChannelData(0);for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
       // Stairwell/indoor echo: a generated decaying impulse response.
       convolver = ctx.createConvolver();const len = ctx.sampleRate * 1.8, ir = ctx.createBuffer(2, len, ctx.sampleRate);
       for (let c = 0; c < 2; c++) {const ch = ir.getChannelData(c);for (let i = 0; i < len; i++) ch[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3.2) * (i < 400 ? i / 400 : 1);}
       convolver.buffer = ir;reverbSend = ctx.createGain();reverbSend.gain.value = 0;reverbSend.connect(convolver);convolver.connect(master);
-      startAmbience();return true;
+      startAmbience();watch();return true;
     }
-    function resume() {if (!init()) return;if (ctx.state === 'suspended') ctx.resume();}
+    // ---------- Keeping the sound on ----------
+    // The browser can pause the context (no click yet, a hidden tab, a device change); every way back calls wake().
+    let wakeMs = -1e9, restarting = false, devTimer = 0;
+    function wake(force) {
+      if (!ctx || ctx.state === 'running' || ctx.state === 'closed' || restarting) return;
+      const ms = performance.now();if (!force && ms - wakeMs < 250) return;wakeMs = ms;
+      try {const r = ctx.resume();if (r && r.catch) r.catch(() => {});} catch {}
+    }
+    function resume() {if (!init()) return;wake();}
+    // A sound device came or went (a PS4 controller on USB has its own speaker; a Bluetooth headset changes to its
+    // hands-free mode when a microphone opens): stop and start the output, so it opens again on the device Windows uses now.
+    function restart() {
+      if (!ctx || ctx.state !== 'running' || restarting) return;restarting = true;
+      ctx.suspend().then(() => ctx.resume()).catch(() => {}).then(() => {restarting = false;if (ctx.state !== 'running') wake(true);});
+    }
+    function watch() {
+      ctx.onstatechange = () => {if (ctx.state !== 'running') wake(true);};
+      if (ctx.addEventListener) ctx.addEventListener('error', restart);// the output device failed (newer browsers)
+      document.addEventListener('visibilitychange', () => {if (!document.hidden) wake(true);});
+      for (const e of ['focus', 'pageshow', 'gamepadconnected']) window.addEventListener(e, () => wake(true));
+      for (const e of ['pointerdown', 'keydown', 'touchend']) window.addEventListener(e, () => wake(true), {capture: true, passive: true});
+      const md = navigator.mediaDevices;
+      if (md && md.addEventListener) md.addEventListener('devicechange', () => {clearTimeout(devTimer);devTimer = setTimeout(() => {restart();if (api.ondevicechange) try {api.ondevicechange();} catch {}}, 1200);});
+    }
     const now = () => ctx.currentTime;
     function noise(loop = true) {const s = ctx.createBufferSource();s.buffer = noiseBuf;s.loop = loop;s.loopStart = Math.random();return s;}
     function out(node, reverb = 0) {node.connect(dry);if (reverb) {const g = ctx.createGain();g.gain.value = reverb;node.connect(g);g.connect(reverbSend);}return node;}
-    function env(gainNode, t, peak, attack, decay) {gainNode.gain.setValueAtTime(0, t);gainNode.gain.linearRampToValueAtTime(peak, t + attack);gainNode.gain.exponentialRampToValueAtTime(.0001, t + attack + decay);}
+    function env(gainNode, t, peak, attack, decay) {peak = fin(peak);gainNode.gain.setValueAtTime(0, t);gainNode.gain.linearRampToValueAtTime(peak, t + attack);gainNode.gain.exponentialRampToValueAtTime(.0001, t + attack + decay);}
+    // Glide a parameter to v; skipped when v is not finite or (nearly) the value it already glides to, so a sound that
+    // is updated every frame does not pile up automation events.
+    function glide(param, v, t, tau) {
+      if (!Number.isFinite(v)) return;const last = param._to;
+      if (last !== undefined && Math.abs(v - last) <= 1e-4 + Math.abs(last) * 2e-3) return;
+      param._to = v;param.setTargetAtTime(v, t, tau);
+    }
+    // One-shot sounds are voices with their own gain. When more than MAX_VOICES play at once, the oldest fades out in
+    // 30 ms and its sources stop (a storm of paintballs or footsteps cannot overload the sound).
+    const MAX_VOICES = 40, voices = [];
+    function voice(pan, verb = 0) {
+      const g = ctx.createGain(), V = {g, w: null, p: null, src: [], end: 0};
+      if (pan != null && ctx.createStereoPanner) {const P = ctx.createStereoPanner();P.pan.value = Math.max(-1, Math.min(1, fin(pan)));g.connect(P);out(P, verb);V.p = P;}
+      else g.connect(dry);
+      return V;
+    }
+    // Into a voice: dry, plus `reverb` of it to the echo (with a pan, the panner already has the voice's echo).
+    function vsend(V, node, reverb = 0) {
+      node.connect(V.g);if (V.p || !reverb) return node;
+      if (!V.w) {V.w = ctx.createGain();V.w.connect(reverbSend);}
+      const r = ctx.createGain();r.gain.value = reverb;node.connect(r);r.connect(V.w);return node;
+    }
+    function play(V, src, at, end) {src.start(at);src.stop(end);V.src.push(src);if (end > V.end) V.end = end;}
+    function commit(V) {
+      const t = now();for (let i = voices.length - 1; i >= 0; i--) if (voices[i].end < t) voices.splice(i, 1);
+      voices.push(V);
+      while (voices.length > MAX_VOICES) {
+        const old = voices.shift();
+        for (const g of [old.g, old.w]) if (g) {const p = g.gain;p.cancelScheduledValues(t);p.setValueAtTime(p.value, t);p.linearRampToValueAtTime(0, t + .03);}
+        for (const s of old.src) try {s.stop(t + .04);} catch {}
+      }
+    }
 
     // ---------- Ambience ----------
     function startAmbience() {
@@ -4379,20 +4447,20 @@ window.BUILDING_LOOKS = {"table":[[],["school"],["retail"],["apartments"],["apar
       // Rain (real weather, issue #23): a soft hiss, louder in heavier rain, muffled indoors.
       const rain = noise(), rainF = ctx.createBiquadFilter(), rainG = ctx.createGain();rainF.type = 'bandpass';rainF.frequency.value = 2600;rainF.Q.value = .5;rainG.gain.value = 0;rain.connect(rainF).connect(rainG);out(rainG);rain.start();
       amb = {windG, windF, trafG, roomG, humG, rainG, rainF, state: {indoor: 0, green: .5, traffic: 0, height: 0, stair: false, kitchen: false, rain: 0, windSpeed: 4}, birdTimer: 0, carTimer: 3, last: now()};
-      setInterval(tickAmbience, 120);
+      setInterval(tickAmbience, 120);// a timer, not the frame loop: the ambience goes on at any frame rate
     }
     function ambience(state) {if (amb) Object.assign(amb.state, state);}
     function tickAmbience() {
       if (!amb || ctx.state !== 'running') return;
       const s = amb.state, t = now(), dt = Math.min(.5, t - amb.last);amb.last = t;const outdoors = 1 - s.indoor;
-      const set = (param, v) => param.setTargetAtTime(v, t, .4);
+      const set = (param, v) => glide(param, v, t, .4);
       const windK = Math.min(2.2, .45 + (s.windSpeed || 0) / 7);// the real wind speed (m/s) makes the wind louder or quieter
       set(amb.windG.gain, ((.012 + .03 * Math.min(1, s.height / 12)) * outdoors + .004 * s.indoor) * windK);
-      set(amb.rainG.gain, (s.rain || 0) * (.05 * outdoors + .012 * s.indoor));amb.rainF.frequency.setTargetAtTime(s.indoor > .5 ? 900 : 2600, t, .3);
+      set(amb.rainG.gain, (s.rain || 0) * (.05 * outdoors + .012 * s.indoor));glide(amb.rainF.frequency, s.indoor > .5 ? 900 : 2600, t, .3);
       amb.windF.frequency.setTargetAtTime(300 + 260 * (.5 + .5 * Math.sin(t * .23)) + 200 * Math.sin(t * .071), t, .8);
       const tr = Math.max(0, 1 - s.traffic / 70);set(amb.trafG.gain, (.012 + .05 * tr * tr) * (outdoors + .25 * s.indoor));
       set(amb.roomG.gain, .03 * s.indoor);set(amb.humG.gain, s.kitchen ? .006 : 0);
-      reverbSend.gain.setTargetAtTime(s.stair ? .6 : s.indoor * .12, t, .3);
+      glide(reverbSend.gain, s.stair ? .6 : s.indoor * .12, t, .3);
       // Birds: more frequent near trees and in the park, rare indoors.
       amb.birdTimer -= dt;
       // Indoors only an occasional faint, muffled call through the windows.
@@ -4403,34 +4471,36 @@ window.BUILDING_LOOKS = {"table":[[],["school"],["retail"],["apartments"],["apar
       if (amb.carTimer <= 0) {amb.carTimer = rand(3, 12);if (tr > .15 && outdoors > .3) passingCar(tr * outdoors);}
     }
     function bird(level, muffled = false) {
-      const t = now() + .05, pan = ctx.createStereoPanner();pan.pan.value = rand(-.9, .9);const g = ctx.createGain();g.gain.value = level * rand(.05, .12);
-      if (muffled) {const lp = ctx.createBiquadFilter();lp.type = 'lowpass';lp.frequency.value = 1400;pan.connect(lp).connect(g);out(g);} else {pan.connect(g);out(g, .15);}
+      const t = now() + .05, V = voice(), pan = ctx.createStereoPanner();pan.pan.value = rand(-.9, .9);const g = ctx.createGain();g.gain.value = fin(level) * rand(.05, .12);
+      if (muffled) {const lp = ctx.createBiquadFilter();lp.type = 'lowpass';lp.frequency.value = 1400;pan.connect(lp).connect(g);vsend(V, g);} else {pan.connect(g);vsend(V, g, .15);}
       const species = Math.floor(Math.random() * 4);
       if (species === 0) {// great tit "ti-ta ti-ta"
-        for (let i = 0; i < 4; i++) {const o = ctx.createOscillator(), e = ctx.createGain(), f = i % 2 ? 4200 : 5600, at = t + i * .16;o.frequency.setValueAtTime(f, at);o.frequency.exponentialRampToValueAtTime(f * .85, at + .08);o.connect(e).connect(pan);env(e, at, 1, .01, .09);o.start(at);o.stop(at + .12);}
+        for (let i = 0; i < 4; i++) {const o = ctx.createOscillator(), e = ctx.createGain(), f = i % 2 ? 4200 : 5600, at = t + i * .16;o.frequency.setValueAtTime(f, at);o.frequency.exponentialRampToValueAtTime(f * .85, at + .08);o.connect(e).connect(pan);env(e, at, 1, .01, .09);play(V, o, at, at + .12);}
       } else if (species === 1) {// blackbird warble
-        let at = t;for (let i = 0; i < 6; i++) {const o = ctx.createOscillator(), e = ctx.createGain(), f = rand(1600, 3200), d = rand(.08, .2);o.frequency.setValueAtTime(f, at);o.frequency.exponentialRampToValueAtTime(f * rand(.7, 1.4), at + d);o.connect(e).connect(pan);env(e, at, 1, .02, d);o.start(at);o.stop(at + d + .05);at += d * rand(.9, 1.3);}
+        let at = t;for (let i = 0; i < 6; i++) {const o = ctx.createOscillator(), e = ctx.createGain(), f = rand(1600, 3200), d = rand(.08, .2);o.frequency.setValueAtTime(f, at);o.frequency.exponentialRampToValueAtTime(f * rand(.7, 1.4), at + d);o.connect(e).connect(pan);env(e, at, 1, .02, d);play(V, o, at, at + d + .05);at += d * rand(.9, 1.3);}
       } else if (species === 2) {// sparrow chirps
-        for (let i = 0; i < 3 + Math.floor(Math.random() * 4); i++) {const o = ctx.createOscillator(), e = ctx.createGain(), at = t + i * rand(.12, .25), f = rand(3500, 4800);o.type = 'triangle';o.frequency.setValueAtTime(f, at);o.frequency.linearRampToValueAtTime(f * 1.2, at + .03);o.frequency.linearRampToValueAtTime(f * .8, at + .06);o.connect(e).connect(pan);env(e, at, 1, .005, .06);o.start(at);o.stop(at + .09);}
+        for (let i = 0; i < 3 + Math.floor(Math.random() * 4); i++) {const o = ctx.createOscillator(), e = ctx.createGain(), at = t + i * rand(.12, .25), f = rand(3500, 4800);o.type = 'triangle';o.frequency.setValueAtTime(f, at);o.frequency.linearRampToValueAtTime(f * 1.2, at + .03);o.frequency.linearRampToValueAtTime(f * .8, at + .06);o.connect(e).connect(pan);env(e, at, 1, .005, .06);play(V, o, at, at + .09);}
       } else {// magpie chatter: harsh noise bursts
-        for (let i = 0; i < 5; i++) {const n = noise(false), f = ctx.createBiquadFilter(), e = ctx.createGain(), at = t + i * .09;f.type = 'bandpass';f.frequency.value = rand(1800, 2600);f.Q.value = 3;n.connect(f).connect(e).connect(pan);env(e, at, 1.6, .004, .06);n.start(at);n.stop(at + .08);}
+        for (let i = 0; i < 5; i++) {const n = noise(false), f = ctx.createBiquadFilter(), e = ctx.createGain(), at = t + i * .09;f.type = 'bandpass';f.frequency.value = rand(1800, 2600);f.Q.value = 3;n.connect(f).connect(e).connect(pan);env(e, at, 1.6, .004, .06);play(V, n, at, at + .08);}
       }
+      commit(V);
     }
     // Campfire: a soft roar plus random crackles, louder for a bigger fire and closer to it. fire(level 0..6, gain 0..1)
-    let fireNode = null, fireState = {level: 0, gain: 0};
+    let fireNode = null;const fireState = {level: 0, gain: 0};
     function fire(level, gain) {
       if (!ctx || ctx.state !== 'running') return;
       if (!fireNode) {const n = noise(), lp = ctx.createBiquadFilter(), g = ctx.createGain();lp.type = 'lowpass';lp.frequency.value = 500;g.gain.value = 0;n.connect(lp).connect(g);out(g);n.start();fireNode = {g, lp};}
-      fireState = {level, gain};const t = now();fireNode.g.gain.setTargetAtTime(.05 * gain * Math.min(1.4, level / 3), t, .3);fireNode.lp.frequency.setTargetAtTime(320 + level * 110, t, .3);
+      level = fin(level);gain = fin(gain);fireState.level = level;fireState.gain = gain;const t = now();glide(fireNode.g.gain, .05 * gain * Math.min(1.4, level / 3), t, .3);glide(fireNode.lp.frequency, 320 + level * 110, t, .3);
     }
     function crackle(gain) {
-      const t = now() + Math.random() * .1;
-      for (let i = 0, n = 1 + Math.floor(Math.random() * 3); i < n; i++) {const s = noise(false), f = ctx.createBiquadFilter(), e = ctx.createGain(), at = t + i * rand(.01, .05);f.type = 'bandpass';f.frequency.value = rand(1800, 5200);f.Q.value = 2;s.connect(f).connect(e);out(e);env(e, at, rand(.08, .3) * gain, .001, rand(.02, .07));s.start(at);s.stop(at + .12);}
+      const t = now() + Math.random() * .1, V = voice();
+      for (let i = 0, n = 1 + Math.floor(Math.random() * 3); i < n; i++) {const s = noise(false), f = ctx.createBiquadFilter(), e = ctx.createGain(), at = t + i * rand(.01, .05);f.type = 'bandpass';f.frequency.value = rand(1800, 5200);f.Q.value = 2;s.connect(f).connect(e);vsend(V, e);env(e, at, rand(.08, .3) * gain, .001, rand(.02, .07));play(V, s, at, at + .12);}
+      commit(V);
     }
     function passingCar(level) {
-      const t = now(), n = noise(false), f = ctx.createBiquadFilter(), g = ctx.createGain(), pan = ctx.createStereoPanner();f.type = 'lowpass';f.frequency.setValueAtTime(300, t);f.frequency.linearRampToValueAtTime(900, t + 1.6);f.frequency.linearRampToValueAtTime(250, t + 3.4);
-      g.gain.setValueAtTime(0, t);g.gain.linearRampToValueAtTime(.09 * level, t + 1.6);g.gain.linearRampToValueAtTime(0, t + 3.5);pan.pan.setValueAtTime(-.8, t);pan.pan.linearRampToValueAtTime(.8, t + 3.4);
-      n.connect(f).connect(g).connect(pan);out(pan);n.start(t);n.stop(t + 3.6);
+      const t = now(), V = voice(), n = noise(false), f = ctx.createBiquadFilter(), g = ctx.createGain(), pan = ctx.createStereoPanner();f.type = 'lowpass';f.frequency.setValueAtTime(300, t);f.frequency.linearRampToValueAtTime(900, t + 1.6);f.frequency.linearRampToValueAtTime(250, t + 3.4);
+      g.gain.setValueAtTime(0, t);g.gain.linearRampToValueAtTime(.09 * fin(level), t + 1.6);g.gain.linearRampToValueAtTime(0, t + 3.5);pan.pan.setValueAtTime(-.8, t);pan.pan.linearRampToValueAtTime(.8, t + 3.4);
+      n.connect(f).connect(g).connect(pan);vsend(V, pan);play(V, n, t, t + 3.6);commit(V);
     }
 
     // Rushing water (Akerselva): a hiss that rises with the current; water(level 0..1), 0 = silent.
@@ -4438,7 +4508,7 @@ window.BUILDING_LOOKS = {"table":[[],["school"],["retail"],["apartments"],["apar
     function water(level) {
       if (!ctx || ctx.state !== 'running') return;
       if (!waterNode) {const n = noise(), bp = ctx.createBiquadFilter(), lp = ctx.createBiquadFilter(), g = ctx.createGain();bp.type = 'highpass';bp.frequency.value = 300;lp.type = 'lowpass';lp.frequency.value = 1200;g.gain.value = 0;n.connect(bp).connect(lp).connect(g);out(g);n.start();waterNode = {g, lp};}
-      const t = now();waterNode.g.gain.setTargetAtTime(.07 * level, t, .3);waterNode.lp.frequency.setTargetAtTime(900 + level * 2600, t, .3);
+      level = fin(level);const t = now();glide(waterNode.g.gain, .07 * level, t, .3);glide(waterNode.lp.frequency, 900 + level * 2600, t, .3);
     }
 
     // Police siren (issue #140): the two-tone of Norwegian emergency vehicles (about B♭4 / E♭5, 0.6 s each), one voice for the
@@ -4452,30 +4522,31 @@ window.BUILDING_LOOKS = {"table":[[],["school"],["retail"],["apartments"],["apar
         o.type = 'sawtooth';o2.type = 'square';m2.gain.value = .3;lp.type = 'lowpass';lp.frequency.value = 2400;g.gain.value = 0;
         o.connect(lp);o2.connect(m2).connect(lp);lp.connect(g);if (P) {g.connect(P);out(P);} else out(g);o.start();o2.start();sirenNode = {o, o2, lp, g, P};
       }
-      const t = now(), l = Math.max(0, Math.min(1, level || 0)), f = Math.floor(t / .6) % 2 ? 622 : 466;
-      sirenNode.o.frequency.setTargetAtTime(f, t, .012);sirenNode.o2.frequency.setTargetAtTime(f * 1.004, t, .012);
-      sirenNode.g.gain.setTargetAtTime(.075 * l, t, .08);sirenNode.lp.frequency.setTargetAtTime(900 + 2300 * l, t, .1);
-      if (sirenNode.P) sirenNode.P.pan.setTargetAtTime(Math.max(-1, Math.min(1, pan)), t, .05);
+      const t = now(), l = Math.max(0, Math.min(1, fin(level))), f = Math.floor(t / .6) % 2 ? 622 : 466;
+      glide(sirenNode.o.frequency, f, t, .012);glide(sirenNode.o2.frequency, f * 1.004, t, .012);
+      glide(sirenNode.g.gain, .075 * l, t, .08);glide(sirenNode.lp.frequency, 900 + 2300 * l, t, .1);
+      if (sirenNode.P) glide(sirenNode.P.pan, Math.max(-1, Math.min(1, fin(pan))), t, .05);
     }
 
     // ---------- Footsteps ----------
     const steps = {grass: [700, 1.5, .05, .1], gravel: [3800, 1.2, .1, .07], sand: [1600, 1, .06, .08], asphalt: [2200, 2, .07, .04], wood: [900, 2.5, .09, .05], tile: [3200, 4, .07, .03], stone: [2600, 3.5, .1, .04], metal: [1100, 8, .08, .09], terrain: [900, 1.2, .05, .08]};
     function footstep(surface, inStair = false, softness = 1) {
       if (!ctx || ctx.state !== 'running') return;
-      const [freq, q, gain, decay] = steps[surface] || steps.terrain, t = now();
-      const n = noise(false), f = ctx.createBiquadFilter(), e = ctx.createGain();f.type = 'bandpass';f.frequency.value = freq * rand(.85, 1.15);f.Q.value = q;n.connect(f).connect(e);out(e, inStair ? .9 : 0);env(e, t, gain * softness * rand(.8, 1.2), .004, decay);n.start(t);n.stop(t + decay + .05);
-      if (surface === 'gravel') for (let i = 1; i < 4; i++) {const n2 = noise(false), f2 = ctx.createBiquadFilter(), e2 = ctx.createGain(), at = t + i * .018;f2.type = 'highpass';f2.frequency.value = 4000;n2.connect(f2).connect(e2);out(e2);env(e2, at, gain * .6 * softness, .002, .02);n2.start(at);n2.stop(at + .04);}
-      if (surface === 'wood' || surface === 'stone' || surface === 'tile') {const o = ctx.createOscillator(), e3 = ctx.createGain();o.frequency.value = surface === 'wood' ? 120 : 180;o.connect(e3);out(e3, inStair ? .9 : 0);env(e3, t, .08 * softness, .003, .07);o.start(t);o.stop(t + .1);}
+      const [freq, q, gain, decay] = steps[surface] || steps.terrain, t = now(), V = voice();softness = fin(softness, 1);
+      const n = noise(false), f = ctx.createBiquadFilter(), e = ctx.createGain();f.type = 'bandpass';f.frequency.value = freq * rand(.85, 1.15);f.Q.value = q;n.connect(f).connect(e);vsend(V, e, inStair ? .9 : 0);env(e, t, gain * softness * rand(.8, 1.2), .004, decay);play(V, n, t, t + decay + .05);
+      if (surface === 'gravel') for (let i = 1; i < 4; i++) {const n2 = noise(false), f2 = ctx.createBiquadFilter(), e2 = ctx.createGain(), at = t + i * .018;f2.type = 'highpass';f2.frequency.value = 4000;n2.connect(f2).connect(e2);vsend(V, e2);env(e2, at, gain * .6 * softness, .002, .02);play(V, n2, at, at + .04);}
+      if (surface === 'wood' || surface === 'stone' || surface === 'tile') {const o = ctx.createOscillator(), e3 = ctx.createGain();o.frequency.value = surface === 'wood' ? 120 : 180;o.connect(e3);vsend(V, e3, inStair ? .9 : 0);env(e3, t, .08 * softness, .003, .07);play(V, o, t, t + .1);}
+      commit(V);
     }
 
     // ---------- One-shot effects ----------
     function sfx(name, opts = {}) {
       if (!ctx || ctx.state !== 'running') return;
-      const t = now(), level = opts.gain ?? 1, verb = opts.reverb ?? 0;
-      // From a direction: everything goes through one stereo panner.
-      const pan = opts.pan != null && ctx.createStereoPanner ? (() => {const P = ctx.createStereoPanner();P.pan.value = Math.max(-1, Math.min(1, opts.pan));out(P, verb);return P;})() : null, sink = e => pan ? e.connect(pan) : out(e, verb);
-      const burst = (freq, q, peak, attack, decay, type = 'bandpass', at = t) => {const n = noise(false), f = ctx.createBiquadFilter(), e = ctx.createGain();f.type = type;f.frequency.value = freq;f.Q.value = q;n.connect(f).connect(e);sink(e);env(e, at, peak * level, attack, decay);n.start(at);n.stop(at + attack + decay + .05);};
-      const tone = (f0, f1, peak, attack, decay, type = 'sine', at = t) => {const o = ctx.createOscillator(), e = ctx.createGain();o.type = type;o.frequency.setValueAtTime(f0, at);o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), at + attack + decay);o.connect(e);sink(e);env(e, at, peak * level, attack, decay);o.start(at);o.stop(at + attack + decay + .05);};
+      const t = now(), level = fin(opts.gain ?? 1, 1), verb = fin(opts.reverb ?? 0);
+      // One voice per effect; from a direction (opts.pan) everything goes through one stereo panner.
+      const V = voice(opts.pan, verb), sink = e => vsend(V, e, verb);
+      const burst = (freq, q, peak, attack, decay, type = 'bandpass', at = t) => {const n = noise(false), f = ctx.createBiquadFilter(), e = ctx.createGain();f.type = type;f.frequency.value = freq;f.Q.value = q;n.connect(f).connect(e);sink(e);env(e, at, peak * level, attack, decay);play(V, n, at, at + attack + decay + .05);};
+      const tone = (f0, f1, peak, attack, decay, type = 'sine', at = t) => {const o = ctx.createOscillator(), e = ctx.createGain();o.type = type;o.frequency.setValueAtTime(f0, at);o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), at + attack + decay);o.connect(e);sink(e);env(e, at, peak * level, attack, decay);play(V, o, at, at + attack + decay + .05);};
       switch (name) {
         case 'doorOpen': tone(320, 520, .03, .05, .35, 'sawtooth');burst(600, 1, .05, .01, .2);break;
         case 'doorClose': burst(160, .8, .5, .004, .25, 'lowpass');tone(90, 50, .3, .003, .2);break;
@@ -4556,9 +4627,13 @@ window.BUILDING_LOOKS = {"table":[[],["school"],["retail"],["apartments"],["apar
         case 'phGo': tone(1046, 1046, .1, .005, .2, 'square');tone(1568, 1568, .1, .005, .35, 'square', t + .22);break;
         case 'phEnd': [659, 523, 392, 523].forEach((f, i) => tone(f, f, .1, .01, .3, 'triangle', t + i * .2));break;
       }
+      if (V.src.length) commit(V);else V.g.disconnect();
     }
 
     // ---------- Engines ----------
+    // Engines are set from the frame loop. pace() is the time since the last set (s): a glide is never shorter than one
+    // frame, so at 20 fps or after a hitch the pitch slides instead of jumping in steps (at 60 fps it is as before).
+    function pacer() {let last = 0;return () => {const ms = performance.now(), s = last ? Math.min(.3, (ms - last) / 1000) : 0;last = ms;return s;};}
     function engine(kind) {
       if (!init()) return {set() {}, stop() {}};
       if (kind === 'heli') return heliEngine();
@@ -4574,19 +4649,20 @@ window.BUILDING_LOOKS = {"table":[[],["school"],["retail"],["apartments"],["apar
       const amOsc = ctx.createOscillator();amOsc.type = 'square';const amDepth = ctx.createGain();amDepth.gain.value = .5;amOsc.connect(amDepth).connect(am.gain);am.gain.value = .5;
       mix.connect(shaper).connect(lp).connect(g);out(g);
       [saw, sq, sub, amOsc].forEach(o => o.start(t));n.start(t);
-      let hyd = null;
+      let hyd = null;const pace = pacer();
       const api = {
         set(rpm, throttle = 0) {
-          const tt = now(), fire = rpm / 60 * spec.cyl / 2;
-          saw.frequency.setTargetAtTime(fire, tt, .03);sq.frequency.setTargetAtTime(fire * 2.01, tt, .03);sub.frequency.setTargetAtTime(fire * .5, tt, .03);amOsc.frequency.setTargetAtTime(fire, tt, .03);
-          lp.frequency.setTargetAtTime(300 + 2600 * spec.tone * (.25 + .75 * throttle) * Math.min(1, rpm / spec.max + .2), tt, .05);
-          g.gain.setTargetAtTime(spec.gain * (.35 + .65 * throttle) * (.7 + .3 * rpm / spec.max), tt, .05);
+          const tt = now(), k = pace(), fire = rpm / 60 * spec.cyl / 2, f = Math.max(.03, k), q = Math.max(.05, k);
+          glide(saw.frequency, fire, tt, f);glide(sq.frequency, fire * 2.01, tt, f);glide(sub.frequency, fire * .5, tt, f);glide(amOsc.frequency, fire, tt, f);
+          glide(lp.frequency, 300 + 2600 * spec.tone * (.25 + .75 * throttle) * Math.min(1, rpm / spec.max + .2), tt, q);
+          glide(g.gain, spec.gain * (.35 + .65 * throttle) * (.7 + .3 * rpm / spec.max), tt, q);
         },
         hydraulics(flow) {
-          if (!hyd) {const o = ctx.createOscillator(), hg = ctx.createGain(), hn = noise(), hf = ctx.createBiquadFilter();o.type = 'sawtooth';hf.type = 'bandpass';hf.frequency.value = 1400;hf.Q.value = 2;hg.gain.value = 0;o.connect(hg);hn.connect(hf).connect(hg);out(hg);o.start();hn.start();hyd = {o, hg};}
-          hyd.o.frequency.setTargetAtTime(380 + 260 * flow, now(), .05);hyd.hg.gain.setTargetAtTime(.05 * flow, now(), .08);
+          if (!hyd) {const o = ctx.createOscillator(), hg = ctx.createGain(), hn = noise(), hf = ctx.createBiquadFilter();o.type = 'sawtooth';hf.type = 'bandpass';hf.frequency.value = 1400;hf.Q.value = 2;hg.gain.value = 0;o.connect(hg);hn.connect(hf).connect(hg);out(hg);o.start();hn.start();hyd = {o, hn, hg};}
+          const tt = now();glide(hyd.o.frequency, 380 + 260 * flow, tt, .05);glide(hyd.hg.gain, .05 * flow, tt, .08);
         },
-        stop() {const tt = now();g.gain.setTargetAtTime(0, tt, .15);setTimeout(() => {[saw, sq, sub, amOsc, n].forEach(o => {try {o.stop();} catch {}});if (hyd) {hyd.hg.gain.value = 0;try {hyd.o.stop();} catch {}}}, 900);},
+        // Stop: fade out, then stop every source (the hydraulics' noise too: it used to run on, silent, for ever) and let go.
+        stop() {const tt = now();glide(g.gain, 0, tt, .15);if (hyd) glide(hyd.hg.gain, 0, tt, .08);setTimeout(() => {[saw, sq, sub, amOsc, n].forEach(o => {try {o.stop();} catch {}});if (hyd) {try {hyd.o.stop();hyd.hn.stop();} catch {}try {hyd.hg.disconnect();} catch {}}try {g.disconnect();} catch {}}, 900);},
         spec
       };
       return api;
@@ -4600,16 +4676,16 @@ window.BUILDING_LOOKS = {"table":[[],["school"],["retail"],["apartments"],["apar
       const rumble = noise(), rlp = ctx.createBiquadFilter(), rG = ctx.createGain();rlp.type = 'lowpass';rlp.frequency.value = 110;rG.gain.value = 0;rumble.connect(rlp).connect(rG);out(rG);
       const tur = ctx.createOscillator(), tur2 = ctx.createOscillator(), tG = ctx.createGain();tur.type = 'sine';tur2.type = 'triangle';tG.gain.value = 0;tur.connect(tG);tur2.connect(tG);out(tG);
       const tail = ctx.createOscillator(), tlp = ctx.createBiquadFilter(), tailG = ctx.createGain();tail.type = 'sawtooth';tlp.type = 'lowpass';tlp.frequency.value = 420;tailG.gain.value = 0;tail.connect(tlp).connect(tailG);out(tailG);
-      [lfo, tur, tur2, tail].forEach(o => o.start(t));n.start(t);rumble.start(t);
+      [lfo, tur, tur2, tail].forEach(o => o.start(t));n.start(t);rumble.start(t);const pace = pacer();
       return {
         set(rpm, load = 0) {
-          const tt = now(), blade = 3 * 6.4 * rpm;
-          lfo.frequency.setTargetAtTime(Math.max(.5, blade), tt, .1);tail.frequency.setTargetAtTime(30 + 85 * rpm, tt, .1);
-          tur.frequency.setTargetAtTime(500 + 1150 * rpm, tt, .2);tur2.frequency.setTargetAtTime(1000 + 2300 * rpm, tt, .2);
-          slapG.gain.setTargetAtTime(.32 * rpm * rpm * (.6 + .5 * load), tt, .1);rG.gain.setTargetAtTime(.22 * rpm * (.5 + .5 * load), tt, .1);
-          tG.gain.setTargetAtTime(.012 * rpm, tt, .2);tailG.gain.setTargetAtTime(.025 * rpm, tt, .1);
+          const tt = now(), k = pace(), a = Math.max(.1, k), b = Math.max(.2, k), blade = 3 * 6.4 * rpm;
+          glide(lfo.frequency, Math.max(.5, blade), tt, a);glide(tail.frequency, 30 + 85 * rpm, tt, a);
+          glide(tur.frequency, 500 + 1150 * rpm, tt, b);glide(tur2.frequency, 1000 + 2300 * rpm, tt, b);
+          glide(slapG.gain, .32 * rpm * rpm * (.6 + .5 * load), tt, a);glide(rG.gain, .22 * rpm * (.5 + .5 * load), tt, a);
+          glide(tG.gain, .012 * rpm, tt, b);glide(tailG.gain, .025 * rpm, tt, a);
         },
-        stop() {const tt = now();[slapG, rG, tG, tailG].forEach(g => g.gain.setTargetAtTime(0, tt, .4));setTimeout(() => {[lfo, tur, tur2, tail, n, rumble].forEach(o => {try {o.stop();} catch {}});}, 2500);}
+        stop() {const tt = now();[slapG, rG, tG, tailG].forEach(g => glide(g.gain, 0, tt, .4));setTimeout(() => {[lfo, tur, tur2, tail, n, rumble].forEach(o => {try {o.stop();} catch {}});[slapG, rG, tG, tailG].forEach(g => {try {g.disconnect();} catch {}});}, 2500);}
       };
     }
     // FPV quad: four slightly detuned motors (whine) plus propeller wash. set(thrust 0..1, level 0..1 = distance from the pilot)
@@ -4618,27 +4694,30 @@ window.BUILDING_LOOKS = {"table":[[],["school"],["retail"],["apartments"],["apar
       const t = now(), o = ctx.createOscillator(), o2 = ctx.createOscillator(), bp = ctx.createBiquadFilter(), g = ctx.createGain();o.type = 'triangle';o2.type = 'sine';bp.type = 'bandpass';bp.frequency.value = 900;bp.Q.value = 1.2;g.gain.value = 0;
       o.connect(bp);o2.connect(bp);bp.connect(g);out(g);o.start(t);o2.start(t);
       const hiss = noise(), hf = ctx.createBiquadFilter(), hG = ctx.createGain();hf.type = 'highpass';hf.frequency.value = 2500;hG.gain.value = 0;hiss.connect(hf).connect(hG);out(hG);hiss.start(t);
+      const pace = pacer();
       return {
-        set(level, power = 0) {const tt = now(), l = Math.max(0, Math.min(1.4, level));o.frequency.setTargetAtTime(180 + 900 * l, tt, .05);o2.frequency.setTargetAtTime(360 + 1800 * l, tt, .05);bp.frequency.setTargetAtTime(500 + 1400 * l, tt, .08);g.gain.setTargetAtTime((.004 + .03 * power) * Math.min(1, l * 3 + .2), tt, .06);hG.gain.setTargetAtTime(.012 * Math.min(1, l), tt, .1);},
-        stop() {const tt = now();g.gain.setTargetAtTime(0, tt, .1);hG.gain.setTargetAtTime(0, tt, .1);setTimeout(() => {try {o.stop();o2.stop();hiss.stop();} catch {}}, 800);}
+        set(level, power = 0) {const tt = now(), k = pace(), l = Math.max(0, Math.min(1.4, level));glide(o.frequency, 180 + 900 * l, tt, Math.max(.05, k));glide(o2.frequency, 360 + 1800 * l, tt, Math.max(.05, k));glide(bp.frequency, 500 + 1400 * l, tt, Math.max(.08, k));glide(g.gain, (.004 + .03 * power) * Math.min(1, l * 3 + .2), tt, Math.max(.06, k));glide(hG.gain, .012 * Math.min(1, l), tt, Math.max(.1, k));},
+        stop() {const tt = now();glide(g.gain, 0, tt, .1);glide(hG.gain, 0, tt, .1);setTimeout(() => {try {o.stop();o2.stop();hiss.stop();} catch {}try {g.disconnect();hG.disconnect();} catch {}}, 800);}
       };
     }
     function droneMotors() {
       const t = now(), bp = ctx.createBiquadFilter(), g = ctx.createGain();bp.type = 'bandpass';bp.frequency.value = 1400;bp.Q.value = .5;g.gain.value = 0;bp.connect(g);out(g);
       const motors = [1, 1.013, .987, 1.021].map(k => {const o = ctx.createOscillator();o.type = 'sawtooth';o.connect(bp);o.start(t);return {o, k};});
       const wash = noise(), wf = ctx.createBiquadFilter(), wG = ctx.createGain();wf.type = 'bandpass';wf.frequency.value = 2600;wf.Q.value = .6;wG.gain.value = 0;wash.connect(wf).connect(wG);out(wG);wash.start(t);
+      const pace = pacer();
       return {
-        set(thrust, level = 1) {const tt = now();motors.forEach(m => m.o.frequency.setTargetAtTime((150 + 560 * thrust) * m.k, tt, .04));g.gain.setTargetAtTime((.02 + .07 * thrust) * level, tt, .05);wG.gain.setTargetAtTime(.05 * thrust * level, tt, .05);},
-        stop() {const tt = now();g.gain.setTargetAtTime(0, tt, .1);wG.gain.setTargetAtTime(0, tt, .1);setTimeout(() => {motors.forEach(m => {try {m.o.stop();} catch {}});try {wash.stop();} catch {}}, 800);}
+        set(thrust, level = 1) {const tt = now(), k = pace(), f = Math.max(.04, k), q = Math.max(.05, k);for (let i = 0; i < motors.length; i++) glide(motors[i].o.frequency, (150 + 560 * thrust) * motors[i].k, tt, f);glide(g.gain, (.02 + .07 * thrust) * level, tt, q);glide(wG.gain, .05 * thrust * level, tt, q);},
+        stop() {const tt = now();glide(g.gain, 0, tt, .1);glide(wG.gain, 0, tt, .1);setTimeout(() => {motors.forEach(m => {try {m.o.stop();} catch {}});try {wash.stop();} catch {}try {g.disconnect();wG.disconnect();} catch {}}, 800);}
       };
     }
     // Bullet time: the world sounds muffled and low (a low-pass on everything except the music).
     let muffleF = null;
     function muffle(on) {
-      if (!init()) return;if (!muffleF) {muffleF = ctx.createBiquadFilter();muffleF.type = 'lowpass';muffleF.frequency.value = 20000;master.disconnect();master.connect(muffleF).connect(ctx.destination);}
+      if (!init()) return;if (!muffleF) {muffleF = ctx.createBiquadFilter();muffleF.type = 'lowpass';muffleF.frequency.value = 20000;master.disconnect();master.connect(muffleF).connect(bus);}
       muffleF.frequency.setTargetAtTime(on ? 700 : 20000, now(), .25);
     }
-    return {resume, ambience, footstep, sfx, engine, fire, water, siren, muffle, get context() {return ctx;}};
+    const api = {resume, ambience, footstep, sfx, engine, fire, water, siren, muffle, ondevicechange: null, get context() {return ctx;}, get output() {return bus || null;}};
+    return api;
   }
   return {create};
 });
@@ -4657,7 +4736,7 @@ window.BUILDING_LOOKS = {"table":[[],["school"],["retail"],["apartments"],["apar
  *                                  E minor, 112 bpm, 32 bars = 68.6 s (issue #124, during a prop hunt match)
  * Records for the LP player in Rathkes gate 1C (issue #116; GameMusic.records): lp1 "Søndagsjazz" (jazz trio, 73.8 s),
  * lp2 "Bossa på Løkka" (bossa nova, 72.7 s), lp3 "Lavalampe" (soul and disco, 68.6 s), lp4 "Fjellvise" (folk waltz, 80 s).
- * GameMusic.create() -> {attach(audioContext), play(name|null), setVolume(0..1), volume, current, position(),
+ * GameMusic.create() -> {attach(audioContext, output), play(name|null), setVolume(0..1), volume, current, position(),
  *   recordPlay(name, pos, needle), recordStop(fade), recordOutput (GainNode to route), record, duck(0..1), context}
  * GameMusic.tracks -> {name: {title, artist, style, record, bpm, beats, bars, seconds}}
  * GameMusic.renderOffline(name, seconds) -> Promise<AudioBuffer> (tests and previews)
@@ -5053,10 +5132,10 @@ window.BUILDING_LOOKS = {"table":[[],["school"],["retail"],["apartments"],["apar
   const barSeed = (name, bar) => mulberry32(bar * 977 + name.length * 31 + 13);
 
   // Shared output chain: master volume -> gentle compressor -> speakers; one generated hall reverb.
-  function chain(ctx, volume) {
+  function chain(ctx, volume, dest = ctx.destination) {
     const master = ctx.createGain();master.gain.value = volume;
     const comp = ctx.createDynamicsCompressor();comp.threshold.value = -18;comp.ratio.value = 3;comp.attack.value = .01;comp.release.value = .25;
-    master.connect(comp).connect(ctx.destination);
+    master.connect(comp).connect(dest);
     const reverb = ctx.createConvolver(), len = Math.floor(ctx.sampleRate * 3.2), ir = ctx.createBuffer(2, len, ctx.sampleRate);
     for (let c = 0; c < 2; c++) {const ch = ir.getChannelData(c);let lp = 0;for (let i = 0; i < len; i++) {lp += ((Math.random() * 2 - 1) - lp) * .35;ch[i] = lp * Math.pow(1 - i / len, 2.6) * (i < 600 ? i / 600 : 1);}}
     reverb.buffer = ir;const wet = ctx.createGain();wet.gain.value = .55;reverb.connect(wet).connect(master);
@@ -5072,8 +5151,9 @@ window.BUILDING_LOOKS = {"table":[[],["school"],["retail"],["apartments"],["apar
     // The record player (issue #116): its own lane into `recOut` (not the soundtrack's master), which the game routes through
     // the room (volume by distance, pan, walls); a small room reverb of its own.
     let rec = null, recOut = null, recVerb = null;
-    function attach(c) {
-      if (ctx || !c) return;ctx = c;kit = makeKit(ctx);out = chain(ctx, level());
+    // dest: the game's one output (game-audio.js `output`, through its limiter); the speakers when not given.
+    function attach(c, dest) {
+      if (ctx || !c) return;ctx = c;kit = makeKit(ctx);out = chain(ctx, level(), dest || ctx.destination);
       recOut = ctx.createGain();recVerb = ctx.createConvolver();
       {const len = Math.floor(ctx.sampleRate * 1.1), ir = ctx.createBuffer(2, len, ctx.sampleRate);for (let ch = 0; ch < 2; ch++) {const d = ir.getChannelData(ch);for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3) * (i < 300 ? i / 300 : 1);}recVerb.buffer = ir;const wet = ctx.createGain();wet.gain.value = .35;recVerb.connect(wet).connect(recOut);}
       setInterval(tick, 60);const want = current;current = undefined;play(want);
@@ -6452,17 +6532,18 @@ window.BUILDING_LOOKS = {"table":[[],["school"],["retail"],["apartments"],["apar
  * Each pair of players has one two-way audio channel. Only the player with the lower id makes the offer (no offer
  * collisions); switching the microphone on or off just swaps the track on that channel, so it never needs renegotiation.
  * Signalling (offer/answer/ICE) goes through the lobby server; Cloudflare's public STUN server finds a direct route.
- * GameVoice.create({send(to, data), you()}) -> {setMic(on) -> Promise<bool>, mic, onSignal(from, data), peerJoined(id),
+ * GameVoice.create({send(to, data), you(), context()}) -> {setMic(on) -> Promise<bool>, mic, onSignal(from, data), peerJoined(id),
  *   peerLeft(id), setVolume(id, v), reset(), peers, levels() -> {me, [id]: dBFS}}
  * levels(): how loud each voice is right now (RMS in dB full scale, -100 when silent or unknown) – the librarian in Deichman
- * Grünerløkka shushes players who talk loudly there (issue #47).
+ * Grünerløkka shushes players who talk loudly there (issue #47). The meters use the game's sound context (`context()`); a
+ * second AudioContext only when there is none (each context is one more output stream for Windows to mix; issue #150).
  */
 (function (root, factory) {
   root.GameVoice = factory();
 })(typeof window === 'undefined' ? globalThis : window, function () {
   'use strict';
   const ICE = [{urls: 'stun:stun.cloudflare.com:3478'}, {urls: 'stun:stun.l.google.com:19302'}];
-  function create({send, you}) {
+  function create({send, you, context}) {
     let stream = null;
     const peers = new Map();// id -> {pc, audio, offerer, queue}
     const micTrack = () => (stream ? stream.getAudioTracks()[0] : null) || null;
@@ -6505,15 +6586,18 @@ window.BUILDING_LOOKS = {"table":[[],["school"],["retail"],["apartments"],["apar
       } catch {}
     }
     function peerJoined(id) {peer(id);}
-    function peerLeft(id) {meters.delete(id);const p = peers.get(id);if (!p) return;try {p.pc.close();} catch {}p.audio.srcObject = null;peers.delete(id);}
+    function peerLeft(id) {unmeter(id);const p = peers.get(id);if (!p) return;try {p.pc.close();} catch {}p.audio.srcObject = null;peers.delete(id);}
     function setVolume(id, v) {const p = peers.get(id);if (p) p.audio.volume = Math.max(0, Math.min(1, v));}
     function reset() {for (const id of [...peers.keys()]) peerLeft(id);}
     // Voice levels: an analyser per stream (not connected to the speakers; the <audio> element plays the voice).
     let actx = null;const meters = new Map();
+    // A meter that is not needed any more lets go of its stream (it used to stay connected after a player left).
+    function unmeter(key) {const m = meters.get(key);if (!m) return;meters.delete(key);try {m.node.disconnect();} catch {}}
     function meter(key, src) {
-      if (!src) {meters.delete(key);return null;}
+      if (!src) {unmeter(key);return null;}
       let m = meters.get(key);if (m && m.src === src) return m;
-      try {actx = actx || new (window.AudioContext || window.webkitAudioContext)();const node = actx.createMediaStreamSource(src), an = actx.createAnalyser();an.fftSize = 1024;node.connect(an);m = {src, node, an, buf: new Float32Array(an.fftSize)};meters.set(key, m);return m;} catch {return null;}
+      if (m) unmeter(key);
+      try {actx = (context && context()) || actx || new (window.AudioContext || window.webkitAudioContext)();const node = actx.createMediaStreamSource(src), an = actx.createAnalyser();an.fftSize = 1024;node.connect(an);m = {src, node, an, buf: new Float32Array(an.fftSize)};meters.set(key, m);return m;} catch {return null;}
     }
     function level(m) {if (!m) return -100;m.an.getFloatTimeDomainData(m.buf);let s = 0;for (let i = 0; i < m.buf.length; i++) s += m.buf[i] * m.buf[i];return 10 * Math.log10(s / m.buf.length + 1e-12);}
     function levels() {
@@ -6809,7 +6893,7 @@ window.BUILDING_LOOKS = {"table":[[],["school"],["retail"],["apartments"],["apar
     const netLen = v => v.netLen || (v.netLen = v.netGet().length);
     const stamped = s => [...s, Math.round(performance.now())];
     const net = window.GameNet.create({onMessage, onStatus: () => ctx.onStatus()});
-    const voice = window.GameVoice.create({send: (to, d) => net.send({t: 'rtc', to, d}), you: () => net.you});
+    const voice = window.GameVoice.create({send: (to, d) => net.send({t: 'rtc', to, d}), you: () => net.you, context: () => ctx.audioContext && ctx.audioContext()});
     function remote(id) {
       let r = remotes.get(id);if (r) return r;const p = net.players.get(id) || {slot: 0, name: 'Player'};
       const av = avatars.avatar(p.slot, p.name);av.group.visible = false;scene.add(av.group);
@@ -8745,7 +8829,7 @@ window.KLATREVERKET={"attribution":"Building: OpenStreetMap way 1031709261 (ODbL
 
     class Drone {
       constructor() {this.pos = V3();this.vel = V3();this.q = new T.Quaternion();this.mode = 'angle';this.battery = 1;this.armed = false;this.crashed = false;this.yawA = 0;this.pitchA = 0;this.rollA = 0;this.time = 0;this.thrust = 0;this.home = V3();this.engine = null;}
-      launch(x, y, z, yaw) {this.pos.set(x, y + .06, z);this.home.copy(this.pos);this.vel.set(0, 0, 0);this.yawA = yaw;this.pitchA = this.rollA = 0;this.q.setFromEuler(new T.Euler(0, yaw, 0, 'YXZ'));this.battery = 1;this.armed = true;this.crashed = false;this.time = 0;this.landed = true;audio.sfx('arm');this.engine = audio.engine('drone');}
+      launch(x, y, z, yaw) {this.pos.set(x, y + .06, z);this.home.copy(this.pos);this.vel.set(0, 0, 0);this.yawA = yaw;this.pitchA = this.rollA = 0;this.q.setFromEuler(new T.Euler(0, yaw, 0, 'YXZ'));this.battery = 1;this.armed = true;this.crashed = false;this.time = 0;this.landed = true;audio.sfx('arm');if (this.engine) this.engine.stop();this.engine = audio.engine('drone');}
       stop() {if (this.engine) this.engine.stop();this.engine = null;this.armed = false;}
       setMode(m) {this.mode = m;const e = new T.Euler().setFromQuaternion(this.q, 'YXZ');this.yawA = e.y;this.pitchA = clamp(e.x, -.8, .8);this.rollA = clamp(-e.z, -.8, .8);}
       reset() {this.crashed = false;this.vel.set(0, 0, 0);this.pitchA = this.rollA = 0;this.q.setFromEuler(new T.Euler(0, this.yawA, 0, 'YXZ'));this.armed = this.battery > 0;this.landed = true;audio.sfx('arm');}
@@ -16949,7 +17033,7 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
     function sounds(dt, depth, torchNear) {
       const ctx = audio && audio.context;if (!ctx) return;
       if (!snd) {
-        const out = ctx.createGain();out.gain.value = 0;out.connect(ctx.destination);
+        const out = ctx.createGain();out.gain.value = 0;out.connect(audio.output || ctx.destination);
         const len = ctx.sampleRate * 2, buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);let b = 0;for (let i = 0; i < len; i++) {b = b * .985 + (Math.random() * 2 - 1) * .1;d[i] = b;}
         const hum = ctx.createBufferSource();hum.buffer = buf;hum.loop = true;const lp = ctx.createBiquadFilter();lp.type = 'lowpass';lp.frequency.value = 160;const hg = ctx.createGain();hg.gain.value = .5;hum.connect(lp).connect(hg).connect(out);hum.start();
         const wbuf = ctx.createBuffer(1, len, ctx.sampleRate), w = wbuf.getChannelData(0);for (let i = 0; i < len; i++) w[i] = (Math.random() * 2 - 1) * (Math.random() < .004 ? 1 : .08);
@@ -19772,7 +19856,7 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
     function spatial(ctx) {
       const input = ctx.createGain(), lp = ctx.createBiquadFilter(), pan = ctx.createStereoPanner(), gain = ctx.createGain(), comp = ctx.createDynamicsCompressor();
       lp.type = 'lowpass';lp.frequency.value = 18000;gain.gain.value = 0;comp.threshold.value = -14;comp.ratio.value = 4;
-      input.connect(lp).connect(pan).connect(gain).connect(comp).connect(ctx.destination);
+      input.connect(lp).connect(pan).connect(gain).connect(comp).connect((game.audioOutput && game.audioOutput()) || ctx.destination);
       return {input, lp, pan, gain, set(g, p, muffle, t) {gain.gain.setTargetAtTime(g, t, .15);pan.pan.setTargetAtTime(p, t, .15);lp.frequency.setTargetAtTime(muffle > .5 ? 700 : 18000, t, .2);}};
     }
     // The TV's sound: a quiet bed made from noise and a few oscillators, shaped per channel.
@@ -24949,16 +25033,18 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     // ---- Weapon.
     function sound(kind, distance = 1) {
       try {
-        audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+        // The game's own sound context and output (one context, through its limiter); a context of its own only when alone.
+        audio = audio || (ctx.audioContext && ctx.audioContext()) || new (window.AudioContext || window.webkitAudioContext)();
         if (audio.state === 'suspended') audio.resume();
+        const dest = (ctx.audioOutput && ctx.audioOutput()) || audio.destination;
         // A hostile shot reuses the pistol sound, darker and quieter with distance.
         const enemy = kind === 'enemy';if (enemy) kind = 'shot';
         const now = audio.currentTime, length = kind === 'shot' ? .32 : .05, buffer = audio.createBuffer(1, audio.sampleRate * length, audio.sampleRate), data = buffer.getChannelData(0);
         for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / data.length, kind === 'shot' ? 4 : 2);
         const src = audio.createBufferSource(), filter = audio.createBiquadFilter(), gain = audio.createGain();
         src.buffer = buffer;filter.type = 'lowpass';filter.frequency.setValueAtTime(enemy ? 1500 + 1200 / Math.max(1, distance) : kind === 'shot' ? 3200 : 5000, now);filter.frequency.exponentialRampToValueAtTime(kind === 'shot' ? 300 : 2000, now + length);
-        gain.gain.setValueAtTime(enemy ? Math.min(.8, 2.2 / Math.max(1, distance)) : kind === 'shot' ? .9 : .25, now);src.connect(filter).connect(gain).connect(audio.destination);src.start(now);
-        if (kind === 'shot') {const osc = audio.createOscillator(), g = audio.createGain();osc.frequency.setValueAtTime(140, now);osc.frequency.exponentialRampToValueAtTime(40, now + .18);g.gain.setValueAtTime(.7, now);g.gain.exponentialRampToValueAtTime(.001, now + .2);osc.connect(g).connect(audio.destination);osc.start(now);osc.stop(now + .2);}
+        gain.gain.setValueAtTime(enemy ? Math.min(.8, 2.2 / Math.max(1, distance)) : kind === 'shot' ? .9 : .25, now);src.connect(filter).connect(gain).connect(dest);src.start(now);
+        if (kind === 'shot') {const osc = audio.createOscillator(), g = audio.createGain();osc.frequency.setValueAtTime(140, now);osc.frequency.exponentialRampToValueAtTime(40, now + .18);g.gain.setValueAtTime(.7, now);g.gain.exponentialRampToValueAtTime(.001, now + .2);osc.connect(g).connect(dest);osc.start(now);osc.stop(now + .2);}
       } catch {}
     }
     function startReload() {
@@ -25705,7 +25791,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
       camera: () => camera, walkWorld: () => walkWorld, doors: () => apt.doors, isFirstPerson: () => true, render: () => {}, shootables: () => shootTargets,
       lib, stance: () => player.stance, useDoorAhead: () => interact(true),
       sensitivity: {min: .25, max: 3, get: () => ({...sensitivity}), set: setSens, step: (k, d) => setSens(k, sensitivity[k] + d * .1)},
-      spawnAreas: () => apt.spawnAreas, stairSpawns, missionStart,
+      spawnAreas: () => apt.spawnAreas, stairSpawns, missionStart, audioContext: () => audio.context, audioOutput: () => audio.output,
       entrance: () => {const d = apt.doors.find(d => d.name === 'Entrance door');return d ? d.leaf.getWorldPosition(new T.Vector3()) : {x: 1.66, z: 5.83};},
       timeScale: () => worldScale(),
       onFinish: (result, info) => {if (result === 'success') earn(400, 'Reward for rescuing the hostage');badges.record('mission', {success: result === 'success', time: info && info.time});},
@@ -26727,7 +26813,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     if (doorsChanged || caseGame?.active) updateDynamic();
     promptTimer -= dt;if (promptTimer <= 0) {promptTimer = .15;promptAction = player.mode === 'minigame' || player.mode === 'drone' || (prophunt && prophunt.ownsSquare) || transit?.panel.open || gear?.open || quick || bag || gymMenu || lic.menu.open || jobs.phone.open || photo.active || storgata?.talking || (caseGame?.active && caseGame.state !== 'play') ? null : findPrompt();prompt(promptAction?.text);}
     weather.update(dt, camera, {indoor: weatherIndoor, windWorld: weatherWind});
-    ambienceTimer -= dt;if (ambienceTimer <= 0) {ambienceTimer = .25;updateAmbience();if (audio.context) music.attach(audio.context);music.play(musicTrack());}
+    ambienceTimer -= dt;if (ambienceTimer <= 0) {ambienceTimer = .25;updateAmbience();if (audio.context) music.attach(audio.context, audio.output);music.play(musicTrack());}
     // Adaptive resolution keeps the frame rate in the 20–30+ fps range on slower PCs.
     if (fpsAvg < 22) {if (++lowFrames > 90 && pixelRatio > .6) {pixelRatio = Math.max(.6, pixelRatio - .1);renderer.setPixelRatio(pixelRatio);resize();lowFrames = 0;}} else lowFrames = 0;
     updateGuide(dt);
@@ -27275,7 +27361,10 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
   $('mpJoinCode').addEventListener('keydown', e => {if (e.code === 'Enter') $('mpJoin').click();});
   $('mpHome').onclick = () => {mp.net.home();notice('Back in your own lobby.', 3);};
   $('mpName').onchange = e => {mp.net.setName(e.target.value);renderMp();};
-  $('mpMic').onchange = async e => {const ok = await mp.setMic(e.target.checked);if (!ok && e.target.checked) notice('The microphone could not be opened (permission denied or no microphone).', 5);renderMp();};
+  $('mpMic').onchange = async e => {const ok = await mp.setMic(e.target.checked);if (!ok && e.target.checked) notice('The microphone could not be opened (permission denied or no microphone).', 5);else if (e.target.checked) notice('🎙 Microphone on. A Bluetooth headset plays all sound in its low phone quality while its microphone is on – untick the microphone here to get the good sound back.', 7);renderMp();};
+  // A sound device came or went (issue #150): the sound restarts by itself on the device Windows plays to now.
+  let deviceNoteMs = -1e9;
+  audio.ondevicechange = () => {const ms = performance.now();if (ms - deviceNoteMs < 30000) return;deviceNoteMs = ms;notice('🔈 A sound device was connected or removed (a PS4 controller on USB has its own speaker, or a headset). No sound? Choose your speakers or headset with the speaker icon in the Windows taskbar.', 7);};
   // ---------- Account (pause menu, optional): email + password through the Worker (Better Auth + Supabase) ----------
   let acctMode = 'login';
   const account = window.GameAccount.create({onChange: renderAccount});
@@ -27447,7 +27536,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     if (d.open === open || d.anim) return;d.anim = {from: d.open ? 1 : 0, to: open ? 1 : 0, t: 0};
     const p = d.leaf.getWorldPosition(new T.Vector3()), dist = Math.hypot(p.x - player.x, p.z - player.z);if (dist < 25) audio.sfx(open ? 'doorOpen' : 'doorClose', {gain: Math.max(.1, 1 - dist / 25)});
   }
-  mp = window.GameMultiplayer.create({T, lib, scene, camera, vehicles, fireDecayS: fire.DECAY_S, fireMax: fire.MAX, localState, notice,
+  mp = window.GameMultiplayer.create({T, lib, scene, camera, vehicles, fireDecayS: fire.DECAY_S, fireMax: fire.MAX, localState, notice, audioContext: () => audio.context,
     drivingIndex: () => player.mode === 'vehicle' && player.vehicle ? vehicles.indexOf(player.vehicle) : gp ? caravanIndex() : -1,
     listener: () => ({x: player.x, y: player.feet + 1.5, z: player.z}), applyDoor, onChat: chatLine, onStatus: () => {renderMp();onLobbyChange();friends.lobby(mp.net.online ? mp.net.code : null, mp.net.players.size, mp.net.max);},
     applyObj: (id, v) => {if (living) living.apply(id, v, true);},
@@ -27460,7 +27549,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
   // Flat 501's living room (issue #116): its record player, TV, lava lamp and chairs are shared through the lobby.
   if (living) living.attach({now: () => mp.net.online ? mp.net.serverNow() : Date.now(), you: () => mp.net.online ? mp.net.you : 0, send: (id, v) => mp.sendObj(id, v),
     notice, audio: (name, o) => audio.sfx(name, o), sit: sitDown, sitTaken: id => mp.sitTaken(id), solidsChanged: () => updateDynamic(),
-    remote: id => mp.remotes.get(id), remoteHas: id => mp.remotes.has(id), nameOf: id => mp.nameOf(id), audioContext: () => audio.context, music, weather: () => weather.state});
+    remote: id => mp.remotes.get(id), remoteHas: id => mp.remotes.has(id), nameOf: id => mp.nameOf(id), audioContext: () => audio.context, audioOutput: () => audio.output, music, weather: () => weather.state});
   // A new lobby: vehicles go back to where everybody else has them (the lobby then sends the ones that were moved).
   let lastLobby = null;
   function onLobbyChange() {

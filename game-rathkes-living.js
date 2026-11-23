@@ -369,7 +369,7 @@
     function spatial(ctx) {
       const input = ctx.createGain(), lp = ctx.createBiquadFilter(), pan = ctx.createStereoPanner(), gain = ctx.createGain(), comp = ctx.createDynamicsCompressor();
       lp.type = 'lowpass';lp.frequency.value = 18000;gain.gain.value = 0;comp.threshold.value = -14;comp.ratio.value = 4;
-      input.connect(lp).connect(pan).connect(gain).connect(comp).connect(ctx.destination);
+      input.connect(lp).connect(pan).connect(gain).connect(comp).connect((game.audioOutput && game.audioOutput()) || ctx.destination);
       return {input, lp, pan, gain, set(g, p, muffle, t) {gain.gain.setTargetAtTime(g, t, .15);pan.pan.setTargetAtTime(p, t, .15);lp.frequency.setTargetAtTime(muffle > .5 ? 700 : 18000, t, .2);}};
     }
     // The TV's sound: a quiet bed made from noise and a few oscillators, shaped per channel.

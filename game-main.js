@@ -529,7 +529,7 @@
       camera: () => camera, walkWorld: () => walkWorld, doors: () => apt.doors, isFirstPerson: () => true, render: () => {}, shootables: () => shootTargets,
       lib, stance: () => player.stance, useDoorAhead: () => interact(true),
       sensitivity: {min: .25, max: 3, get: () => ({...sensitivity}), set: setSens, step: (k, d) => setSens(k, sensitivity[k] + d * .1)},
-      spawnAreas: () => apt.spawnAreas, stairSpawns, missionStart,
+      spawnAreas: () => apt.spawnAreas, stairSpawns, missionStart, audioContext: () => audio.context, audioOutput: () => audio.output,
       entrance: () => {const d = apt.doors.find(d => d.name === 'Entrance door');return d ? d.leaf.getWorldPosition(new T.Vector3()) : {x: 1.66, z: 5.83};},
       timeScale: () => worldScale(),
       onFinish: (result, info) => {if (result === 'success') earn(400, 'Reward for rescuing the hostage');badges.record('mission', {success: result === 'success', time: info && info.time});},
@@ -1551,7 +1551,7 @@
     if (doorsChanged || caseGame?.active) updateDynamic();
     promptTimer -= dt;if (promptTimer <= 0) {promptTimer = .15;promptAction = player.mode === 'minigame' || player.mode === 'drone' || (prophunt && prophunt.ownsSquare) || transit?.panel.open || gear?.open || quick || bag || gymMenu || lic.menu.open || jobs.phone.open || photo.active || storgata?.talking || (caseGame?.active && caseGame.state !== 'play') ? null : findPrompt();prompt(promptAction?.text);}
     weather.update(dt, camera, {indoor: weatherIndoor, windWorld: weatherWind});
-    ambienceTimer -= dt;if (ambienceTimer <= 0) {ambienceTimer = .25;updateAmbience();if (audio.context) music.attach(audio.context);music.play(musicTrack());}
+    ambienceTimer -= dt;if (ambienceTimer <= 0) {ambienceTimer = .25;updateAmbience();if (audio.context) music.attach(audio.context, audio.output);music.play(musicTrack());}
     // Adaptive resolution keeps the frame rate in the 20–30+ fps range on slower PCs.
     if (fpsAvg < 22) {if (++lowFrames > 90 && pixelRatio > .6) {pixelRatio = Math.max(.6, pixelRatio - .1);renderer.setPixelRatio(pixelRatio);resize();lowFrames = 0;}} else lowFrames = 0;
     updateGuide(dt);
@@ -2099,7 +2099,10 @@
   $('mpJoinCode').addEventListener('keydown', e => {if (e.code === 'Enter') $('mpJoin').click();});
   $('mpHome').onclick = () => {mp.net.home();notice('Back in your own lobby.', 3);};
   $('mpName').onchange = e => {mp.net.setName(e.target.value);renderMp();};
-  $('mpMic').onchange = async e => {const ok = await mp.setMic(e.target.checked);if (!ok && e.target.checked) notice('The microphone could not be opened (permission denied or no microphone).', 5);renderMp();};
+  $('mpMic').onchange = async e => {const ok = await mp.setMic(e.target.checked);if (!ok && e.target.checked) notice('The microphone could not be opened (permission denied or no microphone).', 5);else if (e.target.checked) notice('🎙 Microphone on. A Bluetooth headset plays all sound in its low phone quality while its microphone is on – untick the microphone here to get the good sound back.', 7);renderMp();};
+  // A sound device came or went (issue #150): the sound restarts by itself on the device Windows plays to now.
+  let deviceNoteMs = -1e9;
+  audio.ondevicechange = () => {const ms = performance.now();if (ms - deviceNoteMs < 30000) return;deviceNoteMs = ms;notice('🔈 A sound device was connected or removed (a PS4 controller on USB has its own speaker, or a headset). No sound? Choose your speakers or headset with the speaker icon in the Windows taskbar.', 7);};
   // ---------- Account (pause menu, optional): email + password through the Worker (Better Auth + Supabase) ----------
   let acctMode = 'login';
   const account = window.GameAccount.create({onChange: renderAccount});
@@ -2271,7 +2274,7 @@
     if (d.open === open || d.anim) return;d.anim = {from: d.open ? 1 : 0, to: open ? 1 : 0, t: 0};
     const p = d.leaf.getWorldPosition(new T.Vector3()), dist = Math.hypot(p.x - player.x, p.z - player.z);if (dist < 25) audio.sfx(open ? 'doorOpen' : 'doorClose', {gain: Math.max(.1, 1 - dist / 25)});
   }
-  mp = window.GameMultiplayer.create({T, lib, scene, camera, vehicles, fireDecayS: fire.DECAY_S, fireMax: fire.MAX, localState, notice,
+  mp = window.GameMultiplayer.create({T, lib, scene, camera, vehicles, fireDecayS: fire.DECAY_S, fireMax: fire.MAX, localState, notice, audioContext: () => audio.context,
     drivingIndex: () => player.mode === 'vehicle' && player.vehicle ? vehicles.indexOf(player.vehicle) : gp ? caravanIndex() : -1,
     listener: () => ({x: player.x, y: player.feet + 1.5, z: player.z}), applyDoor, onChat: chatLine, onStatus: () => {renderMp();onLobbyChange();friends.lobby(mp.net.online ? mp.net.code : null, mp.net.players.size, mp.net.max);},
     applyObj: (id, v) => {if (living) living.apply(id, v, true);},
@@ -2284,7 +2287,7 @@
   // Flat 501's living room (issue #116): its record player, TV, lava lamp and chairs are shared through the lobby.
   if (living) living.attach({now: () => mp.net.online ? mp.net.serverNow() : Date.now(), you: () => mp.net.online ? mp.net.you : 0, send: (id, v) => mp.sendObj(id, v),
     notice, audio: (name, o) => audio.sfx(name, o), sit: sitDown, sitTaken: id => mp.sitTaken(id), solidsChanged: () => updateDynamic(),
-    remote: id => mp.remotes.get(id), remoteHas: id => mp.remotes.has(id), nameOf: id => mp.nameOf(id), audioContext: () => audio.context, music, weather: () => weather.state});
+    remote: id => mp.remotes.get(id), remoteHas: id => mp.remotes.has(id), nameOf: id => mp.nameOf(id), audioContext: () => audio.context, audioOutput: () => audio.output, music, weather: () => weather.state});
   // A new lobby: vehicles go back to where everybody else has them (the lobby then sends the ones that were moved).
   let lastLobby = null;
   function onLobbyChange() {

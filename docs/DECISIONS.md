@@ -12,6 +12,7 @@ In pull requests (not merged yet):
 
 On `main`:
 - The police on Grønland (issue #140, PR #PRNUM; live once merged): Oslo politihus at its real place (Grønlandsleiret 44) with a POLITI sign – walk in to the reception (an officer at the desk, a queue-ticket machine) and through the steel door to the arrest with eight glattceller (bare concrete, a thin mattress, a drain, a steel door with a hatch that opens); Oslo fengsel (Botsen) right behind it with its high walls, two sliding gates and the OSLO FENGSEL sign, the yard and cell wing A (a prison officer, cells with bed, table, toilet and a barred window); 13 police cars (white with POLITI and black and yellow fields, a blue light bar) outside the police station and round the city – drive them with class B, L3 / H for blue lights and siren, which other players see and hear; both places on the map.
+- Steadier sound (issue #150, PR #151; live once merged): the sound no longer crackles or drops out when the game runs slowly, comes back by itself after the browser or a new sound device (a PS4 controller on USB, a headset) paused it, and has one limiter for everything.
 - Walk up to every floor of Klatreverket Torshov (issue #137, PR #138, live since 23 Nov 2026): the stairs from the ground floor to Discorommet, the inner bouldering room and the training room, and sloped mat edges onto the crash mats, so every wall upstairs can be climbed.
 - Smooth rides with other players (issue #135, PR #136, live since 23 Nov 2026): as a passenger (car, motorcycle back seat, aircraft) the ride and the view are smooth, and other players' vehicles move smoothly when you watch them, also when an update is lost on the way.
 - Camera zoom on its own controls, and binoculars (issue #133, PR #134, live since 21 Nov 2026): with the camera raised, zoom with D-pad ↑↓, the mouse wheel or + −, while the right stick / mouse only looks and you walk; binoculars in the △ gear menu, raised with L2 / right mouse to the classic two-circle view, zoom 4–12×.
@@ -83,6 +84,25 @@ Live site: runs `main` (Worker version d2c8f0f7, deployed 23 Nov 2026 after PR #
 - **Checked:** `node --test` (309 pass). One short headless run of the built game (no page errors): the front with the sign, the reception with the officer, the cell corridor, a police car with its livery and blue light bar, the yard door of cell wing A, the hall with the prison officer, the walls and a gate. Not checked: driving, the siren by ear, the doors and hatches by pressing □, two players online.
 - **Status:** branch `feat/police`, PR #PRNUM; live once merged.
 
+### 2026-11-23 · Steadier sound: no drop-outs or crackle (issue #150)
+- **What:**
+  - The game's sound has a bigger output buffer, so a slow or hitching frame no longer makes it crackle or drop out.
+  - All sound goes through one output with one gentle limiter (it only works near full volume, so quiet sounds do not vanish); the music, the catacomb, the record player and TV in flat 501 and the hostage mission's pistol now go through it too (the mission and the voice meters had their own second sound context).
+  - The sound starts again by itself when the browser paused it (statechange, back to the tab, focus, any click, key or controller), and after a sound device was connected or removed it restarts on the device Windows plays to now, with a notice that says where to choose the speakers.
+  - Turning the microphone on tells you that a Bluetooth headset plays everything in phone quality while its microphone is open (untick it to get the good sound back).
+  - Engines glide smoothly at 20–30 fps (the glide is never shorter than one frame) and only send a new value when it changed; at most 40 one-shot sounds play at once (the oldest fades out); nothing that is not a finite number is written to a sound value; the excavator's hydraulics hiss no longer runs on silently after you leave it, and a stopped engine lets go of its nodes.
+  - Every sound and the music sound as before.
+- **Why:** the user's issue #150: "fix why the sound works bad. Often it disappears and jitters." Causes found by reading all of the sound code:
+  1. **Crackle / stutter (most likely):** the sound context used the smallest output buffer (`latencyHint` 'interactive', about 10 ms). On a busy PC at 20–30 fps the browser's audio thread then misses its deadline and the output crackles or drops out. Now 'playback' (a few tens of ms more delay, not audible in play).
+  2. **The sound goes away (likely for this player):** a PS4 controller on USB is a sound card (speaker and headset jack) that Windows can make the default output, and a Bluetooth headset switches to its hands-free mode (mono, phone quality) when the voice chat opens its microphone. The game cannot choose the Windows device, but it now restarts its output on the new device, says what happened, and the microphone stays off unless you tick it.
+  3. **No limiter:** game sounds went straight to the speakers next to the music (which had its own compressor) and the mission's own context, so loud moments (a crash, shots, a helicopter with music) could clip.
+  4. **Engines:** set every frame with a 30–50 ms glide, so at 20 fps (50 ms frames) the pitch moved in steps.
+  5. **Only `'suspended'` was handled, and only on a key, click or stick:** now also on statechange, returning to the tab, focus and a new controller.
+  The guesses in the issue that did not hold: the music is already scheduled ahead on the audio clock (a 60 ms timer, 1.2 s ahead; after a stall the next bar starts late, there is no burst); the ambience runs from a timer, not the frame loop; no value can become NaN silently (the browser refuses it and throws), the new guards just keep that from ever happening.
+- **Where:** `game-audio.js` (context, output and limiter, `wake`/`restart`/`watch`, `glide`, voices, engines), `game-music.js` (`attach(context, output)`), `game-main.js` (passes `audio.output` to the music, the flat, the mission and the multiplayer; the device and microphone notices), `game-voice.js` (meters on the game's context, let go when a player leaves), `game-multiplayer.js`, `case-game.js`, `game-catacomb.js`, `game-rathkes-living.js`, `game-aircraft.js` (a new drone flight stops the old motors).
+- **Checked:** `node --test` (303 pass); every effect, footstep, engine, the ambience, the music and a device change run against a fake Web Audio API in Node that throws on non-finite values like the browser (engines send no events when nothing changes). Not checked in the browser or by ear (the user asked to skip browser tests for this run).
+- **Status:** branch `fix/sound`, PR #151 (https://github.com/jonatsl/haarklous-online/pull/151); live once merged.
+
 ### 2026-11-23 · Klatreverket Torshov: walk up to every floor (issue #137)
 - **What:**
   - From the street door you can now walk through the reception and Hula to the stairs, up the three flights to Discorommet (2nd floor), the inner bouldering room (3rd floor) and the training room (4th floor), onto the mats there, and back down the same way.
@@ -97,7 +117,7 @@ Live site: runs `main` (Worker version d2c8f0f7, deployed 23 Nov 2026 after PR #
 - **Other players:** are already drawn at the height they send (their feet), so they show on the right floor; nothing changed there.
 - **Galleriet:** in the game it is a 10 m top-rope wall in the hall on the ground floor, reached as before.
 - **Checked:** `node --test` (303 pass). The flood fill reached a standing spot in front of every lane of all 25 walls (hall and all four floors), and walking back from the training room reaches the street. Not checked in the browser (the user asked to skip browser tests for this run).
-- **Status:** branch `fix/gym-floors`, PR #138 (https://github.com/jonatsl/haarklous-online/pull/138), not merged yet.
+- **Status:** branch `fix/gym-floors`, PR #138 (https://github.com/jonatsl/haarklous-online/pull/138), merged.
 
 ### 2026-11-23 · Passenger in a car: a smooth ride (issue #135)
 - **What:**
