@@ -103,7 +103,10 @@
     const RSW = W.RoadSurface.world({square: {h: grid, n: N, half, step, roads: data.roads}, districts, DZ, playHalf: PLAY_HALF});
     // Bridges (issue #139): the car streets' bridges of bridges-data.js are decks of their own (road-bridges.js), not ground.
     const bridgeWays = W.BRIDGES ? W.RoadSurface.bridgesOf(W.BRIDGES, {kayak: W.AKERSELVA}) : [];
-    const streets = W.RoadSurface.create({...RSW, bridges: bridgeWays, slabsAt: (x, s) => ['lokka', 'toyen', 'gronland', 'kampen', 'bjorvika'].includes(CT.zoneAt(x, s))});
+    // Akerselva – turvei (issue #147, river-path.js): a 3 m band of its own in the same ground, kept clear of trees and bushes.
+    const RP = W.RIVER_PATH && W.RiverPath ? W.RIVER_PATH : null, pathIx = RP ? W.RiverPath.index(RP) : null, offPath = (x, s, r) => W.RiverPath ? W.RiverPath.clear(pathIx, x, s, r) : true;
+    if (pathIx) for (const d of districts) d.trees = d.trees.filter(t => offPath(t.x, t.s, .4));
+    const streets = W.RoadSurface.create({...RSW, bridges: bridgeWays, paths: RP ? W.RiverPath.pieces(RP, W.AKERSELVA) : [], slabsAt: (x, s) => ['lokka', 'toyen', 'gronland', 'kampen', 'bjorvika'].includes(CT.zoneAt(x, s))});
     const naturalLocal = RSW.natural, relLocal = streets.height;
     const yLocal = (x, s) => ground + relLocal(x, s), yNatural = (x, s) => ground + naturalLocal(x, s);
     const heightWorld = (x, z) => {const l = toLocal(x, z);return yLocal(l.x, l.s);};
@@ -547,7 +550,7 @@
     }
     const treeCells = new Map(), allTrees = [], inHole = (x, s) => holes.some(h => x > h.x0 && x < h.x1 && s > h.s0 && s < h.s1);
     for (let i = 0; i < data.trees.length; i += 3) {
-      const t = {x: data.trees[i], s: data.trees[i + 1], h: data.trees[i + 2]};if (inHole(t.x, t.s)) continue;allTrees.push(t);
+      const t = {x: data.trees[i], s: data.trees[i + 1], h: data.trees[i + 2]};if (inHole(t.x, t.s) || !offPath(t.x, t.s, .4)) continue;allTrees.push(t);
       // Every tree you can walk up to is in the near pass (a square, like the walkable area): 453 trees in the corners beyond
       // 820 m were only in the far pass, which clips everything within 15 m, so they vanished and stood there as invisible walls (issue #64).
       if (Math.abs(t.x) < NEAR_REACH && Math.abs(t.s) < NEAR_REACH) {const k = cellKey(t.x, t.s);if (!treeCells.has(k)) treeCells.set(k, []);treeCells.get(k).push(t);}
@@ -555,7 +558,7 @@
     const yard = data.courtyard;
     if (yard) for (let i = 0; i < yard.trees.length; i += 3) {const t = {x: yard.trees[i], s: yard.trees[i + 1], h: yard.trees[i + 2]};allTrees.push(t);const k = cellKey(t.x, t.s);if (!treeCells.has(k)) treeCells.set(k, []);treeCells.get(k).push(t);}
     for (const list of treeCells.values()) plantTrees(geoNear, list, true);plantTrees(geoFar, allTrees, false, crownGeoFar);
-    const bushes = [];for (let i = 0; i < data.bushes.length; i += 3) if (!inHole(data.bushes[i], data.bushes[i + 1])) bushes.push({x: data.bushes[i], s: data.bushes[i + 1], r: data.bushes[i + 2]});
+    const bushes = [];for (let i = 0; i < data.bushes.length; i += 3) if (!inHole(data.bushes[i], data.bushes[i + 1]) && offPath(data.bushes[i], data.bushes[i + 1], .6 * data.bushes[i + 2])) bushes.push({x: data.bushes[i], s: data.bushes[i + 1], r: data.bushes[i + 2]});
     {
       const inst = new T.InstancedMesh(bushGeo, bushMat, bushes.length), m = new T.Matrix4(), q = new T.Quaternion(), s = new T.Vector3(), p = new T.Vector3();
       bushes.forEach((b, i) => {q.setFromAxisAngle(new T.Vector3(0, 1, 0), i * 1.7);m.compose(p.set(b.x, yLocal(b.x, b.s) - .1, b.s), q, s.set(b.r, b.r * .8, b.r));inst.setMatrixAt(i, m);});
@@ -563,10 +566,36 @@
     }
     const poleMat = lib.metal(0x3b3f42, .5), lamps = [];// street lamps (OSM highway=street_lamp); the poles are solid
     for (let i = 0; i < data.lamps.length; i += 2) {
-      if (inHole(data.lamps[i], data.lamps[i + 1])) continue;
+      if (inHole(data.lamps[i], data.lamps[i + 1]) || !offPath(data.lamps[i], data.lamps[i + 1], .2)) continue;
       const x = data.lamps[i], s = data.lamps[i + 1], y = yLocal(x, s);lamps.push({x, s});
       const pole = new T.Mesh(new T.CylinderGeometry(.05, .07, 5, 8), poleMat);pole.position.set(x, y + 2.5, s);pole.castShadow = true;geoNear.add(pole);
       const head = new T.Mesh(new T.CylinderGeometry(.25, .12, .25, 10), poleMat);head.position.set(x, y + 5, s);geoNear.add(head);
+    }
+    // The turvei's own lamps (every 30 m beside the band) and benches (issue #147): instanced poles and heads, the benches
+    // merged into one mesh per material. Their solids are in obstacles().
+    const pathLamps = [], pathBenches = [];
+    if (RP) {
+      for (let i = 0; i < RP.lamps.length; i += 2) if (!inHole(RP.lamps[i], RP.lamps[i + 1])) pathLamps.push({x: RP.lamps[i], s: RP.lamps[i + 1]});
+      for (let i = 0; i < RP.benches.length; i += 3) if (!inHole(RP.benches[i], RP.benches[i + 1])) pathBenches.push({x: RP.benches[i], s: RP.benches[i + 1], h: RP.benches[i + 2]});
+      if (pathLamps.length) {
+        const headMat = new T.MeshStandardMaterial({color: 0xf3ead2, emissive: 0xffe2a8, emissiveIntensity: .35, roughness: .4});
+        const poleGeo = new T.CylinderGeometry(.05, .07, 4.6, 8), headGeo = new T.CylinderGeometry(.18, .1, .28, 10);poleGeo.translate(0, 2.3, 0);headGeo.translate(0, 4.68, 0);
+        const poles = new T.InstancedMesh(poleGeo, poleMat, pathLamps.length), heads = new T.InstancedMesh(headGeo, headMat, pathLamps.length), m = new T.Matrix4();
+        pathLamps.forEach((l, i) => {m.makeTranslation(l.x, yLocal(l.x, l.s) - .05, l.s);poles.setMatrixAt(i, m);heads.setMatrixAt(i, m);});
+        poles.castShadow = true;poles.name = 'Akerselva turvei (lamp posts)';heads.name = 'Akerselva turvei (lamps)';
+        for (const im of [poles, heads]) {im.instanceMatrix.needsUpdate = true;if (im.computeBoundingSphere) im.computeBoundingSphere();else im.frustumCulled = false;geoNear.add(im);}
+      }
+      if (pathBenches.length) {
+        const g = new T.Group(), wood = lib.wood(0x7a5232, .7), iron = lib.metal(0x2c3033, .5);
+        for (const b of pathBenches) {
+          // (local frame: the bench faces heading h, toward (sin h, cos h); seat, back, two cast-iron ends)
+          const y = yLocal(b.x, b.s), bench = new T.Group();bench.position.set(b.x, y, b.s);bench.rotation.y = b.h;g.add(bench);
+          const put = (geo, mat, x, yy, z, rx = 0) => {const q = new T.Mesh(geo, mat);q.position.set(x, yy, z);q.rotation.x = rx;q.castShadow = q.receiveShadow = true;bench.add(q);};
+          put(new T.BoxGeometry(1.7, .05, .42), wood, 0, .45, 0);put(new T.BoxGeometry(1.7, .3, .04), wood, 0, .72, -.24, -.18);
+          for (const x of [-.72, .72]) {put(new T.BoxGeometry(.06, .45, .44), iron, x, .225, 0);put(new T.BoxGeometry(.06, .45, .05), iron, x, .65, -.22, -.18);}
+        }
+        g.name = 'Akerselva turvei (benches)';geoNear.add(g);// (merged with the rest of the near pass below)
+      }
     }
     const hedgeObstacles = [];
     if (yard) {
@@ -918,6 +947,10 @@
       allTrees.forEach(t => {if (walkable(t.x, t.s)) square(t.x, t.s, .28, 6, 'tree');});
       lamps.forEach(l => {if (walkable(l.x, l.s)) square(l.x, l.s, .1, 5.2, 'lamp');});
       bushes.forEach(b => square(b.x, b.s, .45 * b.r, 1.2, 'bush'));
+      // Akerselva – turvei's lamps and benches (issue #147), beside the band.
+      pathLamps.forEach(l => square(l.x, l.s, .1, 5, 'lamp'));
+      pathBenches.forEach(b => {const c = Math.cos(b.h), sn = Math.sin(b.h), y = yLocal(b.x, b.s);// (along the seat: (cos h, -sin h); its depth: (sin h, cos h))
+        list.push({points: [[-.88, -.3], [.88, -.3], [.88, .26], [-.88, .26]].map(([a, d]) => toWorld(b.x + c * a + sn * d, b.s - sn * a + c * d)), minY: y - .3, maxY: y + .9, kind: 'bench'});});
       hedgeObstacles.forEach(h => {const dx = h.b[0] - h.a[0], dz = h.b[1] - h.a[1], L = Math.hypot(dx, dz), nx = -dz / L * h.w / 2, nz = dx / L * h.w / 2;const pts = [[h.a[0] + nx, h.a[1] + nz], [h.b[0] + nx, h.b[1] + nz], [h.b[0] - nx, h.b[1] - nz], [h.a[0] - nx, h.a[1] - nz]].map(([a, b]) => toWorld(a, b)), y = yLocal(h.a[0], h.a[1]);list.push({points: pts, minY: y - .5, maxY: y + 1, kind: 'hedge'});});
       // District patches: their buildings (also those in the old square's outer band and the seams) and trees; the sea stops you
       // where the ground goes under its drawn surface (sea level + 0.25 m). It reached 0.8 m above the water before, so on low
@@ -956,7 +989,7 @@
 
     streets.release();
     return {near, far, setImagery, setSun, setOvercast, get imageryState() {return imageryState;}, attribution: data.attribution, ground, heightWorld, toLocal, toWorld, terrainFloor, terrainFloors, obstacles, surfaceAt, trafficDistance, greenery, data, playHalf: PLAY_HALF, trees: allTrees, propKit: {bushGeo, bushMat, crownGeo, leafMats, trunkGeo, barkMat, poleMat},
-      districts: patches.map(P => P.d), get districtImagery() {return patches.map(P => P.nearImagery);}, update, buildGround, yLocal, yNatural, streets, bridges, geoNear, geoFar, looks: lookCount, city, facadeFill};
+      districts: patches.map(P => P.d), get districtImagery() {return patches.map(P => P.nearImagery);}, update, buildGround, yLocal, yNatural, streets, bridges, riverPath: RP ? {data: RP, index: pathIx, lamps: pathLamps, benches: pathBenches} : null, geoNear, geoFar, looks: lookCount, city, facadeFill};
   }
   return {create, walkRects, openEdges, PLAY_HALF};
 });

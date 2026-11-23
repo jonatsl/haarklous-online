@@ -65,7 +65,7 @@
 
   function create({data, toLocal, toWorld, root, poi}) {
     const el = document.createElement('div');el.id = 'mapOverlay';el.hidden = true;
-    el.innerHTML = '<canvas></canvas><div class="map-legend"><b>Map</b><span><i class="lg home"></i>Your apartment (Haarklous plass 17A)</span><span><i class="lg case"></i>Hostage rescue</span><span><i class="lg disc"></i>Disc golf</span><span><i class="lg petanque"></i>Petanque</span><span><i class="lg you"></i>You</span><span><i class="lg others"></i>Other players in your lobby</span><span><i class="lg wp"></i>Your waypoint</span><span><i class="lg heli"></i>Helicopters (H): where each one is now</span><span><i class="lg bikes"></i>City bike dock (number = free bikes; zoom in for the name)</span><small>Left stick / drag: pan · Right stick / wheel: zoom</small><small>✕ / click: set or remove a waypoint · □ / Delete: remove it · ○ / M: close</small><small class="attr">© OpenStreetMap contributors</small></div>';
+    el.innerHTML = '<canvas></canvas><div class="map-legend"><b>Map</b><span><i class="lg home"></i>Your apartment (Haarklous plass 17A)</span><span><i class="lg case"></i>Hostage rescue</span><span><i class="lg disc"></i>Disc golf</span><span><i class="lg petanque"></i>Petanque</span><span><i class="lg you"></i>You</span><span><i class="lg others"></i>Other players in your lobby</span><span><i class="lg wp"></i>Your waypoint</span><span><i class="lg heli"></i>Helicopters (H): where each one is now</span><span><i class="lg bikes"></i>City bike dock (number = free bikes; zoom in for the name)</span><span><i class="lg turvei"></i>Akerselva – turvei (path for walking and cycling)</span><small>Left stick / drag: pan · Right stick / wheel: zoom</small><small>✕ / click: set or remove a waypoint · □ / Delete: remove it · ○ / M: close</small><small class="attr">© OpenStreetMap contributors</small></div>';
     root.append(el);
     const canvas = el.querySelector('canvas'), ctx = canvas.getContext('2d');
     const map = {open: false, cx: 0, cs: 0, scale: 2.2, waypoint: null, layer: null, course: null};
@@ -121,7 +121,10 @@
       const box = (item, flat, grow) => {let x0 = Infinity, x1 = -Infinity, s0 = Infinity, s1 = -Infinity;for (let i = 0; i < flat.length; i += 2) {x0 = Math.min(x0, flat[i]);x1 = Math.max(x1, flat[i]);s0 = Math.min(s0, flat[i + 1]);s1 = Math.max(s1, flat[i + 1]);}return {item, x0: x0 - grow, x1: x1 + grow, s0: s0 - grow, s1: s1 + grow};};
       // Street names: one label per named street, at its longest segment.
       const named = new Map();for (const r of data.roads) if (r.n && !['footway', 'path', 'steps', 'cycleway'].includes(r.k)) {const p = pairs(r.p);for (let i = 1; i < p.length; i++) {const L = Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1]);if (!named.has(r.n) || named.get(r.n).L < L) named.set(r.n, {L, a: p[i - 1], b: p[i]});}}
-      return {areas: data.areas.map(a => box(a, a.o, 0)), roads: data.roads.slice().sort((a, b) => order.indexOf(a.k) - order.indexOf(b.k)).map(r => box(r, r.p, r.w || 2)), buildings: data.buildings.map(b => box(b, b.r.o, 0)), named};
+      // Akerselva – turvei (issue #147): the route in pieces of about 60 m (so a frame and a minimap tile only draw what is near).
+      const turvei = [];
+      if (data.turvei && data.turvei.pts) {const p = data.turvei.pts;for (let i = 0; i + 2 < p.length; i += 60 * 2) turvei.push(box({k: 'turvei', p: p.slice(i, Math.min(p.length, i + 62 * 2)), w: 3, n: data.turvei.name}, p.slice(i, Math.min(p.length, i + 62 * 2)), 3));}
+      return {areas: data.areas.map(a => box(a, a.o, 0)), roads: data.roads.slice().sort((a, b) => order.indexOf(a.k) - order.indexOf(b.k)).map(r => box(r, r.p, r.w || 2)), buildings: data.buildings.map(b => box(b, b.r.o, 0)), named, turvei};
     }
     // The streets and buildings are drawn into `base` and only drawn again when the view moves.
     const base = document.createElement('canvas'), bctx = base.getContext('2d');let baseKey = '';
@@ -139,6 +142,18 @@
         if (!path && r.k !== 'tram') {g.strokeStyle = '#bfb9ad';g.lineWidth = 1;g.stroke();}
       }
       g.setLineDash([]);
+      // Akerselva – turvei: an orange path line with a light edge, and its name along it where there is room.
+      for (const f of feats.turvei) {
+        if (!seen(f)) continue;const line = () => {g.beginPath();pairs(f.item.p).forEach(([x, s], i) => {const [u, v] = P(x, s);i ? g.lineTo(u, v) : g.moveTo(u, v);});};
+        g.lineCap = g.lineJoin = 'round';line();g.strokeStyle = '#fff6e8';g.lineWidth = Math.max(4, 3 * k * 1.3) + 2 * devicePixelRatio;g.stroke();g.strokeStyle = '#d0782f';g.lineWidth = Math.max(2.5, 3 * k);g.stroke();
+      }
+      g.font = `italic bold ${11 * devicePixelRatio}px system-ui, sans-serif`;g.textAlign = 'center';
+      for (const f of feats.turvei) {
+        if (!seen(f)) continue;const p = f.item.p, n = p.length / 2, a = [p[0], p[1]], b = [p[n * 2 - 2], p[n * 2 - 1]], [u1, v1] = P(...a), [u2, v2] = P(...b), name = f.item.n;
+        if (Math.hypot(u2 - u1, v2 - v1) < g.measureText(name).width * 1.2) continue;
+        let ang = Math.atan2(v2 - v1, u2 - u1);if (ang > Math.PI / 2) ang -= Math.PI;if (ang < -Math.PI / 2) ang += Math.PI;
+        const m = Math.floor(n / 2), [um, vm] = P(p[m * 2], p[m * 2 + 1]);g.save();g.translate(um, vm);g.rotate(ang);g.lineWidth = 3 * devicePixelRatio;g.strokeStyle = '#fff';g.strokeText(name, 0, -6 * devicePixelRatio);g.fillStyle = '#9a4a10';g.fillText(name, 0, -6 * devicePixelRatio);g.restore();
+      }
       for (const f of feats.buildings) if (seen(f)) poly(f.item.r.o, f.item.s === 'brick' ? '#c9a08a' : '#c8c2b8', '#a8826e');
       poly(data.ownLocal, '#e0703c', '#7a2e10');
       g.font = `${12 * devicePixelRatio}px system-ui, sans-serif`;g.fillStyle = '#4a4a4a';g.textAlign = 'center';
@@ -224,13 +239,13 @@
           const key = i + ',' + j;let t = index.get(key);if (!t) index.set(key, t = {a: [], r: [], b: []});t[layer].push(f.item);
         }
       };
-      feats.areas.forEach(f => add('a', f));feats.roads.forEach(f => add('r', f));feats.buildings.forEach(f => add('b', f));
+      feats.areas.forEach(f => add('a', f));feats.roads.forEach(f => add('r', f));feats.turvei.forEach(f => add('r', f));feats.buildings.forEach(f => add('b', f));
       const own = data.ownLocal, xs = own.filter((_, i) => i % 2 === 0), ss = own.filter((_, i) => i % 2 === 1);
       add('b', {item: {own: true, r: {o: own}}, x0: Math.min(...xs), x1: Math.max(...xs), s0: Math.min(...ss), s1: Math.max(...ss)});
     }
     // GTA IV-like colours: dark ground, grey roads (the big ones lighter), dim buildings.
     const AREA = {grass: '#25362a', wood: '#213224', playground: '#2f3329', pitch: '#28392b', parking: '#2a2e31', yard: '#272b2e', flowerbed: '#28362a', water: '#1d3449'};
-    const ROAD = k => ['primary', 'secondary', 'trunk', 'trunk_link', 'tertiary'].includes(k) ? '#c9ced3' : PATHS.includes(k) ? '#555c62' : k === 'tram' ? '#4a5056' : '#99a0a6';
+    const ROAD = k => ['primary', 'secondary', 'trunk', 'trunk_link', 'tertiary'].includes(k) ? '#c9ced3' : k === 'turvei' ? '#c8783a' : PATHS.includes(k) ? '#555c62' : k === 'tram' ? '#4a5056' : '#99a0a6';
     function tile(i, j) {
       const key = i + ',' + j;let c = tiles.get(key);
       if (c) {tiles.delete(key);tiles.set(key, c);return c;}// most recently used last
@@ -241,7 +256,7 @@
       const path = flat => {g.beginPath();for (let n = 0; n < flat.length; n += 2) n ? g.lineTo(flat[n], flat[n + 1]) : g.moveTo(flat[n], flat[n + 1]);};
       if (t) {
         for (const a of t.a) {path(a.o);g.closePath();g.fillStyle = AREA[a.k] || '#24282b';g.fill();}
-        for (const r of t.r) {path(r.p);g.strokeStyle = ROAD(r.k);g.lineWidth = PATHS.includes(r.k) || r.k === 'tram' ? 1.2 : Math.max(2.5, (r.w || 4) * .9);g.stroke();}
+        for (const r of t.r) {path(r.p);g.strokeStyle = ROAD(r.k);g.lineWidth = r.k === 'turvei' ? 2.4 : PATHS.includes(r.k) || r.k === 'tram' ? 1.2 : Math.max(2.5, (r.w || 4) * .9);g.stroke();}
         for (const b of t.b) {path(b.r.o);g.closePath();g.fillStyle = b.own ? '#8a4a2a' : '#363b40';g.fill();}
       }
       tiles.set(key, c);if (tiles.size > MAX_TILES) tiles.delete(tiles.keys().next().value);
