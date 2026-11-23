@@ -11,7 +11,7 @@ Live game: https://haarklous-online.server-smoke.workers.dev · Source: https://
 In pull requests (not merged yet): none.
 
 On `main`:
-- Politihuset can be entered (issue #158, PR #PRNUM; live once merged): the glass doors of Oslo politihus open by themselves as you walk up from the lane behind the low front buildings on Grønlandsleiret; a lit POLITI pylon on the footway at each of the two gaps shows the way, and the POLITI sign over the door is brighter. The way into Oslo fengsel (the two gates, the yard, wing A and its cells) works too.
+- Politihuset can be entered (issue #158, PR #163; live once merged): the glass doors of Oslo politihus open by themselves as you walk up from the lane behind the low front buildings on Grønlandsleiret; a lit POLITI pylon on the footway at each of the two gaps shows the way, and the POLITI sign over the door is brighter. The way into Oslo fengsel (the two gates, the yard, wing A and its cells) works too.
 - Disc golf together online (issue #148, PR #161; live once merged): players in the same lobby play a round together at Muselunden and in Torshovdalen – □ at a tee joins their round, you see their discs fly and lie in their colour, a shared scorecard shows everyone's throws per hole and the total against par and who is away (throws next, nobody waits); join or leave at any time; 100 kr for winning a round against others; alone it plays as before.
 - Grey Volvo V70s (issue #149, PR #160; live once merged): about 750 of the parked estate cars are now grey, dark grey or silver Volvo V70s (the 2000–2007 model), all over the city like in Oslo, one by Haarklous plass; drive them like the other cars.
 - Cars that crash no longer get stuck in each other (issue #145, PR #159; live once merged): you can always back away or drive off from a car you are in; your car is pushed gently out of another one; a crash still bounces you back with the sound; the same for motorcycles, parked cars and site machines.
@@ -88,7 +88,7 @@ Live site: runs `main` (Worker version 3766909d, deployed 23 Nov 2026 after PR #
 - **Why:** the user found in the live game that it was not possible to enter Politihuset at Grønland and asked to make it possible.
 - **Where:** `game-police.js` (`entrance()`: the slope's direction; the arrest door's side; the pylons and brighter signs), `tests/police.test.cjs` (a walk test: from the footway into the reception, past the steel door into glattcelle 1 and out; from the street round the station to the prison gates, across the yard into wing A and cell 1 and back).
 - **Checked:** `node --test tests/*.cjs`; one headless run: walked from the lane through the doors into the reception and back out (screenshots of the front, the reception and a pylon).
-- **Status:** PR #PRNUM; live once merged.
+- **Status:** PR #163; live once merged.
 
 ### 2026-11-23 · Disc golf together online (issue #148)
 - **What:**
