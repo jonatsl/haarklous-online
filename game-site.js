@@ -454,9 +454,10 @@
         }
         this.drive(dt, fwd, back, resist);
         // Articulated motion of the two frames; the root is the rear frame at the hinge.
+        {const ux = this.x, uz = this.z;this.unstick(dt);if (this.x !== ux || this.z !== uz) this.art.init(this.x, this.z, this.yaw, this.art.phi);}// out of another vehicle (issue #145)
         this.art.step(this.speed * dt, phiT);const h = this.art.hinge(), ox = this.x, oz = this.z, oyaw = this.yaw;
         this.x = h.x;this.z = h.z;this.yaw = this.art.yawB;
-        if (Math.abs(this.speed) > .001 && !this.clear(this.x, this.z)) {this.x = ox;this.z = oz;this.yaw = oyaw;this.art.init(this.x, this.z, this.yaw, this.art.phi);if (Math.abs(this.speed) > 2.5) sfx('hit');this.speed = 0;}
+        if (Math.abs(this.speed) > .001 && this.blockedAt(this.x, this.z, ox, oz, oyaw)) {this.x = ox;this.z = oz;this.yaw = oyaw;this.art.init(this.x, this.z, this.yaw, this.art.phi);if (Math.abs(this.speed) > 2.5) sfx('hit');this.speed = 0;}
         this.settleBig(dt);this.spin += this.speed * dt;this.spinWheels(this.wheels, .8, dt);this.place();
         this.engineSound(this.active ? this.rpm + resist * 300 : 0, this.active ? Math.max(this.engineLoad, resist) : 0);
       }
@@ -504,6 +505,7 @@
         if (this.payload > 0 && this.tip > .42) {const out = Math.min(this.payload, (this.tip - .42) * 6 * dt);this.payload -= out;this.group.updateMatrixWorld(true);this.pourSoil(this.bed.localToWorld(V3(0, 0, 1.2)), out, 1.1);}
         if (this.tip > .05) fwd *= .25;// a raised body: only creep
         this.drive(dt, fwd, back);
+        {const ux = this.x, uz = this.z;this.unstick(dt);if (this.art_ && (this.x !== ux || this.z !== uz)) this.art.init(this.x, this.z, this.yaw - this.art.phi, this.art.phi);}// out of another vehicle (issue #145)
         const ox = this.x, oz = this.z, oyaw = this.yaw;
         if (this.art_) {
           const phiT = this.active ? clamp(this.art.phi - (input.steer || 0) * .5 * dt, -.75, .75) : this.art.phi;
@@ -513,7 +515,7 @@
           this.steerA += ((this.active ? input.steer || 0 : 0) * max - this.steerA) * Math.min(1, dt * 2.5);
           this.yaw -= this.speed * Math.tan(this.steerA) / this.wheelBase * dt;const f = this.forward();this.x += f.x * this.speed * dt;this.z += f.z * this.speed * dt;
         }
-        if (Math.abs(this.speed) > .001 && !this.clear(this.x, this.z)) {
+        if (Math.abs(this.speed) > .001 && this.blockedAt(this.x, this.z, ox, oz, oyaw)) {
           this.x = ox;this.z = oz;this.yaw = oyaw;if (this.art_) this.art.init(this.x, this.z, this.yaw - this.art.phi, this.art.phi);
           if (Math.abs(this.speed) > 2.5) sfx('hit');this.speed = 0;
         }

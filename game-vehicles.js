@@ -85,15 +85,58 @@
       }
       forward() {return {x: -Math.sin(this.yaw), z: -Math.cos(this.yaw)};}
       // Two circles (front and rear) must be clear of buildings, trees and hedges.
-      clear(x, z) {
+      // staticOnly: only what never moves counts (not other vehicles, trams or buses).
+      clear(x, z, staticOnly = false) {
         const w = worldFor(this.radius), f = {x: -Math.sin(this.yaw), z: -Math.cos(this.yaw)}, h = this.length / 2 - this.radius, y = heightAt(x, z, this.y);
         // In the air only solids at the vehicle's own height count (it can fly over a hedge); a slope face ahead stops it.
         if (this.airborne) {
-          for (const k of h > 0 ? [-h, h] : [0]) {const p = {x: x + f.x * k, z: z + f.z * k};if (collision.hitsSolid(w, p, this.y + .25, this.y + this.height) || heightAt(p.x, p.z, this.y) > this.y + .5) return false;}
+          for (const k of h > 0 ? [-h, h] : [0]) {const p = {x: x + f.x * k, z: z + f.z * k};if (collision.hitsSolid(w, p, this.y + .25, this.y + this.height, undefined, staticOnly) || heightAt(p.x, p.z, this.y) > this.y + .5) return false;}
           return true;
         }
-        for (const k of h > 0 ? [-h, h] : [0]) {const p = {x: x + f.x * k, z: z + f.z * k};if (!collision.canStand(w, p, 1.2, heightAt(p.x, p.z, this.y))) return false;}
+        for (const k of h > 0 ? [-h, h] : [0]) {const p = {x: x + f.x * k, z: z + f.z * k};if (!collision.canStand(w, p, 1.2, heightAt(p.x, p.z, this.y), staticOnly)) return false;}
         return Math.abs(y - this.y) < 1.5;
+      }
+      // How deep (metres, summed over the front and rear circles) the vehicle at (x, z, yaw) is inside other vehicles, trams or
+      // buses; the direction that pushes it out is left in this.outN. The same height band as clear() uses (issue #145).
+      overlap(x, z, yaw = this.yaw) {
+        const w = worldFor(this.radius), fx = -Math.sin(yaw), fz = -Math.cos(yaw), h = this.length / 2 - this.radius, n = this.outN || (this.outN = {x: 0, z: 0}), p = this.outP || (this.outP = {x: 0, z: 0});
+        n.x = n.z = 0;let d = 0;
+        for (let i = h > 0 ? 0 : 1; i < 2; i++) {
+          const k = h > 0 ? (i ? h : -h) : 0;p.x = x + fx * k;p.z = z + fz * k;
+          const y0 = this.airborne ? this.y + .25 : heightAt(p.x, p.z, this.y) + .04, y1 = this.airborne ? this.y + this.height : y0 + 1.26;
+          d += collision.overlapDepth(w, p, y0, y1, n, this);
+        }
+        return d;
+      }
+      // Can the vehicle go from (ox, oz, oyaw) to (nx, nz) at its present yaw? 0: yes; 1: a wall, building, tree or slope stops
+      // it; 2: another vehicle does. Issue #145 ("two cars that crash get stuck in each other"): a move that does not take
+      // the vehicle deeper into a vehicle it is already in is always allowed, so two cars that overlap (one is drawn a little
+      // late over the network) can always back away or drive apart; static solids still stop it as before.
+      blockedAt(nx, nz, ox = this.x, oz = this.z, oyaw = this.yaw) {
+        if (this.clear(nx, nz)) return 0;
+        if (!this.clear(nx, nz, true)) return 1;
+        const d0 = this.overlap(ox, oz, oyaw), d1 = this.overlap(nx, nz);// the last call leaves the contact normal in outN
+        return d0 > 0 && d1 <= d0 + 1e-4 ? 0 : 2;
+      }
+      // Already inside another vehicle (lag, or it drove into you while you stood still): your own vehicle is pushed out
+      // along the shortest way at up to 3 m/s, never through a wall. Only the vehicle you drive: each player moves only
+      // their own, so both sides of a crash separate.
+      unstick(dt) {
+        if (!this.active || dt <= 0) return;
+        const d = this.overlap(this.x, this.z);if (d < .005) return;
+        const n = this.outN, len = Math.hypot(n.x, n.z);if (len < 1e-6) return;
+        const s = Math.min(d, 3 * dt) / len, nx = this.x + n.x * s, nz = this.z + n.z * s;
+        if (this.clear(nx, nz, true)) {this.x = nx;this.z = nz;}
+      }
+      // A crash: the sound, and against another vehicle a small bounce back along the contact normal.
+      crash(kind) {
+        const v = Math.abs(this.speed);
+        if (v > 2.5) audio.sfx('hit', {gain: Math.min(1, v / 10)});if (this.onHit && v > .05) this.onHit(v);
+        if (kind === 2 && this.active && v > .5) {
+          this.speed = -Math.sign(this.speed) * Math.min(3, v * .2);
+          const n = this.outN, len = Math.hypot(n.x, n.z), k = Math.min(2.5, v * .15);
+          if (len > 1e-6) {this.knockX = n.x / len * k;this.knockZ = n.z / len * k;}
+        } else {this.speed = 0;this.knockX = this.knockZ = 0;}
       }
       settle(dt) {
         const f = this.forward(), r = {x: -f.z, z: f.x}, L = this.length * .4, W = .6;
@@ -121,9 +164,16 @@
       // Touch-down: a thud and a short suspension dip, harder for a faster vertical impact (m/s).
       land(impact) {if (impact > 1) {audio.sfx('thud', {gain: Math.min(1, impact / 7)});if (impact > 5) audio.sfx('hit', {gain: Math.min(1, (impact - 5) / 6)});}this.squash = Math.min(.2, impact * .025);if (this.onLand) this.onLand(impact);}
       move(dt) {
-        const f = this.forward(), nx = this.x + f.x * this.speed * dt, nz = this.z + f.z * this.speed * dt;
-        if (Math.abs(this.speed) < .001 || this.clear(nx, nz)) {this.x = nx;this.z = nz;}
-        else {if (Math.abs(this.speed) > 2.5) audio.sfx('hit', {gain: Math.min(1, Math.abs(this.speed) / 10)});if (this.onHit) this.onHit(Math.abs(this.speed));this.speed = 0;}
+        this.unstick(dt);
+        // The bounce from a crash (m/s along the contact normal) dies away in about half a second.
+        let kx = this.knockX || 0, kz = this.knockZ || 0;
+        if (kx || kz) {const e = Math.exp(-dt * 5);this.knockX = Math.abs(kx * e) < .05 ? 0 : kx * e;this.knockZ = Math.abs(kz * e) < .05 ? 0 : kz * e;}
+        const f = this.forward(), nx = this.x + (f.x * this.speed + kx) * dt, nz = this.z + (f.z * this.speed + kz) * dt;
+        if (Math.abs(this.speed) < .001 && !kx && !kz) {this.x = nx;this.z = nz;return;}
+        const b = this.blockedAt(nx, nz);
+        if (!b) {this.x = nx;this.z = nz;}
+        else if (kx || kz) {this.knockX = this.knockZ = 0;const sx = this.x + f.x * this.speed * dt, sz = this.z + f.z * this.speed * dt, b2 = Math.abs(this.speed) < .001 ? 0 : this.blockedAt(sx, sz);if (!b2) {this.x = sx;this.z = sz;} else this.crash(b2);}
+        else this.crash(b);
       }
       // ---- Multiplayer: the driver's client sends netGet(); everybody else poses the vehicle with netSet() + netAnimate(). ----
       netGet() {return [this.x, this.y, this.z, this.yaw, this.pitch, this.roll || 0, this.speed, ...this.netExtra()].map(v => Math.round(v * 1000) / 1000);}
@@ -135,7 +185,7 @@
       hipAnchor(seat) {const h = this.hips[seat];return h ? {obj: h.obj || this.group, pos: h.pos, stance: h.stance} : null;}
       footprint() {
         const f = this.forward(), r = {x: -f.z, z: f.x}, hl = this.length / 2, hw = this.width / 2;
-        return {points: [[hl, hw], [hl, -hw], [-hl, -hw], [-hl, hw]].map(([a, b]) => ({x: this.x + f.x * a + r.x * b, z: this.z + f.z * a + r.z * b})), minY: this.y - .2, maxY: this.y + this.height, kind: 'vehicle'};
+        return {points: [[hl, hw], [hl, -hw], [-hl, -hw], [-hl, hw]].map(([a, b]) => ({x: this.x + f.x * a + r.x * b, z: this.z + f.z * a + r.z * b})), minY: this.y - .2, maxY: this.y + this.height, kind: 'vehicle', owner: this};
       }
       exitPoint(side = -1) {const f = this.forward(), r = {x: -f.z, z: f.x}, d = this.width / 2 + .55;return {x: this.x + r.x * d * side, z: this.z + r.z * d * side};}
       place() {this.group.position.set(this.x, this.y, this.z);this.group.rotation.set(0, 0, 0);this.group.rotateY(this.yaw);this.group.rotateX(this.pitch);this.group.rotateZ(this.roll || 0);}
