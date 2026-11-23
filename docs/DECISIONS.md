@@ -9,9 +9,10 @@ Live game: https://haarklous-online.server-smoke.workers.dev · Source: https://
 ## Features (what the game has now)
 
 In pull requests (not merged yet):
-- Walk up to every floor of Klatreverket Torshov (issue #137, PR #138): the stairs from the ground floor to Discorommet, the inner bouldering room and the training room, and sloped mat edges onto the crash mats, so every wall upstairs can be climbed.
+- Real bridges where car streets cross over roads, railways and water (issue #139): a deck of their own with room under it, ramps up to it, parapets and piers; walk and drive on it or under it (Storo, Sinsenkrysset, Trondheimsveien over the railway, Østre Aker vei, Ulven, Kværner, Nylandsveien and the rest).
 
 On `main`:
+- Walk up to every floor of Klatreverket Torshov (issue #137, PR #138, live since 23 Nov 2026): the stairs from the ground floor to Discorommet, the inner bouldering room and the training room, and sloped mat edges onto the crash mats, so every wall upstairs can be climbed.
 - Smooth rides with other players (issue #135, PR #136, live since 23 Nov 2026): as a passenger (car, motorcycle back seat, aircraft) the ride and the view are smooth, and other players' vehicles move smoothly when you watch them, also when an update is lost on the way.
 - Camera zoom on its own controls, and binoculars (issue #133, PR #134, live since 21 Nov 2026): with the camera raised, zoom with D-pad ↑↓, the mouse wheel or + −, while the right stick / mouse only looks and you walk; binoculars in the △ gear menu, raised with L2 / right mouse to the classic two-circle view, zoom 4–12×.
 - Vans you can see out of (issue #131, PR #132, live since 21 Nov 2026): the parked vans have a real glass cab like the cars – windscreen and front side windows, a roof, a painted wall behind the seats and the closed load space behind it.
@@ -64,9 +65,23 @@ On `main`:
 - Ground with real detail up close (grass, asphalt, paving slabs, gravel, pavements and kerbs) with or without the aerial photo, and buildings that look like their part of town – Torshov brick and Harald Hals' plastered blocks, Grünerløkka's tenements with shop fronts, buff brick, wooden houses, new blocks – chosen from OpenStreetMap and Street View notes (issues #67 and #68, PR #81, not merged yet).
 - Friends (needs an account): add a friend by their player name, they accept or decline; see which friends are online and in which lobby; Join goes straight into a friend's lobby, Invite asks them into yours (a message in their game, Options then ✕ to come); "friends can join my lobby" can be turned off; pause menu → Friends (L1 / N), with a red count of new requests and invites (issue #115, PR #117, not merged yet).
 
-Live site: runs `main` (Worker version d2c8f0f7, deployed 23 Nov 2026 after PR #136; `main` builds byte-for-byte to the live page), so everything above is online. Account emails (issue #55) wait for the user's Brevo key.
+Live site: runs `main` (Worker version 3766909d, deployed 23 Nov 2026 after PR #138; `main` builds byte-for-byte to the live page), so everything above is online. Account emails (issue #55) wait for the user's Brevo key.
 
 ## Log
+
+### 2026-11-23 · Bridges over roads, railways and water (issue #139)
+- **What was wrong:** only Akerselva had bridge decks. Every other bridge was laid on the ground, and the height data (Kartverket) has no bridges, only the ground under them. So a road that goes over another road or a railway went down to it and met it at the same height (Storo, Sinsenkrysset, Østre Aker vei, Ulven, Kværner, Nylandsveien and more), the junction smoothing even bent the two into each other, and where the height data had filled the gap the railway under a bridge ran over a hump through it (Trondheimsveien at Sinsen).
+- **What:**
+  - Every bridge in the map is now listed with what passes under it (`bridges-data.js`, 415 bridge ways from OpenStreetMap).
+  - Car streets on a bridge (122 ways in the old square and every district patch) are a deck of their own: at least 4.7 m over a road or railway, 2.6 m over a path, 1.8 m over a river; the street rises to it smoothly (at most 5 %, up to 12 % where there is no room), the streets it meets at its ends rise with it, and it joins the street at both ends.
+  - The deck has asphalt, pavements a kerb higher, concrete parapets, a solid underside and piers where it is high. The road, railway or stream under it keeps its own level, in a cutting where the height data had a hump.
+  - You walk and drive on it and under it; vehicles pick the level by their own height (as in Construction City's garage); trams and buses heading along a bridge run on its deck; parked cars are not put on or under a deck.
+  - Akerselva's bridges keep their kayak decks. Short street bridges over Hovinbekken (the brook is not drawn) stay on the ground. Foot and cycle bridges and railway bridges are not changed yet.
+- **Why:** the user's issue #139 ("Fix bridges over rivers and crossing other roads"): every bridge should be a real bridge.
+- **Where:** `tools/make-bridges.py` → `bridges-data.js` (new), `road-surface.js` (bridges marked on the streets, the rise to each deck, trenches under it, streets split into ground and decks, the ground held under the decks), `road-bridges.js` (new: the decks' meshes, floors and solids, `groundAt`, `alongAt`, `over`), `surroundings.js` (`world.bridges`), `game-main.js` (ground by height, walk and vehicle worlds, transit, parked cars), `game-transit.js` (heading to the ground query), `index.html` (two scripts), `tools/road-roughness.cjs` (loads like the game), `tests/bridges.test.cjs` (new), `docs/HANDOFF.md`.
+- **Checked:** `node --test`; a few screenshots in the browser (Storo, Sinsenkrysset, Trondheimsveien over the railway, Østre Aker vei) and a scripted car driven onto and over two decks (it follows the deck within 3 cm); draw calls and triangles at home are the same as before (3547 / 2.50 M vs 3596 / 2.51 M). Not played online.
+- **Not perfect (listed in the test):** a few short bridges whose crossing is next to an end where the street is at ground level have less room (Hasleveien, St. Halvards gate, Peter Møllers vei, Turbinveien, Fagerlia, Dronning Eufemias gate); in the big interchanges (Storo, Sinsenkrysset, Kværner, Bjørvika, Bryn, Ulven) some deck ends have a corner that does not join or a steep last metres.
+- **Status:** branch `fix/bridges`, pull request not merged yet.
 
 ### 2026-11-23 · Klatreverket Torshov: walk up to every floor (issue #137)
 - **What:**
@@ -82,7 +97,7 @@ Live site: runs `main` (Worker version d2c8f0f7, deployed 23 Nov 2026 after PR #
 - **Other players:** are already drawn at the height they send (their feet), so they show on the right floor; nothing changed there.
 - **Galleriet:** in the game it is a 10 m top-rope wall in the hall on the ground floor, reached as before.
 - **Checked:** `node --test` (303 pass). The flood fill reached a standing spot in front of every lane of all 25 walls (hall and all four floors), and walking back from the training room reaches the street. Not checked in the browser (the user asked to skip browser tests for this run).
-- **Status:** branch `fix/gym-floors`, PR #138 (https://github.com/jonatsl/haarklous-online/pull/138), not merged yet.
+- **Status:** PR #138 (https://github.com/jonatsl/haarklous-online/pull/138), merged and deployed 23 Nov 2026 (Worker version 3766909d), live.
 
 ### 2026-11-23 · Passenger in a car: a smooth ride (issue #135)
 - **What:**

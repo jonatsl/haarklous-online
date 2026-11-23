@@ -8,7 +8,7 @@
  *
  * GameTransit.prepare(districts, data, heightOf, groundY) – before Surroundings.create: plans the metro stations (the ground
  *   where their entrances go down is cut out of the patches, like Construction City's).
- * GameTransit.create({T, lib, world, data, ground(x, z) (the game's run-time ground), clock() -> ms, root, notice, audio, wallet,
+ * GameTransit.create({T, lib, world, data, ground(x, z, hx, hz) (the game's run-time ground; with a heading: a road bridge's deck when along it), clock() -> ms, root, notice, audio, wallet,
  *   kr, rects}) -> {
  *   group, floors, obstacles, poi(), cutsGround(x, z), tick(dt, {camera, player}), prompt(player) -> {text, act} | null,
  *   ride (null or the ride), updateRide(dt, input, camera, dl), leave(), localState(), pose(r, st, g) (other players aboard),
@@ -78,7 +78,7 @@
     const W = (x, s) => ({x: o0.x + EX.x * x + ES.x * s, z: o0.z + EX.z * x + ES.z * s});
     const dirW = (hx, hs) => ({x: EX.x * hx + ES.x * hs, z: EX.z * hx + ES.z * hs});
     const toLocal = (x, z) => world.toLocal(x, z);
-    const ground = (x, z) => ctx.ground(x, z), terrain = (x, z) => world.heightWorld(x, z);
+    const ground = (x, z, hx, hz) => ctx.ground(x, z, hx, hz), terrain = (x, z) => world.heightWorld(x, z);
     const now = () => ctx.clock();
     const rects = ctx.rects || [];
     const inWorld = (x, s, m = 40) => !rects.length || rects.some(r => x >= r.x0 - m && x <= r.x1 + m && s >= r.s0 - m && s <= r.s1 + m);
@@ -233,8 +233,9 @@
         const fx = f.x + (fd - Math.max(0, Math.min(dir.n * TT.STEP - TT.STEP, fd))) * f.hx, fs = f.s + (fd - Math.max(0, Math.min(dir.n * TT.STEP - TT.STEP, fd))) * f.hs;
         const bx = b.x + (bd - Math.max(0, Math.min(dir.n * TT.STEP - TT.STEP, bd))) * b.hx, bs = b.s + (bd - Math.max(0, Math.min(dir.n * TT.STEP - TT.STEP, bd))) * b.hs;
         const Fw = W(fx, fs), Bw = W(bx, bs);
-        const fy = metro ? metroAt(dir, fd) : ground(Fw.x, Fw.z), by = metro ? metroAt(dir, bd) : ground(Bw.x, Bw.z);
         const dx = Fw.x - Bw.x, dz = Fw.z - Bw.z, L = Math.hypot(dx, dz) || 1;
+        // (a tram or bus heading along a road bridge runs on its deck, issue #139)
+        const fy = metro ? metroAt(dir, fd) : ground(Fw.x, Fw.z, dx, dz), by = metro ? metroAt(dir, bd) : ground(Bw.x, Bw.z, dx, dz);
         out.push({x: (Fw.x + Bw.x) / 2, y: (fy + by) / 2, z: (Fw.z + Bw.z) / 2, yaw: Math.atan2(dx, dz), pitch: -Math.atan2(fy - by, L), len: S.len, fx: dx / L, fz: dz / L, ls: (fx + bx) / 2, ss: (fs + bs) / 2});
         head -= S.len + K.gap;
       }
