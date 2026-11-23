@@ -11,6 +11,7 @@ Live game: https://haarklous-online.server-smoke.workers.dev · Source: https://
 In pull requests (not merged yet):
 
 On `main`:
+- Politihuset can be entered (issue #158, PR #PRNUM; live once merged): the glass doors of Oslo politihus open by themselves as you walk up from the lane behind the low front buildings on Grønlandsleiret; a lit POLITI pylon on the footway at each of the two gaps shows the way, and the POLITI sign over the door is brighter. The way into Oslo fengsel (the two gates, the yard, wing A and its cells) works too.
 - Jumping (issue #144, PR #157; live once merged): a real jump with gravity – tap ✕ / Space for a small hop, hold it for about 1 m; you keep your speed in the air and steer a little; you land on benches, crates, walls and car roofs (and walk off their edges); fences and railings up to about 1.2 m you jump over; jump at a ledge up to chest height (1.6 m) and you pull yourself up; a landing dip and sounds; other players see you jump.
 - Paddle faster (issue #146, PR #156; live once merged): the kayak cruises about 25 % faster, and holding R2 / Shift while paddling forward sprints at about twice the old top speed (about 15 km/h through the water), with quicker strokes, louder splashes and SPRINT on the HUD; it still turns well at sprint speed.
 - Real bridges where car streets cross over roads, railways and water (issue #139, PR #155): a deck of their own with room under it, ramps up to it, parapets and piers; walk and drive on it or under it (Storo, Sinsenkrysset, Trondheimsveien over the railway, Østre Aker vei, Ulven, Kværner, Nylandsveien and the rest).
@@ -74,6 +75,17 @@ On `main`:
 Live site: runs `main` (Worker version 3766909d, deployed 23 Nov 2026 after PR #138; `main` builds byte-for-byte to the live page), so everything above is online. Account emails (issue #55) wait for the user's Brevo key.
 
 ## Log
+
+### 2026-11-23 · Politihuset can be entered (issue #158)
+- **What:**
+  - You can walk into Oslo politihus again. The cause: the short slab from the glass doors down to the street sloped the wrong way – up instead of down – so its outer edge hung about 0.55 m above the street. A floor edge that does not meet the ground is an invisible wall, so you could not reach the door. The same mistake blocked the door of cell wing A in Oslo fengsel. The slab now goes down to the street and meets it.
+  - The steel door to the glattceller now opens into the reception: opened into the cell corridor, it and an open door of cell 1 left only 5 cm to pass.
+  - Easier to find: the entrance is in the lane behind the low front buildings on Grønlandsleiret. A lit POLITI pylon (Oslo politihus · Publikumsmottak ↓) stands on the footway at each of the two gaps that lead down to it, and the POLITI sign and the POLITIHUSET letters over the door glow brighter.
+  - The glass doors already opened by themselves when you walk up (no button).
+- **Why:** the user found in the live game that it was not possible to enter Politihuset at Grønland and asked to make it possible.
+- **Where:** `game-police.js` (`entrance()`: the slope's direction; the arrest door's side; the pylons and brighter signs), `tests/police.test.cjs` (a walk test: from the footway into the reception, past the steel door into glattcelle 1 and out; from the street round the station to the prison gates, across the yard into wing A and cell 1 and back).
+- **Checked:** `node --test tests/*.cjs`; one headless run: walked from the lane through the doors into the reception and back out (screenshots of the front, the reception and a pylon).
+- **Status:** PR #PRNUM; live once merged.
 
 ### 2026-11-23 · Jumping: higher, onto ledges and over fences (issue #144)
 - **What:**
