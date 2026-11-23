@@ -257,3 +257,52 @@ test('the record and the TV are heard in the living room, faintly in the other r
   assert.strictEqual(Liv.hearing({place: 'stair', level: 5}, 3).gain, 0);assert.strictEqual(Liv.hearing(null, 3).gain, 0);
   assert.strictEqual(Liv.duckFor(0, 0), 1);assert.ok(Liv.duckFor(1, 0) <= .1 + 1e-9 && Liv.duckFor(0, 1) > .5 && Liv.duckFor(0, 1) < 1);
 });
+
+// ---------- Issue #166: the wall system with the lava lamp, the TV corner, the record wall; issue #167: the bathroom ----------
+test('the wall system: everything stands on its own surface, inside its bay, and nothing sticks through anything', () => {
+  const wu = D.furniture.find(f => f.kind === 'wallUnit'), L = F.wallUnitLayout(wu), eps = 1e-6;
+  const boxOf = t => ({x0: t.x - t.w / 2, x1: t.x + t.w / 2, y0: t.y, y1: t.y + t.h, z0: t.z - t.d / 2, z1: t.z + t.d / 2});
+  const meet = (p, q) => p.x0 < q.x1 - eps && q.x0 < p.x1 - eps && p.y0 < q.y1 - eps && q.y0 < p.y1 - eps && p.z0 < q.z1 - eps && q.z0 < p.z1 - eps;
+  const solids = [...L.modules, ...L.uprights.map(x => ({id: 'upright', x0: x - .015, x1: x + .015, y0: .5, y1: L.top, z0: L.Z, z1: L.Z + .035})),
+    ...L.rails.map(([y0, y1]) => ({id: 'rail', x0: -wu.w / 2, x1: wu.w / 2, y0, y1, z0: L.Z, z1: L.Z + .02}))];
+  for (let i = 0; i < L.modules.length; i++) for (const q of solids.slice(i + 1)) assert.ok(!meet(L.modules[i], q), `${L.modules[i].id} / ${q.id}`);
+  const B = L.things.map(boxOf);
+  L.things.forEach((t, i) => {
+    const m = L.modules.find(m => m.id === t.on), b = B[i];
+    assert.ok(Math.abs(t.y - m.y1) < eps, `${t.name} stands on ${m.id}`);
+    assert.ok(b.x0 >= m.x0 - eps && b.x1 <= m.x1 + eps && b.z0 >= m.z0 - eps && b.z1 <= m.z1 + eps, `${t.name} on ${m.id} (inside its bay and depth)`);
+    for (const q of solids) if (q !== m) assert.ok(!meet(b, q), `${t.name} through ${q.id}`);
+    B.forEach((c, j) => {if (j !== i) assert.ok(!meet(b, c), `${t.name} / ${L.things[j].name}`);});
+  });
+  // The lava lamp (about 40 cm) stands free on the two-drawer unit beside the records on show, with air above it.
+  const lava = L.lava, two = L.modules.find(m => m.id === lava.on), above = L.modules.filter(m => m.bay === two.bay && m.y0 > two.y1).sort((p, q) => p.y0 - q.y0)[0];
+  assert.strictEqual(two.kind, 'drawers2');assert.ok(lava.h > .35 && lava.h < .45);assert.ok(above.y0 - (lava.y + lava.h) > .03, 'clear of the shelf above');
+  assert.ok(L.things.some(t => t.on === two.id && t.name === 'records on show'));
+  assert.strictEqual(L.record.on, 'chest');assert.strictEqual(L.uprights.length, 5);assert.strictEqual(L.rails.length, 2);
+});
+
+test('the TV corner, the record wall and the bathroom keep clear of each other and of the walls', () => {
+  const liv = D.rooms.find(r => r.id === 'living').rect, bath = D.rooms.find(r => r.id === 'bath').rect, overlap = (p, q) => Liv.overlap(p.pts, q.pts) && p.maxY > q.minY + .005 && q.maxY > p.minY + .005;
+  const kinds = ['tvBench', 'tv', 'speaker', 'globeLamp', 'guitar', 'wallUnit', 'coffeeCabinet', 'diningTable', 'sofa', 'coffeeTable', 'plant', 'kitchen'];
+  const S = solids0.filter(s => kinds.includes(s.kind));
+  for (let i = 0; i < S.length; i++) for (let j = i + 1; j < S.length; j++) if (!(S[i].kind === 'tv' && S[j].kind === 'tvBench') && !(S[i].kind === 'tvBench' && S[j].kind === 'tv')) assert.ok(!overlap(S[i], S[j]), `${S[i].kind} / ${S[j].kind}`);
+  for (const s of S) assert.ok(s.pts.every(([a, b]) => a >= liv[0] - .01 && a <= liv[2] + .01 && b >= liv[1] - .01 && b <= liv[3] + .01), `${s.kind} in the room`);
+  const chim = {pts: [[5.82, 4.5], [6.25, 4.5], [6.25, 4.9], [5.82, 4.9]], minY: 0, maxY: 3};assert.ok(!S.some(s => overlap(s, chim)), 'clear of the chimney breast');
+  // The TV stands on its tiled bench, the sofa faces it; ten covers on the record wall.
+  const tv = D.furniture.find(f => f.kind === 'tv'), bench = D.furniture.find(f => f.kind === 'tvBench');assert.strictEqual(tv.y, bench.h);
+  assert.strictEqual(D.furniture.find(f => f.kind === 'records').covers.length, 10);
+  // The bathroom: its things lie inside it, the door's swing (0.85 m from its hinge) stays clear, the dehumidifier is on the washer.
+  const B = D.bathroom, b = (a0, b0, a1, b1) => ({a0, b0, a1, b1}), parts = [b(B.vanity[0] - .41, 5.02, B.vanity[0] + .41, 5.52), b(B.toilet[0] - .19, 7.08 - .66, B.toilet[0] + .19, 7.08), b(B.washer[0] - .3, 7.08 - .61, B.washer[0] + .3, 7.08), b(B.ladder[0] - .34, B.ladder[1] - .25, B.ladder[0], B.ladder[1] + .25), b(B.shower.corner[0] - B.shower.r, B.shower.corner[1] - B.shower.r, B.shower.corner[0], B.shower.corner[1])];
+  for (const p of parts) assert.ok(p.a0 >= bath[0] && p.a1 <= bath[2] && p.b0 >= bath[1] && p.b1 <= bath[3], JSON.stringify(p));
+  for (let i = 0; i < parts.length; i++) for (let j = i + 1; j < parts.length; j++) {const p = parts[i], q = parts[j];assert.ok(!(p.a0 < q.a1 && q.a0 < p.a1 && p.b0 < q.b1 && q.b0 < p.b1), `${i}/${j}`);}
+  const hinge = [bath[0], 6.12];for (const p of parts) {const ca = Math.max(p.a0, Math.min(hinge[0], p.a1)), cb = Math.max(p.b0, Math.min(hinge[1], p.b1));assert.ok(Math.hypot(ca - hinge[0], cb - hinge[1]) > .85 || cb > hinge[1], 'clear of the door');}
+  const w = parts[2], [da, db] = B.dehumidifier, [ka, kb] = B.baskets;assert.ok(da - .135 > w.a0 && da + .135 < w.a1 && db - .1 > w.b0 && db + .1 < w.b1 && ka - .1 > w.a0 && ka + .1 < w.a1 && Math.abs(da - ka) > .235);
+});
+
+test('the dehumidifier is heard all over the flat: clearly in the bathroom, at least a third of that elsewhere, not outside', () => {
+  const bath = Liv.humHearing({place: 'flat', room: 'bath'}, 1), far = ['living', 'hall', 'bed1', 'bed2'].map(room => Liv.humHearing({place: 'flat', room}, 12));
+  assert.ok(bath.gain > .9 && !bath.muffle);
+  for (const h of far) assert.ok(h.gain >= .33 - 1e-9 && h.gain < bath.gain && h.muffle > 0 && h.muffle < 1);
+  assert.strictEqual(Liv.humHearing({place: 'stair', level: 5}, 2).gain, 0);assert.strictEqual(Liv.humHearing(null, 2).gain, 0);
+  assert.ok(Liv.items(D).some(i => i.name === 'dehumidifier'));
+});
