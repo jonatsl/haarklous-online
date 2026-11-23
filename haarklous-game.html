@@ -15992,6 +15992,7 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
  *   the next tee) fits; it and the big map draw the course outline, every hole's tee (with its number), basket and fairway line
  *   (the current hole bright, the others faded), your lie with the metres to the basket, and the way to the next tee.
  * map.overlay(g, {P, k, d, big}) (optional): draws over the map and inside the minimap's circle (the transit lines and stops, issue #111).
+ * map.snap(x, s, r) (optional) -> {x, s} | null: where a waypoint set at x, s (within r map metres) really goes (a metro entrance).
  * Pure helpers (Node-tested): edgePoint, screenSpot, toRim, distanceText, minimapRange, courseOutline, courseRange.
  */
 (function (root, factory) {
@@ -16164,7 +16165,8 @@ window.PAINTBALL={"rect":{"x0":-72.0,"s0":296.0,"w":64.0,"d":48.0},"play":{"x0":
     map.zoom = f => {map.scale = Math.max(.5, Math.min(12, map.scale * f));};
     map.draw = draw;
     // Set the waypoint at a map point, or remove it when that point is on it (within 16 screen pixels).
-    function markAt(x, s) {if (map.layer) return;const wp = map.waypoint;map.waypoint = wp && Math.hypot(wp.x - x, wp.s - s) * map.scale < 16 ? null : {x, s};draw();}
+    // map.snap(x, s, r) (optional) moves the point to what it is on: a metro station's entrance (issue #143).
+    function markAt(x, s) {if (map.layer) return;const q = map.snap ? map.snap(x, s, 16 / map.scale) : null;if (q) {x = q.x;s = q.s;}const wp = map.waypoint;map.waypoint = wp && Math.hypot(wp.x - x, wp.s - s) * map.scale < 16 ? null : {x, s};draw();}
     map.markCentre = () => markAt(map.cx, map.cs);
     map.clearWaypoint = () => {map.waypoint = null;draw();};
     let drag = null;
@@ -22722,7 +22724,7 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
  * TransitStations.spec(station, stops, {ground(x, s) -> y, platformLayer}) -> {name, c [x, s], a (axis unit), n (right of it),
  *   tracks [v], type 'island' | 'side', underground, platform (floor height), rail, entrance [x, s] | null, ...}
  *   stops = [{x, s, hx, hs, tunnel}] where the trains of each direction stop (local metres); v = metres to the right of the axis.
- * TransitStations.layout(spec, ground, built(x, s) -> bool) -> {floors, obstacles, cuts, boxes, signs, kiosk, inside(x, s, y), deep(x, s, y), spots}
+ * TransitStations.layout(spec, ground, built(x, s) -> bool, {fix: {E, d}, avoid(x, s)}) -> {floors, obstacles, cuts, boxes, signs, kiosk, inside(x, s, y), deep(x, s, y), spots}
  *   all in local metres: floors {points [[x, s]], y | slope {o: [x, s], dir: [x, s], g} | height: 'threshold'}, obstacles
  *   {points, minY, maxY}, cuts = polygons where the ground is not drawn or walked (the entrance), boxes {u0, u1, v0, v1, y0, y1,
  *   colour, kind} in the station frame for the meshes (or {pts, ...} in local metres for the entrance stair and corridor).
@@ -22740,7 +22742,7 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
 })(typeof window === 'undefined' ? globalThis : window, function () {
   'use strict';
   const HALL = 120, PLAT = 112, PLAT_H = 1.1, CLEAR = 1.62, MEZZ = 5.2, CEIL = 7.6, GRADE = .56, STAIR_W = 2.6, CORR_W = 3.2, SIDE_W = 4.2;
-  function spec(st, stops, {ground, layer = -1}) {
+  function spec(st, stops, {ground, layer = -1, built = null}) {
     const n0 = stops.length || 1;
     const c = [stops.reduce((a, q) => a + q.x, 0) / n0, stops.reduce((a, q) => a + q.s, 0) / n0];
     // The axis: the mean heading (both directions folded onto one sense).
@@ -22761,21 +22763,35 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
     const g = ground(c[0], c[1]);
     const depth = Math.max(9, Math.min(20, 6 + 4 * Math.abs(layer)));
     // Under the lower of the ground over the platforms and at the entrance (Carl Berner's entrance is 20 m below the station node).
-    const ent = (st.entrances || []).length ? pickEntrance({entrances: st.entrances, c}) : null, gE = ent ? ground(ent[0], ent[1]) : g;
+    const ent = (st.entrances || []).length ? pickEntrance({entrances: st.entrances, c}, built) : null, gE = ent ? ground(ent[0], ent[1]) : g;
     let rail;
     if (underground) rail = Math.min(g, gE) - depth - PLAT_H;
     else {let sum = 0, k = 0;for (let u = -50; u <= 50; u += 10) for (const v of tracks) {sum += ground(c[0] + ax * u + n[0] * v, c[1] + as * u + n[1] * v);k++;}rail = sum / k;}
-    return {name: st.name, c, a: [ax, as], n, tracks: [tracks[0], tracks[tracks.length - 1]], type, underground, rail, platform: rail + PLAT_H, ground: g, depth,
-      entrances: st.entrances || [], station: st.at};
+    // A track between the outer two (Tøyen: lines 1–4 westbound stop on a third track) gets a side platform of its own (issue #143).
+    const mid = type === 'side' ? tracks.slice(1, -1) : [];
+    return {name: st.name, c, a: [ax, as], n, tracks: [tracks[0], tracks[tracks.length - 1]], mid, type, underground, rail, platform: rail + PLAT_H, ground: g, depth,
+      entrances: st.entrances || [], station: st.at, entrance: ent};
   }
   const P = (sp, u, v) => [sp.c[0] + sp.a[0] * u + sp.n[0] * v, sp.c[1] + sp.a[1] * u + sp.n[1] * v];
   const rect = (sp, u0, u1, v0, v1) => [P(sp, u0, v0), P(sp, u1, v0), P(sp, u1, v1), P(sp, u0, v1)];
   // A wall along a line in the station frame as a thin obstacle (local points).
+  const trackList = sp => [sp.tracks[0], ...(sp.mid || []), sp.tracks[1]];
   function platforms(sp) {
     const [t0, t1] = sp.tracks;
-    return sp.type === 'island' ? [{v0: t0 + CLEAR, v1: t1 - CLEAR}] : [{v0: t0 - CLEAR - SIDE_W, v1: t0 - CLEAR}, {v0: t1 + CLEAR, v1: t1 + CLEAR + SIDE_W}];
+    if (sp.type === 'island') return [{v0: t0 + CLEAR, v1: t1 - CLEAR}];
+    const out = [{v0: t0 - CLEAR - SIDE_W, v1: t0 - CLEAR}, {v0: t1 + CLEAR, v1: t1 + CLEAR + SIDE_W}], all = trackList(sp), room = 2 * CLEAR + SIDE_W + 1;
+    // a middle track: its platform on the side with room for one (between it and the next track)
+    for (let i = 1; i + 1 < all.length; i++) {
+      const m = all[i];
+      if (m - all[i - 1] >= room) out.push({v0: m - CLEAR - SIDE_W, v1: m - CLEAR});
+      else if (all[i + 1] - m >= room) out.push({v0: m + CLEAR, v1: m + CLEAR + SIDE_W});
+    }
+    return out;
   }
-  function layout(sp, ground, built = () => false) {
+  // opts.fix {E, d}: the entrance and the stair's direction are given (the game lays a planned station out again on its own
+  // ground: same hole, the pavilion at the street's real height, issue #143). opts.avoid(x, s): ground the game cannot cut a hole
+  // in (the old square's own terrain); an entrance placed by the game (no OSM entrance) keeps its pavilion out of it.
+  function layout(sp, ground, built = () => false, opts = {}) {
     const floors = [], obstacles = [], cuts = [], boxes = [], signs = [], spots = [];
     const pls = platforms(sp), [t0, t1] = sp.tracks, y = sp.platform;
     const hv0 = Math.min(t0 - CLEAR - .4, ...pls.map(p => p.v0)) - .3, hv1 = Math.max(t1 + CLEAR + .4, ...pls.map(p => p.v1)) + .3;
@@ -22788,20 +22804,20 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
       floors.push({points: rect(sp, -PLAT / 2, PLAT / 2, p.v0, p.v1), y, name: `${sp.name} platform`});
       boxes.push({u0: -PLAT / 2, u1: PLAT / 2, v0: p.v0, v1: p.v1, y0: sp.rail - .3, y1: y, colour: 0x8d9093, kind: 'platform'});
       // yellow edge lines
-      for (const v of [p.v0, p.v1]) if (Math.abs(v - t0) < CLEAR + .1 || Math.abs(v - t1) < CLEAR + .1) boxes.push({u0: -PLAT / 2, u1: PLAT / 2, v0: v - (v === p.v0 ? 0 : .35), v1: v + (v === p.v0 ? .35 : 0), y0: y, y1: y + .006, colour: 0xf2c200, kind: 'edge'});
+      for (const v of [p.v0, p.v1]) if (trackList(sp).some(t => Math.abs(v - t) < CLEAR + .1)) boxes.push({u0: -PLAT / 2, u1: PLAT / 2, v0: v - (v === p.v0 ? 0 : .35), v1: v + (v === p.v0 ? .35 : 0), y0: y, y1: y + .006, colour: 0xf2c200, kind: 'edge'});
       spots.push({u: 0, v: (p.v0 + p.v1) / 2, y});
     }
     if (!sp.underground) return openLayout(sp, ground, {floors, obstacles, cuts, boxes, signs, spots, pls});
     // ---- The hall ----
     const ceil = y + CEIL;
     boxes.push({u0: -HALL / 2, u1: HALL / 2, v0: hv0, v1: hv1, y0: sp.rail - .35, y1: ceil, colour: 0xd9dcde, kind: 'hall'});
-    for (const v of [t0, t1]) boxes.push({u0: -HALL / 2, u1: HALL / 2, v0: v - 1.3, v1: v + 1.3, y0: sp.rail - .35, y1: sp.rail - .15, colour: 0x2a2b2c, kind: 'bed'}, {u0: -HALL / 2, u1: HALL / 2, v0: v - .75, v1: v - .68, y0: sp.rail - .15, y1: sp.rail, colour: 0x9a9fa4, kind: 'rail'}, {u0: -HALL / 2, u1: HALL / 2, v0: v + .68, v1: v + .75, y0: sp.rail - .15, y1: sp.rail, colour: 0x9a9fa4, kind: 'rail'});
+    for (const v of trackList(sp)) boxes.push({u0: -HALL / 2, u1: HALL / 2, v0: v - 1.3, v1: v + 1.3, y0: sp.rail - .35, y1: sp.rail - .15, colour: 0x2a2b2c, kind: 'bed'}, {u0: -HALL / 2, u1: HALL / 2, v0: v - .75, v1: v - .68, y0: sp.rail - .15, y1: sp.rail, colour: 0x9a9fa4, kind: 'rail'}, {u0: -HALL / 2, u1: HALL / 2, v0: v + .68, v1: v + .75, y0: sp.rail - .15, y1: sp.rail, colour: 0x9a9fa4, kind: 'rail'});
     // The walls (the hall's long sides; the ends are open into the tunnels but nobody can walk there: the platform ends).
     for (const p of pls) {
       for (const u of [-PLAT / 2, PLAT / 2]) lineWall(u, p.v0, u, p.v1, y - .2, y + 2.4, .08);// the platform ends (a railing)
     }
     // ---- The mezzanine, its stairs to the platforms and the corridor to the entrance ----
-    const ent = sp.entrances.length ? pickEntrance({entrances: sp.entrances, c: sp.c}) : null;
+    const ent = sp.entrance !== undefined ? sp.entrance : sp.entrances.length ? pickEntrance({entrances: sp.entrances, c: sp.c}, built) : null;
     const uv0 = q => [(q[0] - sp.c[0]) * sp.a[0] + (q[1] - sp.c[1]) * sp.a[1], (q[0] - sp.c[0]) * sp.n[0] + (q[1] - sp.c[1]) * sp.n[1]];
     const eu = ent ? (ent[0] - sp.c[0]) * sp.a[0] + (ent[1] - sp.c[1]) * sp.a[1] : 0, ev = ent ? (ent[0] - sp.c[0]) * sp.n[0] + (ent[1] - sp.c[1]) * sp.n[1] : hv1 + 30;
     const m0 = Math.max(-PLAT / 2 + 14, Math.min(PLAT / 2 - 14, eu - 5)), m1 = m0 + 10, my = y + MEZZ;
@@ -22830,22 +22846,42 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
     const LAND = 1.6, K = 6.4, hw = STAIR_W / 2 + .1;// the landing; the pavilion reaches to where the stair is 2.7 m deep
     // The stair runs along a local axis (x or s), so the pavilion and the hole in the ground are simple: the one that keeps out
     // of the hall and leaves the shortest way to the mezzanine.
-    function stairFrom(E) {
+    const avoid = opts.avoid || (() => false);
+    function stairFrom(E, only) {
       const gE = ground(E[0], E[1]), top = gE + .06, len = Math.max(3, (top - my) / GRADE), tB = LAND + len;let best = null;
-      for (const d of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      for (const d of only ? [only] : [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
         const at = (t, w = 0) => [E[0] + d[0] * t - d[1] * w, E[1] + d[1] * t + d[0] * w];
         let hits = 0;for (let t = K; t <= tB + 3.6; t += 1) for (const w of [-hw, hw]) if (inHall(at(t, w))) hits++;
-        // the pavilion must not stand in a building (the stair may run on under one)
-        let walls = 0;for (let t = -1; t <= K + 1; t += 1) for (const w of [-hw - .6, 0, hw + .6]) if (built(...at(t, w))) walls++;
+        // the pavilion must not stand in a building (the stair may run on under one), nor on ground that cannot be cut
+        let walls = 0;for (let t = -1; t <= K + 1; t += 1) for (const w of [-hw - .6, 0, hw + .6]) {if (built(...at(t, w))) walls++;if (avoid(...at(t, w))) walls += 20;}
+        // and the door must open onto the street, not onto a wall (Grønland's faced a building 1 m away)
+        for (let t = -4; t <= -1.5; t += .5) for (const w of [-hw, 0, hw]) if (built(...at(t, w))) walls += 3;
+        // a building's walls reach about 3 m under the street: the stair may go under one only once it is deep enough for your head
+        for (let t = K + 1; t <= Math.min(tB, LAND + 8.5 / GRADE); t += 1) for (const w of [-hw, hw]) if (built(...at(t, w))) walls += 1;
         const F = at(tB + 1.8), [fu, fv] = uv(F), sd = Math.abs(fu) <= HALL / 2 + 3 ? (fv >= (hv0 + hv1) / 2 ? 1 : -1) : (ev >= 0 ? 1 : -1);
-        const vA = sd > 0 ? hv1 + 4 : hv0 - 4, score = hits * 1000 + walls * 60 + Math.abs(fv - vA) + Math.abs(fu - cu) + 4;
+        const vA = sd > 0 ? hv1 + 4 : hv0 - 4;
+        // A corridor that turns back under the stair: its floor's edge (at concourse level) would cross the stair's last metres,
+        // an invisible wall on the way up (Løren, issue #143). The first leg goes across (in v) unless it is short.
+        const back = (() => {const way = [F, P(sp, fu, vA), P(sp, cu, vA)];for (let i = 0; i + 1 < way.length; i++) {const dx = way[i + 1][0] - way[i][0], ds = way[i + 1][1] - way[i][1], Lw = Math.hypot(dx, ds);if (Lw > .5) return (dx * d[0] + ds * d[1]) / Lw < -.05;}return false;})();
+        const score = hits * 1000 + walls * 60 + (back ? 150 : 0) + Math.abs(fv - vA) + Math.abs(fu - cu) + 4;
         if (!best || score < best.score - 1e-9) best = {d, score, hits, F, fu, sd, vA, E, gE, top, len, tB};
       }
       return best;
     }
-    let best = stairFrom(ent || P(sp, cu, sn[1] >= 0 ? hv1 + 6 : hv0 - 6));
-    // A real entrance right over the platforms: its pavilion stands at the edge of the hall instead, a few metres away.
-    if (best.hits) {const [u, v] = uv(best.E), alt = stairFrom(P(sp, u, v >= (hv0 + hv1) / 2 ? hv1 + 4 : hv0 - 4));if (alt.score < best.score) best = alt;}
+    let best;
+    if (opts.fix) best = stairFrom(opts.fix.E, opts.fix.d);
+    else {
+      // No OSM entrance: beside the hall at the mezzanine, on the station node's side unless that ground cannot be cut.
+      let side = sn[1] >= 0;if (!ent && avoid(...P(sp, cu, side ? hv1 + 6 : hv0 - 6)) && !avoid(...P(sp, cu, side ? hv0 - 6 : hv1 + 6))) side = !side;
+      best = stairFrom(ent || P(sp, cu, side ? hv1 + 6 : hv0 - 6));
+      // An OSM entrance at a building's wall (Grønland's is in the front of a block): the pavilion moves out onto the street a few
+      // metres (20 points a metre, a wall point costs 60).
+      if (ent && best.score - (best.hits * 1000) > 60) for (const r of [2, 4, 6, 8]) for (const o of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const alt = stairFrom([ent[0] + o[0] * r, ent[1] + o[1] * r]);alt.score += 20 * r;if (alt.score < best.score) best = alt;
+      }
+      // A real entrance right over the platforms: its pavilion stands at the edge of the hall instead, a few metres away.
+      if (best.hits) {const [u, v] = uv(best.E), alt = stairFrom(P(sp, u, v >= (hv0 + hv1) / 2 ? hv1 + 4 : hv0 - 4));if (alt.score < best.score) best = alt;}
+    }
     const {E, gE, top, len, tB} = best;
     const dir = best.d, side = best.sd, wallV = side > 0 ? hv1 : hv0;
     const at = (t, w) => [E[0] + dir[0] * t - dir[1] * w, E[1] + dir[1] * t + dir[0] * w];
@@ -22867,16 +22903,30 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
     boxes.push({pts: [at(0, -hw), at(tB, -hw), at(tB, hw), at(0, hw)], kind: 'entrance-stair', top, land: LAND, len, my, dir, E, hw, K, tB});
     // The corridor: from the stair's foot across (in v) to 4 m outside the hall wall, along the wall to the mezzanine, in.
     const F = best.F, way = [F, P(sp, best.fu, best.vA), P(sp, cu, best.vA), P(sp, cu, wallV - side * .4)].filter((q, i, a) => i === 0 || Math.hypot(q[0] - a[i - 1][0], q[1] - a[i - 1][1]) > .5);
+    // A corridor that has to go back the way the stair came: first out of the foot sideways, then back beside the stair, so its floor
+    // never lies under the stair's last metres (there its edge was an invisible wall, issue #143).
+    if (way.length > 1) {
+      const dx = way[1][0] - F[0], ds = way[1][1] - F[1], Lw = Math.hypot(dx, ds) || 1;
+      if ((dx * dir[0] + ds * dir[1]) / Lw < -.05) way.splice(1, 0, at(tB + 1.8, (dx * -dir[1] + ds * dir[0] >= 0 ? 1 : -1) * (hw + .4 + CORR_W / 2 + .3)));
+    }
+    const exit = way.length > 1 ? (() => {const dx = way[1][0] - F[0], ds = way[1][1] - F[1], Lw = Math.hypot(dx, ds) || 1;return [dx / Lw, ds / Lw];})() : dir;
+    boxes[boxes.length - 1].exit = exit;// the stair foot is open toward the corridor
     const legs = [];for (let i = 0; i + 1 < way.length; i++) legs.push(corridor(way[i], way[i + 1], my, CORR_W, i ? 1.2 : 0));// the first leg starts in the stair foot, clear of the stair
     const corr = {inside: (x, s, yy) => legs.some(l => l.inside(x, s, yy)), a: legs[0].a, b: legs[legs.length - 1].b, legs};
+    legs[0].boxes[0].open = true;
     for (const l of legs) {floors.push(...l.floors.map(f => ({...f, name: `${sp.name} corridor`})));boxes.push(...l.boxes);}
     signs.push({kind: 'name', u: 0, v: hv0 + .02, y: y + 2.9, face: 1}, {kind: 'name', u: 0, v: hv1 - .02, y: y + 2.9, face: -1});
     for (const p of pls) for (const u of [-30, 30]) signs.push({kind: 'board', u, v: (p.v0 + p.v1) / 2, y: y + 2.75, face: 0, pl: p});
-    const kiosk = {E, dir, hw, K, top, ground: gE, tB, land: LAND};
+    // The sign mast (issue #143): beside the door on the side away from buildings, a tall pole with the T and the name.
+    const mastW = [hw + 1.05, -hw - 1.05].sort((p, q) => (built(...at(-.4, p)) ? 1 : 0) - (built(...at(-.4, q)) ? 1 : 0))[0];
+    const mast = {p: at(-.4, mastW), h: 7.2};
+    obstacles.push({points: thin(at(-.55, mastW), at(-.25, mastW), .15), minY: top - 1, maxY: top + mast.h, kind: 'station'});
+    const kiosk = {E, dir, hw, K, top, ground: gE, tB, land: LAND, mast};
     const inside = (x, s, yy) => {
       const du = (x - sp.c[0]) * sp.a[0] + (s - sp.c[1]) * sp.a[1], dv = (x - sp.c[0]) * sp.n[0] + (s - sp.c[1]) * sp.n[1];
       if (Math.abs(du) < HALL / 2 + 2 && dv > hv0 - 1 && dv < hv1 + 1 && yy < ceil + 1 && yy > sp.rail - 2) return true;
-      return corr.inside(x, s, yy) || stairInside(E, dir, hw, tB + 3.6, x, s) && yy < top + 3 && yy > my - 1;
+      // (the stair once the eye is under the street: in the pavilion you still see the street round you)
+      return corr.inside(x, s, yy) || stairInside(E, dir, hw, tB + 3.6, x, s) && yy < top - .9 && yy > my - 1;
     };
     return {floors, obstacles, cuts, boxes, signs, spots, kiosk, inside, hall: {hv0, hv1, ceil, m0, m1, my}, stairs, pls, corridor: corr};
   }
@@ -22897,11 +22947,13 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
     const inside = (x, s, yy) => {const t = (x - a0[0]) * ux + (s - a0[1]) * us, q = -(x - a0[0]) * us + (s - a0[1]) * ux;return t > -.5 && t < L + 2.3 && Math.abs(q) < w / 2 + .4 && yy > y - 1 && yy < y + 3.2;};
     return {floors: [{points: floor, y}], walls, boxes: [{pts: floor, kind: 'corridor', y, h: 2.9}], inside, a: a0, b: b0, from: A, to: B};
   }
-  // The entrance nearest the platforms, or the station node.
-  function pickEntrance(sp) {
+  // The entrance nearest the platforms, or the station node. With built(x, s): the nearest one that is not inside a building of the
+  // map (Jernbanetorget's nearest is in the 6 m entrance building on the square, so a pavilion there was hidden in it, issue #143).
+  function pickEntrance(sp, built) {
     const ents = sp.entrances.length ? sp.entrances : sp.station ? [sp.station] : [];
     if (!ents.length) return null;
-    return ents.slice().sort((p, q) => Math.hypot(p[0] - sp.c[0], p[1] - sp.c[1]) - Math.hypot(q[0] - sp.c[0], q[1] - sp.c[1]))[0];
+    const by = ents.slice().sort((p, q) => Math.hypot(p[0] - sp.c[0], p[1] - sp.c[1]) - Math.hypot(q[0] - sp.c[0], q[1] - sp.c[1]));
+    return (built && by.find(e => !built(e[0], e[1]))) || by[0];
   }
   // Open stations: the platforms on the ground beside the tracks; a ramp from the street at each end.
   function openLayout(sp, ground, o) {
@@ -22920,7 +22972,7 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
     const inside = () => false;
     return {...o, kiosk: null, inside, hall: null, open: true};
   }
-  return {HALL, PLAT, PLAT_H, MEZZ, GRADE, spec, layout, platforms, P, rect, corridor};
+  return {HALL, PLAT, PLAT_H, MEZZ, GRADE, spec, layout, platforms, trackList, P, rect, corridor};
 });
 </script><script>/* Metro, bus and tram on a timetable (issue #111): the vehicles, the stops, riding, the timetable panel and the metro stations.
  *
@@ -22937,8 +22989,10 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
  *   group, floors, obstacles, poi(), cutsGround(x, z), tick(dt, {camera, player}), prompt(player) -> {text, act} | null,
  *   ride (null or the ride), updateRide(dt, input, camera, dl), leave(), localState(), pose(r, st, g) (other players aboard),
  *   footprints() (the vehicles near you, for the walk and vehicle worlds), panel {open, input(input), close()},
- *   overlay(g, {P, k, d, big}) (map), deep (camera underground in a station or tunnel), keepClear(x, z, halfWidth) -> {x, z} | null,
- *   timetable: the decoded lines (test handle) }
+ *   overlay(g, {P, k, d, big}) (map), snap(x, s, r) (map waypoint -> a station's entrance), deep (camera underground in a station or
+ *   tunnel), keepClear(x, z, halfWidth) -> {x, z} | null, timetable: the decoded lines (test handle) }
+ * Pure (Node-tested, issue #143): settle(planned, ground), walkParts({sp, L}, {W, dirW, terrain}), oldSquare(x, s),
+ *   snapStation(stations, x, s, r), stationMark(S).
  */
 (function (root, factory) {
   const api = factory();
@@ -22949,6 +23003,7 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
   const TICKET = 46, TICKET_MIN = 60;// Ruter's single ticket for zone 1 (adult, 2026), valid 60 minutes
   const KR = v => `${v} kr`;
   const esc = t => String(t).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'})[c]);
+  const T_BLUE = '#1d56a5';// the T-bane sign's blue (issue #143)
   const kindOf = line => line.mode === 'bus' ? (line.artic ? 'artic' : 'bus') : line.mode;
   const MODE_NAME = {tram: 'Tram', bus: 'Bus', metro: 'Metro'};
   const hhmm = (ms, TT) => {const d = new Date(ms + TT.osloOffset(ms));return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;};
@@ -22975,14 +23030,61 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
     const inRing = (x, s, r) => {let o = false;for (let i = 0, j = r.length - 1; i < r.length; j = i++) {const a = r[i], b = r[j];if ((a[1] > s) !== (b[1] > s) && x < (b[0] - a[0]) * (s - a[1]) / (b[1] - a[1]) + a[0]) o = !o;}return o;};
     return (x, s) => (grid.get(Math.floor(x / C) + ',' + Math.floor(s / C)) || []).some(q => x >= q.bb[0] && x <= q.bb[2] && s >= q.bb[1] && s <= q.bb[3] && inRing(x, s, q.ring));
   }
+  // The old square's terrain (surroundings.js squareTerrain) cannot have a stair cut into it, only the district patches can:
+  // an entrance the game places itself keeps out of it (Løren, issue #143).
+  const oldSquare = (x, s) => {const h = (window.Surroundings && window.Surroundings.PLAY_HALF || 760) + 2;return Math.abs(x) < h && Math.abs(s) < h;};
   function plan(data, ground, built) {
     const TT = window.TransitTimetable, TS = window.TransitStations, N = TT.decode(data);
     return stationStops(TT, N).filter(q => q.stops.length).map(({st, stops}) => {
       const layer = Math.min(0, ...st.platforms.map(p => p.layer || 0));
-      const sp = TS.spec(st, stops, {ground, layer});
-      return {sp, L: TS.layout(sp, ground, built)};
+      const sp = TS.spec(st, stops, {ground, layer, built});
+      return {sp, L: TS.layout(sp, ground, built, {avoid: oldSquare})};
     });
   }
+  // prepare() plans with the patches' raw terrain; the street you walk on is the road surface (issue #112), up to 4 m higher (Carl
+  // Berners plass). An underground station is laid out again on the game's ground with the same entrance and stair direction, so the
+  // hole cut in prepare() stays right and the pavilion stands on the street, not under it (issue #143).
+  function settle(item, ground) {
+    const TS = window.TransitStations, {sp, L} = item;
+    if (!sp.underground || !L.kiosk) return item;
+    return {sp, L: TS.layout(sp, ground, () => false, {fix: {E: L.kiosk.E, d: L.kiosk.dir}})};
+  }
+  // The walk geometry of a laid-out station in the game's frame: W(x, s) -> {x, z} and dirW(hx, hs) map local to world, terrain(x, z) is
+  // the walked ground (pure: the Node walk test builds the same world).
+  function walkParts({sp, L}, {W, dirW, terrain}) {
+    const floors = [], obstacles = [], cuts = [];
+    const wPts = pts => pts.map(([x, s]) => W(x, s));
+    for (const f of L.floors) {
+      const points = wPts(f.points), out = {points, name: f.name, surfaceKind: 'stone'};
+      if (f.slope) {const o = W(...f.slope.o), d = dirW(...f.slope.dir), g = f.slope.g;out.y = f.slope.y;out.slope = {x: -d.x * g, z: -d.z * g, origin: o};}
+      else if (f.height === 'threshold') {const o = W(...f.o), d = dirW(...f.dir), y = f.y;out.height = p => {const t = Math.max(0, Math.min(1, ((p.x - o.x) * d.x + (p.z - o.z) * d.z) / .8));return terrain(p.x, p.z) * (1 - t) + y * t;};}
+      else if (f.ramp) {const r = f.ramp, c = W(...sp.c), a = dirW(...sp.a);out.height = p => {const u = (p.x - c.x) * a.x + (p.z - c.z) * a.z, t = Math.max(0, Math.min(1, (u - r.u0) / (r.u1 - r.u0)));return Math.max(r.y0 + (r.y1 - r.y0) * t, terrain(p.x, p.z));};}
+      else if (f.raised) {const y = f.y;out.height = p => Math.max(y, terrain(p.x, p.z));}
+      else out.y = f.y;
+      floors.push(out);
+    }
+    for (const o of L.obstacles) obstacles.push({points: wPts(o.points), minY: o.minY, maxY: o.maxY, kind: o.kind});
+    for (const c of L.cuts) cuts.push(wPts(c));
+    // the pavilion's walls and roof posts stop cars too
+    if (L.kiosk) {
+      const k = L.kiosk, at = (t, w) => W(k.E[0] + k.dir[0] * t - k.dir[1] * w, k.E[1] + k.dir[1] * t + k.dir[0] * w);
+      for (const w of [-k.hw - .45, k.hw + .45]) obstacles.push({points: thinW(at(.2, w), at(k.K, w), .12), minY: k.top - 1, maxY: k.top + 3.2, kind: 'station'});
+    }
+    return {floors, obstacles, cuts};
+  }
+  // Where a station's T goes on the map: an underground one's entrance on the street (local [x, s]); an open one's platforms.
+  const stationMark = S => S.L.kiosk ? S.L.kiosk.E : S.sp.c;
+  // map.snap (issue #143): a waypoint put on a station's T (within r m, at least 6) or over its hall goes to the T (local metres).
+  function snapStation(stations, x, s, r) {
+    let best = null, bd = Infinity;
+    for (const S of stations) {
+      const m = stationMark(S), sp = S.sp, h = S.L.hall, u = (x - sp.c[0]) * sp.a[0] + (s - sp.c[1]) * sp.a[1], v = (x - sp.c[0]) * sp.n[0] + (s - sp.c[1]) * sp.n[1];
+      const dm = Math.hypot(x - m[0], s - m[1]), over = h && Math.abs(u) < window.TransitStations.HALL / 2 && v > h.hv0 - 2 && v < h.hv1 + 2;
+      if ((dm < Math.max(r, 6) || over) && dm < bd) {bd = dm;best = {x: m[0], s: m[1]};}
+    }
+    return best;
+  }
+  function thinW(a, b, t) {const dx = b.x - a.x, dz = b.z - a.z, L = Math.hypot(dx, dz) || 1, nx = -dz / L * t, nz = dx / L * t;return [{x: a.x - nx, z: a.z - nz}, {x: b.x - nx, z: b.z - nz}, {x: b.x + nx, z: b.z + nz}, {x: a.x + nx, z: a.z + nz}];}
   function prepare(districts, data, heightOf, groundY) {
     if (!data || !window.TransitStations) return null;
     const patchOf = (x, s) => districts.find(d => x >= d.x0 && x <= d.x1 && s >= d.s0 && s <= d.s1);
@@ -23012,33 +23114,18 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
     // Sinsen is in the old square); they cut no ground, so this changes nothing that was built before.
     const groundL = (x, s) => {const p = W(x, s);return terrain(p.x, p.z);};
     const SS = stationStops(TT, N);
-    const stations = PLAN.map(({sp, L}) => {
+    const stations = PLAN.map(item => {
+      let {sp, L} = settle(item, groundL);
       if (!sp.underground) {const q = SS.find(o => o.st.name === sp.name);if (q) {sp = TS.spec(q.st, q.stops, {ground: groundL, layer: 0});L = TS.layout(sp, groundL);}}
       return {sp, L, place: N.places.find(p => p.name === sp.name && p.metro), built: null};
     });
     const floors = [], obstacles = [], cutPolys = [];
-    const wPts = pts => pts.map(([x, s]) => W(x, s));
     for (const S of stations) {
-      const {sp, L} = S;
-      for (const f of L.floors) {
-        const points = wPts(f.points), out = {points, name: f.name, surfaceKind: 'stone'};
-        if (f.slope) {const o = W(...f.slope.o), d = dirW(...f.slope.dir), g = f.slope.g;out.y = f.slope.y;out.slope = {x: -d.x * g, z: -d.z * g, origin: o};}
-        else if (f.height === 'threshold') {const o = W(...f.o), d = dirW(...f.dir), y = f.y;out.height = p => {const t = Math.max(0, Math.min(1, ((p.x - o.x) * d.x + (p.z - o.z) * d.z) / .8));return terrain(p.x, p.z) * (1 - t) + y * t;};}
-        else if (f.ramp) {const r = f.ramp, c = W(...sp.c), a = dirW(...sp.a);out.height = p => {const u = (p.x - c.x) * a.x + (p.z - c.z) * a.z, t = Math.max(0, Math.min(1, (u - r.u0) / (r.u1 - r.u0)));return Math.max(r.y0 + (r.y1 - r.y0) * t, terrain(p.x, p.z));};}
-        else if (f.raised) {const y = f.y;out.height = p => Math.max(y, terrain(p.x, p.z));}
-        else out.y = f.y;
-        floors.push(out);
-      }
-      for (const o of L.obstacles) obstacles.push({points: wPts(o.points), minY: o.minY, maxY: o.maxY, kind: o.kind});
-      for (const c of L.cuts) cutPolys.push({pts: wPts(c), b: bounds(wPts(c))});
-      // the pavilion's walls and roof posts stop cars too
-      if (L.kiosk) {
-        const k = L.kiosk, at = (t, w) => W(k.E[0] + k.dir[0] * t - k.dir[1] * w, k.E[1] + k.dir[1] * t + k.dir[0] * w);
-        for (const w of [-k.hw - .45, k.hw + .45]) obstacles.push({points: thinW(at(.2, w), at(k.K, w), .12), minY: k.top - 1, maxY: k.top + 3.2, kind: 'station'});
-      }
+      const parts = walkParts(S, {W, dirW, terrain});
+      floors.push(...parts.floors);obstacles.push(...parts.obstacles);
+      for (const c of parts.cuts) cutPolys.push({pts: c, b: bounds(c)});
     }
     function bounds(p) {return {x0: Math.min(...p.map(q => q.x)), x1: Math.max(...p.map(q => q.x)), z0: Math.min(...p.map(q => q.z)), z1: Math.max(...p.map(q => q.z))};}
-    function thinW(a, b, t) {const dx = b.x - a.x, dz = b.z - a.z, L = Math.hypot(dx, dz) || 1, nx = -dz / L * t, nz = dx / L * t;return [{x: a.x - nx, z: a.z - nz}, {x: b.x - nx, z: b.z - nz}, {x: b.x + nx, z: b.z + nz}, {x: a.x + nx, z: a.z + nz}];}
     const inPoly = (x, z, pts) => {let r = false;for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {const a = pts[i], b = pts[j];if ((a.z > z) !== (b.z > z) && x < (b.x - a.x) * (z - a.z) / (b.z - a.z) + a.x) r = !r;}return r;};
     const cutsGround = (x, z) => cutPolys.some(c => x >= c.b.x0 && x <= c.b.x1 && z >= c.b.z0 && z <= c.b.z1 && inPoly(x, z, c.pts));
     // ---------- Metro heights along the track (rail level) ----------
@@ -23368,7 +23455,7 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
           }
           quad(Pw(u0, v0, y1), Pw(u1, v0, y1), Pw(u1, v1, y1), Pw(u0, v1, y1), 0x4a4f55, 1);
           for (const v of [v0 + 2, (v0 + v1) / 2, v1 - 2]) boxUV(u0 + 2, u1 - 2, v - .15, v + .15, y1 - .1, y1 - .05, 0xfff8e6, 'b');
-          const open = sp.tracks.map(t => [t - 2.4, t + 2.4]).sort((p, q) => p[0] - q[0]).reduce((a, iv) => {const l = a[a.length - 1];if (l && iv[0] <= l[1]) l[1] = Math.max(l[1], iv[1]);else a.push([...iv]);return a;}, []);
+          const open = TS.trackList(sp).map(t => [t - 2.4, t + 2.4]).sort((p, q) => p[0] - q[0]).reduce((a, iv) => {const l = a[a.length - 1];if (l && iv[0] <= l[1]) l[1] = Math.max(l[1], iv[1]);else a.push([...iv]);return a;}, []);
           const top = sp.rail + 4.9;
           for (const u of [u0, u1]) {
             quad(Pw(u, v0, top), Pw(u, v1, top), Pw(u, v1, y1), Pw(u, v0, y1), 0x8d969e, .8);
@@ -23390,16 +23477,21 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
           quad(at(0, -b.hw, b.top), at(b.land, -b.hw, b.top), at(b.land, b.hw, b.top), at(0, b.hw, b.top), 0x9a9ea2);
           // side walls and the ceiling of the stairwell (from the pavilion's back wall down to the foot)
           const end = b.tB + 3.6;
-          for (const w of [-b.hw - .1, b.hw + .1]) for (let i = 0; i < 12; i++) {const t0 = end * i / 12, t1 = end * (i + 1) / 12, f = t => Math.max(b.my, b.top - Math.max(0, t - b.land) * (b.top - b.my) / b.len);quad(at(t0, w, f(t0) - .1), at(t1, w, f(t1) - .1), at(t1, w, f(t1) + 2.9), at(t0, w, f(t0) + 2.9), 0xd2d5d8, .9);}
+          for (const w of [-b.hw - .1, b.hw + .1]) for (let i = 0; i < 12; i++) {const t0 = b.tB * i / 12, t1 = b.tB * (i + 1) / 12, f = t => Math.max(b.my, b.top - Math.max(0, t - b.land) * (b.top - b.my) / b.len);quad(at(t0, w, f(t0) - .1), at(t1, w, f(t1) - .1), at(t1, w, f(t1) + 2.9), at(t0, w, f(t0) + 2.9), 0xd2d5d8, .9);}
+          // the stair foot: walls round it except where the corridor leaves (issue #143: no wall across the way on)
+          const ex = b.exit || b.dir, ahead = ex[0] * b.dir[0] + ex[1] * b.dir[1] > .7, lat = ex[0] * -b.dir[1] + ex[1] * b.dir[0];
+          for (const sg of [-1, 1]) if (ahead || Math.abs(lat) < .5 || Math.sign(lat) !== sg) {const w = sg * (b.hw + .4);quad(at(b.tB, w, b.my - .1), at(end, w, b.my - .1), at(end, w, b.my + 2.9), at(b.tB, w, b.my + 2.9), 0xd2d5d8, .9);}
+          for (const sg of [-1, 1]) quad(at(b.tB, sg * (b.hw + .1), b.my + 2.75), at(end, sg * (b.hw + .1), b.my + 2.75), at(end, sg * (b.hw + .4), b.my + 2.75), at(b.tB, sg * (b.hw + .4), b.my + 2.75), 0x5a5f65);
+          for (const sg of [-1, 1]) quad(at(b.tB, sg * (b.hw + .1), b.my + 2.75), at(b.tB, sg * (b.hw + .4), b.my + 2.75), at(b.tB, sg * (b.hw + .4), b.my - .1), at(b.tB, sg * (b.hw + .1), b.my - .1), 0xd2d5d8, .85);
           for (let i = 0; i < 12; i++) {const t0 = Math.max(b.K, end * i / 12), t1 = Math.max(b.K, end * (i + 1) / 12);if (t1 <= t0) continue;const f = t => Math.max(b.my, b.top - Math.max(0, t - b.land) * (b.top - b.my) / b.len) + 2.75;quad(at(t0, -b.hw - .1, f(t0)), at(t1, -b.hw - .1, f(t1)), at(t1, b.hw + .1, f(t1)), at(t0, b.hw + .1, f(t0)), 0x5a5f65);}
-          quad(at(end, -b.hw - .1, b.my - .1), at(end, b.hw + .1, b.my - .1), at(end, b.hw + .1, b.my + 2.9), at(end, -b.hw - .1, b.my + 2.9), 0xd2d5d8, .9);
+          if (!ahead) quad(at(end, -b.hw - .4, b.my - .1), at(end, b.hw + .4, b.my - .1), at(end, b.hw + .4, b.my + 2.9), at(end, -b.hw - .4, b.my + 2.9), 0xd2d5d8, .9);
           quad(at(b.tB, -b.hw - .4, b.my), at(end, -b.hw - .4, b.my), at(end, b.hw + .4, b.my), at(b.tB, b.hw + .4, b.my), 0x9a9ea2);
         } else if (b.kind === 'corridor') {
           const [p0, p1, p2, p3] = b.pts.map(([x, s]) => W(x, s)), Y = b.y, H = b.h;
           const v = (p, y) => [p.x, y, p.z];
           quad(v(p0, Y), v(p1, Y), v(p2, Y), v(p3, Y), 0x9a9ea2);quad(v(p0, Y + H), v(p1, Y + H), v(p2, Y + H), v(p3, Y + H), 0x5a5f65);
           quad(v(p0, Y), v(p1, Y), v(p1, Y + H), v(p0, Y + H), 0xd2d5d8, .9);quad(v(p3, Y), v(p2, Y), v(p2, Y + H), v(p3, Y + H), 0xd2d5d8, .9);
-          quad(v(p0, Y), v(p3, Y), v(p3, Y + H), v(p0, Y + H), 0xd2d5d8, .8);
+          if (!b.open) quad(v(p0, Y), v(p3, Y), v(p3, Y + H), v(p0, Y + H), 0xd2d5d8, .8);// (the first leg starts open, in the stair foot)
           const m0 = {x: (p0.x + p3.x) / 2, z: (p0.z + p3.z) / 2}, m1 = {x: (p1.x + p2.x) / 2, z: (p1.z + p2.z) / 2}, dx = m1.x - m0.x, dz = m1.z - m0.z, Lc = Math.hypot(dx, dz) || 1;
           for (const w of [0]) {const a = {x: m0.x - dz / Lc * .2, z: m0.z + dx / Lc * .2}, bb = {x: m0.x + dz / Lc * .2, z: m0.z - dx / Lc * .2};quad(v(a, Y + H - .03), v({x: a.x + dx, z: a.z + dz}, Y + H - .03), v({x: bb.x + dx, z: bb.z + dz}, Y + H - .03), v(bb, Y + H - .03), 0xfff8e6);}
         } else if (b.kind === 'canopy') {
@@ -23443,10 +23535,9 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
         part(bx, models.stopMat.roof, w + .4, .22, k.K + .4, 0, 3.2, 0);
         for (const s of [-1, 1]) {part(bx, models.stopMat.glass, .03, 3.05, k.K, s * w / 2, 1.55, 0);part(bx, models.stopMat.metal, .1, 3.1, .1, s * w / 2, 1.55, k.K / 2);part(bx, models.stopMat.metal, .1, 3.1, .1, s * w / 2, 1.55, -k.K / 2);}
         part(bx, models.stopMat.glass, w, 3.05, .03, 0, 1.55, k.K / 2 - .05);
-        // the sign: a white T on Ruter's metro orange, on a post by the door
-        part(new T.CylinderGeometry(.05, .05, 1, 8), models.stopMat.metal, 1, 3.6, 1, w / 2 + .5, 1.8, -k.K / 2);
-        const tm = tSign();for (const r of [0, Math.PI]) {const s = new T.Mesh(new T.CircleGeometry(.42, 32), tm);s.position.set(w / 2 + .5, 3.55, -k.K / 2 + (r ? -.03 : .03));s.rotation.y = r;pv.add(s);}
+        // over the door: the name; on the roof's front edge a T on each side (the tall mast by the door is built from afar, below)
         const nm = new T.Mesh(new T.PlaneGeometry(w, .5), nameMat(sp.name, true));nm.position.set(0, 2.78, -k.K / 2 - .02);nm.rotation.y = Math.PI;pv.add(nm);
+        const tm = tSign();for (const s of [-1, 1]) {const t = new T.Mesh(new T.CircleGeometry(.36, 32), tm);t.position.set(s * (w / 2 + .2 + .01), 3.2, -k.K / 2 + .6);t.rotation.y = s * Math.PI / 2;pv.add(t);}
         grp.add(pv);S.pavilion = pv;
       }
       return grp;
@@ -23456,15 +23547,40 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
       const key = name + (dark ? '|d' : '');if (nameMats.has(key)) return nameMats.get(key);
       const c = document.createElement('canvas');c.width = 1024;c.height = 154;const g = c.getContext('2d');
       g.fillStyle = dark ? '#1b1f24' : '#f4f4f2';g.fillRect(0, 0, 1024, 154);
-      g.fillStyle = '#ec700c';g.beginPath();g.arc(80, 77, 56, 0, 7);g.fill();g.fillStyle = '#fff';g.font = 'bold 80px Arial, sans-serif';g.textAlign = 'center';g.textBaseline = 'middle';g.fillText('T', 80, 82);
+      g.fillStyle = T_BLUE;g.beginPath();g.arc(80, 77, 56, 0, 7);g.fill();g.fillStyle = '#fff';g.font = 'bold 80px Arial, sans-serif';g.textAlign = 'center';g.textBaseline = 'middle';g.fillText('T', 80, 82);
       g.fillStyle = dark ? '#fff' : '#16181a';g.textAlign = 'left';let size = 84;g.font = `bold ${size}px Arial, sans-serif`;while (g.measureText(name).width > 840 && size > 30) {size -= 4;g.font = `bold ${size}px Arial, sans-serif`;}g.fillText(name, 160, 82);
       const tex = new T.CanvasTexture(c);tex.colorSpace = T.SRGBColorSpace;tex.anisotropy = 4;const m = new T.MeshBasicMaterial({map: tex, side: T.DoubleSide, toneMapped: false});nameMats.set(key, m);return m;
     }
     let tMat = null;
     function tSign() {
       if (tMat) return tMat;const c = document.createElement('canvas');c.width = c.height = 128;const g = c.getContext('2d');
-      g.fillStyle = '#ec700c';g.beginPath();g.arc(64, 64, 62, 0, 7);g.fill();g.fillStyle = '#fff';g.font = 'bold 96px Arial, sans-serif';g.textAlign = 'center';g.textBaseline = 'middle';g.fillText('T', 64, 70);
-      const tex = new T.CanvasTexture(c);tex.colorSpace = T.SRGBColorSpace;return tMat = new T.MeshBasicMaterial({map: tex, toneMapped: false});
+      g.fillStyle = T_BLUE;g.beginPath();g.arc(64, 64, 62, 0, 7);g.fill();g.strokeStyle = '#fff';g.lineWidth = 5;g.beginPath();g.arc(64, 64, 52, 0, 7);g.stroke();
+      g.fillStyle = '#fff';g.font = 'bold 84px Arial, sans-serif';g.textAlign = 'center';g.textBaseline = 'middle';g.fillText('T', 64, 70);
+      const tex = new T.CanvasTexture(c);tex.colorSpace = T.SRGBColorSpace;return tMat = new T.MeshBasicMaterial({map: tex, toneMapped: false, transparent: true, alphaTest: .5});
+    }
+    // ---------- The entrances' sign masts (issue #143) ----------
+    // Built at the start for every underground station, so an entrance is seen from far off: a 6.4 m pole by the door with a lit
+    // cube at the top (the T on all four sides, Oslo's blue T-bane sign) and the station's name under it, facing the street.
+    // One merged mesh for the poles and cubes, one per name board; nothing per frame.
+    const beacons = new T.Group();beacons.name = 'Metro entrance masts';
+    {
+      let cubeMat = null;
+      for (const S of stations) {
+        const k = S.L.kiosk;if (!k || !k.mast) continue;
+        const p = W(...k.mast.p), d = dirW(...k.dir), yaw = Math.atan2(d.x, d.z), y0 = k.top, h = k.mast.h;
+        const pole = new T.Mesh(new T.CylinderGeometry(.09, .11, h + 1, 10), models.stopMat.metal);pole.position.set(p.x, y0 - 1 + (h + 1) / 2, p.z);beacons.add(pole);
+        if (!cubeMat) {
+          const c = document.createElement('canvas');c.width = c.height = 256;const g = c.getContext('2d');g.fillStyle = '#f4f6f8';g.fillRect(0, 0, 256, 256);
+          g.fillStyle = T_BLUE;g.beginPath();g.arc(128, 128, 112, 0, 7);g.fill();g.fillStyle = '#fff';g.font = 'bold 170px Arial, sans-serif';g.textAlign = 'center';g.textBaseline = 'middle';g.fillText('T', 128, 140);
+          const tex = new T.CanvasTexture(c);tex.colorSpace = T.SRGBColorSpace;tex.anisotropy = 4;
+          const side = new T.MeshBasicMaterial({map: tex, toneMapped: false}), cap = new T.MeshBasicMaterial({color: 0xf4f6f8, toneMapped: false});
+          cubeMat = [side, side, cap, cap, side, side];
+        }
+        const cube = new T.Mesh(new T.BoxGeometry(1.6, 1.6, 1.6), cubeMat);cube.position.set(p.x, y0 + h - .8, p.z);cube.rotation.y = yaw;beacons.add(cube);
+        const dark = models.stopMat.dark, nm = nameMat(S.sp.name, true);
+        const board = new T.Mesh(new T.BoxGeometry(3.0, .46, .08), [dark, dark, dark, dark, nm, nm]);board.position.set(p.x, y0 + h - 1.95, p.z);board.rotation.y = yaw;beacons.add(board);
+      }
+      if (beacons.children.length) {ctx.lib.mergeStatic(beacons);group.add(beacons);}
     }
     let stationT = 0;
     function updateStations(dt, camera) {
@@ -23504,7 +23620,7 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
       for (let q = 0; q < a.length; q += 2) {
         const d = a[q], k = a[q + 1];
         // skip the part inside a station hall
-        if (stations.some(S => S.sp.underground && Math.abs((d.X[k] - S.sp.c[0]) * S.sp.a[0] + (d.S[k] - S.sp.c[1]) * S.sp.a[1]) < TS.HALL / 2 - .5 && Math.abs((d.X[k] - S.sp.c[0]) * S.sp.n[0] + (d.S[k] - S.sp.c[1]) * S.sp.n[1]) < 12)) continue;
+        if (stations.some(S => S.sp.underground && Math.abs((d.X[k] - S.sp.c[0]) * S.sp.a[0] + (d.S[k] - S.sp.c[1]) * S.sp.a[1]) < TS.HALL / 2 - .5 && (v => S.L.hall ? v > S.L.hall.hv0 - 1 && v < S.L.hall.hv1 + 1 : Math.abs(v) < 12)((d.X[k] - S.sp.c[0]) * S.sp.n[0] + (d.S[k] - S.sp.c[1]) * S.sp.n[1]))) continue;// (Tøyen's hall is 41 m wide)
         const p0 = W(d.X[k], d.S[k]), p1 = W(d.X[k + 1], d.S[k + 1]), y0 = metroY(d)[k], y1 = metroY(d)[k + 1];
         const dx = p1.x - p0.x, dz = p1.z - p0.z, L = Math.hypot(dx, dz) || 1, rx = dz / L, rz = -dx / L;
         for (let i = 0; i + 1 < shape.length; i++) {
@@ -23729,7 +23845,7 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
         return `<div class="row${i === panel.sel ? ' sel' : ''}"><span class="tl" style="background:${d.line.colour}">${d.line.ref}</span><span><span class="to">${esc(d.to)}</span><span class="side"> · ${d.line.night ? 'night bus' : MODE_NAME[d.line.mode].toLowerCase()}</span>${side}</span><span class="times">${tt}</span></div>${stops}`;
       }).join('');
       const mode = panel.station ? 'T-bane' : (panel.pole && panel.pole.tram ? 'Trikk' : 'Buss');
-      panelEl.innerHTML = `<h2><i style="background:${panel.station ? '#ec700c' : panel.pole && panel.pole.tram ? '#1f5fb4' : '#e60000'}">${panel.station ? 'T' : mode === 'Trikk' ? 'TR' : 'B'}</i>${esc(place.name)}</h2><div class="sub">${mode} · departures from ${hhmm(ms, TT)} (Oslo time) · ticket ${KR(TICKET)}, valid ${TICKET_MIN} min${ms < ticketUntil ? ` – yours until ${hhmm(ticketUntil, TT)}` : ''}</div>${rows || '<div class="row">No lines stop here.</div>'}<div class="hint">↑ ↓ / stick: pick a line to see its stops · ○ / C or □ / E: close · the map (touchpad / M) shows every line and stop</div>`;
+      panelEl.innerHTML = `<h2><i style="background:${panel.station ? T_BLUE : panel.pole && panel.pole.tram ? '#1f5fb4' : '#e60000'}">${panel.station ? 'T' : mode === 'Trikk' ? 'TR' : 'B'}</i>${esc(place.name)}</h2><div class="sub">${mode} · departures from ${hhmm(ms, TT)} (Oslo time) · ticket ${KR(TICKET)}, valid ${TICKET_MIN} min${ms < ticketUntil ? ` – yours until ${hhmm(ticketUntil, TT)}` : ''}</div>${rows || '<div class="row">No lines stop here.</div>'}<div class="hint">↑ ↓ / stick: pick a line to see its stops · ○ / C or □ / E: close · the map (touchpad / M) shows every line and stop</div>`;
       panelEl.hidden = false;
     }
     panel.input = input => {
@@ -23792,14 +23908,17 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
         g.fillStyle = '#fff';g.strokeStyle = tram ? '#1f5fb4' : '#d5121b';g.lineWidth = 1.6 * d;g.beginPath();g.arc(u, v, r, 0, 7);g.fill();g.stroke();
         if (showNames) {g.font = `600 ${10.5 * d}px system-ui`;g.lineWidth = 3 * d;g.strokeStyle = '#fff';g.strokeText(pl.name, u, v - 10 * d);g.fillStyle = '#123';g.fillText(pl.name, u, v - 10 * d);}
       }
+      // A station under the ground: its hall as a faint outline, the T where you go down (the entrance, issue #143).
       for (const S of stations) {
-        const [u, v] = P(...S.sp.c), r = (big ? 8 : 5.5) * d;g.fillStyle = '#ec700c';g.beginPath();g.arc(u, v, r, 0, 7);g.fill();g.strokeStyle = '#fff';g.lineWidth = 1.5 * d;g.stroke();
+        const sp = S.sp, h = S.L.hall;
+        if (h && big) {g.strokeStyle = T_BLUE;g.globalAlpha = .45;g.lineWidth = 1.2 * d;g.setLineDash([4 * d, 3 * d]);g.beginPath();TS.rect(sp, -TS.HALL / 2, TS.HALL / 2, h.hv0, h.hv1).forEach((q, i) => {const [u, v] = P(q[0], q[1]);i ? g.lineTo(u, v) : g.moveTo(u, v);});g.closePath();g.stroke();g.setLineDash([]);g.globalAlpha = 1;}
+        const at = stationMark(S), [u, v] = P(at[0], at[1]), r = (big ? 8 : 5.5) * d;g.fillStyle = T_BLUE;g.beginPath();g.arc(u, v, r, 0, 7);g.fill();g.strokeStyle = '#fff';g.lineWidth = 1.5 * d;g.stroke();
         g.fillStyle = '#fff';g.font = `bold ${(big ? 10 : 7.5) * d}px system-ui`;g.fillText('T', u, v + .5 * d);
-        if (big) {g.font = `bold ${11 * d}px system-ui`;g.lineWidth = 3 * d;g.strokeStyle = '#fff';g.strokeText(S.sp.name, u, v - r - 7 * d);g.fillStyle = '#7a3a00';g.fillText(S.sp.name, u, v - r - 7 * d);}
-        if (S.L.kiosk && big && k / d > 1.6) {const [eu, ev] = P(...S.L.kiosk.E);g.fillStyle = '#ec700c';g.fillRect(eu - 3 * d, ev - 3 * d, 6 * d, 6 * d);}
+        if (big) {g.font = `bold ${11 * d}px system-ui`;g.lineWidth = 3 * d;g.strokeStyle = '#fff';g.strokeText(sp.name, u, v - r - 7 * d);g.fillStyle = '#0d2f63';g.fillText(sp.name, u, v - r - 7 * d);}
       }
       g.restore();
     }
+    const snap = (x, s, r) => snapStation(stations, x, s, r);
     // A line in the big map's legend.
     function legend(root) {
       const box = root.querySelector('.map-legend');if (!box || box.querySelector('.transit-legend')) return;
@@ -23810,10 +23929,18 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
     // ---------- Parked vehicles out of the lanes ----------
     // A parked vehicle (by its world spot and half width) that stands in a bus or tram lane is moved sideways out of it, or
     // null if it is clear. The caller checks the new spot (and keeps the vehicle's number).
+    const doorZones = stations.filter(S => S.L.kiosk).map(S => {const k = S.L.kiosk;return {x: k.E[0] - k.dir[0] * 2.2, s: k.E[1] - k.dir[1] * 2.2, r: 2.8, d: k.dir};});
     function keepClear(x, z, half, margin = .35) {
       // -> null (clear) or the spots to try, best first: out to its own side of the lane, then to the other side, then further.
       // Clear = the vehicle's half width + margin away from the bus's (1.28 m) or tram's (1.33 m) swept half width.
-      const l = toLocal(x, z), n = nearestLane(l.x, l.s, 8);if (!n) return null;
+      const l = toLocal(x, z);
+      // In front of a metro entrance's door (issue #143): out of the way, straight away from it.
+      for (const e of doorZones) {
+        const dx = l.x - e.x, ds = l.s - e.s, D = Math.hypot(dx, ds), need = e.r + half;if (D >= need) continue;
+        const ux = D > .01 ? dx / D : -e.d[0], us = D > .01 ? ds / D : -e.d[1];
+        return [W(e.x + ux * (need + .3), e.s + us * (need + .3)), W(e.x + ux * (need + 1.5), e.s + us * (need + 1.5))];
+      }
+      const n = nearestLane(l.x, l.s, 8);if (!n) return null;
       const need = (n.tram ? 1.33 : 1.28) + half + margin;
       if (Math.abs(n.off) >= need) return null;
       const sg = n.off >= 0 ? 1 : -1, out = [];
@@ -23870,12 +23997,12 @@ window.AKERSELVA={"attribution":"Akerselva: OpenStreetMap (ODbL) ways 80915045, 
     }
     const poi = () => [];
     const api = {showTunnels: false,// test handle: draw the tunnels round the camera wherever it is
-      group, floors, obstacles, cutsGround, poi, tick, prompt, panel, updateRide, overlay, legend, keepClear, pushOut, localState, pose, footprints: () => solids,
+      group, floors, obstacles, cutsGround, poi, tick, prompt, panel, updateRide, overlay, snap, legend, keepClear, pushOut, localState, pose, footprints: () => solids,
       get ride() {return ride;}, get deep() {return deep;}, get ticketUntil() {return ticketUntil;}, set ticketUntil(v) {ticketUntil = v;},
       leave: () => exitRide(), timetable: N, stations, portals, poles, active, sectionsAt, metroY, hud, inWorld, TICKET};
     return api;
   }
-  return {create, prepare, TICKET, TICKET_MIN, kindOf};
+  return {create, prepare, settle, walkParts, oldSquare, snapStation, stationMark, TICKET, TICKET_MIN, kindOf};
 });
 </script><script>/* Generated by tools/make-jobs-rides.cjs. Oslo city bike docks and prices: Oslo Bysykkel open data (GBFS 2.3, https://gbfs.urbansharing.com/oslobysykkel.no/gbfs.json), licence NLOD 2.0, fetched 2026-11-03T02:40+01:00. */
 window.RIDES={"source":"Oslo Bysykkel open data (GBFS 2.3, https://gbfs.urbansharing.com/oslobysykkel.no/gbfs.json), licence NLOD 2.0","fetched":"2026-11-03T02:40+01:00","operator":"UIP Bauer Media Outdoor Norge AS","slot":0.8,"plans":{"bike":{"plan_id":"bike","name":"Traditional bike charge","currency":"NOK","price":8,"description":"Cheapest subscription with the system for a single trip. Visit our websites for more details about subscriptions.","is_taxable":false,"per_min_pricing":[{"start":1,"rate":1,"end":180,"interval":1}]},"ebike":{"plan_id":"ebike","name":"Ebike charge","currency":"NOK","price":8,"description":"Cheapest subscription with the system for a single trip. Visit our websites for more details about subscriptions.","is_taxable":false,"per_min_pricing":[{"start":1,"rate":2,"end":180,"interval":1}]}},"docks":[{"id":"5113","name":"Leirfallsgata","area":"Grünerløkka","x":-1046.49,"s":1925.43,"u":[0.997,-0.075],"n":[0.075,0.997],"slots":10,"cap":15},{"id":"2305","name":"Hesselbergs Gate","area":"Grünerløkka","x":-860.58,"s":955.52,"u":[0.348,0.937],"n":[-0.937,0.348],"slots":4,"cap":15},{"id":"624","name":"Dælenenggata","area":"Grünerløkka","x":-507.15,"s":854.98,"u":[0.575,0.818],"n":[-0.818,0.575],"slots":10,"cap":20},{"id":"614","name":"Sinsen T-bane","area":"Torshov","x":218.08,"s":-271.31,"u":[0.972,-0.234],"n":[0.234,0.972],"slots":10,"cap":24},{"id":"621","name":"Torshovdalen øst","area":"Torshov","x":46.69,"s":400.72,"u":[0.736,-0.677],"n":[-0.677,-0.736],"slots":10,"cap":27},{"id":"607","name":"Marcus Thranes gate","area":"Myrens","x":-1011.47,"s":400.91,"u":[0.842,0.539],"n":[-0.539,0.842],"slots":10,"cap":30},{"id":"593","name":"Bjølsen mølle","area":"Torshov","x":-442.65,"s":-313.67,"u":[0.356,-0.935],"n":[0.935,0.356],"slots":10,"cap":30},{"id":"463","name":"Schous plass trikkestopp","area":"Grünerløkka","x":-955.38,"s":1744.27,"u":[0.996,0.095],"n":[0.095,-0.996],"slots":10,"cap":20},{"id":"439","name":"Mølleparken","area":"Grünerløkka","x":-1160.38,"s":896.43,"u":[0.985,-0.172],"n":[-0.172,-0.985],"slots":10,"cap":25},{"id":"493","name":"Sofienbergparken nordvest","area":"Grünerløkka","x":-837.31,"s":1342.56,"u":[0.907,0.422],"n":[-0.422,0.907],"slots":10,"cap":30},{"id":"591","name":"Grenseveien","area":"Grünerløkka","x":280.53,"s":1314.67,"u":[0.15,-0.989],"n":[0.989,0.15],"slots":10,"cap":24},{"id":"585","name":"Nordre gate","area":"Grünerløkka","x":-1211.64,"s":1696.98,"u":[0.999,0.046],"n":[0.046,-0.999],"slots":10,"cap":18},{"id":"565","name":"Mailundveien","area":"Torshov","x":-211.61,"s":608.97,"u":[0.961,-0.278],"n":[0.278,0.961],"slots":10,"cap":18},{"id":"586","name":"Københavngata busstopp","area":"Grünerløkka","x":-418.78,"s":778.7,"u":[0.699,0.715],"n":[0.715,-0.699],"slots":10,"cap":27},{"id":"542","name":"Grünerhagen Nord","area":"Grünerløkka","x":-1192.21,"s":1557.33,"u":[1,-0.023],"n":[0.023,1],"slots":10,"cap":20},{"id":"525","name":"Myraløkka Øst","area":"Myrens","x":-895.51,"s":-77.72,"u":[0.407,0.913],"n":[-0.913,0.407],"slots":10,"cap":15},{"id":"501","name":"Krebs' gate","area":"Torshov","x":-631.45,"s":44.51,"u":[0.958,0.288],"n":[-0.288,0.958],"slots":10,"cap":18},{"id":"514","name":"Sofienberggata","area":"Grünerløkka","x":-373,"s":1694.18,"u":[0.954,0.3],"n":[-0.3,0.954],"slots":10,"cap":12},{"id":"503","name":"Fagerheimgata","area":"Grünerløkka","x":-593.49,"s":976.75,"u":[0.603,-0.798],"n":[0.798,0.603],"slots":10,"cap":33},{"id":"507","name":"Jens Bjelkes Gate","area":"Grünerløkka","x":-697.65,"s":1924.49,"u":[0.465,0.886],"n":[-0.886,0.465],"slots":10,"cap":20},{"id":"516","name":"Finnmarksgata","area":"Grünerløkka","x":-57.91,"s":1513.07,"u":[0.153,-0.988],"n":[0.988,0.153],"slots":10,"cap":15},{"id":"398","name":"Ringnes Park","area":"Grünerløkka","x":-965.15,"s":888.69,"u":[1,0.015],"n":[0.015,-1],"slots":10,"cap":18},{"id":"458","name":"Jenny Braatens Plass","area":"Grünerløkka","x":94.09,"s":894.51,"u":[0.929,0.369],"n":[-0.369,0.929],"slots":10,"cap":15},{"id":"506","name":"Botanisk Hage vest","area":"Grünerløkka","x":-431.85,"s":1815.62,"u":[0.938,0.346],"n":[-0.346,0.938],"slots":10,"cap":27},{"id":"415","name":"Sinsenveien","area":"Grünerløkka","x":240.77,"s":765.1,"u":[0.998,0.059],"n":[0.059,-0.998],"slots":10,"cap":12},{"id":"423","name":"Schous plass","area":"Grünerløkka","x":-881.27,"s":1791.01,"u":[0.682,-0.731],"n":[-0.731,-0.682],"slots":10,"cap":20},{"id":"497","name":"Sirkustomta","area":"Grünerløkka","x":-107.4,"s":1901.49,"u":[0.109,-0.994],"n":[-0.994,-0.109],"slots":10,"cap":27},{"id":"487","name":"Carl Berners plass nord","area":"Grünerløkka","x":22.72,"s":1053.02,"u":[0.481,-0.877],"n":[0.877,0.481],"slots":6,"cap":21},{"id":"551","name":"Olaf Ryes plass","area":"Grünerløkka","x":-1033.31,"s":1559.17,"u":[1,0.013],"n":[0.013,-1],"slots":10,"cap":35},{"id":"406","name":"Carl Berners plass sør","area":"Grünerløkka","x":-37.01,"s":1265.65,"u":[0.099,-0.995],"n":[0.995,0.099],"slots":10,"cap":12},{"id":"488","name":"Torshovparken vest","area":"Torshov","x":-418.59,"s":153.38,"u":[0.17,0.986],"n":[0.986,-0.17],"slots":10,"cap":24},{"id":"540","name":"Lilleborgbanen","area":"Torshov","x":-424.27,"s":311.64,"u":[0.375,-0.927],"n":[-0.927,-0.375],"slots":10,"cap":36},{"id":"431","name":"Chr. Michelsens Gate","area":"Grünerløkka","x":-192.17,"s":1020.18,"u":[0.748,0.664],"n":[-0.664,0.748],"slots":10,"cap":20},{"id":"393","name":"Hans Nielsen Hauges plass","area":"Torshov","x":-130.06,"s":-314.06,"u":[0.707,0.707],"n":[-0.707,0.707],"slots":10,"cap":21},{"id":"420","name":"Bjølsendumpa","area":"Torshov","x":-586.55,"s":-434.38,"u":[0.776,-0.63],"n":[-0.63,-0.776],"slots":10,"cap":21},{"id":"598","name":"Sofienbergparken nord","area":"Grünerløkka","x":-588.78,"s":1466.3,"u":[0.93,0.367],"n":[-0.367,0.93],"slots":10,"cap":33},{"id":"401","name":"Lille Schous plass","area":"Grünerløkka","x":-896.57,"s":1801.6,"u":[0.953,-0.303],"n":[-0.303,-0.953],"slots":6,"cap":6},{"id":"424","name":"Birkelunden","area":"Grünerløkka","x":-882.26,"s":1202.14,"u":[0.908,-0.419],"n":[-0.419,-0.908],"slots":10,"cap":10},{"id":"455","name":"Sofienbergparken sør","area":"Grünerløkka","x":-833.24,"s":1566.29,"u":[0.991,0.134],"n":[0.134,-0.991],"slots":10,"cap":12},{"id":"457","name":"Trondheimsveien","area":"Grünerløkka","x":-278.51,"s":1488.32,"u":[0.672,-0.741],"n":[-0.741,-0.672],"slots":10,"cap":10}]};
@@ -26867,7 +26994,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     ...(rentals ? rentals.poi() : []),
     ...(prophunt ? prophunt.poi() : []),
   ]});
-  if (transit) {map.overlay = transit.overlay;transit.legend(view);}// the lines, stops and metro stations (issue #111)
+  if (transit) {map.overlay = transit.overlay;map.snap = transit.snap;transit.legend(view);}// the lines, stops and metro stations (issue #111); a waypoint on a station goes to its entrance (issue #143)
   // Wristwatch (D-pad ↑) shares the first-person overlay with the photo camera.
   const watch = window.GameWatch.create({T, lib});overlayScene.add(watch.model);
   // Paintball course, lobby and games (the rules' view of the game; online the others' states come from the lobby).
