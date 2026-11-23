@@ -48,6 +48,16 @@ test('kayak: paddling from each put-in reaches Vaterland, inside the banks the w
   }
 });
 
+test('kayak: cruising about 2.5 m/s through the water, sprinting (R2 / Shift) about 4.2 m/s (issue #146)', () => {
+  const R = Kayak.river(A), speed = sprint => {
+    const b = new Kayak.Boat(R).place(A.starts[2].t + 200, 0);
+    for (let i = 0; i < 30 * 4; i++) {const c = R.at(b.t + 6), want = Math.atan2(c.dx, c.ds) - b.n * .08;let d = want - b.h;d = Math.atan2(Math.sin(d), Math.cos(d));b.step(1 / 30, {fwd: 1, turn: Math.max(-1, Math.min(1, -d * 2)), sprint});}
+    return b.u;
+  };
+  const cruise = speed(false), fast = speed(true);
+  assert.ok(cruise > 2.3 && cruise < 2.7, `cruise ${cruise}`);assert.ok(fast > 3.9 && fast < 4.5, `sprint ${fast}`);
+});
+
 test('kayak: back-paddling holds the boat against the calm current, and the boom stops it at the end', () => {
   const R = Kayak.river(A), b = new Kayak.Boat(R).place(A.starts[2].t + 60, 0), t0 = b.t;
   for (let i = 0; i < 30 * 20; i++) b.step(1 / 30, {fwd: -1});
