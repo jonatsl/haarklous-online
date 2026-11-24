@@ -12,7 +12,7 @@
 import {accountFeatures, handleAuth} from './auth.js';
 import {handleProgress, Profile} from './progress.js';
 import {handleHomes, Homes} from './homes.js';
-import {handleFriends, Friends} from './friends.js';
+import {handleFriends, handleFeed, Friends} from './friends.js';
 export {Profile, Homes, Friends};
 // A lobby holds 12 players (6 v 6 paintball; the user's decision for the Unreal version, 28 Oct 2026).
 // A vehicle's seats: the driver, the front passenger, and the back seats (a car seats five, the helicopter four).
@@ -38,6 +38,7 @@ export default {
     if (url.pathname === '/api/homes' || url.pathname === '/api/homes/buy' || url.pathname === '/api/homes/sell') return handleHomes(request, env, ctx);
     // Friends (issue #115): one WebSocket per logged-in game (friends.js).
     if (url.pathname === '/api/friends/ws') return handleFriends(request, env, ctx);
+    if (url.pathname === '/api/feed' || url.pathname.startsWith('/api/feed/')) return handleFeed(request, env, ctx);
     // Real weather (issue #23): one shared cache of MET Norway's forecast for Haarklous plass.
     if (url.pathname === '/weather') return env.WEATHER.get(env.WEATHER.idFromName('haarklous')).fetch(request);
     return env.ASSETS.fetch(request);

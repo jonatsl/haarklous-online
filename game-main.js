@@ -1449,7 +1449,7 @@
       held: Object.assign({}, st?.buttons || {}), pressed: new Set(edges), released: new Set(released), r2: st ? st.run : 0, l2: st ? st.aim : 0, gamepad: Boolean(gp), mouse: {...mouse}
     };
     if (kx || ky) {input.move.x = kx;input.move.y = ky;}
-    const map = {Space: 'cross', KeyC: 'circle', KeyE: 'square', KeyF: 'triangle', Escape: 'options', KeyM: 'touchpad', KeyG: 'gallery', KeyZ: 'prone', KeyR: 'reload', ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down', ShiftLeft: 'l3', KeyQ: 'l1', KeyV: 'view', KeyY: 'share', KeyP: 'phone', KeyB: 'badges', KeyN: 'friends', Delete: 'delete', KeyX: 'cast', Digit1: 'magic1', Digit2: 'magic2', Digit3: 'magic3', Digit4: 'magic4', KeyH: 'siren'};
+    const map = {Space: 'cross', KeyC: 'circle', KeyE: 'square', KeyF: 'triangle', Escape: 'options', KeyM: 'touchpad', KeyG: 'gallery', KeyZ: 'prone', KeyR: 'reload', ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down', ShiftLeft: 'l3', KeyQ: 'l1', KeyV: 'view', KeyY: 'share', KeyP: 'phone', KeyB: 'badges', KeyN: 'friends', KeyO: 'feed', Delete: 'delete', KeyX: 'cast', Digit1: 'magic1', Digit2: 'magic2', Digit3: 'magic3', Digit4: 'magic4', KeyH: 'siren'};
     for (const [code, name] of Object.entries(map)) {if (ke(code)) input.pressed.add(name);if (k(code)) input.held[name] = true;}
     for (const code of keys) if (zoomKeys[code]) input.held[zoomKeys[code]] = true;
     // Flying (helicopter, plane, drone): hold Shift or the right mouse button to look around (Battlefield's free look, issue #16).
@@ -1469,7 +1469,7 @@
   function begin() {if (started) return;started = true;$('start').hidden = true;audio.resume();lockPointer();world.setImagery(imageryWanted());const q = (new URLSearchParams(location.search).get('lobby') || '').toUpperCase();if (!(q && mp.net.connect(q))) mp.net.home();}
   function imageryWanted() {try {return localStorage.getItem('haarklous-aerial-imagery-v1') !== 'off';} catch {return true;}}
   $('startButton').onclick = begin;
-  function setPaused(p) {paused = p;$('pause').hidden = !p;if (p && document.pointerLockElement === canvas) document.exitPointerLock();if (!p) lockPointer();renderSettings();if (p && friends.hasInvite) friends.open();if (!p) friends.close();}
+  function setPaused(p) {paused = p;$('pause').hidden = !p;if (p && document.pointerLockElement === canvas) document.exitPointerLock();if (!p) lockPointer();renderSettings();if (p && friends.hasInvite) friends.open();if (!p) {friends.close();feed.close();}}
   $('resume').onclick = () => setPaused(false);
   $('badgesOpen').onclick = () => badges.open();
   $('friendsOpen').onclick = () => friends.open();
@@ -1509,6 +1509,9 @@
     // Friends (issue #115): N opens the list from the game; Options / Esc closes it back to the pause menu.
     if (input.pressed.has('friends') && !paused && !caseGame?.active) {setPaused(true);friends.open();input.pressed.delete('friends');}
     if (input.pressed.has('options') && friends.isOpen) {friends.close();input.pressed.delete('options');}
+    // The feed (issue #184): O opens it from the game; Options / Esc closes it back to the pause menu.
+    if (input.pressed.has('feed') && !paused && !caseGame?.active) {setPaused(true);feed.open();input.pressed.delete('feed');}
+    if (input.pressed.has('options') && feed.isOpen) {feed.close();input.pressed.delete('options');}
     if (input.pressed.has('options') && !caseGame?.active) {if (map.open) map.toggle();else if (photo.gallery) photo.openGallery(false);else if (library && library.reading) {library.closeBook();input.pressed.delete('options');}else setPaused(!paused);}
     if (paused) {
       if (police) police.mute();// no siren in the pause menu (issue #140)
@@ -1517,9 +1520,11 @@
         if (input.pressed.has('circle') || input.pressed.has('r1') || input.pressed.has('badges')) badges.close();
         badges.scroll((input.pressed.has('down') ? 120 : 0) - (input.pressed.has('up') ? 120 : 0) + (input.move.y + input.look.y) * 900 * dt);
       } else if (friends.isOpen) friends.input(input);
+      else if (feed.isOpen) feed.input(input);
       else if (codePad) codePadInput(input);
       else if (input.pressed.has('r1') || input.pressed.has('badges')) badges.open();
       else if (input.pressed.has('l1') || input.pressed.has('friends')) friends.open();
+      else if (input.pressed.has('r3') || input.pressed.has('feed')) feed.open();
       else {
         if (input.pressed.has('left') || input.pressed.has('right')) {music.setVolume(music.volume + (input.pressed.has('right') ? .1 : -.1));renderSettings();}
         if (input.pressed.has('triangle')) openCodePad();if (input.pressed.has('square') && mp.net.code !== mp.net.ownCode) {mp.net.home();notice('Back in your own lobby.', 3);}
@@ -2298,7 +2303,10 @@
   // Friends (issue #115): your friends, who is online and in which lobby, invites and joining (game-friends.js, cloud/src/friends.js).
   const friends = window.GameFriends.create({root: $('game'), button: $('friendsOpen'), account, notice, sound: kind => audio.sfx('beep', {gain: kind === 'invite' ? .7 : .4}),
     onGo: (code, name) => {setPaused(false);if (mp.net.connect(code)) notice(`Joining ${name}’s lobby…`, 3);},
-    toAccount: () => {$('acctStatus').scrollIntoView({block: 'center'});if (!$('acctForm').hidden) $('acctEmail').focus();}});
+    toAccount: () => {$('acctStatus').scrollIntoView({block: 'center'});if (!$('acctForm').hidden) $('acctEmail').focus();}, onPost: () => feed.news()});
+  // The feed (issue #184): posts with pictures for your friends (game-feed.js, cloud/src/feed-rules.js).
+  const feed = window.GameFeed.create({root: $('game'), button: $('feedOpen'), account, notice, photos: () => photo.photos, keyboard: window.GameFriends, sound: () => audio.sfx('beep', {gain: .4})});
+  $('feedOpen').onclick = () => feed.open();
   // A yes / no question over everything (✕ / ○ on the controller, or the buttons).
   let asking = null;
   function ask(text) {
@@ -2409,7 +2417,7 @@
     } catch {notice('The server did not answer – try again in a moment.', 4);}
     homeReg.busy = false;return done;
   }
-  const acctDone = err => {$('acctError').textContent = err;if (err) setNote('');if (!err) {$('acctPassword').value = '';if (account.user) {mp.net.setName(account.user.name);renderMp();}progress.userChanged(account.user);}friends.userChanged();renderAccount();};
+  const acctDone = err => {$('acctError').textContent = err;if (err) setNote('');if (!err) {$('acctPassword').value = '';if (account.user) {mp.net.setName(account.user.name);renderMp();}progress.userChanged(account.user);}friends.userChanged();feed.userChanged();renderAccount();};
   $('acctMode').onclick = () => {acctMode = acctMode === 'signup' ? 'login' : 'signup';if (!$('acctName').value) $('acctName').value = mp.net.name;$('acctError').textContent = '';setNote('');renderAccount();};
   $('acctForm').onsubmit = async e => {
     e.preventDefault();const email = $('acctEmail').value, pw = $('acctPassword').value, signup = acctMode === 'signup';
@@ -2824,7 +2832,7 @@
   Object.assign(window.haarklousGame, {licences: lic, licBegin, licVehicle, openLicPlace, openLicPhone, schoolCar, schoolBike, LIC_SIGNS});
   Object.assign(window.haarklousGame, {police, policeCars});// issue #140
   Object.defineProperty(window.haarklousGame, 'licTest', {get: () => licTest});
-  Object.assign(window.haarklousGame, {cityCars, fleet, friends});
+  Object.assign(window.haarklousGame, {cityCars, fleet, friends, feed});
   Object.assign(window.haarklousGame, {renderer, chase, orbit, toggleThird});Object.defineProperties(window.haarklousGame, {third: {get: () => player.third}, ownAvatar: {get: () => ownAv}, ownDrone: {get: () => ownDrone}});// third person (issue #129)
   // Minigolf (issue #114): paying, the bar's drinks (the same drunk effect as a beer), records and badges, the shared clock.
   if (mgl) {
