@@ -748,7 +748,7 @@
     {const lp = licPrompt();if (lp) return lp;}
     const v = nearestVehicle();
     if (v) {
-      const i = vehicles.indexOf(v), drv = mp.occupant(i, 'd'), pas = mp.occupant(i, 'p'), canRide = !!v.hipAnchor('p');
+      const i = vehicles.indexOf(v), drv = mp.occupant(i, 'd'), free = freeSeat(v);
       // The game's pilot flown from this computer: take the controls back while it stands still.
       if (gp && v === caravan) return !v.grounded || v.speed >= 3 ? {text: "The game's pilot is flying the Caravan", act: () => {}} : licAllowed(v) ? {text: "The game's pilot is flying the Caravan · flying it yourself needs a PPL(A)", act: () => {}} : {text: "□ Fly the Caravan yourself (the game's pilot gets out)", act: () => {gp = null;caravan.vel.set(0, 0, 0);enterVehicle(caravan);}};
       // E-scooters and city bikes: unlocking costs money (issue #57).
@@ -756,7 +756,8 @@
       // Licences (issue #59): without the licence the prompt says which one and where; □ sets the waypoint there.
       if (!drv) {const need = licAllowed(v);if (need) {const L = GL.byId[need], P = GL.PLACES[L.place];return {text: `🪪 The ${v.name} needs ${L.tag} – ${L.place === 'online' ? 'take the free online test on your phone' : `test at ${P.name} (${P.near})`} · □ show the way`, act: () => licWay(need)};}}
       if (!drv) return {text: `□ ${v.verb ? v.verb : v.kind === 'motorcycle' ? 'Ride the' : v.kind === 'excavator' ? 'Climb into the' : v.aircraft ? 'Fly the' : 'Drive the'} ${v.name}${licTest && licTest.v === v ? ` – start the ${licTest.L.short} test` : ''}`, act: () => tryDrive(v)};
-      if (canRide && !pas) return {text: `□ Ride along with ${driverName(i)} (${v.kind === 'motorcycle' ? 'pillion' : 'passenger'})`, act: () => tryRide(v)};
+      if (free) return {text: `□ Ride along with ${driverName(i)} (${v.kind === 'motorcycle' ? 'pillion' : free === 'p' ? 'passenger' : 'back seat'})`, act: () => tryRide(v)};
+      if (PASSENGER_SEATS.some(k => v.hipAnchor(k))) return {text: `${driverName(i)} is ${v.aircraft ? 'flying' : 'driving'} the ${v.name} · every seat is taken`, act: () => {}};
       return {text: `${driverName(i)} is ${v.aircraft ? 'flying' : 'driving'} the ${v.name}`, act: () => {}};
     }
     {const t = mgl && mgl.prompt({x: player.x, z: player.z, y: player.feet}, lookTarget());if (t) return t;}
@@ -829,7 +830,7 @@
     const m = player.mode, v = player.vehicle, third = player.third;let g = null, stance = 'sit', speed = 0;
     if (m === 'passenger' && v) {player.x = v.x;player.z = v.z;player.feet = v.y;player.yaw = v.yaw + (player.lookYaw || 0);if (!third) passengerView(v);}
     if (third && (m === 'vehicle' || m === 'passenger') && v) {
-      const a = v.hipAnchor(m === 'vehicle' ? 'd' : 'p');
+      const a = v.hipAnchor(m === 'vehicle' ? 'd' : player.seat || 'p');
       if (a) {
         g = ownAvatar().group;a.obj.updateWorldMatrix(true, false);g.position.copy(a.obj.localToWorld(a.pos.clone()));g.quaternion.copy(a.obj.getWorldQuaternion(ownQ));if (a.yaw) g.rotateY(a.yaw);
         stance = a.stance;speed = stance === 'cycle' ? Math.abs(v.speed || 0) : 0;
@@ -866,21 +867,25 @@
       enterVehicle(v);rentals.rollOut(v);notice(msg, 8);
     });
   }
+  // The passenger seats: beside the driver, then the back seats (a car seats five, the helicopter four).
+  const PASSENGER_SEATS = ['p', 'p2', 'p3', 'p4'];
+  function freeSeat(v) {const i = vehicles.indexOf(v);return PASSENGER_SEATS.find(k => v.hipAnchor(k) && !mp.occupant(i, k)) || null;}
   function tryRide(v) {
-    const i = vehicles.indexOf(v);if (v !== caravan) leaveGamePilot();
-    mp.claim(i, 'p').then(r => {if (player.mode !== 'foot') {if (r.ok) mp.release(i, 'p');return;}if (r.ok) enterPassenger(v);else notice(r.timeout ? 'No answer from the lobby – try again.' : 'That seat is taken.', 3);});
+    const i = vehicles.indexOf(v), seat = freeSeat(v);if (!seat) {notice('Every seat is taken.', 3);return;}if (v !== caravan) leaveGamePilot();
+    mp.claim(i, seat).then(r => {if (player.mode !== 'foot') {if (r.ok) mp.release(i, seat);return;}if (r.ok) enterPassenger(v, seat);else notice(r.timeout ? 'No answer from the lobby – try again.' : 'That seat is taken.', 3);});
   }
   let passengerEngine = null;
-  function enterPassenger(v) {
-    watch.hide();if (photo.active) photo.toggle();player.mode = 'passenger';player.vehicle = v;player.lookYaw = 0;player.lookPitch = 0;if (v.aircraft) setClip(.12, 1600);
+  function enterPassenger(v, seat = 'p') {
+    watch.hide();if (photo.active) photo.toggle();player.mode = 'passenger';player.vehicle = v;player.seat = seat;player.lookYaw = 0;player.lookPitch = 0;if (v.aircraft) setClip(.12, 1600);
     passengerEngine = audio.engine({motorcycle: 'bike', car: 'car', helicopter: 'heli', plane: 'plane'}[v.kind] || 'car');
     chase.reset();orbit.yaw = orbit.pitch = 0;updateDynamic();// your vehicle's own footprint out of the walkers' solids (the chase camera's view)
     notice(`Riding along with ${driverName(vehicles.indexOf(v))} · look around with the right stick · R3 / V first / third person · □ get out when stopped`, 5);
   }
   function exitPassenger() {
-    const v = player.vehicle, i = vehicles.indexOf(v);mp.release(i, 'p');if (passengerEngine) passengerEngine.stop();passengerEngine = null;
-    player.mode = 'foot';player.vehicle = null;setClip(.05, 450);$('speedo').classList.remove('air');updateDynamic();
-    const f = v.forward(), r = {x: -f.z, z: f.x}, d = (v.width || 1.8) / 2 + .7, p = v.aircraft ? {x: v.x + r.x * 1.8 - f.x * 1.8, z: v.z + r.z * 1.8 - f.z * 1.8} : {x: v.x + r.x * d, z: v.z + r.z * d};
+    const v = player.vehicle, i = vehicles.indexOf(v), seat = player.seat || 'p', hip = v.hipAnchor(seat), left = !v.aircraft && hip && hip.pos.x < -.1;mp.release(i, seat);if (passengerEngine) passengerEngine.stop();passengerEngine = null;
+    player.mode = 'foot';player.vehicle = null;player.seat = null;setClip(.05, 450);$('speedo').classList.remove('air');updateDynamic();
+    // Out on your own side of the car (behind the driver: the left).
+    const f = v.forward(), r = left ? {x: f.z, z: -f.x} : {x: -f.z, z: f.x}, d = (v.width || 1.8) / 2 + .7, p = v.aircraft ? {x: v.x + r.x * 1.8 - f.x * 1.8, z: v.z + r.z * 1.8 - f.z * 1.8} : {x: v.x + r.x * d, z: v.z + r.z * d};
     const sp = collision.findSafeSpawn(walkWorld, p, player.eye, {y: heightAt(p.x, p.z), maxDistance: 6});if (sp) {player.x = sp.x;player.z = sp.z;player.feet = sp.y;}player.yaw = v.yaw;player.pitch = 0;
   }
   // Firepit: throw logs, take a beer, sit on the benches.
@@ -1609,7 +1614,7 @@
     // Other vehicles: parked ones idle (far ones are hidden and skipped), ones driven by other players are posed by the lobby.
     cullT -= dt;if (cullT <= 0) {cullT = .4;for (const v of vehicles) {const near = Math.hypot(v.x - camera.position.x, v.z - camera.position.z) < (v.cullDistance || 170);v.group.visible = near || v === player.vehicle;}remoteDyn = vehicles.some((v, i) => mp.remoteDriven(i));}
     vehicles.forEach((v, i) => {if (v === player.vehicle && player.mode === 'vehicle') return;if (mp.remoteDriven(i) || (gp && v === caravan)) return;if (!v.group.visible && Math.abs(v.speed || 0) < .01 && !v.aircraft) return;v.update(wdt, {});});
-    if (fleet) fleet.tick(dt, camera, i => !!mp.occupant(i, 'd') || !!mp.occupant(i, 'p'), player.vehicle);
+    if (fleet) fleet.tick(dt, camera, i => mp.occupied(i), player.vehicle);
     beerT = Math.max(0, beerT - dt);mp.update(dt);if (remoteDyn) {remoteDyn = false;updateDynamic();}updatePilotAvatar(dt);thirdPersonTick(dt);if (player.mode === 'jumpseat' && skyd.ride) seatCamera();
     if (living) living.tick(dt, input, player, camera);// flat 501: chair in your hands, record player, TV, lava lamp, their sound
     if (rentals) rentals.tick(dt, player);jobs.tick(dt, {player, drunk: dl, camera});jobs.remoteTick(mp.remotes, vehicles, dt, camera);renderJobHud(crewTick());licTick(dt);if (jobs.phone.open) jobs.phone.render();
@@ -2075,7 +2080,7 @@
   // computer takes over. With nobody aboard it is called off on the ground, or flies home after 30 s in the air.
   let gp = null, noPilotT = 0, pilotAv = null;
   const caravanIndex = () => vehicles.indexOf(caravan), meAboard = () => player.mode === 'jumpseat' && !!skyd.ride && skyd.ride.craft === caravan;
-  function remotesAboard() {let n = 0;for (const r of mp.remotes.values()) {const st = r.st;if (st && st.v === caravanIndex() && (st.s === 'p' || /^j/.test(st.s || ''))) n++;}return n;}
+  function remotesAboard() {let n = 0;for (const r of mp.remotes.values()) {const st = r.st;if (st && st.v === caravanIndex() && /^[pj]/.test(st.s || '')) n++;}return n;}
   function remotePilot() {const d = mp.occupant(caravanIndex(), 'd');if (!d || d === mp.net.you) return null;const r = mp.remotes.get(d);return r && r.st && r.st.gp ? r : null;}
   const gamePilotFlies = () => !!gp || !!remotePilot();
   const driverName = i => i === caravanIndex() && gamePilotFlies() ? "the game's pilot" : mp.nameOf(mp.occupant(i, 'd'));
@@ -2178,7 +2183,8 @@
   // The passenger's first-person eye in the vehicle's pose of this frame (called from thirdPersonTick, after mp.update).
   const passQ = new T.Quaternion(), passE = new T.Euler(0, 0, 0, 'YXZ'), passLook = new T.Quaternion();
   function passengerView(v) {
-    v.group.updateMatrixWorld(true);camera.position.copy(v.passengerEye);v.group.localToWorld(camera.position);
+    // The eye of your seat: the front passenger's, moved to where your own seat is.
+    v.group.updateMatrixWorld(true);camera.position.copy(v.passengerEye);{const a = v.hips && v.hips[player.seat || 'p'], b = v.hips && v.hips.p;if (a && b && a !== b) camera.position.add(a.pos).sub(b.pos);}v.group.localToWorld(camera.position);
     passE.set(player.lookPitch - (v.kind === 'motorcycle' ? .1 : .05), player.lookYaw, 0, 'YXZ');camera.quaternion.copy(v.group.getWorldQuaternion(passQ)).multiply(passLook.setFromEuler(passE));
     const dl = drunkLevel();if (dl) camera.rotateZ(Math.sin(performance.now() / 1300) * .08 * dl);
     if (camera.fov !== 72) {camera.fov = 72;camera.updateProjectionMatrix();}
@@ -2201,7 +2207,7 @@
     const s = {p: [r(player.x), r(player.feet + (player.jumpY || 0)), r(player.z)], y: r(player.yaw), st: player.stance, b: beerT > 0 ? 1 : 0};
     if (player.air && player.mode === 'foot') s.j = 1;// in the air: others see the jump pose (issue #144)
     if (player.mode === 'transit' && transit && transit.ride) {Object.assign(s, transit.localState());s.st = transit.ride.standing ? 'stand' : 'sit';}// standing: walking through the vehicle (issue #142)
-    if ((player.mode === 'vehicle' || player.mode === 'passenger') && player.vehicle) {s.v = vehicles.indexOf(player.vehicle);s.s = player.mode === 'vehicle' ? 'd' : 'p';}
+    if ((player.mode === 'vehicle' || player.mode === 'passenger') && player.vehicle) {s.v = vehicles.indexOf(player.vehicle);s.s = player.mode === 'vehicle' ? 'd' : player.seat || 'p';}
     if (player.mode === 'sit' && player.sitSpot) {const sp = player.sitSpot;s.sit = sp.id + 1;s.p = [r(sp.x), r(sp.y), r(sp.z)];s.y = r(sp.yaw);}
     if (player.mode === 'drone') {s.st = 'drone';s.dr = [...drone.pos.toArray().map(r), ...drone.q.toArray().map(q)];}
     if (player.mode === 'climb' && gym.climber.state !== 'off') {const c = gym.climber, ps = c.pose();s.p = [r(ps.feet.x), r(ps.feet.y), r(ps.feet.z)];s.y = r(ps.yaw);s.st = ps.hang ? 'hang' : 'climb';s.cr = c.route.id;}
@@ -2471,7 +2477,7 @@
   function onLobbyChange() {
     const n = mp.net;if (!n.online || n.code === lastLobby) return;lastLobby = n.code;gp = null;// the game's pilot stays in the old lobby
     if (rentals && rentals.trip && rentals.trip.locked) rentals.end('lobby');// the locked city bike goes back to its dock in the new lobby
-    vehicles.forEach((v, i) => {if (v === player.vehicle) {mp.claim(i, player.mode === 'vehicle' ? 'd' : 'p');return;}v.netSet(v.spawn);if (v.aircraft) v.reset();});
+    vehicles.forEach((v, i) => {if (v === player.vehicle) {mp.claim(i, player.mode === 'vehicle' ? 'd' : player.seat || 'p');return;}v.netSet(v.spawn);if (v.aircraft) v.reset();});
   }
   function updateMinigame(dt, input, dl) {
     const g = player.minigame, mouseScale = .0024 * sensitivity.mouse, curve = v => Math.sign(v) * v * v, walking = g.walk != null;
@@ -2682,7 +2688,7 @@
   const pushedList = [];let pushDynT = 0;
   function pushable(v, i) {
     if (!v.group.visible || v.aircraft || v.site || v.pushed || v === player.vehicle || !['car', 'motorcycle', 'scooter'].includes(v.kind)) return false;
-    if (mp.occupant(i, 'd') || mp.occupant(i, 'p') || lockedByOthers().has(i)) return false;
+    if (mp.occupied(i) || lockedByOthers().has(i)) return false;
     return Math.abs(v.y - player.feet) < 3;
   }
   function doGust(pw) {

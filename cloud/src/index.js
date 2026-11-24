@@ -15,6 +15,8 @@ import {handleHomes, Homes} from './homes.js';
 import {handleFriends, Friends} from './friends.js';
 export {Profile, Homes, Friends};
 // A lobby holds 12 players (6 v 6 paintball; the user's decision for the Unreal version, 28 Oct 2026).
+// A vehicle's seats: the driver, the front passenger, and the back seats (a car seats five, the helicopter four).
+const SEATS = ['d', 'p', 'p2', 'p3', 'p4'];
 const MAX_PLAYERS = 12, CODE = /^[A-HJ-NP-Z2-9]{4}$/, FIRE_DECAY_MS = 90000, FIRE_MAX = 6, OBJ_MAX = 200, OBJ_BYTES = 300;
 const clean = (s, n) => String(s ?? '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, n);
 
@@ -73,15 +75,15 @@ export class Lobby {
       case 'st': p.st = m.s;this.broadcast({t: 'st', id: p.id, s: m.s}, p);break;
       case 'vs': {const o = this.occ[m.v];if (o && o.d === p.id) {this.vehicles[m.v] = m.s;this.broadcast({t: 'vs', v: m.v, s: m.s}, p);}break;}
       case 'claim': {
-        const v = String(m.v), seat = m.seat === 'p' ? 'p' : 'd', o = this.occ[v] || (this.occ[v] = {});
-        for (const [k, q] of Object.entries(this.occ)) if (k !== v) {if (q.d === p.id) delete q.d;if (q.p === p.id) delete q.p;}
-        const ok = !o[seat] || o[seat] === p.id;if (ok) {o[seat] = p.id;if (o.d === p.id && o.p === p.id) delete o[seat === 'd' ? 'p' : 'd'];}
+        const v = String(m.v), seat = SEATS.includes(m.seat) ? m.seat : 'd', o = this.occ[v] || (this.occ[v] = {});
+        for (const [k, q] of Object.entries(this.occ)) if (k !== v) for (const s of SEATS) if (q[s] === p.id) delete q[s];
+        const ok = !o[seat] || o[seat] === p.id;if (ok) {for (const s of SEATS) if (o[s] === p.id) delete o[s];o[seat] = p.id;}
         this.send(p, {t: 'claim', v, seat, ok, by: o[seat] || null});if (ok) this.broadcast({t: 'occ', occ: this.occ});
         break;
       }
       case 'release': {
         const v = String(m.v), o = this.occ[v];
-        if (o) {if (o.d === p.id) {delete o.d;if (m.s) {this.vehicles[v] = m.s;this.broadcast({t: 'vs', v, s: m.s}, p);}}if (o.p === p.id) delete o.p;}
+        if (o) {if (o.d === p.id) {delete o.d;if (m.s) {this.vehicles[v] = m.s;this.broadcast({t: 'vs', v, s: m.s}, p);}}for (const s of SEATS) if (s !== 'd' && o[s] === p.id) delete o[s];}
         this.broadcast({t: 'occ', occ: this.occ});break;
       }
       case 'chat': {
@@ -106,7 +108,7 @@ export class Lobby {
   }
   leave(p) {
     if (!this.players.delete(p.id)) return;
-    for (const o of Object.values(this.occ)) {if (o.d === p.id) delete o.d;if (o.p === p.id) delete o.p;}
+    for (const o of Object.values(this.occ)) for (const s of SEATS) if (o[s] === p.id) delete o[s];
     this.broadcast({t: 'leave', id: p.id});this.broadcast({t: 'occ', occ: this.occ});
   }
 }

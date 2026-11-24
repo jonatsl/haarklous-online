@@ -6693,6 +6693,8 @@ if (typeof module !== 'undefined' && module.exports) module.exports = window.RIV
       constructor(x, z, yaw, model = 0, opt = {}) {
         super(x, z, yaw, .95, opt.length || 4.2);this.width = 1.8;this.height = 1.45;this.kind = 'car';this.name = carNames[model % carColors.length] + ' hatchback';this.steerAngle = 0;this.rpm = 800;this.engine = null;this.wheelSpin = 0;
         this.hips = {d: {pos: V3(-.37, .62, .28), stance: 'drive'}, p: {pos: V3(.37, .62, .28), stance: 'sit'}};this.passengerEye = V3(.37, 1.24, .22);this.flies = true;
+        // The back seat: behind the driver, behind the passenger, the middle (five in a car).
+        for (const [k, x] of [['p2', -.42], ['p3', .42], ['p4', 0]]) this.hips[k] = {pos: V3(x, .66, 1.04), stance: 'sit'};
         if (opt.lazy) return;
         this.buildBody(model);this.settle(1);this.place();
       }
@@ -8099,6 +8101,8 @@ if (typeof module !== 'undefined' && module.exports) module.exports = window.RIV
     }
     function release(i, seat, final) {if (net.online) net.send({t: 'release', v: i, seat, s: final ? stamped(final) : final});const o = occ[i];if (o && o[seat] === net.you) delete o[seat];}
     const occupant = (i, seat) => {const o = occ[i];return o ? o[seat] || null : null;};
+    // Somebody sits in this vehicle (any seat).
+    const occupied = i => {const o = occ[i];return !!o && Object.values(o).some(Boolean);};
     const remoteDriven = i => {const d = occupant(i, 'd');return !!d && d !== net.you && remotes.has(d);};
     const nameOf = id => id === net.you ? net.name : (remotes.get(id) || {}).name || 'someone';
     function sitTaken(spotId) {for (const r of remotes.values()) if (r.st && r.st.sit === spotId + 1) return true;return false;}
@@ -8143,7 +8147,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = window.RIV
       }
     }
     return {
-      net, voice, update, claim, release, occupant, remoteDriven, nameOf, sitTaken, fireLevel, addWood, remotes,
+      net, voice, update, claim, release, occupant, occupied, remoteDriven, nameOf, sitTaken, fireLevel, addWood, remotes,
       sendChat(text) {text = String(text || '').trim().slice(0, 200);if (!text) return false;if (net.online) {net.send({t: 'chat', text});return true;}ctx.onChat({name: net.name, text, slot: 0}, true);return false;},
       sendDoor(id, open) {if (net.online) net.send({t: 'door', id, open});},
       // A small shared thing: id -> a small value (null removes it); the lobby keeps it for players who join later.
@@ -10134,7 +10138,7 @@ window.CLIMBING_GYMS=[{"id":"lokka","name":"Klatreverket Løkka","address":"Thor
         super(x, z, yaw, 0);this.kind = 'helicopter';this.name = 'Airbus H125 helicopter';this.length = 6;this.width = 2.6;this.height = 3.4;
         this.rects = [[-.2, 0, 4.2, 2.6], [-4.4, 0, 5.6, .7]];this.radius = 1.7;this.rotorR = 4.6;this.rotorSlow = 3;this.scrapeT = 0;this.top = 2.4;this.crashSpeed = 12;this.exitSide = 2.6;this.exitFwd = 0;
         this.seat = V3(.42, 1.86, -.32);this.seatPitch = -.12;this.chaseDist = 15;this.rotorAngle = 0;
-        this.hips = {d: {pos: V3(.42, 1.15, .25)}, p: {pos: V3(-.42, 1.15, .25)}};this.passengerEye = V3(-.42, 1.86, -.32);
+        this.hips = {d: {pos: V3(.42, 1.15, .25)}, p: {pos: V3(-.42, 1.15, .25)}, p2: {pos: V3(-.42, 1.15, 1.0)}, p3: {pos: V3(.42, 1.15, 1.0)}};this.passengerEye = V3(-.42, 1.86, -.32);// four on board: a bench behind the two front seats
         const g = this.group, red = paintMat(0xb3121b), white = paintMat(0xf2f2ee), glass = glassMat();
         // Cabin pod: ellipsoid, with the windscreen band of the front half in glass.
         const pod = (phiS, phiL, thS, thL, mat) => {const m = mesh(g, new T.SphereGeometry(1, 36, 22, phiS, phiL, thS, thL), mat, 0, 1.45, .1);m.scale.set(1.05, 1.0, 1.85);return m;};
@@ -10155,6 +10159,7 @@ window.CLIMBING_GYMS=[{"id":"lokka","name":"Klatreverket Løkka","address":"Thor
         // Interior: floor, seats, instrument panel, roof, door pillars.
         box(g, 1.7, .05, 2.4, 0, .74, .1, dark);
         for (const sx of [-.42, .42]) {box(g, .5, .1, .5, sx, 1.08, .18, seatM);const b = box(g, .5, .7, .1, sx, 1.45, .47, seatM);b.rotation.x = -.15;}
+        {box(g, 1.4, .1, .45, 0, 1.08, .95, seatM);const b = box(g, 1.4, .7, .1, 0, 1.45, 1.22, seatM);b.rotation.x = -.15;}// the rear bench
         const panel = box(g, .95, .24, .16, .05, 1.2, -1.2, dark);panel.rotation.x = -.5;
         for (let i = 0; i < 5; i++) {const gg = mesh(g, new T.CylinderGeometry(.036, .036, .01, 18), gaugeM, -.27 + i * .13, 1.245, -1.12);gg.rotation.x = Math.PI / 2 - .5;}
         box(g, .2, .32, .55, 0, 1.0, -.7, dark);box(g, 1.6, .04, 1.3, 0, 2.28, .05, seatM);
@@ -12951,6 +12956,8 @@ window.SITE={"rect":{"x0":-160.0,"s0":368.0,"w":144.0,"d":96.0},"fence":{"x0":-1
         // The shared interior sits behind this body's windscreen and at its window line.
         this.cab = {dy: s.belt - .92, dz: s.zA + .78};const {dy, dz} = this.cab;
         this.hips = {d: {pos: new T.Vector3(-.37, .62 + dy, .28 + dz), stance: 'drive'}, p: {pos: new T.Vector3(.37, .62 + dy, .28 + dz), stance: 'sit'}};this.passengerEye = new T.Vector3(.37, 1.24 + dy, .22 + dz);
+        // The back seat (five in a car); a van, a pickup and a lorry have the two front seats only.
+        if (!s.box && !s.lorry && !s.bed) for (const [k, x] of [['p2', -.42], ['p3', .42], ['p4', 0]]) this.hips[k] = {pos: new T.Vector3(x, .66 + dy, 1.04 + dz), stance: 'sit'};
       }
       buildBody() {
         const m = model(this.type), shell = new T.InstancedMesh(m.shell, mat, 1);shell.setMatrixAt(0, new T.Matrix4());shell.setColorAt(0, this.paint);shell.name = this.name;this.group.add(shell);
@@ -30443,7 +30450,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     {const lp = licPrompt();if (lp) return lp;}
     const v = nearestVehicle();
     if (v) {
-      const i = vehicles.indexOf(v), drv = mp.occupant(i, 'd'), pas = mp.occupant(i, 'p'), canRide = !!v.hipAnchor('p');
+      const i = vehicles.indexOf(v), drv = mp.occupant(i, 'd'), free = freeSeat(v);
       // The game's pilot flown from this computer: take the controls back while it stands still.
       if (gp && v === caravan) return !v.grounded || v.speed >= 3 ? {text: "The game's pilot is flying the Caravan", act: () => {}} : licAllowed(v) ? {text: "The game's pilot is flying the Caravan · flying it yourself needs a PPL(A)", act: () => {}} : {text: "□ Fly the Caravan yourself (the game's pilot gets out)", act: () => {gp = null;caravan.vel.set(0, 0, 0);enterVehicle(caravan);}};
       // E-scooters and city bikes: unlocking costs money (issue #57).
@@ -30451,7 +30458,8 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
       // Licences (issue #59): without the licence the prompt says which one and where; □ sets the waypoint there.
       if (!drv) {const need = licAllowed(v);if (need) {const L = GL.byId[need], P = GL.PLACES[L.place];return {text: `🪪 The ${v.name} needs ${L.tag} – ${L.place === 'online' ? 'take the free online test on your phone' : `test at ${P.name} (${P.near})`} · □ show the way`, act: () => licWay(need)};}}
       if (!drv) return {text: `□ ${v.verb ? v.verb : v.kind === 'motorcycle' ? 'Ride the' : v.kind === 'excavator' ? 'Climb into the' : v.aircraft ? 'Fly the' : 'Drive the'} ${v.name}${licTest && licTest.v === v ? ` – start the ${licTest.L.short} test` : ''}`, act: () => tryDrive(v)};
-      if (canRide && !pas) return {text: `□ Ride along with ${driverName(i)} (${v.kind === 'motorcycle' ? 'pillion' : 'passenger'})`, act: () => tryRide(v)};
+      if (free) return {text: `□ Ride along with ${driverName(i)} (${v.kind === 'motorcycle' ? 'pillion' : free === 'p' ? 'passenger' : 'back seat'})`, act: () => tryRide(v)};
+      if (PASSENGER_SEATS.some(k => v.hipAnchor(k))) return {text: `${driverName(i)} is ${v.aircraft ? 'flying' : 'driving'} the ${v.name} · every seat is taken`, act: () => {}};
       return {text: `${driverName(i)} is ${v.aircraft ? 'flying' : 'driving'} the ${v.name}`, act: () => {}};
     }
     {const t = mgl && mgl.prompt({x: player.x, z: player.z, y: player.feet}, lookTarget());if (t) return t;}
@@ -30524,7 +30532,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     const m = player.mode, v = player.vehicle, third = player.third;let g = null, stance = 'sit', speed = 0;
     if (m === 'passenger' && v) {player.x = v.x;player.z = v.z;player.feet = v.y;player.yaw = v.yaw + (player.lookYaw || 0);if (!third) passengerView(v);}
     if (third && (m === 'vehicle' || m === 'passenger') && v) {
-      const a = v.hipAnchor(m === 'vehicle' ? 'd' : 'p');
+      const a = v.hipAnchor(m === 'vehicle' ? 'd' : player.seat || 'p');
       if (a) {
         g = ownAvatar().group;a.obj.updateWorldMatrix(true, false);g.position.copy(a.obj.localToWorld(a.pos.clone()));g.quaternion.copy(a.obj.getWorldQuaternion(ownQ));if (a.yaw) g.rotateY(a.yaw);
         stance = a.stance;speed = stance === 'cycle' ? Math.abs(v.speed || 0) : 0;
@@ -30561,21 +30569,25 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
       enterVehicle(v);rentals.rollOut(v);notice(msg, 8);
     });
   }
+  // The passenger seats: beside the driver, then the back seats (a car seats five, the helicopter four).
+  const PASSENGER_SEATS = ['p', 'p2', 'p3', 'p4'];
+  function freeSeat(v) {const i = vehicles.indexOf(v);return PASSENGER_SEATS.find(k => v.hipAnchor(k) && !mp.occupant(i, k)) || null;}
   function tryRide(v) {
-    const i = vehicles.indexOf(v);if (v !== caravan) leaveGamePilot();
-    mp.claim(i, 'p').then(r => {if (player.mode !== 'foot') {if (r.ok) mp.release(i, 'p');return;}if (r.ok) enterPassenger(v);else notice(r.timeout ? 'No answer from the lobby – try again.' : 'That seat is taken.', 3);});
+    const i = vehicles.indexOf(v), seat = freeSeat(v);if (!seat) {notice('Every seat is taken.', 3);return;}if (v !== caravan) leaveGamePilot();
+    mp.claim(i, seat).then(r => {if (player.mode !== 'foot') {if (r.ok) mp.release(i, seat);return;}if (r.ok) enterPassenger(v, seat);else notice(r.timeout ? 'No answer from the lobby – try again.' : 'That seat is taken.', 3);});
   }
   let passengerEngine = null;
-  function enterPassenger(v) {
-    watch.hide();if (photo.active) photo.toggle();player.mode = 'passenger';player.vehicle = v;player.lookYaw = 0;player.lookPitch = 0;if (v.aircraft) setClip(.12, 1600);
+  function enterPassenger(v, seat = 'p') {
+    watch.hide();if (photo.active) photo.toggle();player.mode = 'passenger';player.vehicle = v;player.seat = seat;player.lookYaw = 0;player.lookPitch = 0;if (v.aircraft) setClip(.12, 1600);
     passengerEngine = audio.engine({motorcycle: 'bike', car: 'car', helicopter: 'heli', plane: 'plane'}[v.kind] || 'car');
     chase.reset();orbit.yaw = orbit.pitch = 0;updateDynamic();// your vehicle's own footprint out of the walkers' solids (the chase camera's view)
     notice(`Riding along with ${driverName(vehicles.indexOf(v))} · look around with the right stick · R3 / V first / third person · □ get out when stopped`, 5);
   }
   function exitPassenger() {
-    const v = player.vehicle, i = vehicles.indexOf(v);mp.release(i, 'p');if (passengerEngine) passengerEngine.stop();passengerEngine = null;
-    player.mode = 'foot';player.vehicle = null;setClip(.05, 450);$('speedo').classList.remove('air');updateDynamic();
-    const f = v.forward(), r = {x: -f.z, z: f.x}, d = (v.width || 1.8) / 2 + .7, p = v.aircraft ? {x: v.x + r.x * 1.8 - f.x * 1.8, z: v.z + r.z * 1.8 - f.z * 1.8} : {x: v.x + r.x * d, z: v.z + r.z * d};
+    const v = player.vehicle, i = vehicles.indexOf(v), seat = player.seat || 'p', hip = v.hipAnchor(seat), left = !v.aircraft && hip && hip.pos.x < -.1;mp.release(i, seat);if (passengerEngine) passengerEngine.stop();passengerEngine = null;
+    player.mode = 'foot';player.vehicle = null;player.seat = null;setClip(.05, 450);$('speedo').classList.remove('air');updateDynamic();
+    // Out on your own side of the car (behind the driver: the left).
+    const f = v.forward(), r = left ? {x: f.z, z: -f.x} : {x: -f.z, z: f.x}, d = (v.width || 1.8) / 2 + .7, p = v.aircraft ? {x: v.x + r.x * 1.8 - f.x * 1.8, z: v.z + r.z * 1.8 - f.z * 1.8} : {x: v.x + r.x * d, z: v.z + r.z * d};
     const sp = collision.findSafeSpawn(walkWorld, p, player.eye, {y: heightAt(p.x, p.z), maxDistance: 6});if (sp) {player.x = sp.x;player.z = sp.z;player.feet = sp.y;}player.yaw = v.yaw;player.pitch = 0;
   }
   // Firepit: throw logs, take a beer, sit on the benches.
@@ -31304,7 +31316,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     // Other vehicles: parked ones idle (far ones are hidden and skipped), ones driven by other players are posed by the lobby.
     cullT -= dt;if (cullT <= 0) {cullT = .4;for (const v of vehicles) {const near = Math.hypot(v.x - camera.position.x, v.z - camera.position.z) < (v.cullDistance || 170);v.group.visible = near || v === player.vehicle;}remoteDyn = vehicles.some((v, i) => mp.remoteDriven(i));}
     vehicles.forEach((v, i) => {if (v === player.vehicle && player.mode === 'vehicle') return;if (mp.remoteDriven(i) || (gp && v === caravan)) return;if (!v.group.visible && Math.abs(v.speed || 0) < .01 && !v.aircraft) return;v.update(wdt, {});});
-    if (fleet) fleet.tick(dt, camera, i => !!mp.occupant(i, 'd') || !!mp.occupant(i, 'p'), player.vehicle);
+    if (fleet) fleet.tick(dt, camera, i => mp.occupied(i), player.vehicle);
     beerT = Math.max(0, beerT - dt);mp.update(dt);if (remoteDyn) {remoteDyn = false;updateDynamic();}updatePilotAvatar(dt);thirdPersonTick(dt);if (player.mode === 'jumpseat' && skyd.ride) seatCamera();
     if (living) living.tick(dt, input, player, camera);// flat 501: chair in your hands, record player, TV, lava lamp, their sound
     if (rentals) rentals.tick(dt, player);jobs.tick(dt, {player, drunk: dl, camera});jobs.remoteTick(mp.remotes, vehicles, dt, camera);renderJobHud(crewTick());licTick(dt);if (jobs.phone.open) jobs.phone.render();
@@ -31770,7 +31782,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
   // computer takes over. With nobody aboard it is called off on the ground, or flies home after 30 s in the air.
   let gp = null, noPilotT = 0, pilotAv = null;
   const caravanIndex = () => vehicles.indexOf(caravan), meAboard = () => player.mode === 'jumpseat' && !!skyd.ride && skyd.ride.craft === caravan;
-  function remotesAboard() {let n = 0;for (const r of mp.remotes.values()) {const st = r.st;if (st && st.v === caravanIndex() && (st.s === 'p' || /^j/.test(st.s || ''))) n++;}return n;}
+  function remotesAboard() {let n = 0;for (const r of mp.remotes.values()) {const st = r.st;if (st && st.v === caravanIndex() && /^[pj]/.test(st.s || '')) n++;}return n;}
   function remotePilot() {const d = mp.occupant(caravanIndex(), 'd');if (!d || d === mp.net.you) return null;const r = mp.remotes.get(d);return r && r.st && r.st.gp ? r : null;}
   const gamePilotFlies = () => !!gp || !!remotePilot();
   const driverName = i => i === caravanIndex() && gamePilotFlies() ? "the game's pilot" : mp.nameOf(mp.occupant(i, 'd'));
@@ -31873,7 +31885,8 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
   // The passenger's first-person eye in the vehicle's pose of this frame (called from thirdPersonTick, after mp.update).
   const passQ = new T.Quaternion(), passE = new T.Euler(0, 0, 0, 'YXZ'), passLook = new T.Quaternion();
   function passengerView(v) {
-    v.group.updateMatrixWorld(true);camera.position.copy(v.passengerEye);v.group.localToWorld(camera.position);
+    // The eye of your seat: the front passenger's, moved to where your own seat is.
+    v.group.updateMatrixWorld(true);camera.position.copy(v.passengerEye);{const a = v.hips && v.hips[player.seat || 'p'], b = v.hips && v.hips.p;if (a && b && a !== b) camera.position.add(a.pos).sub(b.pos);}v.group.localToWorld(camera.position);
     passE.set(player.lookPitch - (v.kind === 'motorcycle' ? .1 : .05), player.lookYaw, 0, 'YXZ');camera.quaternion.copy(v.group.getWorldQuaternion(passQ)).multiply(passLook.setFromEuler(passE));
     const dl = drunkLevel();if (dl) camera.rotateZ(Math.sin(performance.now() / 1300) * .08 * dl);
     if (camera.fov !== 72) {camera.fov = 72;camera.updateProjectionMatrix();}
@@ -31896,7 +31909,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
     const s = {p: [r(player.x), r(player.feet + (player.jumpY || 0)), r(player.z)], y: r(player.yaw), st: player.stance, b: beerT > 0 ? 1 : 0};
     if (player.air && player.mode === 'foot') s.j = 1;// in the air: others see the jump pose (issue #144)
     if (player.mode === 'transit' && transit && transit.ride) {Object.assign(s, transit.localState());s.st = transit.ride.standing ? 'stand' : 'sit';}// standing: walking through the vehicle (issue #142)
-    if ((player.mode === 'vehicle' || player.mode === 'passenger') && player.vehicle) {s.v = vehicles.indexOf(player.vehicle);s.s = player.mode === 'vehicle' ? 'd' : 'p';}
+    if ((player.mode === 'vehicle' || player.mode === 'passenger') && player.vehicle) {s.v = vehicles.indexOf(player.vehicle);s.s = player.mode === 'vehicle' ? 'd' : player.seat || 'p';}
     if (player.mode === 'sit' && player.sitSpot) {const sp = player.sitSpot;s.sit = sp.id + 1;s.p = [r(sp.x), r(sp.y), r(sp.z)];s.y = r(sp.yaw);}
     if (player.mode === 'drone') {s.st = 'drone';s.dr = [...drone.pos.toArray().map(r), ...drone.q.toArray().map(q)];}
     if (player.mode === 'climb' && gym.climber.state !== 'off') {const c = gym.climber, ps = c.pose();s.p = [r(ps.feet.x), r(ps.feet.y), r(ps.feet.z)];s.y = r(ps.yaw);s.st = ps.hang ? 'hang' : 'climb';s.cr = c.route.id;}
@@ -32166,7 +32179,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
   function onLobbyChange() {
     const n = mp.net;if (!n.online || n.code === lastLobby) return;lastLobby = n.code;gp = null;// the game's pilot stays in the old lobby
     if (rentals && rentals.trip && rentals.trip.locked) rentals.end('lobby');// the locked city bike goes back to its dock in the new lobby
-    vehicles.forEach((v, i) => {if (v === player.vehicle) {mp.claim(i, player.mode === 'vehicle' ? 'd' : 'p');return;}v.netSet(v.spawn);if (v.aircraft) v.reset();});
+    vehicles.forEach((v, i) => {if (v === player.vehicle) {mp.claim(i, player.mode === 'vehicle' ? 'd' : player.seat || 'p');return;}v.netSet(v.spawn);if (v.aircraft) v.reset();});
   }
   function updateMinigame(dt, input, dl) {
     const g = player.minigame, mouseScale = .0024 * sensitivity.mouse, curve = v => Math.sign(v) * v * v, walking = g.walk != null;
@@ -32377,7 +32390,7 @@ window.JOBS={"source":"OpenStreetMap contributors (ODbL), Overpass API (overpass
   const pushedList = [];let pushDynT = 0;
   function pushable(v, i) {
     if (!v.group.visible || v.aircraft || v.site || v.pushed || v === player.vehicle || !['car', 'motorcycle', 'scooter'].includes(v.kind)) return false;
-    if (mp.occupant(i, 'd') || mp.occupant(i, 'p') || lockedByOthers().has(i)) return false;
+    if (mp.occupied(i) || lockedByOthers().has(i)) return false;
     return Math.abs(v.y - player.feet) < 3;
   }
   function doGust(pw) {

@@ -110,7 +110,7 @@
         super(x, z, yaw, 0);this.kind = 'helicopter';this.name = 'Airbus H125 helicopter';this.length = 6;this.width = 2.6;this.height = 3.4;
         this.rects = [[-.2, 0, 4.2, 2.6], [-4.4, 0, 5.6, .7]];this.radius = 1.7;this.rotorR = 4.6;this.rotorSlow = 3;this.scrapeT = 0;this.top = 2.4;this.crashSpeed = 12;this.exitSide = 2.6;this.exitFwd = 0;
         this.seat = V3(.42, 1.86, -.32);this.seatPitch = -.12;this.chaseDist = 15;this.rotorAngle = 0;
-        this.hips = {d: {pos: V3(.42, 1.15, .25)}, p: {pos: V3(-.42, 1.15, .25)}};this.passengerEye = V3(-.42, 1.86, -.32);
+        this.hips = {d: {pos: V3(.42, 1.15, .25)}, p: {pos: V3(-.42, 1.15, .25)}, p2: {pos: V3(-.42, 1.15, 1.0)}, p3: {pos: V3(.42, 1.15, 1.0)}};this.passengerEye = V3(-.42, 1.86, -.32);// four on board: a bench behind the two front seats
         const g = this.group, red = paintMat(0xb3121b), white = paintMat(0xf2f2ee), glass = glassMat();
         // Cabin pod: ellipsoid, with the windscreen band of the front half in glass.
         const pod = (phiS, phiL, thS, thL, mat) => {const m = mesh(g, new T.SphereGeometry(1, 36, 22, phiS, phiL, thS, thL), mat, 0, 1.45, .1);m.scale.set(1.05, 1.0, 1.85);return m;};
@@ -131,6 +131,7 @@
         // Interior: floor, seats, instrument panel, roof, door pillars.
         box(g, 1.7, .05, 2.4, 0, .74, .1, dark);
         for (const sx of [-.42, .42]) {box(g, .5, .1, .5, sx, 1.08, .18, seatM);const b = box(g, .5, .7, .1, sx, 1.45, .47, seatM);b.rotation.x = -.15;}
+        {box(g, 1.4, .1, .45, 0, 1.08, .95, seatM);const b = box(g, 1.4, .7, .1, 0, 1.45, 1.22, seatM);b.rotation.x = -.15;}// the rear bench
         const panel = box(g, .95, .24, .16, .05, 1.2, -1.2, dark);panel.rotation.x = -.5;
         for (let i = 0; i < 5; i++) {const gg = mesh(g, new T.CylinderGeometry(.036, .036, .01, 18), gaugeM, -.27 + i * .13, 1.245, -1.12);gg.rotation.x = Math.PI / 2 - .5;}
         box(g, .2, .32, .55, 0, 1.0, -.7, dark);box(g, 1.6, .04, 1.3, 0, 2.28, .05, seatM);
