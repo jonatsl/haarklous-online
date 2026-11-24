@@ -11,6 +11,7 @@ Haarklous online is a first-person open-world game that runs in your web browser
 - Thousands of parked cars, vans, taxis, lorries and motorcycles line the streets and fill the car parks, and you can drive them.
 - There are minigames, jobs, shops, a mission and badges. You find out how each one works in the game.
 - You can play minigolf where the real courses are: Torshov, Grünerløkka, Jordal park and the minigolf bar Oslo Camping in Møllergata. Aim with the right stick or the mouse, hold R2 or the left mouse button and let go to putt.
+- At Arsenalet below Torshovparken you choose weapons and camouflage and start missions as a robber or as the police (the bank, the money transport, dealing). In the fenced arena beside it you play gun game, free for all or team deathmatch against bots and friends.
 - Play prop hunt (hide and seek) with friends, or alone against the game's players: hiders turn into benches, bins, bikes and bushes, and a hunter looks for them. Stand in a purple ring at Haarklous plass, Olaf Ryes plass or the backyard of Rathkes gate 1 to start.
 - Walk or cycle Akerselva – turvei, a path along the river from Bjølsen to Vaterland.
 - Trams, buses and the metro run on Ruter's real lines, about as often as the real ones. Every stop has a timetable (□ / E), and you can ride.
