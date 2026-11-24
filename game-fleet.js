@@ -262,6 +262,8 @@
         // The shared interior sits behind this body's windscreen and at its window line.
         this.cab = {dy: s.belt - .92, dz: s.zA + .78};const {dy, dz} = this.cab;
         this.hips = {d: {pos: new T.Vector3(-.37, .62 + dy, .28 + dz), stance: 'drive'}, p: {pos: new T.Vector3(.37, .62 + dy, .28 + dz), stance: 'sit'}};this.passengerEye = new T.Vector3(.37, 1.24 + dy, .22 + dz);
+        // The back seat (five in a car); a van, a pickup and a lorry have the two front seats only.
+        if (!s.box && !s.lorry && !s.bed) for (const [k, x] of [['p2', -.42], ['p3', .42], ['p4', 0]]) this.hips[k] = {pos: new T.Vector3(x, .66 + dy, 1.04 + dz), stance: 'sit'};
       }
       buildBody() {
         const m = model(this.type), shell = new T.InstancedMesh(m.shell, mat, 1);shell.setMatrixAt(0, new T.Matrix4());shell.setColorAt(0, this.paint);shell.name = this.name;this.group.add(shell);

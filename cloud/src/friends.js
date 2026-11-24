@@ -16,6 +16,7 @@
  */
 import {sessionUser} from './auth.js';
 import {CODE, ONLINE_MS, SCHEMA, createFriends} from './friends-rules.js';
+import {FEED, FEED_SCHEMA, createFeed} from './feed-rules.js';
 
 export async function handleFriends(request, env, ctx) {
   if (!env.FRIENDS) return Response.json({error: 'Friends are not set up on this server'}, {status: 503});
@@ -30,13 +31,29 @@ export async function handleFriends(request, env, ctx) {
   return env.FRIENDS.get(env.FRIENDS.idFromName('world')).fetch(inner);
 }
 
+// The feed (issue #184): /api/feed (GET the posts you may see, POST a new one as JSON {text, img: a JPEG in base64}),
+// /api/feed/img/<id> (GET the picture), /api/feed/<id> (DELETE your post), /api/feed/<id>/like (POST {on}).
+export async function handleFeed(request, env, ctx) {
+  const json = (body, status = 200) => Response.json(body, {status, headers: {'Cache-Control': 'no-store'}});
+  if (!env.FRIENDS) return json({error: 'The feed is not set up on this server'}, 503);
+  const url = new URL(request.url), origin = request.headers.get('Origin');
+  // Only the game's own page may write (the session is a cookie).
+  if (request.method !== 'GET' && origin && origin !== url.origin) return json({error: 'Wrong origin'}, 403);
+  let user = null;try {user = await sessionUser(request, env, ctx);} catch {return json({error: 'The account server did not answer'}, 503);}
+  if (!user) return json({error: 'Not logged in'}, 401);
+  const len = Number(request.headers.get('Content-Length') || 0);if (len > FEED.imgBytes * 1.4 + 4000) return json({error: 'Too large'}, 413);
+  const inner = new Request('https://friends' + url.pathname.replace(/^\/api/, '') + url.search, {method: request.method, headers: {'X-Uid': String(user.id), 'X-Name': encodeURIComponent(user.name || '')}, body: request.method === 'POST' ? await request.text() : undefined});
+  return env.FRIENDS.get(env.FRIENDS.idFromName('world')).fetch(inner);
+}
+
 const OPS = new Set(['add', 'accept', 'decline', 'cancel', 'remove', 'invite', 'join', 'reply', 'joinable', 'state', 'lobby']);
 
 export class Friends {
   constructor(ctx) {
     this.ctx = ctx;const sql = ctx.storage.sql;
-    for (const s of SCHEMA) sql.exec(s);
+    for (const s of [...SCHEMA, ...FEED_SCHEMA]) sql.exec(s);
     this.core = createFriends({all: (q, ...a) => [...sql.exec(q, ...a)], run: (q, ...a) => {sql.exec(q, ...a);}}, {presence: uid => this.presence(uid)});
+    this.feed = createFeed({all: (q, ...a) => [...sql.exec(q, ...a)], run: (q, ...a) => {sql.exec(q, ...a);}});
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair('ping', 'pong'));
     this.rate = new Map();
   }
@@ -62,6 +79,7 @@ export class Friends {
   async fetch(request) {
     const uid = request.headers.get('X-Uid');if (!uid) return new Response('Bad request', {status: 400});
     const name = decodeURIComponent(request.headers.get('X-Name') || ''), wasOnline = this.sockets(uid).length > 0;
+    if (new URL(request.url).pathname.startsWith('/feed')) return this.feedFetch(request, uid, name);
     const [client, ws] = Object.values(new WebSocketPair());
     this.ctx.acceptWebSocket(ws, [uid]);
     ws.serializeAttachment({uid, at: Date.now(), lobby: null, n: 0, max: 12, la: 0});
@@ -73,6 +91,26 @@ export class Friends {
     if (!wasOnline && reg.fresh) {const me = this.core.user(uid);for (const id of friends) this.sendTo(id, {t: 'toast', kind: 'online', from: {id: uid, name: me.name, tag: me.tag}});}
     await this.alarmSoon();
     return new Response(null, {status: 101, webSocket: client});
+  }
+
+  // The feed's requests (see handleFeed). A new post is told to the writer's friends who are online.
+  async feedFetch(request, uid, name) {
+    const json = (body, status = 200) => Response.json(body, {status, headers: {'Cache-Control': 'no-store'}});
+    const url = new URL(request.url), path = url.pathname, method = request.method, F = this.feed;
+    if (!this.core.user(uid)) this.core.register(uid, name);
+    const m = path.match(/^\/feed\/(img\/)?(\d+)(\/like)?$/);
+    if (path === '/feed' && method === 'GET') return json({...F.list(uid, {before: Number(url.searchParams.get('before')) || 0}), limits: {text: FEED.text, imgBytes: FEED.imgBytes}});
+    if (path === '/feed' && method === 'POST') {
+      let b = null;try {b = JSON.parse(await request.text());} catch {}if (!b || typeof b !== 'object') return json({ok: false, why: 'Bad request'}, 400);
+      let img = null;if (typeof b.img === 'string' && b.img) {try {img = Uint8Array.from(atob(b.img.replace(/^data:image\/jpeg;base64,/, '')), c => c.charCodeAt(0));} catch {return json({ok: false, why: 'The picture could not be read.'}, 400);}}
+      const r = F.post(uid, b.text, img);
+      if (r.ok) {const me = this.core.user(uid);for (const id of r.to) this.sendTo(id, {t: 'toast', kind: 'post', from: {id: uid, name: me.name, tag: me.tag}});}
+      return json({ok: r.ok, why: r.why, id: r.id}, r.ok ? 200 : 400);
+    }
+    if (m && m[1] && method === 'GET') {const bytes = F.image(uid, m[2]);return bytes ? new Response(bytes, {headers: {'Content-Type': 'image/jpeg', 'Cache-Control': 'private, max-age=86400'}}) : new Response('Not found', {status: 404});}
+    if (m && !m[1] && !m[3] && method === 'DELETE') {const r = F.remove(uid, m[2]);return json(r, r.ok ? 200 : 403);}
+    if (m && m[3] && method === 'POST') {let b = {};try {b = JSON.parse(await request.text()) || {};} catch {}const r = F.like(uid, m[2], !!b.on);return json(r, r.ok ? 200 : 404);}
+    return json({error: 'Not found'}, 404);
   }
 
   async webSocketMessage(ws, data) {

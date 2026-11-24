@@ -408,6 +408,8 @@
       constructor(x, z, yaw, model = 0, opt = {}) {
         super(x, z, yaw, .95, opt.length || 4.2);this.width = 1.8;this.height = 1.45;this.kind = 'car';this.name = carNames[model % carColors.length] + ' hatchback';this.steerAngle = 0;this.rpm = 800;this.engine = null;this.wheelSpin = 0;
         this.hips = {d: {pos: V3(-.37, .62, .28), stance: 'drive'}, p: {pos: V3(.37, .62, .28), stance: 'sit'}};this.passengerEye = V3(.37, 1.24, .22);this.flies = true;
+        // The back seat: behind the driver, behind the passenger, the middle (five in a car).
+        for (const [k, x] of [['p2', -.42], ['p3', .42], ['p4', 0]]) this.hips[k] = {pos: V3(x, .66, 1.04), stance: 'sit'};
         if (opt.lazy) return;
         this.buildBody(model);this.settle(1);this.place();
       }

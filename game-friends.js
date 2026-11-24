@@ -26,7 +26,8 @@
     ['space', '#', '.', '_', "'", 'É', 'Ü', 'del', 'ok', 'ok']
   ];
   const KEY_LABEL = {space: '␣ space', del: '⌫', ok: '✓ Send'}, MAX_TEXT = 30;
-  function osk(k, action) {
+  // max: the longest text; plain: a post, not a name (a capital only first and after a full stop).
+  function osk(k, action, max = MAX_TEXT, plain = false) {
     const R = OSK.length, C = OSK[0].length;let {r = 0, c = 0, text = ''} = k;
     if (action === 'up') r = (r + R - 1) % R;else if (action === 'down') r = (r + 1) % R;
     else if (action === 'left') c = (c + C - 1) % C;else if (action === 'right') c = (c + 1) % C;
@@ -34,10 +35,10 @@
     else if (action === 'press') {
       const key = OSK[r][c];
       if (key === 'del') text = text.slice(0, -1);
-      else if (key !== 'ok' && text.length < MAX_TEXT) {
+      else if (key !== 'ok' && text.length < max) {
         const ch = key === 'space' ? ' ' : key;
         // Like a name: a capital letter first and after a space, small letters after that.
-        text += !text.length || text.endsWith(' ') ? ch : ch.toLowerCase();
+        text += (plain ? !text.length || /[.!?] $/.test(text) : !text.length || text.endsWith(' ')) ? ch : ch.toLowerCase();
       }
     }
     return {...k, r, c, text};
@@ -97,7 +98,7 @@
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'})[c]);
   const mmss = ms => {const s = Math.max(0, Math.ceil(ms / 1000));return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;};
 
-  function create({root, button, account, notice = () => {}, onGo = () => {}, toAccount = () => {}, sound = () => {}}) {
+  function create({root, button, account, notice = () => {}, onGo = () => {}, toAccount = () => {}, sound = () => {}, onPost = () => {}}) {
     const style = document.createElement('style');style.textContent = CSS;document.head.append(style);
     const toasts = document.createElement('div');toasts.id = 'friendToast';root.append(toasts);
     const panel = document.createElement('section');panel.id = 'friends';panel.className = 'overlay';panel.hidden = true;root.append(panel);
@@ -155,8 +156,10 @@
         accepted: [`🤝 ${n} accepted – you are friends now`, '', 6],
         invite: [`🎮 ${n} invites you to their lobby`, 'Options / Esc, then ✕ / Space to join', 20],
         no: [`${n} cannot come right now`, '', 5],
+        post: [`📝 ${n} posted in the feed`, 'Pause (Options / Esc) → Feed (R3 / O)', 6],
         online: [`<span style="color:#5be37d">●</span> ${n} is online`, '', 5]}[m.kind];
       if (!t) return;
+      if (m.kind === 'post') onPost(f);
       sound(m.kind);
       // With the list open the news goes in its message line (the list itself shows the request or the invite).
       if (!panel.hidden) {const d = document.createElement('div');d.innerHTML = t[0];ui.msg = d.textContent;render();return;}

@@ -82,6 +82,8 @@
     }
     function release(i, seat, final) {if (net.online) net.send({t: 'release', v: i, seat, s: final ? stamped(final) : final});const o = occ[i];if (o && o[seat] === net.you) delete o[seat];}
     const occupant = (i, seat) => {const o = occ[i];return o ? o[seat] || null : null;};
+    // Somebody sits in this vehicle (any seat).
+    const occupied = i => {const o = occ[i];return !!o && Object.values(o).some(Boolean);};
     const remoteDriven = i => {const d = occupant(i, 'd');return !!d && d !== net.you && remotes.has(d);};
     const nameOf = id => id === net.you ? net.name : (remotes.get(id) || {}).name || 'someone';
     function sitTaken(spotId) {for (const r of remotes.values()) if (r.st && r.st.sit === spotId + 1) return true;return false;}
@@ -126,7 +128,7 @@
       }
     }
     return {
-      net, voice, update, claim, release, occupant, remoteDriven, nameOf, sitTaken, fireLevel, addWood, remotes,
+      net, voice, update, claim, release, occupant, occupied, remoteDriven, nameOf, sitTaken, fireLevel, addWood, remotes,
       sendChat(text) {text = String(text || '').trim().slice(0, 200);if (!text) return false;if (net.online) {net.send({t: 'chat', text});return true;}ctx.onChat({name: net.name, text, slot: 0}, true);return false;},
       sendDoor(id, open) {if (net.online) net.send({t: 'door', id, open});},
       // A small shared thing: id -> a small value (null removes it); the lobby keeps it for players who join later.
