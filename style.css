@@ -263,7 +263,7 @@ html,body{margin:0;height:100%;background:#0d1114;color:var(--ink);font:15px/1.4
 #arHud{position:absolute;inset:0;pointer-events:none;color:#fff;font-family:system-ui,Segoe UI,Arial,sans-serif}
 #arHud [hidden]{display:none!important}
 .ar-obj{position:absolute;left:22px;top:20px;max-width:min(440px,46vw);background:rgba(14,17,21,.72);border-left:4px solid #f2c23a;border-radius:8px;padding:10px 14px;display:grid;gap:3px;text-shadow:0 1px 2px #000}
-.ar-obj small{font-size:11px;letter-spacing:.12em;font-weight:700;opacity:.9}.ar-obj small.police,#arMenu small.police{color:#7fb2ff}.ar-obj small.robber,#arMenu small.robber{color:#ff9a6a}
+.ar-obj small{font-size:11px;letter-spacing:.12em;font-weight:700;opacity:.9}.ar-obj small.police,#arMenu small.police{color:#7fb2ff}.ar-obj small.robber,#arMenu small.robber{color:#ff9a6a}#arMenu small.join{color:#7be08a}#arMenu small.leave{color:#ffd36a}.ar-obj em{font-style:normal;font-size:13px;color:#b9f0c2}
 .ar-obj b{font-size:16px;line-height:1.25}.ar-obj span{font-size:14px;opacity:.9;min-height:1em}.ar-obj big{font:800 26px/1 ui-monospace,Consolas,monospace;color:#ffd36a}
 .ar-obj .heat{display:block;height:8px;background:rgba(255,255,255,.18);border-radius:4px;overflow:hidden;margin-top:4px}.ar-obj .heat u{display:block;height:100%;background:#f2c23a}.ar-obj .heat.hot u{background:#ff4a3a}
 .ar-score{position:absolute;left:50%;top:14px;transform:translateX(-50%);text-align:center;background:rgba(14,17,21,.66);border-radius:10px;padding:6px 16px;text-shadow:0 1px 2px #000}

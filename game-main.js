@@ -654,6 +654,9 @@
     Object.assign(arsenal.ctx, {
       serverNow: () => mp && mp.net.online ? mp.net.serverNow() : Date.now(), you: () => mp && mp.net.online ? mp.net.you : 0, yourName: () => mp ? mp.net.name : 'You',
       others: () => mp ? [...mp.remotes.values()].filter(r => r.st && r.st.ar && r.seen).map(r => window.GameWeapons.memberFromJson(r.st.ar, {id: r.id, name: r.name, local: false, feet: {x: r.pos.x, y: r.pos.y, z: r.pos.z}, yaw: r.yaw, stance: r.st.st || 'stand'})).filter(Boolean) : [],
+      // The others in the lobby who lead or have joined a mission (issue #179): where they are, and their mission state.
+      mates: () => mp ? [...mp.remotes.values()].filter(r => r.st && r.st.op && typeof r.st.op === 'object' && r.seen).map(r => ({id: r.id, name: r.name, x: r.pos.x, y: r.pos.y, z: r.pos.z, yaw: r.yaw, stance: r.st.v !== undefined ? 'sit' : r.st.st || 'stand', car: r.st.v !== undefined, op: r.st.op})) : [],
+      stance: next => {if (player.mode === 'foot') setStance(next);},
       get player() {return player;}, camera, groundAt, toWorld: world.toWorld, notice: (t, sec) => notice(t, sec), earn: (kr, why) => earn(kr, why),
       place: (x, z, yaw) => {const l = world.toLocal(x, z);world.buildGround(l.x, l.s, 60);place(x, z, yaw);updateDynamic();},
       // A shot or a look stops at the first building, wall, tree trunk or parked car (the walk world's solids at its height), or the ground.
@@ -2215,7 +2218,7 @@
     // This computer flies the game's pilot in the Caravan: what it is doing, for the jumpers' screens.
     if (gp && gp.f) {s.gp = gp.f.phase;if (gp.f.left) s.gl = Math.round(gp.f.left);if (gp.f.green) s.gg = 1;}
     const pb = paintball && paintball.rules.localState();if (pb) s.pb = pb;
-    const ph = prophunt && prophunt.rules.localState();if (ph) s.ph = ph;const ar = arsenal && arsenal.localState();if (ar) s.ar = ar;// prop hunt (issue #124)
+    const ph = prophunt && prophunt.rules.localState();if (ph) s.ph = ph;const ar = arsenal && arsenal.localState();if (ar) s.ar = ar;const op = arsenal && arsenal.opState();if (op) s.op = op;// prop hunt (issue #124)
     // A city bike you have locked outside a dock (issue #57); your job, the taxi light and passenger (issue #56).
     if (rentals) {const lb = rentals.locked();if (lb >= 0) s.cb = lb;}
     {const js = jobs.localState();if (js) Object.assign(s, js);}

@@ -253,7 +253,7 @@
 
     // ---------- The missions ----------
     const avatars = window.GameAvatars.create({T, lib});
-    const ops = window.GameArsenalOps.create({T, W, group: G, avatars, data, ctx, bank, toWorld: tw, home, loadout, tracer, shotSound, sfx: (n, g) => audio.sfx(n, {gain: g}),
+    const ops = window.GameArsenalOps.create({T, W, group: G, avatars, data, ctx, bank, toWorld: tw, home, loadout, speed: () => speed, tracer, shotSound, sfx: (n, g) => audio.sfx(n, {gain: g}),
       vault: open => {vaultOpen = !!open;if (bagsMesh) bagsMesh.visible = vaultOpen;},
       fire: g => {
         const c = ctx.camera, o = {x: c.position.x, y: c.position.y, z: c.position.z}, d0 = c.getWorldDirection(new T.Vector3()), w = g.w;
@@ -287,7 +287,7 @@
       for (const [id, v] of botAv) if (!seen.has(id)) {G.remove(v.av.group);v.av.dispose();botAv.delete(id);}
       const here = new Set();
       for (const r of remotes || []) {
-        const m = rules.all.find(q => q.id === r.id);if (!m || !r.av || !r.av.joints) continue;here.add(r.id);
+        const m = rules.all.find(q => q.id === r.id) || ops.mate(r.id);if (!m || !r.av || !r.av.joints) continue;here.add(r.id);
         const ci = tdm && rules.memberPlaying(r.id) ? W.CAMO.findIndex(c => c.id === W.TEAM_CAMO[rules.team(r.id)]) : m.camo;let g = gear.get(r.id);
         if (!g || g.av !== r.av || g.w !== m.w || g.ci !== ci) {if (g) undress(g);g = {av: r.av, w: m.w, ci, parts: dress(r.av, m.w, ci)};gear.set(r.id, g);}
         g.parts[0].visible = m.alive;
@@ -318,13 +318,18 @@
     const $ = c => hud.querySelector('.' + c), esc = s => String(s).replace(/[<>&"]/g, c => ({'<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;'})[c]);
     const clock = t => `${Math.floor(Math.max(0, t) / 60)}:${String(Math.floor(Math.max(0, t) % 60)).padStart(2, '0')}`;
     const menu = {open: null, sel: 0, stick: false,
-      items() {return this.open === 'weapons' ? W.WEAPONS : this.open === 'camo' ? W.CAMO : window.GameArsenalOps.MISSIONS;},
-      show(kind) {this.open = kind;this.sel = kind === 'weapons' ? W.indexOf(save.primary) : kind === 'camo' ? camoIndex() : 0;menuEl.hidden = false;this.render();audio.sfx('click', {gain: .4});},
+      board: [], sig: '',
+      // The mission board: leave the mission you are on, join a friend's, or start one.
+      fill() {const J = ops.joinable().filter(j => !(ops.cur && ops.cur.key === j.key));this.sig = J.map(j => j.key).join() + (ops.cur ? 'c' : '');this.board = [...(ops.cur ? [{leave: true}] : []), ...J.map(j => ({join: j})), ...window.GameArsenalOps.MISSIONS];},
+      items() {return this.open === 'weapons' ? W.WEAPONS : this.open === 'camo' ? W.CAMO : this.board;},
+      show(kind) {this.open = kind;if (kind === 'missions') this.fill();this.sel = kind === 'weapons' ? W.indexOf(save.primary) : kind === 'camo' ? camoIndex() : 0;menuEl.hidden = false;this.render();audio.sfx('click', {gain: .4});},
       close() {this.open = null;menuEl.hidden = true;},
       pick() {
         const it = this.items()[this.sel];
         if (this.open === 'weapons') {if (W.isSidearm(it)) save.side = it.id;else if (W.isPrimary(it)) save.primary = it.id;else {ctx.notice('The knife is always with you.', 2);return;}store();audio.sfx('chains', {gain: .3});this.render();ctx.notice(`${it.name}: your ${W.isSidearm(it) ? 'pistol' : 'main weapon'} now.`, 2.5);}
         else if (this.open === 'camo') {save.camo = it.id;store();audio.sfx('click', {gain: .5});this.render();ctx.notice(`You wear: ${it.name}.`, 2.5);}
+        else if (it.leave) {this.close();const lead = ops.cur && !ops.cur.mirror;ops.stop();ctx.notice(lead ? 'You ended the mission.' : 'You left the mission.', 3);}
+        else if (it.join) {this.close();if (!ops.join(it.join.id)) ctx.notice('That mission is over.', 3);}
         else {this.close();ops.start(it);}
       },
       render() {
@@ -338,13 +343,19 @@
           title = 'ARSENALET · CAMOUFLAGE';L.forEach((c, i) => {list += `<li class="${i === this.sel ? 'sel' : ''}">${esc(c.name)}${c.id === save.camo ? ' <em>on</em>' : ''}</li>`;});
           card = `<h3>${esc(it.name)}</h3>${it.colors ? `<div class="sw">${it.colors.map(c => `<b style="background:${c}"></b>`).join('')}</div>` : ''}<p>${it.colors ? `Hides you best in: ${it.good.map(g => ({woodland: 'the pine wood, birch grove and thicket', grass: 'the tall grass', desert: 'the reeds', urban: 'the rocks', snow: 'snow (none in the arena now)'})[g]).join(', ')}.` : 'No camouflage: the bots see you from far away.'}</p><p>The arena's bots notice you later when your clothes match the plants round you, and later still when you crouch or lie still. Other players see what you wear. In team deathmatch the teams wear green and sand.</p>`;
         } else {
-          title = 'ARSENALET · MISSIONS';L.forEach((m, i) => {list += `<li class="${i === this.sel ? 'sel' : ''}"><small class="${m.side}">${m.side === 'police' ? 'POLICE' : 'ROBBER'}</small> ${esc(m.name)}</li>`;});
-          card = `<h3>${esc(it.name)}</h3><p><b>${esc(it.where)}</b></p><p>${esc(it.text)}</p><p>Pay: ${esc(it.pay)}</p><p class="dim">You take ${esc(W.weapon(save.primary).name)}, ${esc(W.weapon(save.side).name)} and the knife. A mission is yours alone: the others in your lobby do not see its people.${ops.cur ? ' Starting one ends the mission you are on.' : ''}</p>`;keys = '↑↓ choose · ✕ / Space / Enter start · ○ / C close';
+          title = 'ARSENALET · MISSIONS';const side = m => `<small class="${m.side}">${m.side === 'police' ? 'POLICE' : 'ROBBER'}</small>`, take = `You take ${esc(W.weapon(save.primary).name)}, ${esc(W.weapon(save.side).name)} and the knife.`;
+          L.forEach((m, i) => {list += `<li class="${i === this.sel ? 'sel' : ''}">${m.leave ? '<small class="leave">LEAVE</small> the mission you are on' : m.join ? `<small class="join">JOIN</small> ${esc(m.join.name)}: ${esc(m.join.def.name)}` : `${side(m)} ${esc(m.name)}`}</li>`;});
+          if (it.leave) card = `<h3>Leave the mission</h3><p>${ops.cur && !ops.cur.mirror ? 'You started this mission. If you leave, it ends for everybody on it.' : 'The others carry on without you. You can join again from this board.'}</p>`;
+          else if (it.join) {const d = it.join.def;card = `<h3>${esc(d.name)} · with ${esc(it.join.name)}</h3><p>${side(d)} <b>${esc(d.where)}</b></p><p>${esc(d.text)}</p><p>Pay: ${esc(d.pay)}. Everybody on the mission gets it.</p><p class="dim">${take} You play on ${esc(it.join.name)}'s side and see the same people. If you are shot, a friend can help you up (□); if all of you are down at once, the mission is lost.</p>`;}
+          else card = `<h3>${esc(it.name)}</h3><p><b>${esc(it.where)}</b></p><p>${esc(it.text)}</p><p>Pay: ${esc(it.pay)}</p><p class="dim">${take} ${it.solo ? '' : 'Others in your lobby can join from this board: you see the same people, and everybody gets the pay.'}${ops.cur ? ' Starting one ends the mission you are on.' : ''}</p>`;
+          keys = `↑↓ choose · ✕ / Space / Enter ${it.leave ? 'leave' : it.join ? 'join' : 'start'} · ○ / C close`;
         }
         menuEl.innerHTML = `<div class="ar-m"><header>${title}</header><div class="ar-mb"><ul>${list}</ul><section>${card}</section></div><footer>${keys}</footer></div>`;
         const s = menuEl.querySelector('li.sel');if (s && s.scrollIntoView) s.scrollIntoView({block: 'nearest'});
       },
       input(input) {
+        // A friend started or ended a mission while you read the board.
+        if (this.open === 'missions') {const J = ops.joinable().filter(j => !(ops.cur && ops.cur.key === j.key)), sig = J.map(j => j.key).join() + (ops.cur ? 'c' : '');if (sig !== this.sig) {const it = this.board[this.sel];this.fill();const k = this.board.findIndex(q => q === it || (it && it.join && q.join && q.join.key === it.join.key));this.sel = k >= 0 ? k : Math.min(this.sel, this.board.length - 1);this.render();}}
         const p = input.pressed, y = input.move.y, n = this.items().length;let step = 0;
         if (p.has('up') || (y < -.5 && !this.stick)) step = -1;if (p.has('down') || (y > .5 && !this.stick)) step = 1;this.stick = Math.abs(y) > .5;if (input.mouse.wheel) step = Math.sign(input.mouse.wheel);
         if (step) {this.sel = (this.sel + step + n) % n;this.render();}
@@ -355,12 +366,13 @@
     function drawHud(g, armed) {
       const o = ops.cur, R = rules, S = R.ses, inGame = R.inGame(), t = R.now();
       const obj = $('ar-obj');obj.hidden = !o;
-      if (o) obj.innerHTML = `<small class="${o.side}">${o.side === 'police' ? 'POLICE' : 'ROBBER'} · ${esc(o.def.name)}</small><b>${esc(o.obj)}</b><span>${esc(o.sub || '')}</span>${o.timer > 0 ? `<big>${clock(o.timer)}</big>` : ''}${o.id === 'deal' && o.side === 'robber' ? `<i class="heat${o.chase ? ' hot' : ''}"><u style="width:${Math.round(Math.min(100, o.heat))}%"></u></i><small>${o.chase ? 'THE POLICE ARE AFTER YOU' : 'police attention'}</small>` : ''}`;
+      if (o) obj.innerHTML = `<small class="${o.side}">${o.side === 'police' ? 'POLICE' : 'ROBBER'} · ${esc(o.def.name)}</small><b>${esc(o.obj)}</b><span>${esc(ops.sub)}</span>${ops.crew.length ? `<em>With ${ops.crew.map(c => esc(c.name) + (c.down ? ' (down)' : '')).join(', ')}</em>` : ''}${o.timer > 0 ? `<big>${clock(o.timer)}</big>` : ''}${o.id === 'deal' && o.side === 'robber' ? `<i class="heat${o.chase ? ' hot' : ''}"><u style="width:${Math.round(Math.min(100, o.heat))}%"></u></i><small>${o.chase ? 'THE POLICE ARE AFTER YOU' : 'police attention'}</small>` : ''}`;
       const am = $('ar-ammo');am.hidden = !(armed && g);
       if (armed && g) am.innerHTML = `<div class="n">${esc(g.w.name)}</div><div class="mag"><b class="${!g.w.melee && g.mag <= Math.ceil(g.w.mag * .2) ? 'low' : ''}">${g.w.melee ? '—' : g.mag}</b><small>${g.w.melee ? '' : `/ ${g.reserve}`}</small></div><div class="k">${g.reloading ? 'RELOADING' : inGame && S.mode === 'gg' ? `weapon ${R.level(R.you()) + 1} of ${W.LADDER.length}` : 'R2 fire · L2 aim · □ / R reload · △ / F next'}</div>`;
       const hpOn = !!o || inGame, hp = o ? ops.hp : R.hp, he = $('ar-hp');he.hidden = !hpOn;if (hpOn) {he.querySelector('b').textContent = Math.max(0, Math.round(hp));he.querySelector('u').style.width = `${Math.max(0, Math.min(100, hp))}%`;he.classList.toggle('low', hp <= 30);}
       const sc = $('ar-score'), showScore = R.member && S.id && S.state !== 'lobby';sc.hidden = !showScore;
       const big = $('ar-big');big.hidden = true;
+      if (o && ops.down && !o.over) {big.hidden = false;big.innerHTML = `<b>You are down</b><small>A friend can help you up (□) · up by yourself in ${Math.max(1, Math.ceil(ops.downT))} s</small>`;}
       if (showScore) {
         const left = S.state === 'count' ? (S.t0 - t) / 1000 : S.state === 'play' ? W.AR.DUR_S - (t - S.t0) / 1000 : 0, B = R.board(), mode = W.MODES.find(m => m.id === S.mode);
         const rows = S.mode === 'tdm' ? [0, 1].map(tm => `<b style="color:${W.TEAM_CSS[tm]}">${W.TEAM_NAME[tm]} ${R.teamKills(tm)}</b>`).join('<span>:</span>')
@@ -388,7 +400,7 @@
       const inOp = !!ops.cur;
       rules.update(dt, inOp ? {} : inp);ops.update(dt, inOp ? inp : {}, live);
       const g = ops.gun() || (rules.member ? rules.gun : null);
-      armedNow = foot && !!g && (inOp ? !ops.cur.over : !(rules.onPad && !rules.inGame()) && rules.alive);
+      armedNow = foot && !!g && (inOp ? !ops.cur.over && !ops.down : !(rules.onPad && !rules.inGame()) && rules.alive);
       // What the arena's rules say happened: our shots, the others' shots, kills, the end of a game.
       for (const s of rules.fresh) {
         const w = W.weapon(s.w), own = s.owner === rules.you();if (s.done) continue;s.done = true;
@@ -439,11 +451,11 @@
     }
     const poi = () => [{x: hcx, s: hcs, color: '#16191d', label: 'Arsenalet (weapons, missions)', glyph: '⚔'}, {x: ax0 + A.w / 2, s: as0 + A.d / 2, color: '#7a1c14', label: 'The arena', glyph: '✚'},
       ...(BANK ? [{x: data.bank.front[0], s: data.bank.front[1], color: '#12303a', label: 'Torshov Sparebank', glyph: '🏦'}] : [])];
-    return {group: G, floors, obstacles, hitboxes: [], poi, ctx, rules, ops, menu, update, prompt, home, bank, solids: () => ops.solids(), localState: () => rules.localState(),
-      get armed() {return armedNow;}, get busy() {return armedNow || !!menu.open || (rules.member && rules.onPad && P().mode === 'foot');}, get frozen() {return rules.frozen() || !!menu.open || (rules.inGame() && !rules.alive);},
+    return {group: G, floors, obstacles, hitboxes: [], poi, ctx, rules, ops, menu, update, prompt, home, bank, solids: () => ops.solids(), localState: () => rules.localState(), opState: () => ops.opState(),
+      get armed() {return armedNow;}, get busy() {return armedNow || !!menu.open || (rules.member && rules.onPad && P().mode === 'foot');}, get frozen() {return rules.frozen() || !!menu.open || (rules.inGame() && !rules.alive) || ops.down;},
       get zoom() {return zoomNow;}, get viewVisible() {return vm.visible;}, get music() {return !!ops.cur || rules.inGame();}, get slow() {const g = ops.gun() || rules.gun;return armedNow && g ? g.w.move * (1 - .35 * g.aimT) : 1;},
-      holdsGun: id => rules.member && rules.all.some(m => m.id === id && !m.local), showTag: id => !rules.memberPlaying(id) || !rules.inGame() || (rules.ses.mode === 'tdm' && rules.team(id) === rules.team(rules.you())),
-      inHouse, debug: {targets, save, station, get practice() {return practice;}, F, start: (id, side) => ops.start(window.GameArsenalOps.MISSIONS.find(m => m.id === id && m.side === side))}};
+      holdsGun: id => (rules.member && rules.all.some(m => m.id === id && !m.local)) || !!ops.mate(id), showTag: id => !rules.memberPlaying(id) || !rules.inGame() || (rules.ses.mode === 'tdm' && rules.team(id) === rules.team(rules.you())),
+      inHouse, debug: {targets, save, station, get practice() {return practice;}, F, start: (id, side) => ops.start(window.GameArsenalOps.MISSIONS.find(m => m.id === id && m.side === side)), join: id => ops.join(id)}};
   }
   return {prepare, holes, create, KEY};
 });
