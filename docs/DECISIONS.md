@@ -96,7 +96,7 @@ Live site: runs `main` (Worker version 3766909d, deployed 23 Nov 2026 after PR #
 - **Fix:** the plane's door function is now `toggleJumpDoor`; `climbAt` checks the whole way over at that height (`freeWay`, a look every half body radius).
 - **Where:** `game-main.js`, `walk-collision.js`, `tests/main-names.test.cjs` (new: no function is declared twice in game-main.js), `tests/jumping.test.cjs` (new: a jump never goes through a thin, tall solid; a 1.1 m fence is still got over).
 - **Checked:** `node --test` (396 pass; both new tests fail on the old code). In the browser: the flat's entrance and bathroom doors, a flat door in the stairwell and the street door open with □ and can be walked through. Before the second fix, held jumps went through 4 of the first 30 closed doors tried (the flat's entrance door, a street door, the two Rathkes gates); after it, the same four did not let me through.
-- **Status:** on branch `feat/weapons-missions`, in PR #180 (https://github.com/jonatsl/haarklous-online/pull/180).
+- **Status:** on branch `feat/weapons-missions`, in PR #180 (https://github.com/jonatsl/haarklous-online/pull/180). Not live yet when this was written: the deploy was not run (`npx wrangler deploy` in `cloud/`).
 
 ### 2026-11-24 · The feed: posts and pictures for your friends (issue #184)
 - **What:** a new panel, **Feed**, opened from the pause menu (the button, R3, or O; O also opens it straight from the game).
