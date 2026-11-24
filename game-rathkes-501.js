@@ -271,13 +271,40 @@
     const rugUV = f => {const i = rugList.indexOf(f), x = (i % 3) / 3, y = Math.floor(i / 3) / 2;return [x, 1 - y - .5, x + 1 / 3, 1 - y];};
     // Issue #166/#167: the TV bench's glossy oxblood tiles (4 x 4 tiles of 10 cm with grout, each a little different), the
     // bathroom's white wall boards and blue-grey vinyl floor, and the pattern of the wall cabinet's sliding glass (art cell 15).
-    const tilesRed = mat('tilesRed', () => new T.MeshStandardMaterial({roughness: .14, metalness: 0, map: canvasTex(256, 256, (g) => {
-      g.fillStyle = '#4a3029';g.fillRect(0, 0, 256, 256);let s = 166;const r = () => {s = (s * 16807) % 2147483647;return s / 2147483647;};
-      for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) {const k = .86 + r() * .26, x = i * 64 + 2, y = j * 64 + 2, gr = g.createLinearGradient(x, y, x + 60, y + 60);
-        gr.addColorStop(0, `rgb(${Math.round(94 * k)},${Math.round(27 * k)},${Math.round(21 * k)})`);gr.addColorStop(1, `rgb(${Math.round(72 * k)},${Math.round(19 * k)},${Math.round(15 * k)})`);g.fillStyle = gr;g.fillRect(x, y, 60, 60);}
+    // Issue #177: the flat is lit by the sky light and the bright daylight environment map (lib.environment) as well as its lamp,
+    // so dark, glossy or bluish things came out far too light: the tiles and the vinyl take less of the environment
+    // (envMapIntensity) and their colours are set so the rendered colour matches the owner's photos. Tiles: nearly one shade
+    // (+-3 % per tile, no chequer), thin darker grout (3 mm on 10 cm), a faint lighter bevel at the edges, a soft gloss.
+    const tilesRed = mat('tilesRed', () => new T.MeshStandardMaterial({roughness: .25, metalness: 0, envMapIntensity: .45, map: canvasTex(256, 256, (g) => {
+      g.fillStyle = '#2c1110';g.fillRect(0, 0, 256, 256);let s = 166;const r = () => {s = (s * 16807) % 2147483647;return s / 2147483647;};
+      const rgb = (k, c = [80, 26, 20]) => `rgb(${c.map(v => Math.round(v * k)).join(',')})`;
+      for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) {const k = .97 + r() * .06, x = i * 64 + 1, y = j * 64 + 1;
+        g.fillStyle = rgb(k * 1.18);g.fillRect(x, y, 62, 62);g.fillStyle = rgb(k * .9);g.fillRect(x + 2, y + 2, 60, 60);g.fillStyle = rgb(k);g.fillRect(x + 2, y + 2, 58, 58);}
     }, [2.5, 2.5])}));
     const boards = mat('boards', () => new T.MeshStandardMaterial({roughness: .5, map: canvasTex(128, 16, (g) => {g.fillStyle = '#f3f2ec';g.fillRect(0, 0, 128, 16);g.fillStyle = '#c9c8c0';g.fillRect(0, 0, 2, 16);g.fillStyle = '#ffffff';g.fillRect(2, 0, 1, 16);}, [1 / .3, 1])}));
-    const vinyl = mat('vinyl', () => new T.MeshStandardMaterial({color: 0x8496aa, roughness: .42, metalness: 0}));
+    const vinyl = mat('vinyl', () => new T.MeshStandardMaterial({color: 0x55636f, roughness: .82, metalness: 0, envMapIntensity: .45}));
+    const bathMat = mat('bathMat', () => {const m = lib.fabric(0x30503f);m.envMapIntensity = .45;return m;});
+    // Plant leaves (issue #177): one texture of four cells, each a whole leaf with its midrib and veins: plain monstera green, the
+    // variegated monstera (green with cream sectors and splashes), the marbled leaves of the trailing plant, succulent grey-green.
+    const LEAF = document.createElement('canvas');LEAF.width = LEAF.height = 128;
+    (() => {
+      const g = LEAF.getContext('2d');let s = 177;const r = () => {s = (s * 16807) % 2147483647;return s / 2147483647;};
+      const cell = (i, base, f) => {const x0 = (i % 2) * 64, y0 = Math.floor(i / 2) * 64;g.save();g.translate(x0, y0);g.beginPath();g.rect(0, 0, 64, 64);g.clip();g.fillStyle = base;g.fillRect(0, 0, 64, 64);f();g.restore();};
+      const veins = (mid, side) => {g.strokeStyle = side;g.lineWidth = 1;for (let k = 0; k < 6; k++) {const y = 56 - k * 9;g.beginPath();g.moveTo(32, y);g.lineTo(4, y - 12);g.moveTo(32, y);g.lineTo(60, y - 12);g.stroke();}g.fillStyle = mid;g.fillRect(31, 0, 2, 64);};
+      cell(0, '#21431d', () => veins('#4f7a3a', 'rgba(90,130,70,.18)'));
+      cell(1, '#284d22', () => {
+        // Cream patches: two big irregular blotches (clusters of ellipses) on one side of the midrib, cream streaks along a few
+        // veins, a few small splashes.
+        g.fillStyle = '#ddd8b6';for (const [cx, cy, n] of [[46, 22, 5], [18, 46, 3]]) for (let k = 0; k < n; k++) {g.beginPath();g.ellipse(cx + (r() - .5) * 12, cy + (r() - .5) * 12, 2.5 + r() * 4, 2 + r() * 3, r() * 3, 0, 7);g.fill();}
+        g.strokeStyle = '#d6d2ae';g.lineWidth = 2;for (let k = 0; k < 2; k++) {const y = 30 + k * 10, a = k % 2 ? 1 : -1;g.beginPath();g.moveTo(32, y);g.lineTo(32 + a * 18, y - 7);g.stroke();}
+        for (let k = 0; k < 10; k++) {g.fillStyle = r() < .6 ? '#ddd8b6' : '#7f9a66';g.beginPath();g.ellipse(r() * 64, r() * 64, 1 + r() * 2, 1 + r() * 1.5, r() * 3, 0, 7);g.fill();}
+        veins('#6a9050', 'rgba(120,160,90,.18)');
+      });
+      cell(2, '#203a22', () => {for (let k = 0; k < 30; k++) {g.fillStyle = 'rgba(160,180,150,.5)';g.beginPath();g.ellipse(r() * 64, r() * 64, 1 + r() * 4, 1 + r() * 2, r() * 3, 0, 7);g.fill();}g.fillStyle = '#4b6a44';g.fillRect(31, 0, 2, 64);});
+      cell(3, '#6f957a', () => {g.fillStyle = '#93b39a';g.fillRect(24, 0, 16, 64);g.fillStyle = '#b77a74';g.fillRect(0, 0, 64, 5);});
+    })();
+    const leafTex = new T.CanvasTexture(LEAF);leafTex.colorSpace = T.SRGBColorSpace;leafTex.anisotropy = 4;
+    const leafM = mat('leaf', () => new T.MeshStandardMaterial({map: leafTex, side: T.DoubleSide, roughness: .6, metalness: 0}));
     art.save();art.translate(768, 768);art.fillStyle = '#3b3d38';art.fillRect(0, 0, 256, 256);art.strokeStyle = '#8d8f86';art.lineWidth = 7;
     for (let y = 0; y < 256; y += 42) for (let x = 0; x < 256; x += 32) {const o = (y / 42) % 2 ? 16 : 0;art.strokeRect(x + o + 4, y + 6, 20, 30);art.beginPath();art.moveTo(x + o + 14, y + 36);art.lineTo(x + o + 14, y + 48);art.stroke();}
     art.restore();artTex.needsUpdate = true;
@@ -307,6 +334,87 @@
     function pbox(parent, w, h, d, x, y, z, hex) {const o = mesh(paint(new T.BoxGeometry(w, h, d), hex), palette, parent);o.position.set(x, y, z);return o;}
     function pcyl(parent, rt, rb, h, x, y, z, hex, seg = 12) {const o = mesh(paint(new T.CylinderGeometry(rt, rb, h, seg), hex), palette, parent);o.position.set(x, y, z);return o;}
     function plane(parent, w, h, m, uv) {const g = new T.PlaneGeometry(w, h);if (uv) {const u = g.attributes.uv;u.setXY(0, uv[0], uv[3]);u.setXY(1, uv[2], uv[3]);u.setXY(2, uv[0], uv[1]);u.setXY(3, uv[2], uv[1]);}const o = mesh(g, m, parent);o.castShadow = false;return o;}
+    // ---- Plants (issue #177): one helper for every plant of the flat. plant(parent, x, y, z, o): a pot standing at (x, y, z) in
+    // the parent's frame, and on stems from its soil leaves with real outlines (heart-shaped monstera leaves with cut slits,
+    // small round leaves, pointed succulent leaves), tilted outward and drooping a little; or trailing strands hanging over a
+    // shelf edge with small leaves along them; or a tiny rosette. Seeded, so the plant is the same every time; leaves share one
+    // material (leafM) and stems and pots the palette, so they merge with the rest of the flat.
+    // o: {kind: 'monstera' | 'trailing' | 'succulent', seed, pot: [radius, height, hex], n, size (leaf length), height (stems),
+    //     spread, slits, variegated, arc: [from, to] (directions the leaves may point, radians; x = cos, z = sin), edge: {z, y, len}}.
+    const UP = new T.Vector3(0, 1, 0);
+    function rod(parent, p0, p1, r, hex) {
+      const d = new T.Vector3().subVectors(p1, p0), len = d.length();if (len < 1e-4) return;
+      const o = mesh(paint(new T.CylinderGeometry(r, r, len, 5, 1, true), hex), palette, parent);o.position.copy(p0).addScaledVector(d, .5);o.quaternion.setFromUnitVectors(UP, d.normalize());o.castShadow = false;
+    }
+    function leafOutline(type, L, W, slits, r) {
+      if (type === 'pointed') {const out = [[0, 0]];for (let k = 1; k <= 4; k++) out.push([W / 2 * Math.sin(Math.PI * k / 5) * (1 - .25 * k / 5), L * k / 5]);out.push([0, L]);for (let k = 4; k >= 1; k--) out.push([-W / 2 * Math.sin(Math.PI * k / 5) * (1 - .25 * k / 5), L * k / 5]);return out;}
+      // Heart: tip at (0, L), the two lobes reach back past the stem to y = -0.12 L, the notch at the stem; slits cut in from the
+      // edge toward the midrib.
+      const c = .42 * L, bot = -.12 * L, N = slits ? 14 : 7;
+      const P = th => {const up = th <= Math.PI / 2, sn = Math.sin(th);return [W / 2 * (up ? sn * (.55 + .45 * sn) : Math.pow(sn, .6)), up ? c + (L - c) * Math.cos(th) : c + (c - bot) * Math.cos(th)];};
+      const cuts = [];for (let k = 0; k < slits; k++) cuts.push(.2 * Math.PI + (k + .3 + r() * .4) * .62 * Math.PI / slits);
+      const eps = .022 * Math.PI, ths = [];
+      for (let j = 0; j < N; j++) {const th = Math.PI * .97 * j / (N - 1);if (!cuts.some(t => Math.abs(th - t) < eps * 1.5)) ths.push([th]);}
+      for (const t of cuts) ths.push([t - eps, t], [t + eps]);ths.sort((p, q) => p[0] - q[0]);
+      const right = [];
+      for (const [th, cut] of ths) {
+        const p = P(th);right.push(p);
+        if (cut !== undefined) {const e = P(cut), d = .45 + r() * .25, ty = e[1] - .08 * L;right.push([e[0] * (1 - d), e[1] + (ty - e[1]) * d]);}
+      }
+      const out = right.slice();out.push([W * .03, .03 * L], [-W * .03, .03 * L]);for (let i = right.length - 1; i >= 1; i--) out.push([-right[i][0], right[i][1]]);
+      return out;
+    }
+    // A leaf: outline in its own plane (x across, y along), set at `base`, pointing at yaw th (x = cos, z = sin) and pitch ph,
+    // folded a little along the midrib and drooping toward the tip; its UVs fill texture cell `cell` of LEAF.
+    function leaf(parent, base, th, ph, L, W, o) {
+      const pts = leafOutline(o.type || 'heart', L, W, o.slits || 0, o.r), sh = new T.Shape(pts.map(([x, y]) => new T.Vector2(x, y))), geo = new T.ShapeGeometry(sh);
+      const ys = pts.map(p => p[1]), y0 = Math.min(...ys), y1 = Math.max(...ys), cu = (o.cell % 2) * .5, cv = 1 - (Math.floor(o.cell / 2) + 1) * .5, m = .04;
+      const u = new T.Vector3(Math.cos(th) * Math.cos(ph), Math.sin(ph), Math.sin(th) * Math.cos(ph)), sd = new T.Vector3(-Math.sin(th), 0, Math.cos(th)), n = new T.Vector3().crossVectors(sd, u);
+      const P = geo.attributes.position, UV = geo.attributes.uv, droop = o.droop ?? .25, fold = o.fold ?? .12;
+      for (let i = 0; i < P.count; i++) {
+        const x = P.getX(i), y = P.getY(i), t = Math.max(0, y) / L, h = fold * Math.abs(x) - droop * t * t * L;
+        P.setXYZ(i, base.x + sd.x * x + u.x * y + n.x * h, base.y + u.y * y + n.y * h, base.z + sd.z * x + u.z * y + n.z * h);
+        UV.setXY(i, cu + .5 * (m + (1 - 2 * m) * (o.flip ? .5 - x / W : x / W + .5)), cv + .5 * (m + (1 - 2 * m) * (y - y0) / (y1 - y0)));
+      }
+      geo.computeVertexNormals();const me = mesh(geo, leafM, parent);me.castShadow = false;
+    }
+    function plant(parent, x, y, z, o) {
+      let s = o.seed || 1;const r = () => {s = (s * 16807) % 2147483647;return s / 2147483647;};
+      const [pr, ph, pc] = o.pot, top = y + ph, V = (a, b, c) => new T.Vector3(a, b, c);
+      pcyl(parent, pr, pr * .8, ph, x, y + ph / 2, z, pc, 14);pcyl(parent, pr * .88, pr * .88, .006, x, top + .004, z, 0x2a1f17, 14);
+      const [a0, a1] = o.arc || [0, 2 * Math.PI], soil = top + .007;
+      if (o.kind === 'succulent') {
+        const n = o.n || 11;for (let i = 0; i < n; i++) {const k = i / n, th = i * 2.4, L = o.size * (1 - .45 * k);leaf(parent, V(x + Math.cos(th) * pr * .25 * (1 - k), soil, z + Math.sin(th) * pr * .25 * (1 - k)), th, .35 + 1.0 * k, L, L * .5, {type: 'pointed', cell: 3, droop: -.15, fold: .3, r});}
+        return;
+      }
+      if (o.kind === 'trailing') {
+        // A crown of leaves on the pot, then strands over the shelf edge (o.edge: its z and the shelf top y) hanging down.
+        for (let i = 0; i < 12; i++) {const th = i * 2.4, b = V(x + Math.cos(th) * pr * .4, soil + r() * .02, z + Math.sin(th) * pr * .4);leaf(parent, b, th, .2 + r() * .6, o.size * (.8 + .4 * r()), o.size, {cell: 2, r, droop: .35});}
+        const E = o.edge;
+        for (let i = 0; i < (o.n || 7); i++) {
+          const th = a0 + (a1 - a0) * (i + .5) / (o.n || 7) + (r() - .5) * .25, rim = V(x + Math.cos(th) * pr, top, z + Math.sin(th) * pr);
+          const lip = V(x + Math.cos(th) * (E.z - z + .01) / Math.max(.3, Math.sin(th)), E.y + .012, E.z + .012), len = E.len * (.5 + .5 * r()), sway = (r() - .5) * .08;
+          const pts = [rim, lip, V(lip.x + sway * .5, lip.y - len * .5, lip.z + .02), V(lip.x + sway, lip.y - len, lip.z + .01)];
+          for (let k = 0; k < 3; k++) rod(parent, pts[k], pts[k + 1], .0025, 0x3d5a34);
+          for (const f of [.45, .85]) leaf(parent, V().lerpVectors(rim, lip, f), th + (r() - .5) * 1.2, -.1 + r() * .4, o.size, o.size * .85, {cell: 2, r, droop: .3});
+          const steps = Math.max(3, Math.round(len / .022));
+          for (let k = 0; k < steps; k++) {
+            const t = k / steps, seg = t < .5 ? 1 : 2, f = t < .5 ? t * 2 : t * 2 - 1, p = V().lerpVectors(pts[seg], pts[seg + 1], f), side = k % 2 ? 1 : -1, sz = o.size * (.65 + .35 * r()) * (1 - .3 * t);
+            leaf(parent, p, Math.PI / 2 + side * (.15 + r() * 1.3), -.6 + r() * 1.0, sz, sz * .85, {cell: 2, r, droop: .2});
+          }
+        }
+        return;
+      }
+      // Monstera: stems rise steeply from the soil, then bend outward to their leaf.
+      const n = o.n || 6;
+      for (let i = 0; i < n; i++) {
+        const th = a0 + (a1 - a0) * ((i * .618) % 1) + (r() - .5) * .3, k = .3 + .7 * r(), h = o.height * k, out = o.spread * (.3 + .7 * r());
+        const B = V(x + (r() - .5) * pr * .5, soil, z + (r() - .5) * pr * .5), S = V(B.x + Math.cos(th) * out, soil + h, B.z + Math.sin(th) * out), C = V(B.x + (S.x - B.x) * .15, S.y, B.z + (S.z - B.z) * .15);
+        let prev = B;for (const t of [.35, .7, 1]) {const q = V().copy(B).multiplyScalar((1 - t) * (1 - t)).addScaledVector(C, 2 * t * (1 - t)).addScaledVector(S, t * t);rod(parent, prev, q, o.stem || .005, o.stemHex || 0x5d8a44);prev = q;}
+        const L = o.size * (.7 + .3 * k);
+        leaf(parent, S, th, -.15 + .8 * r(), L, L * .9, {cell: o.variegated && r() < .7 ? 1 : 0, flip: r() < .5, slits: L > .1 ? (o.slits ?? 3) - (r() < .3 ? 1 : 0) : Math.min(1, o.slits ?? 1), r, droop: .3});
+      }
+    }
     // Wall with rectangular holes: cut into boxes around the holes. holes [{a0, a1, y0, y1}] along the wall's long axis.
     function holed(parent, a0, b0, a1, b1, y0, y1, holes, m) {
       const alongA = a1 - a0 >= b1 - b0, u0 = alongA ? a0 : b0, u1 = alongA ? a1 : b1;
@@ -566,7 +674,7 @@
       mirrorWardrobe(g, f) {pbox(g, f.w, f.h, f.d - .03, 0, f.h / 2, -.015, 0xefefea);for (const s of [-1, 1]) {const m = box(g, s > 0 ? .005 : -f.w / 2 + .02, f.d / 2 - .02, s > 0 ? f.w / 2 - .02 : -.005, f.d / 2 - .005, .05, f.h - .05, chrome);if (m) m.castShadow = false;}},
       builtIn(g, f) {const h = CEIL;pbox(g, f.w, h, f.d - .02, 0, h / 2, -.01, 0xf1f0eb);for (const s of [-1, 1]) {pbox(g, f.w / 2 - .008, h - .02, .018, s * f.w / 4, h / 2, f.d / 2 - .01, 0xf6f5f1);pbox(g, .015, .3, .02, s * .05, 1.05, f.d / 2 + .01, 0xbfc3c6);}pbox(g, f.w, .006, .02, 0, 2.25, f.d / 2 + .002, 0xdedcd5);},
       floorLamp(g) {pcyl(g, .14, .14, .02, 0, .01, 0, 0x222222);pcyl(g, .012, .012, 1.5, 0, .76, 0, 0x222222);const s = mesh(new T.CylinderGeometry(.13, .18, .24, 16, 1, true), glow, g);s.position.y = 1.55;s.castShadow = false;},
-      trolley(g) {for (const x of [-.22, .22]) for (const z of [-.16, .16]) pbox(g, .015, .8, .015, x, .4, z, 0x1b1b1b);for (const y of [.1, .42, .76]) pbox(g, .45, .02, .35, 0, y, 0, 0x1b1b1b);const bk = [0xd8c27a, 0x8a2f28, 0x2f4d6b, 0xe6e1d6, 0x3d5a3a];bk.forEach((c, i) => pbox(g, .03, .22, .2, -.15 + i * .05, .54, 0, c));pcyl(g, .07, .06, .12, .12, .84, 0, 0x6b4a2e);pbox(g, .18, .2, .18, .12, 1.0, 0, 0x3f7a3a);},
+      trolley(g) {for (const x of [-.22, .22]) for (const z of [-.16, .16]) pbox(g, .015, .8, .015, x, .4, z, 0x1b1b1b);for (const y of [.1, .42, .76]) pbox(g, .45, .02, .35, 0, y, 0, 0x1b1b1b);const bk = [0xd8c27a, 0x8a2f28, 0x2f4d6b, 0xe6e1d6, 0x3d5a3a];bk.forEach((c, i) => pbox(g, .03, .22, .2, -.15 + i * .05, .54, 0, c));plant(g, .12, .78, 0, {kind: 'monstera', seed: 7, pot: [.07, .12, 0x6b4a2e], n: 5, size: .1, height: .12, spread: .08, slits: 1});},
       dresser(g, f) {pbox(g, f.w, f.h, f.d, 0, f.h / 2, 0, f.color);for (let i = 1; i < 3; i++) pbox(g, f.w - .04, .006, .01, 0, i * f.h / 3, f.d / 2 + .003, 0x3a3a3a);pbox(g, .3, .35, .02, -.15, f.h + .18, -.12, 0x6d4c8a);pbox(g, .2, .25, .02, .2, f.h + .13, -.1, 0xe7e2d8);pcyl(g, .07, .07, .1, .3, f.h + .05, .05, 0xf3f3f3);},
       kitchen(g, f) {
         const L = f.rect[3] - f.rect[1], D = f.rect[2] - f.rect[0], x0 = -L / 2, z0 = -D / 2;
@@ -648,20 +756,19 @@
           }
         }
         const bk = [0x8c2f28, 0x2f4d6b, 0xd8cdb2, 0x3d5a3a, 0x1f1f22, 0xc9a24a, 0x6b4a7a, 0xe6e1d6, 0x2a6f6c, 0xb5643a];
-        const pot = (t0, r, h, c) => pcyl(g, r, r * .82, h, t0.x, t0.y + h / 2, t0.z, c, 12);
-        const leaves = (x, y, z, n, s, cols) => {for (let i = 0; i < n; i++) {const l = pbox(g, s, .012, s * .6, x + Math.cos(i * 2.4) * s * .4, y + (i / n) * s * 1.6, z + Math.sin(i * 2.4) * s * .4, cols[i % cols.length]);l.rotation.y = i * 2.4;l.rotation.z = .35;}};
         for (const th of L.things) {
           const {x, y, z} = th;
           if (th.name === 'books') {let u = x - th.w / 2, i = 0;while (u < x + th.w / 2 - .03) {const bw = .022 + (i * 7 % 5) * .004, bh = th.h - (i * 5 % 4) * .02;pbox(g, bw - .002, bh, th.d - (i % 3) * .02, u + bw / 2, y + bh / 2, z, bk[(i * 3) % bk.length]);u += bw;i++;}}
           else if (th.name === 'red table lamp') {pcyl(g, .05, .1, .2, x, y + .1, z, 0x24262a, 16);const s = mesh(new T.CylinderGeometry(.09, .12, .17, 16, 1, true), {glow: 0xd0483a}, g);s.position.set(x, y + .3, z);s.castShadow = false;}
           else if (th.name === 'receiver') {pbox(g, th.w, th.h, th.d, x, y + th.h / 2, z, 0xb9bec1);pbox(g, .18, .03, .01, x - .05, y + .08, z + th.d / 2 + .003, 0x1a1a1a);pcyl(g, .03, .03, .02, x + .14, y + .075, z + th.d / 2 + .008, 0xd0d4d6, 12).rotation.x = Math.PI / 2;}
-          else if (th.name === 'small plant' || th.name === 'plant in a white pot') {const small = th.name === 'small plant', ph = small ? .12 : .14;pot(th, th.w / 2, ph, 0xf3f1eb);leaves(x, y + ph, z, 7, small ? .12 : .16, [0x2f6b2f, 0x3f8a3a]);}
+          else if (th.name === 'small plant') plant(g, x, y, z, {kind: 'monstera', seed: 11, pot: [.07, .12, 0xf3f1eb], n: 5, size: .12, height: .17, spread: .1, slits: 2, arc: [-.3, Math.PI + .3]});
+          else if (th.name === 'plant in a white pot') plant(g, x, y, z, {kind: 'monstera', seed: 23, pot: [.08, .14, 0xf3f1eb], n: 6, size: .13, height: .22, spread: .12, slits: 3, stem: .004, arc: [-.3, Math.PI + .3]});
           else if (th.name === 'flat book') pbox(g, th.w, th.h, th.d, x, y + th.h / 2, z, 0x6b4a2e);
-          else if (th.name === 'trailing plant') {pot(th, .05, .1, 0xe8e2d4);for (let i = 0; i < 16; i++) {const l = pbox(g, .03, .022, .005, x + ((i * 5) % 7 - 3) * .012, y - .02 - i * .019, .135 + (i % 2) * .008, i % 3 ? 0x2a4f2c : 0x8fa684);l.rotation.z = i * .7;}}
+          else if (th.name === 'trailing plant') plant(g, x, y, z, {kind: 'trailing', seed: 37, pot: [.05, .1, 0xe8e2d4], n: 9, size: .05, arc: [.35, Math.PI - .35], edge: {z: Z + .3, y, len: .38}});
           else if (th.name === 'records on show') {pbox(g, th.w, .02, th.d, x, y + .01, z, 0x8a5a32);for (let i = 0; i < 7; i++) {const r = pbox(g, .31, .31, .005, x, y + .02 + .15, z - .045 + i * .014, bk[(i * 3 + 1) % bk.length]);r.rotation.x = -.22;}const p = plane(g, .31, .31, artM, cellUV(7));p.position.set(x, y + .02 + .15, z + .056);p.rotation.x = -.22;}
           else if (th.name === 'record player') {pbox(g, .38, .1, .32, x, y + .05, z, 0xb9bec1);pbox(g, .05, .012, .05, x + .14, y + .106, z - .1, 0x2a2a2a);}
           else if (th.name === 'mountain books') {pbox(g, th.w, .05, th.d, x, y + .025, z, 0x1f3a5a);pbox(g, th.w - .01, .05, th.d - .01, x, y + .075, z, 0x24466a);}
-          else if (th.name === 'succulent') {pot(th, .035, .05, 0xf4f2ee);pcyl(g, 0, .03, .05, x, y + .075, z, 0x4f8a4a, 6);}
+          else if (th.name === 'succulent') plant(g, x, y, z, {kind: 'succulent', seed: 41 + Math.round(x * 100), pot: [.035, .05, 0xf4f2ee], size: .034});
           else if (th.name === 'pillar candle') {pcyl(g, .06, .06, .01, x, y + .005, z, 0xe8e8e8, 16);pcyl(g, .035, .035, .14, x, y + .08, z, 0xf6f2e6, 14);}
           else if (th.name === 'clock') pbox(g, th.w, th.h, th.d, x, y + th.h / 2, z, 0x2a2c30);
           else if (th.name === 'woven lamp') {pcyl(g, .06, .07, .03, x, y + .015, z, 0xd8d8d4, 14);pcyl(g, .008, .008, .36, x, y + .21, z, 0xd8d8d4, 6);const s = mesh(new T.CylinderGeometry(.13, .16, .26, 18, 1, true), {glow: 0xf0a860}, g);s.position.set(x, y + .49, z);s.castShadow = false;}
@@ -681,12 +788,12 @@
       // A tall wooden speaker with a dark woven front; the left one carries the variegated monstera.
       speaker(g, f) {
         pbox(g, f.w, f.h, f.d, 0, f.h / 2, 0, 0x6e4426);pbox(g, f.w - .04, f.h - .06, .01, 0, f.h / 2 + .01, f.d / 2, 0x2b2a26);
-        if (f.plant) {pcyl(g, .11, .09, .2, 0, f.h + .1, 0, 0x1c1c1e, 14);for (let i = 0; i < 9; i++) {const l = pbox(g, .26, .015, .16, Math.cos(i * 2.4) * .13, f.h + .25 + (i % 4) * .09, Math.sin(i * 2.4) * .13, i % 2 ? 0xdcd8bc : 0x3f7a3a);l.rotation.y = i * 2.4;l.rotation.z = .4;}}
+        if (f.plant) plant(g, 0, f.h, 0, {kind: 'monstera', seed: 5, pot: [.11, .2, 0x1c1c1e], n: 9, size: .27, height: .42, spread: .3, slits: 3, variegated: true, stem: .006, stemHex: 0x7ea35e, arc: [.45, Math.PI + .4]});
       },
       // The thin brass floor lamp with a bare globe bulb.
       globeLamp(g) {pcyl(g, .1, .1, .02, 0, .01, 0, 0xb08040, 16);pcyl(g, .008, .008, 1.5, 0, .77, 0, 0xc8964a, 8);pcyl(g, .025, .025, .06, 0, 1.55, 0, 0xc8964a, 10);const b = mesh(new T.SphereGeometry(.09, 14, 10), {glow: 0xffd08a}, g);b.position.y = 1.67;b.castShadow = false;},
       guitar(g) {const b = pcyl(g, .17, .17, .1, 0, .3, 0, 0xc98a4a, 16);b.rotation.x = Math.PI / 2;b.rotation.z = .12;pcyl(g, .13, .13, .1, 0, .58, 0, 0xc98a4a, 16).rotation.x = Math.PI / 2;pbox(g, .05, .55, .03, -.04, .95, 0, 0x3a2414);},
-      plant(g, f) {pcyl(g, .14, .11, .25, 0, .125, 0, 0x2b2b2b, 14);for (let i = 0; i < 7; i++) {const l = pbox(g, .28, .02, .14, Math.cos(i) * .12, .3 + (i / 7) * f.h * .7, Math.sin(i * 2) * .12, i % 2 ? 0x2f6b2f : 0x3f8a3a);l.rotation.y = i * .9;l.rotation.z = .3;}},
+      plant(g, f) {plant(g, 0, 0, 0, {kind: 'monstera', seed: 3, pot: [.14, .25, 0x2b2b2b], n: 7, size: .24, height: f.h * .6, spread: .28, slits: 3, stem: .006, arc: [Math.PI - .3, 2 * Math.PI + .3]});},
       shoeRack(g) {for (const y of [.08, .26, .44]) {pbox(g, .8, .012, .012, 0, y, -.1, 0x1b1b1b);pbox(g, .8, .012, .012, 0, y + .03, .1, 0x1b1b1b);}for (const x of [-.4, .4]) pbox(g, .015, .5, .25, x, .25, 0, 0x1b1b1b);[0xf0a020, 0x6a6a6a, 0xd94a2a, 0x2a2a2a, 0x8a7a6a, 0x3a5a8a].forEach((c, i) => pbox(g, .11, .08, .26, -.3 + (i % 3) * .28, .12 + Math.floor(i / 3) * .2, 0, c));}
     };
     for (const f of data.furniture) {
@@ -742,7 +849,7 @@
       for (let i = 0; i < 6; i++) for (let j = 0; j < 5; j++) pbox(dg, .012, .012, .006, -.09 + i * .036, .19 + j * .036, .1, 0xb3ab96);
       {const [ba, bb] = B.baskets;pcyl(inner, .1, .09, .09, ba, y + WT + .045, bb, 0xd8cfb4, 16);pcyl(inner, .085, .08, .08, ba, y + WT + .13, bb, 0xc9d3b0, 16);pcyl(inner, .088, .088, .012, ba, y + WT + .176, bb, 0xc4cea8, 16);}
       // The dark green mat; the extractor fan.
-      {const [ma, mb, mw, md] = B.mat;pbox(inner, mw, .014, md, ma, y + .007, mb, 0x24453a);}
+      {const [ma, mb, mw, md] = B.mat;box(inner, ma - mw / 2, mb - md / 2, ma + mw / 2, mb + md / 2, y + .002, y + .02, bathMat);}
       pcyl(inner, .07, .07, .02, 12.9, y + CEIL - .01, 6.6, 0xe9e9e6, 14);
       // Collision: vanity, toilet, washer (with what stands on it), the ladder and the shower cabin (its quadrant).
       const sq = (a0, b0, a1, b1, h) => ({pts: [[a0, b0], [a1, b0], [a1, b1], [a0, b1]], minY: y, maxY: y + h});

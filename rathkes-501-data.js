@@ -165,5 +165,5 @@
   // the dehumidifier and two woven baskets on it, a dark green mat, an egg-shaped ceiling lamp, the extractor fan.
   // vanity/toilet/washer: [a, wall b]; shower: its corner and radius; dehumidifier and baskets: [a, b] on the washer (0.85 m).
   bathroom: {vanity: [11.6, 5.02], toilet: [11.75, 7.08], washer: [10.87, 7.08], shower: {corner: [13.4, 7.08], r: .88}, ladder: [13.4, 5.65],
-    mat: [11.55, 5.98, .8, .5], roll: [12.15, 6.85], dehumidifier: [10.74, 6.92], baskets: [11.03, 6.93], washerTop: .85}
+    mat: [11.55, 5.98, .9, .5], roll: [12.15, 6.85], dehumidifier: [10.74, 6.92], baskets: [11.03, 6.93], washerTop: .85}
 });
