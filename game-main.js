@@ -1953,7 +1953,8 @@
     if (player.mode === 'jumpseat' && R) {const D = doorOf(R.craft);wind = D.k * (R.atDoor ? 1 : .55) * Math.min(1, R.craft.speed / 45);}
     audio.rush(wind);
   }
-  function toggleDoor(R) {
+  // (Not toggleDoor: that is the buildings' doors, further up. Two functions of one name: the later one wins, and no door opened.)
+  function toggleJumpDoor(R) {
     const D = doorOf(R.craft), open = !D.open;D.rec = {t: skyClock(), open};D.open = open;mp.sendObj(R.craft === caravan ? 'skydoor1' : 'skydoor0', SKY.doorEncode(D.rec));
     audio.sfx(open ? 'doorOpen' : 'doorClose');notice(open ? 'Door open · ✕ / Space: jump · □ / E close it · ○ / C back to your seat' : 'Door closed · □ / E open it again · ○ / C back to your seat', 3);
   }
@@ -1977,7 +1978,7 @@
       if (act === 'getOff') {leaveSeat();return;}
       if (act === 'toDoor') goToDoor(R);
       else if (act === 'toSeat') {R.atDoor = false;player.lookYaw = 0;player.lookPitch = 0;}
-      else if (act === 'toggle') toggleDoor(R);
+      else if (act === 'toggle') toggleJumpDoor(R);
       else if (act === 'openFirst') notice('Open the door first: □ / E', 2);
       else if (act === 'wait') notice('Wait until the plane is in the air.', 2);
       break;

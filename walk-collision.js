@@ -252,13 +252,21 @@
   // maxTop (ledges) / maxVault (thin things) at which you get over it, with room to rise where you are (else null: a low ceiling).
   //  - a place to stand just ahead at about that height (a ledge, a wall's top, a car roof): {x, z, y: where you stand, over: h}
   //  - else, for h <= maxVault, open ground beyond (a fence, a railing, a hedge): {x, z, y: null, over: h, vault: true}
+  // Can you pass at height y everywhere on the straight line from a to b (looked at every half radius)?
+  function freeWay(world,a,b,eyeHeight,y) {
+    const n=Math.max(2,Math.ceil(Math.hypot(b.x-a.x,b.z-a.z)/Math.max(.02,world.radius*.5)));
+    for (let i=1;i<n;i++) if (!canPass(world,lerp(a,b,i/n),eyeHeight,y,Infinity)) return false;
+    return true;
+  }
   function climbAt(world,p,dir,eyeHeight,from,maxTop,maxVault=maxTop,maxDrop=MAX_DROP) {
     const at=d=>({x:p.x+dir.x*(world.radius+d),z:p.z+dir.z*(world.radius+d)});
     for (let h=from;h<=maxTop+.051;h+=.1) {
       if (!canPass(world,p,eyeHeight,h,Infinity)) return null;// a low ceiling over you: no higher try can work
       for (const d of [.12,.3,.5,.75]) {
         const q=at(d);
-        if (!canPass(world,q,eyeHeight,h,maxDrop) || !canPass(world,lerp(p,q,.5),eyeHeight,h,Infinity)) continue;
+        // The whole way over must be free at this height, not only its end and its middle: a closed door or a pane of glass
+        // is thinner than the gap between two looks, and you were pulled through it.
+        if (!canPass(world,q,eyeHeight,h,maxDrop) || !freeWay(world,p,q,eyeHeight,h)) continue;
         const g=groundBelow(world,q,h+STEP);if (!g) continue;
         if (g.y>=h-.3) {if (canStand(world,q,eyeHeight,g.y)) return {x:q.x,z:q.z,y:g.y,over:Math.max(h,g.y)};continue;}
         if (h<=maxVault+.051 && canPass(world,q,eyeHeight,g.y+.05,Infinity)) return {x:q.x,z:q.z,y:null,over:h,vault:true};

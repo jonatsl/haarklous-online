@@ -84,3 +84,18 @@ test('over a railing you drop to the ground below, but not off a high balcony',(
   const h=jump(high,{x:0,y:10,vx:4});
   assert.equal(h.s.y,10);assert.ok(h.s.x<1);
 });
+
+test('a jump never takes you through a thin, tall solid (a closed door, a thin wall, a glass pane)',()=>{
+  // A door leaf 4 cm thick and 2 m tall across the way, flat floor on both sides. Run and jump at it in every way.
+  for (const thick of [.02,.04,.06,.1]) for (const hold of [0,.1,.3,1]) for (const vx of [2,4,6,9]) for (const x0 of [2.75,2.5,1.5,0]) {
+    const w=C.createWorld({floors:[ground()],obstacles:[{points:rect(3,-3,thick,6),minY:0,maxY:2}]});
+    const r=jump(w,{x:x0,vx,hold});
+    assert.ok(r.s.x<3,`thick ${thick} hold ${hold} speed ${vx} from ${x0}: ended at x ${r.s.x.toFixed(2)}${r.mantle ? ' (pulled over)' : ''}`);
+    // Keep jumping against it, as a player does.
+    let x=r.s.x;for (let k=0;k<4;k++) {const q=jump(w,{x,vx:1,wish:6,hold:k%2 ? 1 : .15});x=q.s.x;assert.ok(x<3,`thick ${thick}: jump ${k+2} against the door ended at x ${x.toFixed(2)}`);}
+  }
+  // A low fence is still vaulted, a ledge still climbed (the path over them is free).
+  const fence=C.createWorld({floors:[ground()],obstacles:[{points:rect(3,-3,.06,6),minY:0,maxY:1.1}]});
+  let over=false;for (const x0 of [2.6,2.2,1.5]) {let x=x0;for (let k=0;k<3 && !over;k++) {const q=jump(fence,{x,vx:3,wish:6,hold:1});x=q.s.x;over=x>3.1;}}
+  assert.ok(over,'a 1.1 m fence can be got over');
+});

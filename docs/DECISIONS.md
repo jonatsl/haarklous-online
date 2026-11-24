@@ -89,6 +89,15 @@ Live site: runs `main` (Worker version 3766909d, deployed 23 Nov 2026 after PR #
 
 ## Log
 
+### 2026-11-24 · Doors open again, and a jump no longer goes through a closed door
+- **What was wrong:**
+  - **No door in a building opened with □** (flat doors, street doors, the doors of the library, Rathkes gate and the police house). The skydiving update (issue #165, 23 Nov) added a second function called `toggleDoor`, for the jump plane's door, to `game-main.js`. Two functions of one name in the same place: the later one silently replaces the earlier one. So □ at a door opened or closed the jump plane's door (and showed its notice) instead.
+  - **A jump could take you through a closed door.** When a jump is stopped by something, the game looks for a ledge to pull you up onto or a low fence to vault (`climbAt`). It looked at the landing spot and at one point half way, and a door leaf (2–6 cm) is thinner than the gap between those two looks. So jumping against a closed door pulled you through it to the floor on the other side. The same held for any thin, tall solid (a pane of glass, a thin wall).
+- **Fix:** the plane's door function is now `toggleJumpDoor`; `climbAt` checks the whole way over at that height (`freeWay`, a look every half body radius).
+- **Where:** `game-main.js`, `walk-collision.js`, `tests/main-names.test.cjs` (new: no function is declared twice in game-main.js), `tests/jumping.test.cjs` (new: a jump never goes through a thin, tall solid; a 1.1 m fence is still got over).
+- **Checked:** `node --test` (396 pass; both new tests fail on the old code). In the browser: the flat's entrance and bathroom doors, a flat door in the stairwell and the street door open with □ and can be walked through. Before the second fix, held jumps went through 4 of the first 30 closed doors tried (the flat's entrance door, a street door, the two Rathkes gates); after it, the same four did not let me through.
+- **Status:** on branch `feat/weapons-missions`, in PR #180 (https://github.com/jonatsl/haarklous-online/pull/180).
+
 ### 2026-11-24 · The feed: posts and pictures for your friends (issue #184)
 - **What:** a new panel, **Feed**, opened from the pause menu (the button, R3, or O; O also opens it straight from the game).
   - **Write:** a text of up to 280 characters, typed with the keyboard, or with the controller's on-screen keyboard (✕ on "Write").
